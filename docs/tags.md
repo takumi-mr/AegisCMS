@@ -42,15 +42,15 @@ With `enabled = false`, the API returns `404`, and "Settings → Tags" in Admin 
 
 For authorization, listing and reading need `viewer` or above, and creating, updating, deleting, and attaching/detaching need `editor` or above.
 
-| Method and path | Description |
-| --- | --- |
-| `GET /api/v1/tags?q=&limit=&offset=` | A list of tags (ascending by name). `q` is a substring match on name and slug, and `limit` is 50 by default and 200 at most. Each tag includes `usage`, the number of content items attached |
-| `POST /api/v1/tags` | Create. `{"name": "Rust", "slug": "rust", "description": "…"}` (`slug` and `description` can be omitted). `201` |
-| `PUT /api/v1/tags/{id}` | Change the name, slug, and description. `name` is required, and if `slug` is omitted it stays as is |
-| `DELETE /api/v1/tags/{id}` | Delete. `204` |
-| `GET /api/v1/contents/{type}/{slug_or_id}/tags` | The content's tags (ascending by name) |
-| `PUT /api/v1/contents/{type}/{slug_or_id}/tags` | Replace the content's tags. `{"tag_ids": ["…"]}` (empty detaches all; duplicates are merged into one; nonexistent tags and a count over `max_per_content` return `400`) |
-| `GET /api/v1/contents/{type}?tag={slug_or_id}` | Tag filtering of the content list. Specify the tag's slug or ID. Returns `404` when `[tags].enabled = false` |
+| Method and path                                 | Description                                                                                                                                                                                  |
+| ----------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET /api/v1/tags?q=&limit=&offset=`            | A list of tags (ascending by name). `q` is a substring match on name and slug, and `limit` is 50 by default and 200 at most. Each tag includes `usage`, the number of content items attached |
+| `POST /api/v1/tags`                             | Create. `{"name": "Rust", "slug": "rust", "description": "…"}` (`slug` and `description` can be omitted). `201`                                                                              |
+| `PUT /api/v1/tags/{id}`                         | Change the name, slug, and description. `name` is required, and if `slug` is omitted it stays as is                                                                                          |
+| `DELETE /api/v1/tags/{id}`                      | Delete. `204`                                                                                                                                                                                |
+| `GET /api/v1/contents/{type}/{slug_or_id}/tags` | The content's tags (ascending by name)                                                                                                                                                       |
+| `PUT /api/v1/contents/{type}/{slug_or_id}/tags` | Replace the content's tags. `{"tag_ids": ["…"]}` (empty detaches all; duplicates are merged into one; nonexistent tags and a count over `max_per_content` return `400`)                      |
+| `GET /api/v1/contents/{type}?tag={slug_or_id}`  | Tag filtering of the content list. Specify the tag's slug or ID. Returns `404` when `[tags].enabled = false`                                                                                 |
 
 Errors are returned with an English `error` ([Implementation conventions](../CLAUDE.md#1a-実装規約)).
 
@@ -63,12 +63,12 @@ Errors are returned with an English `error` ([Implementation conventions](../CLA
 
 When `[tags].enabled = true`, the following pages are added to the public site. With `[tags].enabled = false`, all of them are `404`.
 
-| URL | Description |
-| --- | --- |
-| `/tags/{slug}` | **Published** articles, static pages, and products (when e-commerce is enabled) with that tag, newest publication date first. `?page=N` pages through them (`[theme].posts_per_page` at a time). The template is `tag.html` |
-| `/tags` | A list of tags that have one or more published content items (by name) and their counts. The template is `tags.html` |
-| `/tags/{slug}/feed.xml` | The Atom feed of **articles** with that tag (static pages and products are not included) |
-| `/sitemap.xml` | Includes `/tags` and the pages of tags that have published content |
+| URL                     | Description                                                                                                                                                                                                                 |
+| ----------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `/tags/{slug}`          | **Published** articles, static pages, and products (when e-commerce is enabled) with that tag, newest publication date first. `?page=N` pages through them (`[theme].posts_per_page` at a time). The template is `tag.html` |
+| `/tags`                 | A list of tags that have one or more published content items (by name) and their counts. The template is `tags.html`                                                                                                        |
+| `/tags/{slug}/feed.xml` | The Atom feed of **articles** with that tag (static pages and products are not included)                                                                                                                                    |
+| `/sitemap.xml`          | Includes `/tags` and the pages of tags that have published content                                                                                                                                                          |
 
 - **Article, static page, and product pages**, and each article in article lists (top, `/articles`, categories), get their tags in `fields.tags`. Each tag has `id`, `slug`, `name`, `description`, and `url` (the tag's page, including `base_path`). If the schema has a field named `tags`, that one takes priority and `fields.tags` is not overwritten.
 - **The built-in templates** (`tag.html`, `tags.html`), the built-in article and static page templates, and the `article.html` of the 5 bundled themes output links to the tags (`rel="tag"`). In your own theme you can write:

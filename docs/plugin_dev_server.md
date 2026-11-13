@@ -38,6 +38,7 @@ curl http://127.0.0.1:8091/__dev/api/plugin
 ```
 
 **Example response**:
+
 ```json
 {
   "manifest": {
@@ -65,18 +66,18 @@ curl http://127.0.0.1:8091/__dev/api/plugin
 
 Returns the standard input for every hook. The values are exactly the JSON the host actually passes to the hook (no wrapper such as `{"post": {...}}`).
 
-| Hook | Input (Rust type) |
-| --- | --- |
-| `on-before-save` | `PostContext` |
-| `transform-content-ast` | An array of `BlockNode` |
-| `render-blocks` | `{"blocks": [BlockNode, ...]}` (the result is `{"html": ["<div>…</div>", null, ...]}`; `null` is a block this plugin does not render) |
-| `on-render-page` | `PageRenderContext` |
-| `calculate-order` | `OrderContext` |
-| `on-order-status-changed` | `OrderStatusChange` |
-| `on-content-published` | `PublishedContent` |
-| `check-comment` | `CommentSubmission` (the result is `CommentVerdict`) |
-| `send-notification` | `NotificationMessage` |
-| `on-user-authenticated` | `UserAuthContext` |
+| Hook                      | Input (Rust type)                                                                                                                     |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| `on-before-save`          | `PostContext`                                                                                                                         |
+| `transform-content-ast`   | An array of `BlockNode`                                                                                                               |
+| `render-blocks`           | `{"blocks": [BlockNode, ...]}` (the result is `{"html": ["<div>…</div>", null, ...]}`; `null` is a block this plugin does not render) |
+| `on-render-page`          | `PageRenderContext`                                                                                                                   |
+| `calculate-order`         | `OrderContext`                                                                                                                        |
+| `on-order-status-changed` | `OrderStatusChange`                                                                                                                   |
+| `on-content-published`    | `PublishedContent`                                                                                                                    |
+| `check-comment`           | `CommentSubmission` (the result is `CommentVerdict`)                                                                                  |
+| `send-notification`       | `NotificationMessage`                                                                                                                 |
+| `on-user-authenticated`   | `UserAuthContext`                                                                                                                     |
 
 The types are in `aegis-core` / `aegis-ast`, and tests check that each fixture can be loaded into its type.
 
@@ -109,6 +110,7 @@ curl -X POST http://127.0.0.1:8091/__dev/api/invoke \
 ```
 
 **Example response**:
+
 ```json
 {
   "success": true,
@@ -183,6 +185,7 @@ curl -X POST http://127.0.0.1:8091/__dev/api/preview \
 ```
 
 **Example response**:
+
 ```json
 {
   "html": "<!DOCTYPE html><html lang=\"en\"><head><meta charset=\"utf-8\"><title>Plugin Preview</title><style>...</style></head><body><div class=\"preview-wrapper\"><div class=\"rendered-blocks\"><div class=\"block-item\"><div class=\"cta-banner\">Special Offer!</div></div></div></div></body></html>"
@@ -194,12 +197,12 @@ curl -X POST http://127.0.0.1:8091/__dev/api/preview \
 Runs the plugin folder's build command and returns the result, the output log (stdout/stderr), and the time taken (ms).
 The build command is decided in this order.
 
-| Priority | Specification | Behavior |
-| --- | --- | --- |
-| 1 | `--build-command "<command>"` | Runs that command. **It is the command's job to place the artifact at the `entrypoint` (`plugin.wasm`)** (e.g. `cargo build --target wasm32-unknown-unknown --release && cp ... plugin.wasm`) |
-| 2 | `"dev": { "build_command": "<command>" }` in the manifest | Same as above (when you want to fix it per plugin) |
-| 3 | `Cargo.toml` (Rust) | Runs `cargo build --target wasm32-unknown-unknown --release`, and on success **automatically copies** the cdylib artifact (under `target/`) to the `entrypoint`. Works for both workspace members and standalone crates (it finds the artifact with `cargo metadata`). A release build, so fuel is measured under the same conditions as production |
-| 4 | `package.json` (AssemblyScript) | `npm run asbuild`, or `npm run build` if absent |
+| Priority | Specification                                             | Behavior                                                                                                                                                                                                                                                                                                                                            |
+| -------- | --------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1        | `--build-command "<command>"`                             | Runs that command. **It is the command's job to place the artifact at the `entrypoint` (`plugin.wasm`)** (e.g. `cargo build --target wasm32-unknown-unknown --release && cp ... plugin.wasm`)                                                                                                                                                       |
+| 2        | `"dev": { "build_command": "<command>" }` in the manifest | Same as above (when you want to fix it per plugin)                                                                                                                                                                                                                                                                                                  |
+| 3        | `Cargo.toml` (Rust)                                       | Runs `cargo build --target wasm32-unknown-unknown --release`, and on success **automatically copies** the cdylib artifact (under `target/`) to the `entrypoint`. Works for both workspace members and standalone crates (it finds the artifact with `cargo metadata`). A release build, so fuel is measured under the same conditions as production |
+| 4        | `package.json` (AssemblyScript)                           | `npm run asbuild`, or `npm run build` if absent                                                                                                                                                                                                                                                                                                     |
 
 When you save a source file (`.rs`, `.ts`, etc.), this command runs automatically, and on success the page is reloaded. The dev server reads only the `entrypoint` file, so for anything other than 3, make the command one that updates the `entrypoint` as above (if it is not updated, the build succeeds but the display does not change).
 

@@ -35,15 +35,15 @@ When enabled, the beacon goes into the `<head>` (`extra_head`) of every public p
 
 ## 2. What Is Counted
 
-| Item | Description |
-| --- | --- |
-| Page views | The number of times a page was displayed |
-| Visitors | Unique visitors for the day. The same person on different days is counted separately (a period's visitor count is the sum of the days) |
-| Most viewed pages | Page views and visitors per path (excluding the query string and anything after `#`) |
-| Referrers | The referrer host name (without `www.`) of page views that came from other sites. "Direct / no referrer" is from bookmarks, apps, and sites that do not send a referrer. Navigation within the site is not counted |
-| Devices | `desktop` / `mobile` / `tablet`, determined from the User-Agent |
-| Search keywords | Keywords searched on the public search page (`/search?q=...`) (counted only for the first page) |
-| Searches with no results | Keywords whose search returned 0 results (for analyzing demand for content users want) |
+| Item                     | Description                                                                                                                                                                                                        |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Page views               | The number of times a page was displayed                                                                                                                                                                           |
+| Visitors                 | Unique visitors for the day. The same person on different days is counted separately (a period's visitor count is the sum of the days)                                                                             |
+| Most viewed pages        | Page views and visitors per path (excluding the query string and anything after `#`)                                                                                                                               |
+| Referrers                | The referrer host name (without `www.`) of page views that came from other sites. "Direct / no referrer" is from bookmarks, apps, and sites that do not send a referrer. Navigation within the site is not counted |
+| Devices                  | `desktop` / `mobile` / `tablet`, determined from the User-Agent                                                                                                                                                    |
+| Search keywords          | Keywords searched on the public search page (`/search?q=...`) (counted only for the first page)                                                                                                                    |
+| Searches with no results | Keywords whose search returned 0 results (for analyzing demand for content users want)                                                                                                                             |
 
 Not counted:
 
@@ -78,10 +78,10 @@ Dates are split in UTC.
 
 `GET /api/v1/analytics/summary?from=2026-10-01&to=2026-10-31&limit=10` (viewer and above)
 
-| Parameter | Description |
-| --- | --- |
+| Parameter     | Description                                                                                              |
+| ------------- | -------------------------------------------------------------------------------------------------------- |
 | `from` / `to` | The period (`YYYY-MM-DD`, UTC, both ends inclusive; up to 366 days). If omitted, the 30 days up to today |
-| `limit` | Number of top pages, referrers, and devices (default 10, max 100) |
+| `limit`       | Number of top pages, referrers, and devices (default 10, max 100)                                        |
 
 ```json
 {

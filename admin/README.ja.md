@@ -10,25 +10,25 @@
 ## 🌟 主な特徴
 
 - **ゼロトラスト・ブロックエディタ**:
-  - 見出し（H1〜H6）、段落、リスト、コードブロック（シンタックス指定対応）、画像、表（`TableBlockEditor.tsx`。行・列の追加と削除、見出し行、列の揃え）、目次、引用、注記、折りたたみ（Q&A）、区切り線、カスタムHTMLブロックの追加・編集（ブロックの仕様は [本文のブロック](../docs/blocks.ja.md)）。
-  - 有効なプラグインのカスタムブロック（`GET /api/v1/blocks`）もツールバーに並び、マニフェストで宣言された入力欄から作ったフォーム（`PluginBlockEditor.tsx`）で編集する（[本文のブロック 4](../docs/blocks.ja.md#4-プラグインのブロック)）。
-  - 段落・リスト・表のセルなどでは `**太字**`・`*斜体*`・`` `コード` ``・`[リンク](URL)` のインライン書式が使える。
-  - 直感的なブロック並び替え（Up / Down）と安全なノード削除。
-  - AST 構造（`BlockNode`）を直接編集し、生の不正スクリプト注入を構造的に防止。
+    - 見出し（H1〜H6）、段落、リスト、コードブロック（シンタックス指定対応）、画像、表（`TableBlockEditor.tsx`。行・列の追加と削除、見出し行、列の揃え）、目次、引用、注記、折りたたみ（Q&A）、区切り線、カスタムHTMLブロックの追加・編集（ブロックの仕様は [本文のブロック](../docs/blocks.ja.md)）。
+    - 有効なプラグインのカスタムブロック（`GET /api/v1/blocks`）もツールバーに並び、マニフェストで宣言された入力欄から作ったフォーム（`PluginBlockEditor.tsx`）で編集する（[本文のブロック 4](../docs/blocks.ja.md#4-プラグインのブロック)）。
+    - 段落・リスト・表のセルなどでは `**太字**`・`*斜体*`・`` `コード` ``・`[リンク](URL)` のインライン書式が使える。
+    - 直感的なブロック並び替え（Up / Down）と安全なノード削除。
+    - AST 構造（`BlockNode`）を直接編集し、生の不正スクリプト注入を構造的に防止。
 - **リアルタイム HTML プレビュー**:
-  - 編集中のブロックをサーバーのプレビュー API（`POST /api/v1/preview`）でレンダリングし、保存して公開ページで表示した場合と同じ HTML（見出しの id、プラグインの AST 変換、リンク・画像の書き換えを含む）を表示。入力が 300ms 止まるごとに更新し、更新待ちの間は前回の結果を薄く表示。
-  - **Themed Page** タブでは、テーマのテンプレートと `on-render-page` フックを適用したページ全体を `iframe`（`src` はサーバーが置いたページの URL、`sandbox="allow-scripts"`。プラグインの Mermaid 描画などのスクリプトは公開ページと同じに動くが、Admin Studio のオリジンには入れない）で表示（タイトル・slug・カテゴリの変更も反映）。
-  - レンダリング結果をタブでプレビューと HTML ソースコード表示に切り替え可能。「HTML 出力」のタブは、本文の HTML を `iframe`（サーバーが置いた文書。`body_frame_key`・`body_url`）で見せる（Admin Studio の CSP は、インラインのスタイルを許さないため。[csp.md の 1.1](../docs/csp.ja.md#11-admin-studio-の-style-src)）。
-  - 記事・ページに「閲覧できる人」（会員レベル）を設定しているときは、プレビューの上の **見る人**（スタッフ・ゲスト・会員のレベル別）で、その読者に見える姿（区切りより前と案内）を確かめられる。本物の会員のセッションは使わず、サーバーが公開ページと同じ判定で描画する（`POST /api/v1/preview` の `viewer`。[members.md 15.6](../docs/members.ja.md#156-プレビューとの関係)）。
-  - タブ右の **全画面表示**（Esc で戻る）と **別ウィンドウで開く**（`iframe` と同じ URL をそのまま開く。その時点のページで、更新は追従しない）。ページは `Content-Security-Policy: sandbox allow-scripts`（不透明なオリジン）つきで返るので、別ウィンドウでもセッショントークンには届かない。
+    - 編集中のブロックをサーバーのプレビュー API（`POST /api/v1/preview`）でレンダリングし、保存して公開ページで表示した場合と同じ HTML（見出しの id、プラグインの AST 変換、リンク・画像の書き換えを含む）を表示。入力が 300ms 止まるごとに更新し、更新待ちの間は前回の結果を薄く表示。
+    - **Themed Page** タブでは、テーマのテンプレートと `on-render-page` フックを適用したページ全体を `iframe`（`src` はサーバーが置いたページの URL、`sandbox="allow-scripts"`。プラグインの Mermaid 描画などのスクリプトは公開ページと同じに動くが、Admin Studio のオリジンには入れない）で表示（タイトル・slug・カテゴリの変更も反映）。
+    - レンダリング結果をタブでプレビューと HTML ソースコード表示に切り替え可能。「HTML 出力」のタブは、本文の HTML を `iframe`（サーバーが置いた文書。`body_frame_key`・`body_url`）で見せる（Admin Studio の CSP は、インラインのスタイルを許さないため。[csp.md の 1.1](../docs/csp.ja.md#11-admin-studio-の-style-src)）。
+    - 記事・ページに「閲覧できる人」（会員レベル）を設定しているときは、プレビューの上の **見る人**（スタッフ・ゲスト・会員のレベル別）で、その読者に見える姿（区切りより前と案内）を確かめられる。本物の会員のセッションは使わず、サーバーが公開ページと同じ判定で描画する（`POST /api/v1/preview` の `viewer`。[members.md 15.6](../docs/members.ja.md#156-プレビューとの関係)）。
+    - タブ右の **全画面表示**（Esc で戻る）と **別ウィンドウで開く**（`iframe` と同じ URL をそのまま開く。その時点のページで、更新は追従しない）。ページは `Content-Security-Policy: sandbox allow-scripts`（不透明なオリジン）つきで返るので、別ウィンドウでもセッショントークンには届かない。
 - **予約公開・予約非公開化**: エディタ・商品フォームの状態で「予約公開」を選び、公開日時（`datetime-local`）を入れて保存すると、その日時にサーバーが公開する。また、公開中・予約公開のコンテンツに非公開予定日時（`unpublish_at`）を指定することで期間限定公開が可能。一覧にはステータスバッジに加え非公開予定アイコン（ツールチップに日時）を表示（[予約公開・予約非公開化](../docs/theme_and_publishing_guide.ja.md#予約公開スケジュール公開)）。
 - **公開スケジュール・カレンダー (Calendar)**: ヘッダーの「カレンダー」タブ（`ScheduleCalendar.tsx`）から、全コンテンツタイプの公開予定・非公開予定・公開中アイテムを月間カレンダーおよびアジェンダ形式で一覧表示。コンテンツタイプ・予定種別による絞り込み、詳細モーダルからの非公開日時のクイック編集・解除、エディタへの直接遷移に対応。
 - **アクセス解析 (Analytics)**: `[analytics].enabled = true` のときだけ出るヘッダーの「アクセス解析」タブ（`AnalyticsView.tsx`）で、過去 7 / 30 / 90 日のページビュー・訪問者の推移（グラフと表。グラフは矢印キーでも読める）、よく見られたページ・参照元・端末を表示（[docs/analytics.ja.md](../docs/analytics.ja.md)）。
 - **問い合わせ (Inbox)**: `[contact].enabled = true` のとき editor 以上に出るヘッダーの「問い合わせ」タブ（`ContactInbox.tsx`）で、問い合わせフォームから届いたメッセージを新着・既読・対応済み・スパムに分けて一覧・詳細表示・メールで返信・まとめて状態の変更・削除。本文には「問い合わせフォーム」ブロック（`core/contact-form`、Markdown では `[CONTACT]`）を置ける（[docs/contact.ja.md](../docs/contact.ja.md)）。
 - **Markdown 編集 & 貼り付け**:
-  - エディタ上部の **Blocks / Markdown** で編集方法を切り替える。ブロックと Markdown は相互に変換され（`utils/markdown.ts` の `blocksToMarkdown` / `markdownToBlocks`。見出し・段落・コード・画像・リスト・表・目次（`[TOC]`）・引用・注記（`> [!NOTE]`・`:::note`）・折りたたみ（`:::details`）・区切り線・プラグインのブロック（`::: <名前> {属性の JSON}`））、どちらで編集してもプレビューと保存は同じブロックから行う。
-  - Markdown エディタ（`MarkdownEditor.tsx`）: 書式の挿入ツールバー、Tab でのインデント、Ctrl+S で保存、行数・文字数・ブロック数の表示。
-  - ブロックエディタに Markdown を貼り付けるとブロックに変換して追加する。**Paste Markdown**（`PasteMarkdownModal.tsx`）ではクリップボードを読み込み、変換結果の内訳を確かめてから末尾に追加か全置換を選ぶ。
+    - エディタ上部の **Blocks / Markdown** で編集方法を切り替える。ブロックと Markdown は相互に変換され（`utils/markdown.ts` の `blocksToMarkdown` / `markdownToBlocks`。見出し・段落・コード・画像・リスト・表・目次（`[TOC]`）・引用・注記（`> [!NOTE]`・`:::note`）・折りたたみ（`:::details`）・区切り線・プラグインのブロック（`::: <名前> {属性の JSON}`））、どちらで編集してもプレビューと保存は同じブロックから行う。
+    - Markdown エディタ（`MarkdownEditor.tsx`）: 書式の挿入ツールバー、Tab でのインデント、Ctrl+S で保存、行数・文字数・ブロック数の表示。
+    - ブロックエディタに Markdown を貼り付けるとブロックに変換して追加する。**Paste Markdown**（`PasteMarkdownModal.tsx`）ではクリップボードを読み込み、変換結果の内訳を確かめてから末尾に追加か全置換を選ぶ。
 - **商品・注文 (Products / Orders)**: 商品の作成・編集（価格・在庫・SKU・画像）と、商品一覧の検索（名前・スラッグ・SKU・要約）・状態での絞り込み・1 ページ 25 件のページ送り（一覧は要約だけを取得し、開くときに 1 件の全体を取得）、注文の一覧・詳細・状態の変更（入金確認・発送・取り消し）。タブは EC が有効（`[commerce].enabled`）なときだけ表示する（[EC](../docs/commerce.ja.md#33-admin-studio)）。
 - **コメント (Comments)**: 読者のコメントの承認・承認の取り消し・スパム・ゴミ箱・削除（1 件・まとめて）、本文の編集、返信、コンテンツごとの受付の停止・再開、承認制の切り替え（`admin`）。タブはコメントが有効（`[comments].enabled`。`GET /api/v1/comments/settings` が 404 でない）かつ `editor` 以上のときだけ表示する。URL の `#comments`（通知メールのリンク）でこのタブが開く（[コメント](../docs/comments.ja.md#4-admin-studio)）。
 - **サイト (Settings › Site)**: 公開サイトの名前と favicon の変更（`GET` / `PUT /api/v1/site`、`admin` のみ。`SiteManager.tsx`）。favicon はメディアライブラリから選ぶ・アップロードする・URL を入力する。空にして保存すると設定ファイル（`[theme]`）の値に戻る（[テーマと公開](../docs/theme_and_publishing_guide.ja.md#サイト名と-faviconadmin-studio)）。
@@ -36,66 +36,66 @@
 - **通知 (Settings › Notifications)**: 配信の状態（チャネル・形式・送信待ちの保存先）と、送信待ち・送れなかった通知の一覧（再送・破棄）、見本の値でのテスト送信（チャネルごとの結果を表示）、テンプレートの編集（種類と宛先ごとの件名・本文・HTML、共通の部品）と保存前の内容でのプレビュー（HTML は `iframe` の `srcdoc`、`sandbox=""` でスクリプトを動かさない）、元に戻す。`admin` のみ（`NotificationManager.tsx`。[通知 6](../docs/notifications.ja.md#6-admin-studio-から管理する)）。
 - **テーマ (Settings › Themes)**: インストール済みテーマのカード（プレビュー画像・タグ・作者）、ワンクリックでの切り替え（`PUT /api/v1/themes/active`、`admin`）、公開サイトの確認。マーケットプレイスのタブは将来の機能の予告（ZIP の導入は未実装）。
 - **ユーザー管理 (Settings › Users) & プロフィール**:
-  - `admin` はユーザーの一覧・作成・編集・ロール変更・無効化・パスワードのリセット・削除（`UserManager.tsx`、[認証 3](../docs/authentication.ja.md#3-ユーザー管理-api)）。
-  - **ユーザー招待 (Invite user)**: 管理者がメールアドレスとロールを指定して招待メールを送信するモーダル（`InviteUserModal`）を提供（[招待リンク](../docs/authentication.ja.md#10-ユーザー招待リンク)）。
-  - **承認待ちステータス**: 自己登録で承認待ち状態のアカウント（`pending_approval: true`）には専用の「承認待ち (Pending approval)」バッジを表示し、編集モーダルからワンクリックで「承認して有効化」できる。
-  - ヘッダーのアバター + 表示名から **My profile**（`ProfileModal.tsx`）: アバター画像・表示名・メールアドレス・パスワードの変更（SSO のユーザーにはパスワード欄を出さない）。アバターが無い・読めないときはイニシャルを表示（`ui/Avatar.tsx`）。
+    - `admin` はユーザーの一覧・作成・編集・ロール変更・無効化・パスワードのリセット・削除（`UserManager.tsx`、[認証 3](../docs/authentication.ja.md#3-ユーザー管理-api)）。
+    - **ユーザー招待 (Invite user)**: 管理者がメールアドレスとロールを指定して招待メールを送信するモーダル（`InviteUserModal`）を提供（[招待リンク](../docs/authentication.ja.md#10-ユーザー招待リンク)）。
+    - **承認待ちステータス**: 自己登録で承認待ち状態のアカウント（`pending_approval: true`）には専用の「承認待ち (Pending approval)」バッジを表示し、編集モーダルからワンクリックで「承認して有効化」できる。
+    - ヘッダーのアバター + 表示名から **My profile**（`ProfileModal.tsx`）: アバター画像・表示名・メールアドレス・パスワードの変更（SSO のユーザーにはパスワード欄を出さない）。アバターが無い・読めないときはイニシャルを表示（`ui/Avatar.tsx`）。
 - **プレミアム・グラスモフィズム UI**:
-  - TailwindCSS 等のフレームワークに依存せず、ゼロランタイムの CSS Modules と CSS 変数（デザインシステムトークン）で構築。
-  - 目に優しく視認性の高いダークテーマ、美しいすりガラス効果（Glassmorphism）、洗練されたマイクロインタラクション。
-  - タイポグラフィに `Plus Jakarta Sans` / `Outfit` / `JetBrains Mono` を採用。
+    - TailwindCSS 等のフレームワークに依存せず、ゼロランタイムの CSS Modules と CSS 変数（デザインシステムトークン）で構築。
+    - 目に優しく視認性の高いダークテーマ、美しいすりガラス効果（Glassmorphism）、洗練されたマイクロインタラクション。
+    - タイポグラフィに `Plus Jakarta Sans` / `Outfit` / `JetBrains Mono` を採用。
 - **画像アップロード**:
-  - 画像ブロックにドラッグ＆ドロップ、またはクリックでファイルを選ぶと `/api/v1/storage/upload` へアップロードし、URL をブロックに自動反映（alt が空ならファイル名から補完）。
-  - 画像以外のファイルや、サーバーの上限（`[storage].max_upload_mb`）を超えるファイルはエラーを表示。
+    - 画像ブロックにドラッグ＆ドロップ、またはクリックでファイルを選ぶと `/api/v1/storage/upload` へアップロードし、URL をブロックに自動反映（alt が空ならファイル名から補完）。
+    - 画像以外のファイルや、サーバーの上限（`[storage].max_upload_mb`）を超えるファイルはエラーを表示。
 - **メディアライブラリ**:
-  - 画像ブロックの **Choose from media library** で、アップロード済み画像（`GET /api/v1/storage/objects?content_type=image/`）を新しい順にサムネイル一覧表示。ファイル名検索・追加読み込み（24 件ずつ）に対応。
-  - 画像を選ぶと URL をブロックに反映（alt が空ならファイル名から補完）。同じ画像を再アップロードせずに再利用できる。
+    - 画像ブロックの **Choose from media library** で、アップロード済み画像（`GET /api/v1/storage/objects?content_type=image/`）を新しい順にサムネイル一覧表示。ファイル名検索・追加読み込み（24 件ずつ）に対応。
+    - 画像を選ぶと URL をブロックに反映（alt が空ならファイル名から補完）。同じ画像を再アップロードせずに再利用できる。
 - **カテゴリ選択 & 管理**:
-  - 記事エディタでカテゴリ（`category_id` リレーション）をドロップダウンから選択。既存記事を開くと選択状態を復元。
-  - カテゴリの一覧表示（色・説明つき）と新規作成（slug 自動生成、色指定）は **Settings › Categories**。エディタの **Manage** ボタンからも開ける。
-  - サイドバーの記事一覧にカテゴリバッジを表示する。
+    - 記事エディタでカテゴリ（`category_id` リレーション）をドロップダウンから選択。既存記事を開くと選択状態を復元。
+    - カテゴリの一覧表示（色・説明つき）と新規作成（slug 自動生成、色指定）は **Settings › Categories**。エディタの **Manage** ボタンからも開ける。
+    - サイドバーの記事一覧にカテゴリバッジを表示する。
 - **コンテンツ一覧の検索・絞り込み・ページ送り（サイドバー）**: タイトル・スラッグ・要約（`excerpt`）の検索ボックス（入力が 300ms 止まると検索、Enter ですぐ検索）、カテゴリ（All / Uncategorized / 各カテゴリ。記事のみ）と状態（Draft / Scheduled / Published）の絞り込み、1 ページ 20 件のページ送りに対応。検索・絞り込み・ページ送りはサーバーで行い（`GET /api/v1/contents/{type}?view=summary&q=&category=&status=&limit=&offset=`）、一覧は要約（タイトル・スラッグ・状態・カテゴリ・要約。ブロックと描画済み HTML は含まない）だけを取得する。記事を選ぶと、その 1 件の全体を取得してエディタに開く。種類（記事 / 固定ページ）を切り替えると検索と絞り込みは戻る。
 - **ニュースレター（Settings › Newsletter、`admin`）**: 状態ごとの人数（購読中・確認待ち・停止）、公開中の記事を選んで購読者に送る（要約の編集・自分へのテスト送信・送信前の確認・送信済みの記事は確認してから再送）、購読者の一覧（状態で絞り込み・メールアドレスで検索・削除・CSV の書き出し）、送信履歴（`NewsletterManager.tsx`。[ニュースレター](../docs/newsletter.ja.md)）。`[newsletter].enabled = false` のときは、サーバーの設定が必要という案内を出す。
 - **お知らせ（Settings › Notices、`admin`）**: 全ページの上部に出すお知らせの一覧（状態の印: 表示中・予定・終了・無効）と追加・編集・削除（`NoticeManager.tsx`）。期間はブラウザーのローカル時間で入力して UTC で送る。サーバーの理由は英語なので、`code` と `field` から画面の言語の文言を出す（[お知らせバナー](../docs/notices.ja.md)）。
 - **リダイレクト（Settings › Redirects、`admin`）**: 旧 URL → 新 URL の規則の一覧（新しい順・25 件ずつ・パスで検索）と追加・編集・削除（`RedirectManager.tsx`）。種類は 301（恒久）/ 302（一時）。slug を変えて公開したときに自動で足された規則には「自動」の印が付く。サーバーの理由は英語なので、`code`（`duplicate_redirect` など）から画面の言語の文言を出す（[リダイレクト](../docs/redirects.ja.md)）。
 - **タグ（Settings › Tags、エディタ、商品の編集）**: タグの一覧（名前順・25 件ずつ・名前か slug で検索・付いているコンテンツの数）と作成・編集・削除（作成・変更は `editor` 以上）。記事・固定ページのエディタと商品の編集には「Tags」欄（`TagPicker`）があり、名前を入力して既存のタグを探して付けるか、その場で作って付ける。タグはコンテンツの保存のときに保存する（`PUT /api/v1/contents/{type}/{id}/tags`）。サーバーが `[tags].enabled = false` のときは、Settings の項目とエディタの欄を出さない（[タグ](../docs/tags.ja.md)）。
 - **設定画面 (Settings)**:
-  - サイト全体の管理（サイト名と favicon・SEO・通知・テーマ・プラグイン・カテゴリ・ユーザー・監査ログ）はヘッダーの **Settings** にまとめ、左のメニューで切り替える。ヘッダーのタブは Editor / Products / Orders / Comments / Settings（Products / Orders は EC が有効かつ `editor` 以上のとき、Comments はコメントが有効かつ `editor` 以上のとき）。
-  - ロールに応じて項目を出し分け: Themes・Plugins・Categories は全員（カテゴリの作成は `editor` 以上）、Site・Users・Audit Logs は `admin` のみ。
+    - サイト全体の管理（サイト名と favicon・SEO・通知・テーマ・プラグイン・カテゴリ・ユーザー・監査ログ）はヘッダーの **Settings** にまとめ、左のメニューで切り替える。ヘッダーのタブは Editor / Products / Orders / Comments / Settings（Products / Orders は EC が有効かつ `editor` 以上のとき、Comments はコメントが有効かつ `editor` 以上のとき）。
+    - ロールに応じて項目を出し分け: Themes・Plugins・Categories は全員（カテゴリの作成は `editor` 以上）、Site・Users・Audit Logs は `admin` のみ。
 - **監査ログ閲覧画面 (Settings › Audit Logs)**:
-  - 監査ログ（`GET /api/v1/audit-logs`）を一覧表示。action / outcome / actor / resource / 期間での絞り込み、ページ送り、イベント詳細（JSON）の展開に対応。
-  - `admin` ロールでログインした場合のみ表示（詳細は [監査ログリファレンス](../docs/audit.ja.md#6-admin-studio-の閲覧画面)）。
+    - 監査ログ（`GET /api/v1/audit-logs`）を一覧表示。action / outcome / actor / resource / 期間での絞り込み、ページ送り、イベント詳細（JSON）の展開に対応。
+    - `admin` ロールでログインした場合のみ表示（詳細は [監査ログリファレンス](../docs/audit.ja.md#6-admin-studio-の閲覧画面)）。
 - **ログイン & ロール**:
-  - 起動時にログイン画面を表示し、ユーザー名 / パスワードで `POST /api/v1/auth/session` にログイン。発行されたトークンはタブを閉じるまで `sessionStorage` に保持し、すべての API 呼び出しに `Authorization: Bearer` として付与する（再読み込みしてもログイン状態を維持）。
-  - ヘッダーに表示名とロールを表示し、ログアウトボタンでセッションを破棄。API が 401（期限切れ・失効）を返したらログイン画面に戻る。
-  - サーバーでアカウント登録（`[auth.registration]`）が有効なら、ログイン画面に「アカウントを作成」を表示（`RegisterForm.tsx`）。確認メールのリンク（`#verify-email=<トークン>`）で開くと、トークンをアドレスバーから消してアカウントを作り、結果（ログインできる / 承認待ち / リンクが無効）を表示する（[認証 7](../docs/authentication.ja.md#7-アカウント登録)）。
-  - **パスワード再設定 (`PasswordResetForms.tsx`)**: `[auth.password_reset]` 有効時、ログイン画面の「パスワードをお忘れですか？」からメールアドレスを送信し、届いた再設定メールのリンク（`#reset-password=<トークン>`）から新パスワードを再設定（[認証 9](../docs/authentication.ja.md#9-パスワードの再設定)）。
-  - **招待承諾 (`AcceptInviteForm.tsx`)**: 管理者から招待されたユーザーはメール内のリンク（`#invite=<トークン>`）を開き、招待情報（メール・ロール）を確認した上でユーザー名・パスワードを設定して即時有効アカウントを開設（[認証 10](../docs/authentication.ja.md#10-ユーザー招待リンク)）。
-  - ロールに応じて操作を制限: `viewer` は Save・画像アップロード・カテゴリ作成が無効、設定画面の Users / Audit Logs は `admin` のみ表示（サーバー側でも同じ権限を検証。[認証 & ユーザー管理](../docs/authentication.ja.md)）。
-  - `contributor`（寄稿者）は自分の下書き・レビュー待ちだけ保存でき、状態は「下書き」「レビュー待ち」だけを選べる（`utils/roles.ts` の `canWrite` / `canChangeContent`）。公開後のもの・他人のものは読み取り専用で、版の復元も出さない。ショップ・コメント・カテゴリの作成などは `editor` 以上（`canEdit`）。
-  - **レビュー**: 状態を変える保存ではメモの欄（`review_note`）が出る。編集者には一覧の上にレビュー待ちの件数が出て、押すと絞り込む。`#review`（依頼の通知メールのリンク）はレビュー待ちに絞った一覧を開く（[レビュー](../docs/theme_and_publishing_guide.ja.md#レビュー寄稿者の下書きを承認して公開する)）。
+    - 起動時にログイン画面を表示し、ユーザー名 / パスワードで `POST /api/v1/auth/session` にログイン。発行されたトークンはタブを閉じるまで `sessionStorage` に保持し、すべての API 呼び出しに `Authorization: Bearer` として付与する（再読み込みしてもログイン状態を維持）。
+    - ヘッダーに表示名とロールを表示し、ログアウトボタンでセッションを破棄。API が 401（期限切れ・失効）を返したらログイン画面に戻る。
+    - サーバーでアカウント登録（`[auth.registration]`）が有効なら、ログイン画面に「アカウントを作成」を表示（`RegisterForm.tsx`）。確認メールのリンク（`#verify-email=<トークン>`）で開くと、トークンをアドレスバーから消してアカウントを作り、結果（ログインできる / 承認待ち / リンクが無効）を表示する（[認証 7](../docs/authentication.ja.md#7-アカウント登録)）。
+    - **パスワード再設定 (`PasswordResetForms.tsx`)**: `[auth.password_reset]` 有効時、ログイン画面の「パスワードをお忘れですか？」からメールアドレスを送信し、届いた再設定メールのリンク（`#reset-password=<トークン>`）から新パスワードを再設定（[認証 9](../docs/authentication.ja.md#9-パスワードの再設定)）。
+    - **招待承諾 (`AcceptInviteForm.tsx`)**: 管理者から招待されたユーザーはメール内のリンク（`#invite=<トークン>`）を開き、招待情報（メール・ロール）を確認した上でユーザー名・パスワードを設定して即時有効アカウントを開設（[認証 10](../docs/authentication.ja.md#10-ユーザー招待リンク)）。
+    - ロールに応じて操作を制限: `viewer` は Save・画像アップロード・カテゴリ作成が無効、設定画面の Users / Audit Logs は `admin` のみ表示（サーバー側でも同じ権限を検証。[認証 & ユーザー管理](../docs/authentication.ja.md)）。
+    - `contributor`（寄稿者）は自分の下書き・レビュー待ちだけ保存でき、状態は「下書き」「レビュー待ち」だけを選べる（`utils/roles.ts` の `canWrite` / `canChangeContent`）。公開後のもの・他人のものは読み取り専用で、版の復元も出さない。ショップ・コメント・カテゴリの作成などは `editor` 以上（`canEdit`）。
+    - **レビュー**: 状態を変える保存ではメモの欄（`review_note`）が出る。編集者には一覧の上にレビュー待ちの件数が出て、押すと絞り込む。`#review`（依頼の通知メールのリンク）はレビュー待ちに絞った一覧を開く（[レビュー](../docs/theme_and_publishing_guide.ja.md#レビュー寄稿者の下書きを承認して公開する)）。
 - **多言語対応（英語 / 日本語）**:
-  - ヘッダーとログイン画面の言語メニューで切り替え。選んだ言語はブラウザに保存し、初回はブラウザの言語（日本語なら日本語、それ以外は英語）で表示。日付・金額の書式も言語に合わせる。
-  - 文言は [i18next](https://www.i18next.com/) の JSON（`src/locales/<言語>/translation.json`）で、翻訳サービスにそのまま渡せる（[多言語対応](#-多言語対応-i18n)）。
+    - ヘッダーとログイン画面の言語メニューで切り替え。選んだ言語はブラウザに保存し、初回はブラウザの言語（日本語なら日本語、それ以外は英語）で表示。日付・金額の書式も言語に合わせる。
+    - 文言は [i18next](https://www.i18next.com/) の JSON（`src/locales/<言語>/translation.json`）で、翻訳サービスにそのまま渡せる（[多言語対応](#-多言語対応-i18n)）。
 - **カラーテーマ（ライト / ダーク / システムに合わせる）**:
-  - ヘッダー（スマートフォンではメニュー）とログイン画面のテーマ選択（`ThemeSelect.tsx`）で切り替え。選んだテーマはブラウザに保存（`localStorage` の `aegis.admin.theme`）し、初回は OS の設定（`prefers-color-scheme`）に従う。「システムに合わせる」では OS の切り替えにも追従する。OS がライトを求めているときだけライトにし、設定が読めないブラウザは従来どおりダークで表示する。
-  - 描画前に `public/theme-init.js` が `<html data-theme>` を設定するので、ライトを選んでいても最初にダークが一瞬映ることはない（[カラーテーマの設計](#-設計メモ)）。
+    - ヘッダー（スマートフォンではメニュー）とログイン画面のテーマ選択（`ThemeSelect.tsx`）で切り替え。選んだテーマはブラウザに保存（`localStorage` の `aegis.admin.theme`）し、初回は OS の設定（`prefers-color-scheme`）に従う。「システムに合わせる」では OS の切り替えにも追従する。OS がライトを求めているときだけライトにし、設定が読めないブラウザは従来どおりダークで表示する。
+    - 描画前に `public/theme-init.js` が `<html data-theme>` を設定するので、ライトを選んでいても最初にダークが一瞬映ることはない（[カラーテーマの設計](#-設計メモ)）。
 - **Core Engine との透過的連携**:
-  - スキーマ一覧（`/api/v1/schemas`）および記事一覧・詳細・作成（`/api/v1/contents/{content_type}`）とのリアルタイム同期。
-  - バックエンドサーバーのヘルスチェック（`/api/v1/health`）による接続ステータス表示。
-  - 本番ビルド成果物（`dist/`）は、Rust 製コアサーバー（`aegis-server`）から単一ポート（8080）で自動配信。
+    - スキーマ一覧（`/api/v1/schemas`）および記事一覧・詳細・作成（`/api/v1/contents/{content_type}`）とのリアルタイム同期。
+    - バックエンドサーバーのヘルスチェック（`/api/v1/health`）による接続ステータス表示。
+    - 本番ビルド成果物（`dist/`）は、Rust 製コアサーバー（`aegis-server`）から単一ポート（8080）で自動配信。
 
 ---
 
 ## 🏗️ 技術スタック
 
-| 分類 | 採用技術 | 選定理由 |
-| :--- | :--- | :--- |
-| **フレームワーク** | React 19 + TypeScript | 型安全性と堅牢なコンポーネント指向 UI |
-| **ビルドツール** | Vite 6 | 高速な HMR（Hot Module Replacement）と最小限のバンドルサイズ |
-| **スタイリング** | Vanilla CSS (CSS Variables) | 高いデザイン柔軟性、フレームワーク非依存、ゼロランタイム |
-| **アイコン** | Lucide React | 軽量で一貫性のあるモダンアイコンセット |
-| **多言語対応** | i18next + react-i18next | 翻訳サービス（Crowdin・Lokalise など）が扱える JSON 形式、複数形・差し込み |
+| 分類               | 採用技術                    | 選定理由                                                                   |
+| :----------------- | :-------------------------- | :------------------------------------------------------------------------- |
+| **フレームワーク** | React 19 + TypeScript       | 型安全性と堅牢なコンポーネント指向 UI                                      |
+| **ビルドツール**   | Vite 6                      | 高速な HMR（Hot Module Replacement）と最小限のバンドルサイズ               |
+| **スタイリング**   | Vanilla CSS (CSS Variables) | 高いデザイン柔軟性、フレームワーク非依存、ゼロランタイム                   |
+| **アイコン**       | Lucide React                | 軽量で一貫性のあるモダンアイコンセット                                     |
+| **多言語対応**     | i18next + react-i18next     | 翻訳サービス（Crowdin・Lokalise など）が扱える JSON 形式、複数形・差し込み |
 
 ---
 
@@ -202,8 +202,8 @@ t('media.inUse', { count: 3 })                             // 複数形: media.i
 ```yaml
 # crowdin.yml（リポジトリのルート）
 files:
-  - source: /admin/src/locales/en/translation.json
-    translation: /admin/src/locales/%two_letters_code%/translation.json
+    - source: /admin/src/locales/en/translation.json
+      translation: /admin/src/locales/%two_letters_code%/translation.json
 ```
 
 翻訳サービスから戻ってきたファイルは、`npm run format` で整形してから `npm run lint` / `npm run build` を通してください。
@@ -220,11 +220,11 @@ files:
 ## 🧩 設計メモ
 
 - **カラーテーマ**: 色はすべて `src/index.css` のデザイントークン（CSS 変数）で決める。`:root` がダーク（既定）、`:root[data-theme='light']` がライトで、`<html data-theme>` は `public/theme-init.js`（描画前。CSP の `unsafe-inline` に頼らないよう外部ファイル）と `src/theme`（以降の切り替えと OS への追従）が設定する。両者の決め方は同じで、ユニットテストが `theme-init.js` を実際に動かして `resolveTheme` と突き合わせる。コンポーネントの CSS を書くときは次を守る（`src/theme/tokens.test.ts` が検査する）。
-  - 色はトークンで書く。`rgba(255, 255, 255, 0.08)` のような「白の半透明」は書かず、`rgb(var(--overlay-rgb) / 0.08)`（ダークは白、ライトはスレートになる）。くぼんだ面は `--inset-soft` / `--inset` / `--inset-strong`。
-  - アクセント色の上の淡い文字は `--text-rose` / `--text-amber` / `--text-teal` / `--text-indigo-soft` / `--text-blue`（ダークは淡く、ライトは濃くなる）。塗りつぶしたボタンやバッジの上の白文字だけは `#fff` のままにする。
-  - 使うトークンは `index.css` で定義する（未定義の `var(--x, #fallback)` はフォールバックの色に固定され、テーマに追従しない）。ダークで足したトークンはライトにも値を足す。
-  - グラフの系列色のように、背景に合わせて検証した色はコンポーネントの CSS に置き、ライトの値を `:global(:root[data-theme='light'])` で上書きする（`AnalyticsView.module.css`）。
-  - Storybook はツールバーの **Theme** でライト / ダークを切り替えて見られる（ストーリーのテストはダークで動かす）。
+    - 色はトークンで書く。`rgba(255, 255, 255, 0.08)` のような「白の半透明」は書かず、`rgb(var(--overlay-rgb) / 0.08)`（ダークは白、ライトはスレートになる）。くぼんだ面は `--inset-soft` / `--inset` / `--inset-strong`。
+    - アクセント色の上の淡い文字は `--text-rose` / `--text-amber` / `--text-teal` / `--text-indigo-soft` / `--text-blue`（ダークは淡く、ライトは濃くなる）。塗りつぶしたボタンやバッジの上の白文字だけは `#fff` のままにする。
+    - 使うトークンは `index.css` で定義する（未定義の `var(--x, #fallback)` はフォールバックの色に固定され、テーマに追従しない）。ダークで足したトークンはライトにも値を足す。
+    - グラフの系列色のように、背景に合わせて検証した色はコンポーネントの CSS に置き、ライトの値を `:global(:root[data-theme='light'])` で上書きする（`AnalyticsView.module.css`）。
+    - Storybook はツールバーの **Theme** でライト / ダークを切り替えて見られる（ストーリーのテストはダークで動かす）。
 - **API の接続先**: `src/api/client.ts` の `SERVER_URL`（オリジン + `[server].base_path`）は、ビルド時の `VITE_AEGIS_SERVER_URL` → 開発サーバーなら `http://127.0.0.1:8080` → 本番ビルドはバンドルの URL（`{サーバー}/admin/assets/*.js` から `../../`）の順に決まる。ドメインやベースパスごとに再ビルドする必要はない。サーバーが返すルート起点の URL（アバターなど）は `serverAssetUrl` でオリジンを付けて表示する。
 - **スキーマの追加フィールドの編集**: 専用の入力欄がないフィールドは、`GET /api/v1/schemas` の定義から型ごとの汎用の入力欄（`ExtraFieldsEditor`。string / text / integer / boolean / timestamp / relation（参照先の ID を直接入力）/ jsonb（JSON を直接入力））で出す。対象は `utils/extraFields.ts` の `extraFieldDefs` が決める（`category_id` と、`DEDICATED_FIELDS` に挙げた専用 UI のあるフィールド — 記事の `category_id`、固定ページの `layout`、商品の価格・在庫など — は除く）。サーバーの更新は全フィールドを置き換えるので、追加フィールドは編集していなくても保存のたびにそのまま送り返す（API で入れた値が管理画面の保存で消えない）。空欄は、`nullable` なら `null`、そうでなければ送らない。追加フィールドはコアのロジックには使わない前提で、一覧の検索・絞り込みには反映しない。専用の入力欄を足したフィールドは、`DEDICATED_FIELDS` にも足す。
 - **コンテンツの型**: 自動生成の `types/schemas.ts` は、コンテンツ API の形そのもの。カスタムフィールドは応答も書き込みも `fields`（型ごとの `ArticleFields` など）、解決済みリレーションは `relations`。書き込みのペイロード（`CreateArticlePayload` など）は、標準の項目をトップレベルに、カスタムフィールドを `fields` に入れる。画面では `types/index.ts` の `ContentItem`（`BaseContentItem`）を使う。エディタの一覧は要約（`ContentSummary`。ブロックと描画済み HTML なし）を `listContentSummaries` で 1 ページずつ取得し、カテゴリのような小さな一覧は `getAllContentSummaries` で全件の要約を取る。全体のデータの一覧（ブロックと描画済み HTML つき）は、サーバーが 1 件ごとにブロックを描画するので、画面からは使わない（開くときの 1 件だけ `getContent` で取る）。

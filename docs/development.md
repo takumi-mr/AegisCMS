@@ -12,40 +12,40 @@ Collects AegisCMS's development environment, verification, builds, CI, and Docke
 
 At the root, use [go-task](https://taskfile.dev/)'s `task` (`task` alone lists them).
 
-| Task | Description |
-| --- | --- |
-| `task dev` / `task dev:admin` | The server (port 8080) / Admin Studio's dev server |
-| `task check` | The full set of pre-PR verification: `fmt:check`, `fmt:admin:check`, `lint`, `lint:admin`, `test`, `build:admin` |
-| `task migrate` | Schema migration |
-| `task dump` / `task restore` | Create / restore a one-shot backup ZIP of the database and upload storage |
-| `task codegen` (`codegen:ts` / `codegen:openapi`) | Generate `admin/src/types/schemas.ts` and `docs/openapi.json` from `schemas/*.yaml`. Run it when you change schemas |
-| `task build` / `build:server` / `build:admin` | Production builds |
-| `task test:admin` | Admin Studio unit tests (Vitest; [8.1](#81-unit-tests-vitest-adminsrctestts)) |
-| `task test:e2e` | Admin Studio E2E tests (Playwright; [8.2](#82-e2e-tests-playwright-admine2e)) |
-| `task storybook` / `build:storybook` | Admin Studio's Storybook (port 6006) / static build |
-| `task plugin:build*` | Wasm builds of plugins ([4](#4-building-plugins)) |
-| `task bench:plugins` | Time per plugin hook call and throughput under concurrency (`crates/aegis-runtime/examples/plugin_profile.rs`) |
-| `task bench:http` (`bench`) | The server's HTTP performance benchmark (top page, article, API, preview, quote; `scripts/benchmark.mjs`) |
-| `task bench:all` | Run plugin performance measurement and the HTTP benchmark together |
-| `task bench:dbs` | Run a benchmark comparison across the 3 engines SQLite / PostgreSQL / MySQL ([6.3](#63-per-database-performance-comparison-task-benchdbs--scriptscompare-dbsmjs)) |
-| `task demo:shop` / `demo:shop:seed` | Start the sample shop / load data ([examples/coffee-shop](../examples/coffee-shop)) |
-| `task demo:forum` / `demo:forum:seed` | Start the sample forum / load data ([examples/hiking-forum](../examples/hiking-forum)) |
-| `task docs:screenshots` | Retake the screenshots in `docs/images/` (starts a disposable server with sample data and takes them with Playwright; `scripts/capture-docs-screenshots.mjs`. Run it after changing screens and commit the diff) |
-| `task docker:build` / `docker:run` / `docker:stop` / `docker:logs` | Docker image ([5](#5-docker-image)) |
-| `task docker:dbs:up` / `docker:dbs:down` | Start / stop the real-database verification containers (PostgreSQL 16 / MySQL 8.0 / Redis 7) ([7](#7-real-database-verification-postgresql--mysql)) |
-| `task test:dbs` | Run the order and inventory integration tests in the real-container environment together |
+| Task                                                               | Description                                                                                                                                                                                                      |
+| ------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `task dev` / `task dev:admin`                                      | The server (port 8080) / Admin Studio's dev server                                                                                                                                                               |
+| `task check`                                                       | The full set of pre-PR verification: `fmt:check`, `fmt:admin:check`, `lint`, `lint:admin`, `test`, `build:admin`                                                                                                 |
+| `task migrate`                                                     | Schema migration                                                                                                                                                                                                 |
+| `task dump` / `task restore`                                       | Create / restore a one-shot backup ZIP of the database and upload storage                                                                                                                                        |
+| `task codegen` (`codegen:ts` / `codegen:openapi`)                  | Generate `admin/src/types/schemas.ts` and `docs/openapi.json` from `schemas/*.yaml`. Run it when you change schemas                                                                                              |
+| `task build` / `build:server` / `build:admin`                      | Production builds                                                                                                                                                                                                |
+| `task test:admin`                                                  | Admin Studio unit tests (Vitest; [8.1](#81-unit-tests-vitest-adminsrctestts))                                                                                                                                    |
+| `task test:e2e`                                                    | Admin Studio E2E tests (Playwright; [8.2](#82-e2e-tests-playwright-admine2e))                                                                                                                                    |
+| `task storybook` / `build:storybook`                               | Admin Studio's Storybook (port 6006) / static build                                                                                                                                                              |
+| `task plugin:build*`                                               | Wasm builds of plugins ([4](#4-building-plugins))                                                                                                                                                                |
+| `task bench:plugins`                                               | Time per plugin hook call and throughput under concurrency (`crates/aegis-runtime/examples/plugin_profile.rs`)                                                                                                   |
+| `task bench:http` (`bench`)                                        | The server's HTTP performance benchmark (top page, article, API, preview, quote; `scripts/benchmark.mjs`)                                                                                                        |
+| `task bench:all`                                                   | Run plugin performance measurement and the HTTP benchmark together                                                                                                                                               |
+| `task bench:dbs`                                                   | Run a benchmark comparison across the 3 engines SQLite / PostgreSQL / MySQL ([6.3](#63-per-database-performance-comparison-task-benchdbs--scriptscompare-dbsmjs))                                                |
+| `task demo:shop` / `demo:shop:seed`                                | Start the sample shop / load data ([examples/coffee-shop](../examples/coffee-shop))                                                                                                                              |
+| `task demo:forum` / `demo:forum:seed`                              | Start the sample forum / load data ([examples/hiking-forum](../examples/hiking-forum))                                                                                                                           |
+| `task docs:screenshots`                                            | Retake the screenshots in `docs/images/` (starts a disposable server with sample data and takes them with Playwright; `scripts/capture-docs-screenshots.mjs`. Run it after changing screens and commit the diff) |
+| `task docker:build` / `docker:run` / `docker:stop` / `docker:logs` | Docker image ([5](#5-docker-image))                                                                                                                                                                              |
+| `task docker:dbs:up` / `docker:dbs:down`                           | Start / stop the real-database verification containers (PostgreSQL 16 / MySQL 8.0 / Redis 7) ([7](#7-real-database-verification-postgresql--mysql))                                                              |
+| `task test:dbs`                                                    | Run the order and inventory integration tests in the real-container environment together                                                                                                                         |
 
 ---
 
 ## 2. Verification and Linting
 
 - **Rust**: `cargo fmt --check`, `cargo clippy --workspace -- -D warnings` (zero warnings; `[workspace.lints]`), `cargo test --workspace`.
-  - With `--all-targets`, `default_constructed_unit_structs` appears in the `sdk/templates/rust` tests (CI / `task check` run without `--all-targets`, so it is not addressed).
+    - With `--all-targets`, `default_constructed_unit_structs` appears in the `sdk/templates/rust` tests (CI / `task check` run without `--all-targets`, so it is not addressed).
 - **Admin Studio**: Prettier (`format:check`), oxlint (`--deny-warnings`; the missing-translation check `scripts/check-locales.mjs` also runs in `npm run lint`), `npm run build` (including type checking).
 - **Prettier and VS Code**:
-  - Prettier reads `.editorconfig` indentation. So that the 4 spaces of `[*]` do not apply to CSS / HTML, `[*.{ts,tsx,js,jsx,css,html}]` is set to 2.
-  - The VS Code Prettier extension by default looks for `.prettierignore` directly under the workspace, so `.vscode/settings.json` points `prettier.ignorePath` at `admin/.prettierignore`. `prettier.requireConfig` leaves JSON and the like outside `admin/` unformatted.
-  - `src/types/schemas.ts` (generated) and Markdown are not formatted.
+    - Prettier reads `.editorconfig` indentation. So that the 4 spaces of `[*]` do not apply to CSS / HTML, `[*.{ts,tsx,js,jsx,css,html}]` is set to 2.
+    - The VS Code Prettier extension by default looks for `.prettierignore` directly under the workspace, so `.vscode/settings.json` points `prettier.ignorePath` at `admin/.prettierignore`. `prettier.requireConfig` leaves JSON and the like outside `admin/` unformatted.
+    - `src/types/schemas.ts` (generated) and Markdown are not formatted.
 - **Verifying refactors that do not change appearance**: with Playwright, take `getComputedStyle` of all screens (about 90 properties × all elements) and compare before and after (used for the split into CSS Modules).
 - **The public site's smartphone display**: when you change a theme, check at widths 320 / 360 / 390px whether the main pages scroll horizontally (for the steps, see [Theme authoring guide 6](theme_authoring_guide.md#7-development-flow)).
 
@@ -55,12 +55,12 @@ At the root, use [go-task](https://taskfile.dev/)'s `task` (`task` alone lists t
 
 On pushes and PRs to `main`, it runs the following.
 
-| Job | Description |
-| --- | --- |
-| `rust-ci` | `cargo fmt --check` → `cargo clippy --workspace -- -D warnings` → `cargo test --workspace` |
-| `frontend-ci` | `npm ci` → Prettier → oxlint → type check and build → Storybook build |
-| `admin-e2e` | Build the server and Admin Studio and run the Playwright E2E tests (on failure, the report is kept as an artifact) |
-| `docker-ci` | Build the Docker image (in parallel with the above two; GitHub Actions cache `type=gha`, profile `ci-release`) |
+| Job           | Description                                                                                                        |
+| ------------- | ------------------------------------------------------------------------------------------------------------------ |
+| `rust-ci`     | `cargo fmt --check` → `cargo clippy --workspace -- -D warnings` → `cargo test --workspace`                         |
+| `frontend-ci` | `npm ci` → Prettier → oxlint → type check and build → Storybook build                                              |
+| `admin-e2e`   | Build the server and Admin Studio and run the Playwright E2E tests (on failure, the report is kept as an artifact) |
+| `docker-ci`   | Build the Docker image (in parallel with the above two; GitHub Actions cache `type=gha`, profile `ci-release`)     |
 
 - `docker-ci` verifies that it can build, so it builds with the `ci-release` profile that omits LTO (`--build-arg CARGO_PROFILE=ci-release`; the optimization level is the same as release). The production release profile uses `lto = "thin"` / `codegen-units = 16` (Thin LTO), which greatly shortens link and optimization time compared with Fat LTO while keeping production-equivalent execution speed.
 - Debug info for the dev / test profiles is `line-tables-only` (line numbers in backtraces remain). With full debug info, the PDB of the `aegis-server` test binary is about 500 MB (about 200 MB with `line-tables-only`; the rebuild when changing `aegis-server` on Windows goes from about 10 seconds to 6.5 seconds). When you want to see variables in a debugger, override with `CARGO_PROFILE_DEV_DEBUG=true` (dependencies are rebuilt too).
@@ -69,18 +69,18 @@ On pushes and PRs to `main`, it runs the following.
 
 ## 4. Building Plugins
 
-| Task | Target | What you need |
-| --- | --- | --- |
-| `task plugin:build` | `sdk/templates/rust/plugin.wasm` | `rustup target add wasm32-unknown-unknown` |
-| `task plugin:build:as` | `sdk/templates/assemblyscript/plugin.wasm` | Node.js (`npm install`) |
-| `task plugin:build:tinygo` | `sdk/templates/tinygo/plugin.wasm` | TinyGo 0.31+ and `wasm-opt` (below) |
-| `task plugin:build:tinygo-hooks` | `sdk/tinygo/examples/hooks/plugin.wasm` (the TinyGo version of the same; `sdk_hook_examples.rs` verifies it on a real host) | TinyGo 0.31+ and `wasm-opt` (below) |
-| `task plugin:build:as-hooks` | `sdk/examples/assemblyscript-hooks/plugin.wasm` (examples of the order, notification, comment, and block hooks) | Node.js (`npm install`) |
-| `task plugin:build:code-enhancer` | `plugins/official-code-enhancer/plugin.wasm` | Same (Rust) |
-| `task plugin:build:mermaid` | `plugins/official-mermaid/plugin.wasm` | Same (Rust) |
-| `task plugin:build:plantuml` | `plugins/official-plantuml/plugin.wasm` | Same (Rust) |
-| `task plugin:build:shop` | `plugins/official-shop-rules` / `official-order-notifier` | Same (Rust) |
-| `task build:wasm` | `sdk/examples/slack-notifier/plugin.wasm` (from hand-written WAT) | — |
+| Task                              | Target                                                                                                                      | What you need                              |
+| --------------------------------- | --------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------ |
+| `task plugin:build`               | `sdk/templates/rust/plugin.wasm`                                                                                            | `rustup target add wasm32-unknown-unknown` |
+| `task plugin:build:as`            | `sdk/templates/assemblyscript/plugin.wasm`                                                                                  | Node.js (`npm install`)                    |
+| `task plugin:build:tinygo`        | `sdk/templates/tinygo/plugin.wasm`                                                                                          | TinyGo 0.31+ and `wasm-opt` (below)        |
+| `task plugin:build:tinygo-hooks`  | `sdk/tinygo/examples/hooks/plugin.wasm` (the TinyGo version of the same; `sdk_hook_examples.rs` verifies it on a real host) | TinyGo 0.31+ and `wasm-opt` (below)        |
+| `task plugin:build:as-hooks`      | `sdk/examples/assemblyscript-hooks/plugin.wasm` (examples of the order, notification, comment, and block hooks)             | Node.js (`npm install`)                    |
+| `task plugin:build:code-enhancer` | `plugins/official-code-enhancer/plugin.wasm`                                                                                | Same (Rust)                                |
+| `task plugin:build:mermaid`       | `plugins/official-mermaid/plugin.wasm`                                                                                      | Same (Rust)                                |
+| `task plugin:build:plantuml`      | `plugins/official-plantuml/plugin.wasm`                                                                                     | Same (Rust)                                |
+| `task plugin:build:shop`          | `plugins/official-shop-rules` / `official-order-notifier`                                                                   | Same (Rust)                                |
+| `task build:wasm`                 | `sdk/examples/slack-notifier/plugin.wasm` (from hand-written WAT)                                                           | —                                          |
 
 Building with TinyGo needs binaryen's `wasm-opt` in addition to TinyGo itself (without it, it fails with `could not find wasm-opt, set the WASMOPT environment variable to override`). Install binaryen and put it on PATH, or specify the path of `wasm-opt` in the `WASMOPT` environment variable. On Windows with no executable, you can also make a `.cmd` that calls, via `node`, the npm version's `node_modules/binaryen/bin/wasm-opt` (a Node.js script) that comes with `npm ci` in `sdk/assemblyscript`, and specify that path in `WASMOPT`.
 
@@ -137,11 +137,11 @@ node scripts/benchmark.mjs --token <session ID>   # the environment variable AEG
 - **The cart quote (`quote`) needs `[commerce].enabled = true` and a published product.** If the shop is disabled or there are no products, it is not measured (if explicitly specified with `-t quote`, it shows the reason and exits). This is because running with the shop disabled (404) or no products (404) would measure error responses, not the real quote and plugin hook processing. The product is found automatically from the API or the public `/products`.
 - To measure with many articles, first load data with `scripts/seed-benchmark.mjs` (`task bench:seed`). It creates 20 categories and 10,000 articles (about 10 blocks, about 4KB, with a relation to the category, 1 in 10 a draft) through the API, and also shows the loading speed (items/second). Running it twice with the same prefix (`--prefix`, default `bench`) fails because of duplicate slugs, so recreate the DB when measuring again.
 
-  ```bash
-  export AEGIS_BENCH_PASSWORD=...
-  task bench:seed -- --user admin            # 10,000 articles (-n for the count, -c for concurrency)
-  task bench:http -- --user admin
-  ```
+    ```bash
+    export AEGIS_BENCH_PASSWORD=...
+    task bench:seed -- --user admin            # 10,000 articles (-n for the count, -c for concurrency)
+    task bench:http -- --user admin
+    ```
 
 - Scenarios mixed with 4xx / 5xx responses show ⚠️ and a breakdown of responses (e.g. `HTTP 422 x 32106`). Those numbers are not the endpoint's real performance.
 
@@ -179,22 +179,23 @@ task bench:dbs
 
 Pure web / DB performance when audit logs are not written synchronously to the DB but sent to standard output / log forwarding.
 
-| Endpoint / workload | SQLite (WAL) | PostgreSQL 16 (Docker) | MySQL 8.0 (Docker) | Characteristics and analysis |
-| :--- | :--- | :--- | :--- | :--- |
-| **Public top page** (`GET /`)<br>*(read-centric, cache, template rendering)* | **1,178 req/s**<br>(p50: 41.0ms / p99: 63.1ms) | **510 req/s**<br>(p50: 94.8ms / p99: 174.0ms) | **514 req/s**<br>(p50: 92.0ms / p99: 148.2ms) | SQLite is about 2.3 times faster thanks to in-process, zero-copy access. For external RDBMSs, the overhead of TCP loopback and the connection pool (default 10) dominates. |
-| **Unauthenticated access** (`GET /api/v1/contents/article`)<br>*(401 Unauthorized / no audit log DB write)* | **1,744 req/s**<br>(p50: 28.1ms / p99: 43.4ms) | **2,025 req/s**<br>(p50: 24.1ms / p99: 37.4ms) | **2,047 req/s**<br>(p50: 23.8ms / p99: 32.2ms) | Excluding the audit log's synchronous DB INSERT, MySQL's 401 responses jump from 230 req/s to about 2,050 req/s (about 8.9 times), and all 3 engines line up at extremely fast HTTP rejection performance (1,700–2,050 req/s). |
-| **Content list API** (`GET /api/v1/contents/article`)<br>*(authenticated 200 OK: DB query + relation resolution)* | **1,590 req/s**<br>(p50: 30.6ms / p99: 46.1ms) | **887 req/s**<br>(p50: 53.2ms / p99: 85.9ms) | **809 req/s**<br>(p50: 58.3ms / p99: 128.4ms) | For a pure DB-reading API, MySQL and PostgreSQL both steadily deliver 800–890 req/s. SQLite is about 1.8–2.0 times faster at 1,590 req/s. |
-| **Session login** (`POST /api/v1/auth/session`)<br>*(Argon2id verification + session issuance)* | **106 req/s**<br>(p50: 185.3ms / p99: 243.5ms) | **102 req/s**<br>(p50: 192.7ms / p99: 256.6ms) | **99 req/s**<br>(p50: 197.3ms / p99: 253.1ms) | The computational cost of Argon2id (memory 64MB / 3 iterations) is the bottleneck, so all DB engines are even at about 100 req/s (p50 about 190ms). |
+| Endpoint / workload                                                                                               | SQLite (WAL)                                   | PostgreSQL 16 (Docker)                         | MySQL 8.0 (Docker)                             | Characteristics and analysis                                                                                                                                                                                                   |
+| :---------------------------------------------------------------------------------------------------------------- | :--------------------------------------------- | :--------------------------------------------- | :--------------------------------------------- | :----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Public top page** (`GET /`)<br>_(read-centric, cache, template rendering)_                                      | **1,178 req/s**<br>(p50: 41.0ms / p99: 63.1ms) | **510 req/s**<br>(p50: 94.8ms / p99: 174.0ms)  | **514 req/s**<br>(p50: 92.0ms / p99: 148.2ms)  | SQLite is about 2.3 times faster thanks to in-process, zero-copy access. For external RDBMSs, the overhead of TCP loopback and the connection pool (default 10) dominates.                                                     |
+| **Unauthenticated access** (`GET /api/v1/contents/article`)<br>_(401 Unauthorized / no audit log DB write)_       | **1,744 req/s**<br>(p50: 28.1ms / p99: 43.4ms) | **2,025 req/s**<br>(p50: 24.1ms / p99: 37.4ms) | **2,047 req/s**<br>(p50: 23.8ms / p99: 32.2ms) | Excluding the audit log's synchronous DB INSERT, MySQL's 401 responses jump from 230 req/s to about 2,050 req/s (about 8.9 times), and all 3 engines line up at extremely fast HTTP rejection performance (1,700–2,050 req/s). |
+| **Content list API** (`GET /api/v1/contents/article`)<br>_(authenticated 200 OK: DB query + relation resolution)_ | **1,590 req/s**<br>(p50: 30.6ms / p99: 46.1ms) | **887 req/s**<br>(p50: 53.2ms / p99: 85.9ms)   | **809 req/s**<br>(p50: 58.3ms / p99: 128.4ms)  | For a pure DB-reading API, MySQL and PostgreSQL both steadily deliver 800–890 req/s. SQLite is about 1.8–2.0 times faster at 1,590 req/s.                                                                                      |
+| **Session login** (`POST /api/v1/auth/session`)<br>_(Argon2id verification + session issuance)_                   | **106 req/s**<br>(p50: 185.3ms / p99: 243.5ms) | **102 req/s**<br>(p50: 192.7ms / p99: 256.6ms) | **99 req/s**<br>(p50: 197.3ms / p99: 253.1ms)  | The computational cost of Argon2id (memory 64MB / 3 iterations) is the bottleneck, so all DB engines are even at about 100 req/s (p50 about 190ms).                                                                            |
 
 ##### 2. Reference: With Synchronous Audit Log INSERT Enabled (`[audit] sinks = ["database"]`)
 
 Measurements for a setup where each unauthenticated access (401) triggers a synchronous INSERT into `_aegis_audit_logs`.
 
-| Endpoint / workload | SQLite (WAL) | PostgreSQL 16 (Docker) | MySQL 8.0 (Docker) | Characteristics and analysis |
-| :--- | :--- | :--- | :--- | :--- |
+| Endpoint / workload                                             | SQLite (WAL)                                   | PostgreSQL 16 (Docker)                        | MySQL 8.0 (Docker)                             | Characteristics and analysis                                                                                                                                                                       |
+| :-------------------------------------------------------------- | :--------------------------------------------- | :-------------------------------------------- | :--------------------------------------------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Unauthenticated access (401 + synchronous audit log INSERT)** | **2,014 req/s**<br>(p50: 16.4ms / p99: 89.8ms) | **992 req/s**<br>(p50: 45.2ms / p99: 138.7ms) | **230 req/s**<br>(p50: 178.7ms / p99: 675.1ms) | SQLite is fast thanks to `synchronous = NORMAL`. PostgreSQL's MVCC/WAL is also excellent. MySQL's throughput drops sharply because of the fsync of InnoDB transaction commits and pool exhaustion. |
 
 #### Design Observations and Implications
+
 1. **Read performance**: SQLite has overwhelming performance (1,100–1,500+ req/s) because it connects directly to in-process memory and local files. With external DBs, unless you tune the connection pool (such as raising `max_connections`), latency from waiting for connections increases, but even so, pure API reads steadily maintain over 800 req/s.
 2. **Removing the bottleneck of the synchronous audit log INSERT**: with the `database` sink enabled, MySQL's 401 responses were limited to 230 req/s by the wait of synchronous transaction writes. But by excluding audit log DB writes and sending them to the recommended `log` sink (or excluding DB writes), MySQL also delivers its true high performance: about 1,965 req/s for 401 responses and about 858 req/s for the content list API. It was demonstrated again that for high-traffic operation you should configure audit logs not as `database` but as the `log` sink (file/stdout output + Fluentd/Logstash forwarding) ([audit.md 1.1](audit.md#11-choosing-a-destination)).
 
@@ -210,21 +211,21 @@ task bench:forum -- --levels 50,200 -d 3 --slo-p99 200
 
 #### Measured Results (Windows 11 / AMD Ryzen 7, SQLite (WAL), with the load-generating Node.js on the same machine)
 
-| Scenario | Max req/s | p50 / p99 at that point |
-| :--- | ---: | ---: |
-| Forum top (`GET /forum`) | about 1,900 | 5.1ms / 9.9ms |
-| Thread list (`GET /forum/{slug}`) | about 1,700 | 5.6ms / 11.3ms |
-| Viewing a thread (a few replies) | about 3,300 | 57ms / 111ms |
-| Popular thread (1,000 replies, random pages) | about 1,100 | 43ms / 70ms |
-| Posting a reply (anonymous, spread over threads) | about 880 | 206ms / 380ms |
-| Posting a reply (concentrated on one thread) | about 940 | 94ms / 196ms |
-| 95% viewing + 5% posting | about 900 | 11ms / 27ms |
+| Scenario                                         |   Max req/s | p50 / p99 at that point |
+| :----------------------------------------------- | ----------: | ----------------------: |
+| Forum top (`GET /forum`)                         | about 1,900 |           5.1ms / 9.9ms |
+| Thread list (`GET /forum/{slug}`)                | about 1,700 |          5.6ms / 11.3ms |
+| Viewing a thread (a few replies)                 | about 3,300 |            57ms / 111ms |
+| Popular thread (1,000 replies, random pages)     | about 1,100 |             43ms / 70ms |
+| Posting a reply (anonymous, spread over threads) |   about 880 |           206ms / 380ms |
+| Posting a reply (concentrated on one thread)     |   about 940 |            94ms / 196ms |
+| 95% viewing + 5% posting                         |   about 900 |             11ms / 27ms |
 
 - Viewing in every scenario has **no errors and throughput roughly flat** up to concurrency 800 (it does not fall). As concurrency increases the queue grows and only latency increases (p99 is 230–560ms at concurrency 400 and 670–1,200ms at 800), so the real limit is decided by how much p99 you allow.
 - Writes are capped by SQLite's single writer, topping out at about 900–1,000 req/s (zero failures even at concurrency 800; only p99 exceeds 1 second).
 - Thread and category pages read only what is displayed from the DB (`LIMIT / OFFSET`). The total (for computing the page count) is counted with `COUNT(*)`. With a design that reads from the start up to the page number and slices, later pages of threads with many replies get slower, and a 1,000-reply thread tops out at about 100 req/s.
 - Numbers vary by about 10% between runs (because the load is generated on the same machine).
- 
+
 ---
 
 ## 7. Real-Database Verification (PostgreSQL / MySQL)
@@ -246,14 +247,14 @@ task docker:dbs:down
 - **Not run in CI**: CI does not start PostgreSQL / MySQL, so all real-database tests are skipped. Verification on real databases is done in local quality checks (`task test` after `task docker:dbs:up`).
 - **Tests use the shared DB serially**: the real-database tests recreate the same `aegis_test` tables, so if tests using the same DB run in parallel they break each other's tables. aegis-server's tests hold `test_support::POSTGRES_TEST_LOCK` / `MYSQL_TEST_LOCK` and run one at a time. When adding a test that uses a real DB, take the same lock.
 - **Verification items**:
-  - Initialization of the `_aegis_orders` table and indexes
-  - Atomic inventory decrement at order creation (`stock >= quantity`)
-  - Automatic transaction rollback on partial inventory shortage (if even one of multiple lines is short, everything is discarded)
-  - Handling of unlimited-inventory (`stock IS NULL`) products
-  - Inventory return (`restock`) on order cancellation
-  - E2E behavior of the order confirmation page, the staff order list/detail API, and the status change API
-  - Round trips of backup → restore across database kinds (`cross_db_roundtrip` in `aegis-backup`. It passes SQLite → PostgreSQL → MySQL → SQLite, and verifies that Japanese, emoji, long text, boolean and numeric custom fields, comments, tags, forum, and uploaded files come back with the same values. It also runs with only one of PostgreSQL and MySQL)
-  - The inter-server event bus over Redis Pub/Sub (send and receive with two servers' connections, reconnection after dropping the subscription, and `Resync`. The target can be changed with `REDIS_URL`)
+    - Initialization of the `_aegis_orders` table and indexes
+    - Atomic inventory decrement at order creation (`stock >= quantity`)
+    - Automatic transaction rollback on partial inventory shortage (if even one of multiple lines is short, everything is discarded)
+    - Handling of unlimited-inventory (`stock IS NULL`) products
+    - Inventory return (`restock`) on order cancellation
+    - E2E behavior of the order confirmation page, the staff order list/detail API, and the status change API
+    - Round trips of backup → restore across database kinds (`cross_db_roundtrip` in `aegis-backup`. It passes SQLite → PostgreSQL → MySQL → SQLite, and verifies that Japanese, emoji, long text, boolean and numeric custom fields, comments, tags, forum, and uploaded files come back with the same values. It also runs with only one of PostgreSQL and MySQL)
+    - The inter-server event bus over Redis Pub/Sub (send and receive with two servers' connections, reconnection after dropping the subscription, and `Resync`. The target can be changed with `REDIS_URL`)
 
 ### 7.1 When Changing System Table Definitions
 
@@ -287,13 +288,13 @@ npm --prefix admin run test:e2e -- --ui   # Playwright's UI mode
 
 - **Run against a real server** (the API is not mocked). The `webServer` in `playwright.config.ts` starts `e2e/start-server.mjs`, which builds Admin Studio and `aegis-server`, clears `target/e2e/`, creates the admin user (`e2e/credentials.mjs`), and brings the server up on port 18080 with `e2e/aegis.e2e.toml`. This is because mismatches between the API's shape and the screens' types (which actually happened on the plugin screen) cannot be found with mocks.
 - **A comprehensive test suite (17 tests in all)**:
-  - `auth.spec.ts`: successful login, sign-out (session discard and redirect), the error display on a wrong password, and temporary account lockout by rate limiting (a 429 response after 3 consecutive failures).
-  - `content.spec.ts`: creating a new article, saving a draft (Draft) and its reflection in the sidebar list, switching to published (Published), persistence verification on reload, and mutual conversion between Markdown mode and Blocks mode.
-  - `themes.spec.ts`: displaying the installed theme list, switching the active theme (Aegis Horizon ↔ Nordic Minimal Editorial), and toast notification and reload persistence verification.
-  - `users.spec.ts`: displaying the existing administrator, creating a new user (adding an editor role), and email invitation (issuing an invitation link with `InviteUserModal`).
-  - `commerce.spec.ts`: creating a product (setting price and inventory) and the catalog list in an e-commerce-enabled environment (`[commerce].enabled = true`), and verifying the behavior of the order list and status filter screens.
-  - `responsive.spec.ts`: opening and closing the hamburger menu and view transitions on a mobile viewport (375x667), and switching the editor screen's 3-pane (article list / edit / preview) tabs.
-  - `plugins.spec.ts`: the plugin list and hook display, enabling and disabling without downtime, saving settings values, changing hook execution order, and returning to the config file.
+    - `auth.spec.ts`: successful login, sign-out (session discard and redirect), the error display on a wrong password, and temporary account lockout by rate limiting (a 429 response after 3 consecutive failures).
+    - `content.spec.ts`: creating a new article, saving a draft (Draft) and its reflection in the sidebar list, switching to published (Published), persistence verification on reload, and mutual conversion between Markdown mode and Blocks mode.
+    - `themes.spec.ts`: displaying the installed theme list, switching the active theme (Aegis Horizon ↔ Nordic Minimal Editorial), and toast notification and reload persistence verification.
+    - `users.spec.ts`: displaying the existing administrator, creating a new user (adding an editor role), and email invitation (issuing an invitation link with `InviteUserModal`).
+    - `commerce.spec.ts`: creating a product (setting price and inventory) and the catalog list in an e-commerce-enabled environment (`[commerce].enabled = true`), and verifying the behavior of the order list and status filter screens.
+    - `responsive.spec.ts`: opening and closing the hamburger menu and view transitions on a mobile viewport (375x667), and switching the editor screen's 3-pane (article list / edit / preview) tabs.
+    - `plugins.spec.ts`: the plugin list and hook display, enabling and disabling without downtime, saving settings values, changing hook execution order, and returning to the config file.
 - The first time takes several minutes for compiling the server. If already built, `E2E_SKIP_BUILD=1` skips it. Locally, an already running server (18080) is reused (`reuseExistingServer`). The server's log is `RUST_LOG=warn` (`RUST_LOG=debug` for all requests).
 - Tests share the server's DB, so they run one at a time (`workers: 1`). Tests that changed state either restore it or leave a state that other tests do not depend on (making use of random suffixes, etc.).
 - Plugins use the repository's `plugins/` (the built Wasm of the official plugins), starting with all of them disabled.
@@ -317,16 +318,15 @@ When you `npm install` with npm 11 on Windows, optional dependencies for other p
 
 - After adding a dependency, check that `npm ci` passes with the same npm 10 as CI (local `npm ci --dry-run` uses npm 11's judgment and is not enough):
 
-  ```bash
-  # At the repository root. Check by placing only admin/'s package.json and package-lock.json in an empty directory
-  docker run --rm -v "$PWD/admin:/src:ro" node:22.22-alpine sh -c \
-    "mkdir /app && cp /src/package.json /src/package-lock.json /app/ && cd /app && npm ci --ignore-scripts && echo NPM_CI_OK"
-  # In Git Bash on Windows paths get converted, so: MSYS_NO_PATHCONV=1 docker run ... -v "$(pwd -W)/admin:/src:ro" ...
-  ```
+    ```bash
+    # At the repository root. Check by placing only admin/'s package.json and package-lock.json in an empty directory
+    docker run --rm -v "$PWD/admin:/src:ro" node:22.22-alpine sh -c \
+      "mkdir /app && cp /src/package.json /src/package-lock.json /app/ && cd /app && npm ci --ignore-scripts && echo NPM_CI_OK"
+    # In Git Bash on Windows paths get converted, so: MSYS_NO_PATHCONV=1 docker run ... -v "$(pwd -W)/admin:/src:ro" ...
+    ```
 
 - If it fails, use the `package-lock.json` produced by `npm install --ignore-scripts` in the same image (only the missing records are filled in). Compare with `main`'s `package-lock.json` and confirm that the versions of existing packages have not changed.
 - Do not throw away `npm ci`'s output (with `>/dev/null` you miss the failure and verify with an old `node_modules`).
-
 
 ---
 
@@ -385,13 +385,14 @@ aegis-server plugin list
 aegis-server notify test --to <email> [--staff]
 ```
 
-
 ---
 
 ## 10. Troubleshooting & Development Tips
 
 ### 10.1 Dealing with Disk Space During Builds
+
 When disk space gets tight in cloud development environments, CI containers, and the like (the incremental compilation artifacts of `target/debug` can swell to nearly 30GB), do the following:
+
 ```bash
 # Build with incremental compilation disabled
 CARGO_INCREMENTAL=0 cargo build
@@ -401,5 +402,6 @@ rm -rf target/debug/incremental
 ```
 
 ### 10.2 Notes on the Storybook / Playwright Environment
+
 - **Browser shell compatibility**: on Linux / cloud environments, the browser may fail to start if the Playwright version and the version of the headless shell in `/opt/pw-browsers` do not match. In that case, alias to an available version with a symbolic link or the like.
 - **204 responses in Storybook mockApi**: when mocking `204 No Content` in `.storybook/mockApi.ts`, always return the response with no body (a 204 with a body makes the browser's `Response` object throw an exception).

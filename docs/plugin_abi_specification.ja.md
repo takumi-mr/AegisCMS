@@ -17,9 +17,9 @@ AegisCMS のプラグインシステムは、Bytecode Alliance 製 WebAssembly �
 - **サンドボックス隔離**: プラグインはゲストの 32bit リニアメモリ空間内に完全に隔離され、ホストの物理メモリや OS リソースへの直接アクセスは不可能です。
 - **インスタンス完全分離**: フック呼び出しごとに独立した `Store` および `Instance` が生成され、状態の汚染やプラグイン間メモリ共有を防ぎます（永続状態はホスト提供の KVS を使用）。
 - **ゼロ・トラスト実行制御**:
-  - **Fuel（CPU クォータ）**: 各フック呼び出しで使用可能な命令数を厳格に制限（無限ループや DoS 対策）。
-  - **非同期タイムアウト**: 指定ミリ秒（例: 250ms）を超過したフック呼び出しはホストによって強制終了。
-  - **ケイパビリティガード**: `plugin.manifest.json` で宣言されていないネットワークやストレージアクセスは、ホスト API 呼び出し時に即座に遮断。
+    - **Fuel（CPU クォータ）**: 各フック呼び出しで使用可能な命令数を厳格に制限（無限ループや DoS 対策）。
+    - **非同期タイムアウト**: 指定ミリ秒（例: 250ms）を超過したフック呼び出しはホストによって強制終了。
+    - **ケイパビリティガード**: `plugin.manifest.json` で宣言されていないネットワークやストレージアクセスは、ホスト API 呼び出し時に即座に遮断。
 
 ---
 
@@ -42,10 +42,10 @@ allocate(len: i32) -> i32
 ```
 
 - **引数**:
-  - `len` (i32): 確保したいバイトサイズ。
+    - `len` (i32): 確保したいバイトサイズ。
 - **戻り値**:
-  - 確保されたゲストリニアメモリ上の先頭オフセットアドレス (`ptr`: i32)。
-  - メモリ枯渇等で確保に失敗した場合は `0` を返します。
+    - 確保されたゲストリニアメモリ上の先頭オフセットアドレス (`ptr`: i32)。
+    - メモリ枯渇等で確保に失敗した場合は `0` を返します。
 
 ### 2.3 ホストからゲストへのデータ渡し手順
 
@@ -59,6 +59,7 @@ allocate(len: i32) -> i32
 ライフサイクルフック関数は、変換後のデータや実行結果を単一の **64bit 符号付き整数 (`i64`)** にパックしてホストへ返却します。
 
 #### パッキング規則
+
 - **上位 32bit**: 結果データが格納されたゲストメモリの先頭ポインタ (`ptr` as i32)
 - **下位 32bit**: 結果データのバイト長 (`len` as u32)
 
@@ -67,20 +68,22 @@ packed_result (i64) = ((ptr as i64) << 32) | ((len as u32) as i64)
 ```
 
 #### 各言語でのパッキング実装例
+
 - **Rust**:
-  ```rust
-  ((ptr as i64) << 32) | ((len as u32) as i64)
-  ```
+    ```rust
+    ((ptr as i64) << 32) | ((len as u32) as i64)
+    ```
 - **AssemblyScript**:
-  ```typescript
-  ((ptr as i64) << 32) | ((len as i64) & 0xFFFFFFFF)
-  ```
+    ```typescript
+    ((ptr as i64) << 32) | ((len as i64) & 0xFFFFFFFF)
+    ```
 - **TinyGo / Go**:
-  ```go
-  (int64(ptr) << 32) | (int64(uint32(length)) & 0xFFFFFFFF)
-  ```
+    ```go
+    (int64(ptr) << 32) | (int64(uint32(length)) & 0xFFFFFFFF)
+    ```
 
 #### ホスト側のアンパック処理
+
 ホストは受け取った `i64` から `(packed >> 32) as i32` でポインタを、`packed as u32` でバイト長を復元し、ゲストメモリから結果バイト列を読み取ります。
 
 ---
@@ -105,13 +108,13 @@ packed_result (i64) = ((ptr as i64) << 32) | ((len as u32) as i64)
 ```
 
 - **引数**:
-  - `level` (i32): ログレベル
-    - `0`: DEBUG
-    - `1`: INFO
-    - `2`: WARN
-    - `3` (またはその他): ERROR
-  - `ptr` (i32): ログメッセージ文字列 (UTF-8) の先頭ポインタ
-  - `len` (i32): ログメッセージ文字列のバイト長
+    - `level` (i32): ログレベル
+        - `0`: DEBUG
+        - `1`: INFO
+        - `2`: WARN
+        - `3` (またはその他): ERROR
+    - `ptr` (i32): ログメッセージ文字列 (UTF-8) の先頭ポインタ
+    - `len` (i32): ログメッセージ文字列のバイト長
 
 ### 3.2 `host.http_check_allowed`
 
@@ -122,11 +125,11 @@ packed_result (i64) = ((ptr as i64) << 32) | ((len as u32) as i64)
 ```
 
 - **引数**:
-  - `ptr` (i32): 検証対象 URL 文字列 (UTF-8) の先頭ポインタ
-  - `len` (i32): URL 文字列のバイト長
+    - `ptr` (i32): 検証対象 URL 文字列 (UTF-8) の先頭ポインタ
+    - `len` (i32): URL 文字列のバイト長
 - **戻り値** (i32):
-  - `1`: 許可 (Allowed)
-  - `0`: 拒否 (Denied / 不正な URL)
+    - `1`: 許可 (Allowed)
+    - `0`: 拒否 (Denied / 不正な URL)
 
 ### 3.3 `host.kv_set`
 
@@ -137,14 +140,14 @@ packed_result (i64) = ((ptr as i64) << 32) | ((len as u32) as i64)
 ```
 
 - **引数**:
-  - `k_ptr` (i32): キー文字列 (UTF-8) の先頭ポインタ
-  - `k_len` (i32): キー文字列のバイト長
-  - `v_ptr` (i32): 値文字列 (UTF-8) の先頭ポインタ
-  - `v_len` (i32): 値文字列のバイト長
+    - `k_ptr` (i32): キー文字列 (UTF-8) の先頭ポインタ
+    - `k_len` (i32): キー文字列のバイト長
+    - `v_ptr` (i32): 値文字列 (UTF-8) の先頭ポインタ
+    - `v_len` (i32): 値文字列のバイト長
 - **戻り値** (i32):
-  - `0`: 成功 (Ok)
-  - `1`: 権限不足 (Denied: マニフェストに storage 権限が未宣言)
-  - `2`: エラー (Internal Error: メモリアクセス失敗やロック競合)
+    - `0`: 成功 (Ok)
+    - `1`: 権限不足 (Denied: マニフェストに storage 権限が未宣言)
+    - `2`: エラー (Internal Error: メモリアクセス失敗やロック競合)
 - 値はサーバーの `[cache]` バックエンドに保存されます（`redis` なら再起動後も残る）。
 
 ### 3.4 ゲストメモリへ結果を返すインポートの共通規約
@@ -169,10 +172,10 @@ packed_result (i64) = ((ptr as i64) << 32) | ((len as u32) as i64)
 ```
 
 - **引数**: リクエスト JSON の `ptr`, `len`
-  ```json
-  { "method": "POST", "url": "https://hooks.slack.com/services/…",
-    "headers": { "Content-Type": "application/json" }, "body": "{\"text\":\"hi\"}" }
-  ```
+    ```json
+    { "method": "POST", "url": "https://hooks.slack.com/services/…",
+      "headers": { "Content-Type": "application/json" }, "body": "{\"text\":\"hi\"}" }
+    ```
 - **戻り値** (i64): 応答 JSON `{"status": 200, "headers": {"content-type": "…"}, "body": "…"}`、または失敗時 `{"error": "<理由>"}` の `(ptr << 32) | len`（書き込めなければ `0`）
 - **制限**: メソッドは GET / POST / PUT / PATCH / DELETE、本文は送受信とも 1 MiB、1 回 10 秒、1 回のフック呼び出しで 8 回まで。待ち時間はフックの `execution_timeout_ms` に含まれる
 - **宛先の制限**: `http` / `https` だけで、ポートは `https` が 443、`http` が 80 か 8080 だけ。内部の IP アドレス（ループバック・プライベート・リンクローカルなど。ホスト名が解決される先も）へは通信しない。リダイレクトは 3 回までホストが追い、**移った先ごと**に許可ドメインと上の制限を確認する（許可されていない先へ移るときはエラー）
@@ -194,18 +197,18 @@ packed_result (i64) = ((ptr as i64) << 32) | ((len as u32) as i64)
 
 プラグインは、実行したいフックに対応する以下の関数をエクスポートします。マニフェストの `capabilities.hooks` に該当フック名（ケバブケース）が宣言されている場合のみホストから呼び出されます。
 
-| マニフェストフック名 | Wasm エクスポート関数名 | 引数 | 戻り値 | 役割 |
-|---|---|---|---|---|
-| `on-before-save` | `on_before_save` | `(ptr: i32, len: i32)` | `i64` | 記事保存直前の検証・値補正・保存拒否 |
-| `transform-content-ast` | `transform_content_ast` | `(ptr: i32, len: i32)` | `i64` | ブロック AST 配列の変換・装飾 |
-| `on-render-page` | `on_render_page` | `(ptr: i32, len: i32)` | `i64` | 公開ページ描画コンテキストの動的変更 |
-| `on-user-authenticated` | `on_user_authenticated` | `(ptr: i32, len: i32)` | `i64` | ログイン成功後のロールマッピング・属性の補完・ログイン拒否 |
-| `calculate-order` | `calculate_order` | `(ptr: i32, len: i32)` | `i64` | 送料・税・割引の追加、注文の拒否 |
-| `on-order-status-changed` | `on_order_status_changed` | `(ptr: i32, len: i32)` | `i64` | 注文の作成・状態の変化の通知 |
-| `send-notification` | `send_notification` | `(ptr: i32, len: i32)` | `i64` | 通知の配信チャネル（Slack・SMS など） |
-| `on-content-published` | `on_content_published` | `(ptr: i32, len: i32)` | `i64` | 予約公開などコンテンツ公開時の通知 |
-| `check-comment` | `check_comment` | `(ptr: i32, len: i32)` | `i64` | コメントの審査（[4.8.1](#481-check_comment)） |
-| `render-blocks` | `render_blocks` | `(ptr: i32, len: i32)` | `i64` | 本文のカスタムブロックの HTML（[4.9](#49-render_blocks)） |
+| マニフェストフック名      | Wasm エクスポート関数名   | 引数                   | 戻り値 | 役割                                                       |
+| ------------------------- | ------------------------- | ---------------------- | ------ | ---------------------------------------------------------- |
+| `on-before-save`          | `on_before_save`          | `(ptr: i32, len: i32)` | `i64`  | 記事保存直前の検証・値補正・保存拒否                       |
+| `transform-content-ast`   | `transform_content_ast`   | `(ptr: i32, len: i32)` | `i64`  | ブロック AST 配列の変換・装飾                              |
+| `on-render-page`          | `on_render_page`          | `(ptr: i32, len: i32)` | `i64`  | 公開ページ描画コンテキストの動的変更                       |
+| `on-user-authenticated`   | `on_user_authenticated`   | `(ptr: i32, len: i32)` | `i64`  | ログイン成功後のロールマッピング・属性の補完・ログイン拒否 |
+| `calculate-order`         | `calculate_order`         | `(ptr: i32, len: i32)` | `i64`  | 送料・税・割引の追加、注文の拒否                           |
+| `on-order-status-changed` | `on_order_status_changed` | `(ptr: i32, len: i32)` | `i64`  | 注文の作成・状態の変化の通知                               |
+| `send-notification`       | `send_notification`       | `(ptr: i32, len: i32)` | `i64`  | 通知の配信チャネル（Slack・SMS など）                      |
+| `on-content-published`    | `on_content_published`    | `(ptr: i32, len: i32)` | `i64`  | 予約公開などコンテンツ公開時の通知                         |
+| `check-comment`           | `check_comment`           | `(ptr: i32, len: i32)` | `i64`  | コメントの審査（[4.8.1](#481-check_comment)）              |
+| `render-blocks`           | `render_blocks`           | `(ptr: i32, len: i32)` | `i64`  | 本文のカスタムブロックの HTML（[4.9](#49-render_blocks)）  |
 
 ### 4.1 `on_before_save`
 
@@ -213,10 +216,10 @@ packed_result (i64) = ((ptr as i64) << 32) | ((len as u32) as i64)
 
 - **入力**: UTF-8 JSON エンコードされた `PostContext`
 - **戻り値**:
-  - 成功時: 変更後の `PostContext` を UTF-8 JSON 化し、パックした `i64`
-  - 保存拒否時: エラーエンベロープ `{"error": "<拒否理由メッセージ>"}` を UTF-8 JSON 化し、パックした `i64`
+    - 成功時: 変更後の `PostContext` を UTF-8 JSON 化し、パックした `i64`
+    - 保存拒否時: エラーエンベロープ `{"error": "<拒否理由メッセージ>"}` を UTF-8 JSON 化し、パックした `i64`
 - **保存拒否の挙動**:
-  - エラーエンベロープが返されると、ホストは記事の保存処理を即座に中断し、API は `422 Unprocessable Entity` を返します。
+    - エラーエンベロープが返されると、ホストは記事の保存処理を即座に中断し、API は `422 Unprocessable Entity` を返します。
 
 ### 4.2 `transform_content_ast`
 
@@ -225,8 +228,8 @@ packed_result (i64) = ((ptr as i64) << 32) | ((len as u32) as i64)
 - **入力**: UTF-8 JSON エンコードされた `BlockNode[]` 配列
 - **戻り値**: 変換後の `BlockNode[]` 配列を UTF-8 JSON 化し、パックした `i64`
 - **注意事項**:
-  - ブロック配列を変更しない場合、引数で渡された `(ptr, len)` をそのままパックして返却可能です。
-  - プレビューのたびに実行されるため、外部副作用（HTTP リクエストや KVS 書き込み）を持たせないでください。
+    - ブロック配列を変更しない場合、引数で渡された `(ptr, len)` をそのままパックして返却可能です。
+    - プレビューのたびに実行されるため、外部副作用（HTTP リクエストや KVS 書き込み）を持たせないでください。
 
 ### 4.3 `on_render_page`
 
@@ -235,7 +238,7 @@ packed_result (i64) = ((ptr as i64) << 32) | ((len as u32) as i64)
 - **入力**: UTF-8 JSON エンコードされた `PageRenderContext`
 - **戻り値**: 変更後の `PageRenderContext` を UTF-8 JSON 化し、パックした `i64`
 - **注意事項**:
-  - サイトタイトル (`site_title`)、追加 CSS (`extra_css`)、追加ヘッダー (`extra_head`)、テンプレート変数 (`variables`) を動的に更新できます。
+    - サイトタイトル (`site_title`)、追加 CSS (`extra_css`)、追加ヘッダー (`extra_head`)、テンプレート変数 (`variables`) を動的に更新できます。
 
 ### 4.4 `on_user_authenticated`
 
@@ -243,10 +246,10 @@ packed_result (i64) = ((ptr as i64) << 32) | ((len as u32) as i64)
 
 - **入力**: UTF-8 JSON エンコードされた `UserAuthContext`（`provider`, `user_id`, `email`, `display_name`, `role`, `metadata`。詳細は [プラグインフック](plugin_hooks.ja.md#23-userauthcontext)）
 - **戻り値**:
-  - 成功時: 変更後の `UserAuthContext` を UTF-8 JSON 化し、パックした `i64`（`role` / `display_name` / `email` / `metadata` がセッションに反映。`provider` / `user_id` の変更は無視）
-  - ログイン拒否時: エラーエンベロープ `{"error": "<拒否理由メッセージ>"}`。API は `403 Forbidden` を返します
+    - 成功時: 変更後の `UserAuthContext` を UTF-8 JSON 化し、パックした `i64`（`role` / `display_name` / `email` / `metadata` がセッションに反映。`provider` / `user_id` の変更は無視）
+    - ログイン拒否時: エラーエンベロープ `{"error": "<拒否理由メッセージ>"}`。API は `403 Forbidden` を返します
 - **注意事項**:
-  - `role` は `admin` / `editor` / `viewer` のいずれか。それ以外やトラップ・タイムアウトもログイン失敗になります（安全側に倒す）。
+    - `role` は `admin` / `editor` / `viewer` のいずれか。それ以外やトラップ・タイムアウトもログイン失敗になります（安全側に倒す）。
 
 ### 4.5 `calculate_order`
 
@@ -283,12 +286,12 @@ EC のカートの見積もり・注文の確定時に呼び出されます（[�
 
 - **戻り値**:
 
-| 戻り値 | 意味 |
-| --- | --- |
-| `0` | 送った |
-| `{"skipped": true}` | 扱わない通知（失敗ではない。監査ログにも残らない） |
+| 戻り値                                 | 意味                                                                             |
+| -------------------------------------- | -------------------------------------------------------------------------------- |
+| `0`                                    | 送った                                                                           |
+| `{"skipped": true}`                    | 扱わない通知（失敗ではない。監査ログにも残らない）                               |
 | `{"error": "...", "permanent": false}` | 一時的な失敗。ホストが間隔を空けて再試行する（`permanent` を省略した場合も同じ） |
-| `{"error": "...", "permanent": true}` | 再試行しても変わらない失敗（設定の不備・相手の 4xx など） |
+| `{"error": "...", "permanent": true}`  | 再試行しても変わらない失敗（設定の不備・相手の 4xx など）                        |
 
 ### 4.8 `on_content_published`
 
@@ -320,6 +323,7 @@ EC のカートの見積もり・注文の確定時に呼び出されます（[�
 全データ型は JSON 形式でシリアライズされ、リニアメモリ経由で受け渡されます。
 
 ### 5.1 `PostContext`
+
 ```json
 {
   "id": "post_01hgbc3...",
@@ -335,6 +339,7 @@ EC のカートの見積もり・注文の確定時に呼び出されます（[�
 ```
 
 ### 5.2 `BlockNode`
+
 ```json
 {
   "name": "core/paragraph",
@@ -345,11 +350,13 @@ EC のカートの見積もり・注文の確定時に呼び出されます（[�
   "text": "テキスト内容"
 }
 ```
+
 - `attributes`: 属性のキー・バリューオブジェクト（未指定時は `{}` または `null`）。
 - `children`: 入れ子の子 `BlockNode` 配列。
 - `text`: ブロックのテキスト本文（未指定時は `""` または `null`）。
 
 ### 5.3 `PageRenderContext`
+
 ```json
 {
   "site_title": "AegisCMS サイト",
@@ -445,14 +452,17 @@ EC のカートの見積もり・注文の確定時に呼び出されます（[�
 - 予算は `[runtime].render_cache_mb`（既定 32、0 で無効）。仕組みは [architecture.md 10.8](architecture.ja.md#108-on-render-page-の結果のキャッシュ-aegis-runtimesrcwasmresult_cachers)。
 
 ### 5.4 エラーエンベロープ (Error Envelope)
+
 ```json
 {
   "error": "タイトルは必須入力項目です"
 }
 ```
+
 フックが処理を拒否したい場合、この JSON をホストへ返却します。
 
 ### 5.5 `PublishedContent`
+
 ```json
 {
   "id": "c0a80101-0000-0000-0000-000000000001",
@@ -467,6 +477,7 @@ EC のカートの見積もり・注文の確定時に呼び出されます（[�
   }
 }
 ```
+
 `on_content_published` フックに渡される公開完了コンテンツの情報です。
 
 ---
@@ -515,11 +526,11 @@ EC のカートの見積もり・注文の確定時に呼び出されます（[�
 
 ## 7. 言語別実装ガイドライン
 
-| 項目 | Rust | AssemblyScript | TinyGo |
-|---|---|---|---|
-| **公式 SDK** | `crates/aegis-plugin-sdk` | `sdk/assemblyscript` (`@takumi-mr/plugin-sdk`) | `sdk/tinygo` (`github.com/takumi-mr/AegisCMS/sdk/tinygo`) |
-| **公式テンプレート** | `sdk/templates/rust`（ブロック用: `sdk/templates/rust-block`） | `sdk/templates/assemblyscript` | `sdk/templates/tinygo` |
-| **ビルドコマンド** | `cargo build --target wasm32-unknown-unknown --release` | `npm run asbuild` | `tinygo build -target=wasm-unknown -o plugin.wasm main.go` |
-| **ホストインポート** | `#[link(wasm_import_module = "host")] extern "C"` | `@external("host", "...")` | `//go:wasmimport host ...` |
-| **メモリアロケータ** | `std::alloc::alloc` | `heap.alloc` | `unsafe.Pointer(&buf[0])` / `malloc` |
-| **JSON ハンドリング** | `serde_json` | 軽量 JSON ビルダー / パーサー | `encoding/json` |
+| 項目                  | Rust                                                           | AssemblyScript                                 | TinyGo                                                     |
+| --------------------- | -------------------------------------------------------------- | ---------------------------------------------- | ---------------------------------------------------------- |
+| **公式 SDK**          | `crates/aegis-plugin-sdk`                                      | `sdk/assemblyscript` (`@takumi-mr/plugin-sdk`) | `sdk/tinygo` (`github.com/takumi-mr/AegisCMS/sdk/tinygo`)  |
+| **公式テンプレート**  | `sdk/templates/rust`（ブロック用: `sdk/templates/rust-block`） | `sdk/templates/assemblyscript`                 | `sdk/templates/tinygo`                                     |
+| **ビルドコマンド**    | `cargo build --target wasm32-unknown-unknown --release`        | `npm run asbuild`                              | `tinygo build -target=wasm-unknown -o plugin.wasm main.go` |
+| **ホストインポート**  | `#[link(wasm_import_module = "host")] extern "C"`              | `@external("host", "...")`                     | `//go:wasmimport host ...`                                 |
+| **メモリアロケータ**  | `std::alloc::alloc`                                            | `heap.alloc`                                   | `unsafe.Pointer(&buf[0])` / `malloc`                       |
+| **JSON ハンドリング** | `serde_json`                                                   | 軽量 JSON ビルダー / パーサー                  | `encoding/json`                                            |

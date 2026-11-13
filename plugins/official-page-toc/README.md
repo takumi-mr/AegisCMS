@@ -23,22 +23,22 @@ The theme must output `extra_head` and `extra_css` (the built-in templates do). 
 
 Change them in the "Settings" of Admin Studio's **Settings › Plugins** (input fields appear; the items are declared in the manifest's `settings`, and values are validated on save), or in `[plugins.settings.official-page-toc]` in the config file. Omitted items and invalid values fall back to the defaults.
 
-| Key | Default | Description |
-| --- | --- | --- |
-| `content_types` | `article,page` | Content types to show it on (comma-separated) |
-| `heading_levels` | `2,3` | Heading levels to include in the table of contents (`1` to `6`) |
-| `min_headings` | `2` | Do not show the table of contents when there are fewer headings than this (progress is still shown) |
-| `show_toc` | `true` | Show the table of contents |
-| `show_progress` | `true` | Show the progress bar |
-| `position` | `right` | `right` / `left` |
-| `accent_color` | The theme's `--accent` | Color of the progress and the current heading. `#hex`, `rgb()`, `hsl()`, `var(--name)`, or a color name |
-| `top_offset_px` | `96` | Position from the top. Also used as the top margin (the height of a fixed header) when jumping to a heading (0–400) |
-| `width_px` | `220` | Width of the table of contents (120–480) |
-| `min_viewport_px` | `1200` | Not shown when the screen is narrower than this (320–4000) |
-| `smooth_scroll` | `true` | Scroll smoothly to links |
-| `locale` | `en` | Language of the built-in text (`en` / `ja`) |
-| `title` | `On this page` / `目次` | Heading of the table of contents |
-| `progress_label` | `Reading progress` / `読了位置` | Screen-reader name of the progress bar |
+| Key               | Default                         | Description                                                                                                         |
+| ----------------- | ------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| `content_types`   | `article,page`                  | Content types to show it on (comma-separated)                                                                       |
+| `heading_levels`  | `2,3`                           | Heading levels to include in the table of contents (`1` to `6`)                                                     |
+| `min_headings`    | `2`                             | Do not show the table of contents when there are fewer headings than this (progress is still shown)                 |
+| `show_toc`        | `true`                          | Show the table of contents                                                                                          |
+| `show_progress`   | `true`                          | Show the progress bar                                                                                               |
+| `position`        | `right`                         | `right` / `left`                                                                                                    |
+| `accent_color`    | The theme's `--accent`          | Color of the progress and the current heading. `#hex`, `rgb()`, `hsl()`, `var(--name)`, or a color name             |
+| `top_offset_px`   | `96`                            | Position from the top. Also used as the top margin (the height of a fixed header) when jumping to a heading (0–400) |
+| `width_px`        | `220`                           | Width of the table of contents (120–480)                                                                            |
+| `min_viewport_px` | `1200`                          | Not shown when the screen is narrower than this (320–4000)                                                          |
+| `smooth_scroll`   | `true`                          | Scroll smoothly to links                                                                                            |
+| `locale`          | `en`                            | Language of the built-in text (`en` / `ja`)                                                                         |
+| `title`           | `On this page` / `目次`         | Heading of the table of contents                                                                                    |
+| `progress_label`  | `Reading progress` / `読了位置` | Screen-reader name of the progress bar                                                                              |
 
 ```toml
 [plugins.settings.official-page-toc]

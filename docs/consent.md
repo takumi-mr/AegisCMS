@@ -56,19 +56,19 @@ label = "Embedded videos"
 description = "Shows videos such as YouTube."
 ```
 
-| Key | Type | Default | Description |
-| --- | --- | --- | --- |
-| `enabled` | bool | `false` | `true` shows the banner |
-| `layout` | string | `"banner"` | The banner's shape. `banner` / `box` / `modal` |
-| `position` | string | The shape's default | Position. `banner`: `bottom` (default) / `top`; `box`: `bottom-right` (default) / `bottom-left` / `top-right` / `top-left`; `modal`: `center` |
-| `backdrop` | bool | `true` for `modal` only | Dim the background and make the page non-interactive |
-| `delay_ms` | integer | `0` | Time to delay the display (0–10000) |
-| `cookie_days` | integer | `180` | Days to keep the choice (1–395) |
-| `policy_url` | string | `""` | URL of the privacy policy (a path starting with `/` or `http(s)://`). If empty, no link is shown |
-| `message` | string | `""` | The description (up to 600 characters). If empty, the theme's default text |
-| `reopen_button` | bool | `true` | A small button shown after a choice, to reopen the settings |
-| `revision` | integer | `1` | Increasing it invalidates saved choices and asks again |
-| `categories` | table[] | `analytics` and `marketing` | The categories to ask consent for (up to 10) |
+| Key             | Type    | Default                     | Description                                                                                                                                   |
+| --------------- | ------- | --------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| `enabled`       | bool    | `false`                     | `true` shows the banner                                                                                                                       |
+| `layout`        | string  | `"banner"`                  | The banner's shape. `banner` / `box` / `modal`                                                                                                |
+| `position`      | string  | The shape's default         | Position. `banner`: `bottom` (default) / `top`; `box`: `bottom-right` (default) / `bottom-left` / `top-right` / `top-left`; `modal`: `center` |
+| `backdrop`      | bool    | `true` for `modal` only     | Dim the background and make the page non-interactive                                                                                          |
+| `delay_ms`      | integer | `0`                         | Time to delay the display (0–10000)                                                                                                           |
+| `cookie_days`   | integer | `180`                       | Days to keep the choice (1–395)                                                                                                               |
+| `policy_url`    | string  | `""`                        | URL of the privacy policy (a path starting with `/` or `http(s)://`). If empty, no link is shown                                              |
+| `message`       | string  | `""`                        | The description (up to 600 characters). If empty, the theme's default text                                                                    |
+| `reopen_button` | bool    | `true`                      | A small button shown after a choice, to reopen the settings                                                                                   |
+| `revision`      | integer | `1`                         | Increasing it invalidates saved choices and asks again                                                                                        |
+| `categories`    | table[] | `analytics` and `marketing` | The categories to ask consent for (up to 10)                                                                                                  |
 
 - A category `id` starts with a lowercase letter, then lowercase letters, digits, `-`, and `_` (up to 32 characters). `necessary` (required) is always on and cannot be defined.
 - `analytics`, `marketing`, `preferences`, and `functional` get a name and description in the theme's language. Other `id`s need a `label` (up to 60 characters). `description` is up to 300 characters.
@@ -125,32 +125,32 @@ Placing `templates/consent.html` in a theme lets you decide the banner's HTML, w
 
 ### 3.1 Values Passed to the Template
 
-| Value | Description |
-| --- | --- |
-| `fields.consent.layout` | `banner` / `box` / `modal` |
-| `fields.consent.position` | Position (`bottom`, `top`, `bottom-right`, `bottom-left`, `top-right`, `top-left`, `center`) |
-| `fields.consent.backdrop` | Whether to dim the background (`true` / `false`) |
-| `fields.consent.policy_url` | URL of the privacy policy (empty if none) |
-| `fields.consent.reopen_button` | Whether to show the button to reopen the settings |
-| `fields.consent.delay_ms` / `cookie_days` | The display delay and the days to keep the choice |
-| `fields.message` | `[consent].message` (if empty, use your own text such as the theme's `t("consent.message")`) |
-| `fields.categories` | The list of categories. `id`, `label`, `description` (for built-in categories, empty if no name is decided) |
-| `fields.preview` | `true` in the theme dev server's preview (shown from the start) |
-| `site_title`, `locale`, `base_path`, `t("...")` | Same as other templates (built-in strings such as `t("consent.title")` can be used too) |
+| Value                                           | Description                                                                                                 |
+| ----------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| `fields.consent.layout`                         | `banner` / `box` / `modal`                                                                                  |
+| `fields.consent.position`                       | Position (`bottom`, `top`, `bottom-right`, `bottom-left`, `top-right`, `top-left`, `center`)                |
+| `fields.consent.backdrop`                       | Whether to dim the background (`true` / `false`)                                                            |
+| `fields.consent.policy_url`                     | URL of the privacy policy (empty if none)                                                                   |
+| `fields.consent.reopen_button`                  | Whether to show the button to reopen the settings                                                           |
+| `fields.consent.delay_ms` / `cookie_days`       | The display delay and the days to keep the choice                                                           |
+| `fields.message`                                | `[consent].message` (if empty, use your own text such as the theme's `t("consent.message")`)                |
+| `fields.categories`                             | The list of categories. `id`, `label`, `description` (for built-in categories, empty if no name is decided) |
+| `fields.preview`                                | `true` in the theme dev server's preview (shown from the start)                                             |
+| `site_title`, `locale`, `base_path`, `t("...")` | Same as other templates (built-in strings such as `t("consent.title")` can be used too)                     |
 
 ### 3.2 Attributes That Tie Into the Script
 
 The script finds and operates elements by the following attributes. **The look and structure are free**, but keep these attributes.
 
-| Attribute | Role |
-| --- | --- |
-| `data-aegis-consent-root` | The whole dialog. **`hidden` at first** (the script shows it). While open, `data-aegis-consent-state="ask"` (the first question) or `"details"` (choosing categories) |
-| `data-aegis-consent-action="reject-all"` / `"accept-all"` | Reject all / accept all and close. **The initial focus goes to `reject-all`** |
-| `data-aegis-consent-action="customize"` | Opens the category selection (it hides itself when opened) |
-| `data-aegis-consent-details` | The part that holds the category checkboxes. **`hidden` at first** |
-| `input[data-aegis-consent-category="<category ID>"]` | The checkbox per category (the script fills it with the current choice) |
-| `data-aegis-consent-action="save"` | Saves with the chosen categories and closes. **`hidden` at first** |
-| `data-aegis-consent-reopen` | The button shown after a choice to reopen the settings. **`hidden` at first** |
+| Attribute                                                 | Role                                                                                                                                                                  |
+| --------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `data-aegis-consent-root`                                 | The whole dialog. **`hidden` at first** (the script shows it). While open, `data-aegis-consent-state="ask"` (the first question) or `"details"` (choosing categories) |
+| `data-aegis-consent-action="reject-all"` / `"accept-all"` | Reject all / accept all and close. **The initial focus goes to `reject-all`**                                                                                         |
+| `data-aegis-consent-action="customize"`                   | Opens the category selection (it hides itself when opened)                                                                                                            |
+| `data-aegis-consent-details`                              | The part that holds the category checkboxes. **`hidden` at first**                                                                                                    |
+| `input[data-aegis-consent-category="<category ID>"]`      | The checkbox per category (the script fills it with the current choice)                                                                                               |
+| `data-aegis-consent-action="save"`                        | Saves with the chosen categories and closes. **`hidden` at first**                                                                                                    |
+| `data-aegis-consent-reopen`                               | The button shown after a choice to reopen the settings. **`hidden` at first**                                                                                         |
 
 - You can also build a banner with only two buttons, without "Choose" (`customize` / `details` / `save`). In that case `accept-all` allows all categories and `reject-all` rejects all categories.
 - When `layout` is `modal`, the script traps Tab key focus inside the dialog (add `role="dialog"`, `aria-modal="true"`, and `aria-labelledby` / `aria-describedby` pointing to the heading and description).
@@ -172,14 +172,14 @@ The script finds and operates elements by the following attributes. **The look a
 
 The built-in template's styles are in `/_aegis/consent.css`, all with zero-specificity `:where()`. You can override them by specifying `.aegis-consent-*` in the theme's CSS. When building your own template, you may write in the theme's CSS without using this file's classes.
 
-| Class | Part |
-| --- | --- |
-| `.aegis-consent` / `.aegis-consent-layout-<shape>` / `.aegis-consent-pos-<position>` / `.aegis-consent-backdrop` | The outer frame (shape, position, backdrop) |
-| `.aegis-consent-body` | The main card |
-| `.aegis-consent-title` / `.aegis-consent-message` / `.aegis-consent-policy` | The heading, description, and link to the policy |
-| `.aegis-consent-details` / `.aegis-consent-category` | The list of categories and a single category |
-| `.aegis-consent-actions` / `.aegis-consent-button` | The row of buttons and a button (reject and accept look the same) |
-| `.aegis-consent-reopen` | The "Cookie settings" button after a choice |
+| Class                                                                                                            | Part                                                              |
+| ---------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
+| `.aegis-consent` / `.aegis-consent-layout-<shape>` / `.aegis-consent-pos-<position>` / `.aegis-consent-backdrop` | The outer frame (shape, position, backdrop)                       |
+| `.aegis-consent-body`                                                                                            | The main card                                                     |
+| `.aegis-consent-title` / `.aegis-consent-message` / `.aegis-consent-policy`                                      | The heading, description, and link to the policy                  |
+| `.aegis-consent-details` / `.aegis-consent-category`                                                             | The list of categories and a single category                      |
+| `.aegis-consent-actions` / `.aegis-consent-button`                                                               | The row of buttons and a button (reject and accept look the same) |
+| `.aegis-consent-reopen`                                                                                          | The "Cookie settings" button after a choice                       |
 
 ### 3.5 Checking While You Build
 

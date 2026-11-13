@@ -68,16 +68,16 @@ themes/my-theme/
 }
 ```
 
-| キー | 必須 | 内容 |
-|---|---|---|
-| `id` | ○ | テーマの ID（kebab-case）。ディレクトリ名と同じにする。空ならディレクトリ名を使う |
-| `name` | ○ | 表示名 |
-| `version` | | セマンティックバージョン（既定 `1.0.0`） |
-| `description` | | 説明文 |
-| `author` | | 文字列、または `{ "name", "email", "url" }` |
-| `license` / `homepage` / `repository` / `min_aegis_version` | | 配布用の情報 |
-| `preview_image` | | プレビュー画像のファイル名。無ければ `preview.svg` → `.png` → `.webp` → `.jpg` の順に探す |
-| `tags` | | 分類用のタグ |
+| キー                                                        | 必須 | 内容                                                                                      |
+| ----------------------------------------------------------- | ---- | ----------------------------------------------------------------------------------------- |
+| `id`                                                        | ○    | テーマの ID（kebab-case）。ディレクトリ名と同じにする。空ならディレクトリ名を使う         |
+| `name`                                                      | ○    | 表示名                                                                                    |
+| `version`                                                   |      | セマンティックバージョン（既定 `1.0.0`）                                                  |
+| `description`                                               |      | 説明文                                                                                    |
+| `author`                                                    |      | 文字列、または `{ "name", "email", "url" }`                                               |
+| `license` / `homepage` / `repository` / `min_aegis_version` |      | 配布用の情報                                                                              |
+| `preview_image`                                             |      | プレビュー画像のファイル名。無ければ `preview.svg` → `.png` → `.webp` → `.jpg` の順に探す |
+| `tags`                                                      |      | 分類用のタグ                                                                              |
 
 `theme.json` が無い・JSON として読めない場合は、ディレクトリ名から作った名前（`my-theme` → `My Theme`）と既定の説明で一覧に出ます（読めないときはサーバーのログに警告が出ます）。
 
@@ -87,38 +87,38 @@ themes/my-theme/
 
 ### 3.1 どの URL でどのテンプレートが使われるか
 
-| URL | テンプレート | 主な変数 |
-|---|---|---|
-| `/`（`[theme].front_page = "posts"`、既定） | `index.html` | `title`（`Latest Stories`）、`items`、`pagination` |
-| `/`（`front_page = "template"`） | `front.html` | `content_type`（`front`）、`items`（最新の記事 `posts_per_page` 件）、`pagination`（続きは `/articles?page=2`） |
-| `/`（`front_page = "page:<slug>"`） | 固定ページと同じ（`page.html` など） | 固定ページと同じ。canonical などの URL は `/` |
-| `/articles` | `index.html` | `title`（`Latest Stories`）、`items`、`pagination` |
-| `/category/{slug}` | `category.html` | `title`（カテゴリ名）、`slug`、`fields`（カテゴリのフィールド。`description` など）、`items`、`pagination` |
-| `/tags/{slug}` | `tag.html` | `title`（タグの名前）、`slug`、`fields`（`description`）、`items`（記事・固定ページ・商品を新しい順。公開ページの URL は `item.fields.url`）、`pagination`（[タグ](tags.ja.md#6-公開サイト)） |
-| `/tags` | `tags.html` | `items`（公開中のコンテンツが付いたタグ。`item.title` が名前、`item.fields.url`・`item.fields.count`・`item.fields.description`）（[タグ](tags.ja.md#6-公開サイト)） |
-| `/search` | `search.html` | [サイト内検索](search.ja.md#3-検索ページsearch)（`fields.query`、`items`、`pagination`） |
-| （各ページの `</body>` の前に差し込む） | `consent.html` | [Cookie の同意バナー](consent.ja.md#3-テーマでバナーを作るtemplatesconsenthtml)（`base.html` を継承しない断片。`fields.consent`・`fields.categories`・`fields.message`。`data-aegis-consent-*` の属性でスクリプトが動かす） |
-| （各ページの `<body>` の直後に差し込む） | `notices.html` | [お知らせバナー](notices.ja.md#3-テーマでお知らせを作るtemplatesnoticeshtml)（`base.html` を継承しない断片。`fields.notices`。`data-aegis-notice-*` の属性でスクリプトが動かす） |
-| `/newsletter`、`/newsletter/confirm`、`/newsletter/unsubscribe` | `page.html` | [ニュースレター](newsletter.ja.md#3-申し込みのページ)（`content_html` に説明とフォーム・確認や停止のボタン・結果が入る。`slug` は `newsletter`） |
-| `/contact`、`/contact/{name}` | `contact.html` | [問い合わせフォーム](contact.ja.md#21-テーマのテンプレートcontacthtml)（`fields.form_html`、`fields.sent`、`fields.form`） |
-| `/articles/{slug}` | `article.html` | `title`、`content_html`、`author`、`published_at`、`updated_at`、`fields`、`relations`、`comments`（[コメント](#6-コメント欄)） |
-| `/{slug}` | `page.html`（固定ページ）または `article.html` | 同上 |
-| `/{slug}`（固定ページの `layout` が `blank`） | `blank.html` | 同上。ヘッダー・フッター・幅の制約の無い白紙のページ（LP 向け）。`layout` にほかの名前（例: `landing`）を入れると、テーマの `landing.html` を使う |
-| `/forum` 以下 | `forum_index.html` / `forum_category.html` / `forum_thread.html` | [掲示板](forum.ja.md#2-公開サイト) |
-| 見つからない・非公開 | `404.html` | `title`（`Page Not Found`）、`content_html`（理由の一文） |
-| `/products` | `products.html` | `title`、`items`、`pagination`、`theme_vars` |
-| `/products/{slug}` | `product.html` | `title`、`content_html`、`fields`（`price` / `stock` など）、`relations`、`theme_vars`（`reviews_*` を含む。レビュー欄は [会員アカウント 4.4](members.ja.md#44-商品ページのレビュー)） |
-| `/cart` | `cart.html` | `theme_vars` |
-| `/orders/{id}` | `order.html` | `slug`（注文 ID）、`theme_vars` |
-| `/account`・`/account/login`・`/account/register` | `account.html` | `slug`（`home` / `login` / `register`）、`theme_vars`（`account_*`。[会員アカウント 4.3](members.ja.md#43-テーマ)） |
+| URL                                                             | テンプレート                                                     | 主な変数                                                                                                                                                                                                                    |
+| --------------------------------------------------------------- | ---------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `/`（`[theme].front_page = "posts"`、既定）                     | `index.html`                                                     | `title`（`Latest Stories`）、`items`、`pagination`                                                                                                                                                                          |
+| `/`（`front_page = "template"`）                                | `front.html`                                                     | `content_type`（`front`）、`items`（最新の記事 `posts_per_page` 件）、`pagination`（続きは `/articles?page=2`）                                                                                                             |
+| `/`（`front_page = "page:<slug>"`）                             | 固定ページと同じ（`page.html` など）                             | 固定ページと同じ。canonical などの URL は `/`                                                                                                                                                                               |
+| `/articles`                                                     | `index.html`                                                     | `title`（`Latest Stories`）、`items`、`pagination`                                                                                                                                                                          |
+| `/category/{slug}`                                              | `category.html`                                                  | `title`（カテゴリ名）、`slug`、`fields`（カテゴリのフィールド。`description` など）、`items`、`pagination`                                                                                                                  |
+| `/tags/{slug}`                                                  | `tag.html`                                                       | `title`（タグの名前）、`slug`、`fields`（`description`）、`items`（記事・固定ページ・商品を新しい順。公開ページの URL は `item.fields.url`）、`pagination`（[タグ](tags.ja.md#6-公開サイト)）                               |
+| `/tags`                                                         | `tags.html`                                                      | `items`（公開中のコンテンツが付いたタグ。`item.title` が名前、`item.fields.url`・`item.fields.count`・`item.fields.description`）（[タグ](tags.ja.md#6-公開サイト)）                                                        |
+| `/search`                                                       | `search.html`                                                    | [サイト内検索](search.ja.md#3-検索ページsearch)（`fields.query`、`items`、`pagination`）                                                                                                                                    |
+| （各ページの `</body>` の前に差し込む）                         | `consent.html`                                                   | [Cookie の同意バナー](consent.ja.md#3-テーマでバナーを作るtemplatesconsenthtml)（`base.html` を継承しない断片。`fields.consent`・`fields.categories`・`fields.message`。`data-aegis-consent-*` の属性でスクリプトが動かす） |
+| （各ページの `<body>` の直後に差し込む）                        | `notices.html`                                                   | [お知らせバナー](notices.ja.md#3-テーマでお知らせを作るtemplatesnoticeshtml)（`base.html` を継承しない断片。`fields.notices`。`data-aegis-notice-*` の属性でスクリプトが動かす）                                            |
+| `/newsletter`、`/newsletter/confirm`、`/newsletter/unsubscribe` | `page.html`                                                      | [ニュースレター](newsletter.ja.md#3-申し込みのページ)（`content_html` に説明とフォーム・確認や停止のボタン・結果が入る。`slug` は `newsletter`）                                                                            |
+| `/contact`、`/contact/{name}`                                   | `contact.html`                                                   | [問い合わせフォーム](contact.ja.md#21-テーマのテンプレートcontacthtml)（`fields.form_html`、`fields.sent`、`fields.form`）                                                                                                  |
+| `/articles/{slug}`                                              | `article.html`                                                   | `title`、`content_html`、`author`、`published_at`、`updated_at`、`fields`、`relations`、`comments`（[コメント](#6-コメント欄)）                                                                                             |
+| `/{slug}`                                                       | `page.html`（固定ページ）または `article.html`                   | 同上                                                                                                                                                                                                                        |
+| `/{slug}`（固定ページの `layout` が `blank`）                   | `blank.html`                                                     | 同上。ヘッダー・フッター・幅の制約の無い白紙のページ（LP 向け）。`layout` にほかの名前（例: `landing`）を入れると、テーマの `landing.html` を使う                                                                           |
+| `/forum` 以下                                                   | `forum_index.html` / `forum_category.html` / `forum_thread.html` | [掲示板](forum.ja.md#2-公開サイト)                                                                                                                                                                                          |
+| 見つからない・非公開                                            | `404.html`                                                       | `title`（`Page Not Found`）、`content_html`（理由の一文）                                                                                                                                                                   |
+| `/products`                                                     | `products.html`                                                  | `title`、`items`、`pagination`、`theme_vars`                                                                                                                                                                                |
+| `/products/{slug}`                                              | `product.html`                                                   | `title`、`content_html`、`fields`（`price` / `stock` など）、`relations`、`theme_vars`（`reviews_*` を含む。レビュー欄は [会員アカウント 4.4](members.ja.md#44-商品ページのレビュー)）                                      |
+| `/cart`                                                         | `cart.html`                                                      | `theme_vars`                                                                                                                                                                                                                |
+| `/orders/{id}`                                                  | `order.html`                                                     | `slug`（注文 ID）、`theme_vars`                                                                                                                                                                                             |
+| `/account`・`/account/login`・`/account/register`               | `account.html`                                                   | `slug`（`home` / `login` / `register`）、`theme_vars`（`account_*`。[会員アカウント 4.3](members.ja.md#43-テーマ)）                                                                                                         |
 
 ### 3.1.1 トップページ（`[theme].front_page`）
 
-| 値 | `/` に出すもの | 記事一覧 |
-|---|---|---|
-| `"posts"`（既定） | 記事一覧（`index.html`） | `/` と `/articles` の両方。テンプレートの中では区別できないので、ヒーローなどトップだけに出したい要素も `/articles` に表示される |
-| `"template"` | テーマの `front.html`。ランディングページ向け。最新の記事が `items` に入るので、「お知らせ」の欄などに使える。テーマに無ければ `index.html` と同じ表示 | `/articles` |
-| `"page:<slug>"` | 固定ページ（Admin Studio で編集できる。「ブランク LP」のレイアウトも使える）。ページが無い・非公開なら記事一覧 | `/articles` |
+| 値                | `/` に出すもの                                                                                                                                         | 記事一覧                                                                                                                         |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------- |
+| `"posts"`（既定） | 記事一覧（`index.html`）                                                                                                                               | `/` と `/articles` の両方。テンプレートの中では区別できないので、ヒーローなどトップだけに出したい要素も `/articles` に表示される |
+| `"template"`      | テーマの `front.html`。ランディングページ向け。最新の記事が `items` に入るので、「お知らせ」の欄などに使える。テーマに無ければ `index.html` と同じ表示 | `/articles`                                                                                                                      |
+| `"page:<slug>"`   | 固定ページ（Admin Studio で編集できる。「ブランク LP」のレイアウトも使える）。ページが無い・非公開なら記事一覧                                         | `/articles`                                                                                                                      |
 
 `"posts"` 以外にするときは、テーマのナビゲーションの記事一覧へのリンクを `{{ base_path }}/articles` にしてください。
 
@@ -136,19 +136,19 @@ themes/my-theme/
 
 すべてのページで使える変数:
 
-| 変数 | 内容 |
-|---|---|
-| `base_path` | サイトを公開しているパス（例: `/cms`。ルートで公開しているときは空文字）。**サイト内のリンクとアセットには必ず先頭に付ける** |
-| `site_title` / `site_description` | サイト名（Admin Studio の **Settings › Site** で変更した値、無ければ `[theme].site_title`）/ `[theme].site_description` |
-| `title` / `slug` | ページのタイトル・スラッグ |
-| `content_type` | `index` / `article` / `page` / `error` など |
-| `extra_css` | `[theme].custom_css` とプラグインが足した CSS |
-| `extra_head` | `<head>` に足す HTML（サイトの favicon の `<link rel="icon">` と、プラグインが足したもの）。**`<head>` の中で必ず `{{ extra_head \| safe }}` を出力する** |
-| `theme_vars` | プラグインやショップが渡す文字列の辞書 |
-| `locale` | 表示言語（`[theme].locale`、`en` / `ja`）。`<html lang="{{ locale }}">` に使う |
-| `t("キー", ...)` | 組み込みの文言を表示言語で返す関数（`{{ t("nav.home") }}`。キーは `crates/aegis-theme/src/messages.rs`）。独自の文言はテーマに直接書いてよい。ループ変数に `t` を使わない（この関数を隠してしまう） |
-| `admin_url` | Admin Studio へのリンクの URL（`base_path` と `[server].admin_path` 込み）。**出さない設定のときは空文字**なので `{% if admin_url %}...{% endif %}` で囲む。`/admin/` を直接書かない |
-| `show_powered_by` | フッターに「Powered by AegisCMS」などの表記を出すか（`[theme].show_powered_by`、既定は `true`）。表記は `{% if show_powered_by %}...{% endif %}` で囲む |
+| 変数                              | 内容                                                                                                                                                                                                |
+| --------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `base_path`                       | サイトを公開しているパス（例: `/cms`。ルートで公開しているときは空文字）。**サイト内のリンクとアセットには必ず先頭に付ける**                                                                        |
+| `site_title` / `site_description` | サイト名（Admin Studio の **Settings › Site** で変更した値、無ければ `[theme].site_title`）/ `[theme].site_description`                                                                             |
+| `title` / `slug`                  | ページのタイトル・スラッグ                                                                                                                                                                          |
+| `content_type`                    | `index` / `article` / `page` / `error` など                                                                                                                                                         |
+| `extra_css`                       | `[theme].custom_css` とプラグインが足した CSS                                                                                                                                                       |
+| `extra_head`                      | `<head>` に足す HTML（サイトの favicon の `<link rel="icon">` と、プラグインが足したもの）。**`<head>` の中で必ず `{{ extra_head \| safe }}` を出力する**                                           |
+| `theme_vars`                      | プラグインやショップが渡す文字列の辞書                                                                                                                                                              |
+| `locale`                          | 表示言語（`[theme].locale`、`en` / `ja`）。`<html lang="{{ locale }}">` に使う                                                                                                                      |
+| `t("キー", ...)`                  | 組み込みの文言を表示言語で返す関数（`{{ t("nav.home") }}`。キーは `crates/aegis-theme/src/messages.rs`）。独自の文言はテーマに直接書いてよい。ループ変数に `t` を使わない（この関数を隠してしまう） |
+| `admin_url`                       | Admin Studio へのリンクの URL（`base_path` と `[server].admin_path` 込み）。**出さない設定のときは空文字**なので `{% if admin_url %}...{% endif %}` で囲む。`/admin/` を直接書かない                |
+| `show_powered_by`                 | フッターに「Powered by AegisCMS」などの表記を出すか（`[theme].show_powered_by`、既定は `true`）。表記は `{% if show_powered_by %}...{% endif %}` で囲む                                             |
 
 > [!NOTE]
 > 組み込みの機能が出す名前（`aegis-consent-*`、`data-aegis-*`、`/_aegis/consent.js` など）は、応答が返る直前に `[server].namespace`（既定 `cms`）の接頭辞へ置き換わります。テンプレートや CSS には `aegis-` と書いたままでよく、HTML・CSS・JS で同じ置き換えが掛かるので食い違いません。ブラウザの開発者ツールやサイト上では `cms-consent-*` などの名前で見えます（[configuration.md 4.6](configuration.ja.md#46-使っている-cms-を特定されにくくする)）。
@@ -161,13 +161,13 @@ themes/my-theme/
 
 ### 3.3 フィルター
 
-| フィルター | 例 | 結果 |
-|---|---|---|
-| `date_short` | `{{ published_at \| date_short }}` | `2026-10-23`（先頭 10 文字） |
-| `datetime_short` | `{{ created_at \| datetime_short }}` | `2026-10-23 14:05`（分まで。UTC のまま、`T` を空白に） |
-| `truncate(n)` | `{{ item.excerpt \| truncate(90) }}` | n 文字を超えたら切って `...` を付ける（文字数で数えるので日本語でも安全） |
-| `money(通貨)` | `{{ fields.price \| money(theme_vars.currency) }}` | `¥1,780`（金額は最小単位の整数） |
-| `safe` | `{{ content_html \| safe }}` | エスケープしない |
+| フィルター       | 例                                                 | 結果                                                                      |
+| ---------------- | -------------------------------------------------- | ------------------------------------------------------------------------- |
+| `date_short`     | `{{ published_at \| date_short }}`                 | `2026-10-23`（先頭 10 文字）                                              |
+| `datetime_short` | `{{ created_at \| datetime_short }}`               | `2026-10-23 14:05`（分まで。UTC のまま、`T` を空白に）                    |
+| `truncate(n)`    | `{{ item.excerpt \| truncate(90) }}`               | n 文字を超えたら切って `...` を付ける（文字数で数えるので日本語でも安全） |
+| `money(通貨)`    | `{{ fields.price \| money(theme_vars.currency) }}` | `¥1,780`（金額は最小単位の整数）                                          |
+| `safe`           | `{{ content_html \| safe }}`                       | エスケープしない                                                          |
 
 `safe` を付けてよいのは `content_html`（サーバーがサニタイズ済み）、`extra_css`、`extra_head` だけです。カスタムフィールドなど、利用者が入力した値には付けないでください。
 
@@ -260,17 +260,17 @@ themes/my-theme/
 
 - **ヘッダーは折り返せるようにし、サイト名は折り返さない**。日本語は文字ごとに改行できるので、横並びのメニューに押されるとサイト名が 1 文字ずつ縦に並びます。
 
-  ```css
-  .header-inner { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.75rem 1.5rem; }
-  .brand { white-space: nowrap; }
-  .nav { display: flex; flex-wrap: wrap; gap: 0.5rem 1rem; }
-  ```
+    ```css
+    .header-inner { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.75rem 1.5rem; }
+    .brand { white-space: nowrap; }
+    .nav { display: flex; flex-wrap: wrap; gap: 0.5rem 1rem; }
+    ```
 
 - **グリッドの最小幅は `min(..., 100%)` で包む**。`minmax(320px, 1fr)` は、画面から余白を引いた幅が 320px 未満になると横にはみ出します。
 
-  ```css
-  .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(320px, 100%), 1fr)); }
-  ```
+    ```css
+    .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(320px, 100%), 1fr)); }
+    ```
 
 - **横に並べた入力欄には `min-width: 0` を付ける**。`flex: 1` の `<input>` にはブラウザが決めた最小幅があり、隣のボタンを画面の外へ押し出します。
 - **固定の `width` を避ける**。`width: 900px` ではなく `max-width: 900px; width: 100%` にします。装飾用の大きな要素（背景の光など）は `position: fixed` か `overflow: hidden` の親の中に置きます。
@@ -343,24 +343,25 @@ task dev:theme -- themes/my-theme      # = cargo run -p aegis-theme-dev -- theme
 - **アセット**: `/theme/assets/...` と `/themes/<id>/assets/...` で配信します。
 - **宣言的クエリ（`queries`）のサンプル**: テンプレートが `queries.<name>`（[queries.md](queries.ja.md)）を読むときは、`samples/queries.json` に**クエリ名 → 結果の配列**を書きます。ページのサンプルではなく、全ページの `queries` になります（保存すると次の描画に反映。Theme Builder では保存していない編集中の内容でも描画できます）。無い名前は未定義になり、`queries.x[0]` のような読み方は描画のエラーになります。結果は配列でなければならず（集計は行の配列、`select` を省いた一覧は `items` と同じ形）、違うとエラーに出ます。サイトの定義から雛形を作るには:
 
-  ```bash
-  cargo run -p aegis-theme-dev -- themes/my-theme --init-queries --queries-dir ../site/queries --schemas-dir ../site/schemas
-  ```
+    ```bash
+    cargo run -p aegis-theme-dev -- themes/my-theme --init-queries --queries-dir ../site/queries --schemas-dir ../site/schemas
+    ```
 
-  クエリは実行せず、定義の形に合う決まった値（集計は 3 行、一覧は最大 3 件）を `samples/queries.json` に書いて終わります（サーバーは起動しません）。すでにあるクエリの結果は残し、足りない名前だけを足します（`--force` で作り直し）。値に意味は無いので、空の結果・長い文字列・0 など、確かめたい場面に合わせて手で直してください。実際のクエリは、`theme dev` では発行しません（DB を使わないため）。
+    クエリは実行せず、定義の形に合う決まった値（集計は 3 行、一覧は最大 3 件）を `samples/queries.json` に書いて終わります（サーバーは起動しません）。すでにあるクエリの結果は残し、足りない名前だけを足します（`--force` で作り直し）。値に意味は無いので、空の結果・長い文字列・0 など、確かめたい場面に合わせて手で直してください。実際のクエリは、`theme dev` では発行しません（DB を使わないため）。
+
 - **公開サイトとの違い**: プラグインの `on-render-page`、コメント欄・ショップ・フォーラムのデータ、`[theme]` の設定（`theme_vars`・`custom_css`）は反映されません。必要なら `samples/*.json` に書いてください。最終確認は、実際のサイトで行います。
 - **待ち受けと表示言語**: 既定は `127.0.0.1:8090`（`--host`・`--port`）。表示言語は `--locale <LOCALE>`（`-l`、既定 `en`。例: `-l ja`）で指定できます。テンプレートは任意のコードを実行できる開発用の機能なので、公開するネットワークには出さないでください。
 - **エラーの場所**: 失敗したときは、どのテンプレートの何行目かが分かります（`{% include %}`・`{% extends %}` の先で起きたときは、その先のファイルと行）。
 - **JSON API**（Theme Builder の UI 用）:
-  - `GET /__dev/api/theme`: マニフェスト・テンプレート・サンプルの一覧
-  - `GET /__dev/api/samples/<名前>`: 描画データ
-  - `GET /__dev/api/check`: 全サンプルを描画して、失敗（`error` に `message`・`template`・`line`）を返す。CI にも使えます
-  - `GET /__dev/api/package/validate`: テーマパッケージとしての適合性（マニフェスト必須項目、base.html、署名状態）を検証する
-  - `POST /__dev/api/package/sign`: テーマパッケージのダイジェストを計算し Ed25519 署名ファイル（`signature.json`）を生成・保存する（鍵ペアの自動生成または秘密鍵指定）
-  - `GET /__dev/api/package/export`: 配布用 ZIP アーカイブ（`samples/` や隠しファイルを除外）をダウンロードする
-  - `GET /__dev/api/files`、`GET`・`PUT`・`DELETE /__dev/api/files/<パス>`、`POST /__dev/api/rename`: ファイルの一覧・読み出し・保存・削除・改名。対象は `theme.json`（削除・改名不可）と、`templates/`・`samples/`・`assets/` の下のテキストファイル（`.html`・`.css`・`.js`・`.json`・`.svg` など、1MiB まで）です。`..`・隠しファイル・フォルダーの外は拒否します
-  - `POST /__dev/api/render`: 保存していない内容（`templates` に名前 → 中身、`samples` に名前 → JSON、オプショナルで `block` にブロック名）を反映して描画し、利用可能な `blocks` 一覧を返す。何も書き込みません
-  - 書き込み（`PUT`・`POST`）は、ループバックで待ち受けているときだけ使えます。ヘッダー `x-aegis-dev` が必要で、`Host` がループバックの名前でないリクエストは拒否します（ほかのサイトのページからの書き込みと、DNS リバインディングを防ぐため）。CORS は許可しません
+    - `GET /__dev/api/theme`: マニフェスト・テンプレート・サンプルの一覧
+    - `GET /__dev/api/samples/<名前>`: 描画データ
+    - `GET /__dev/api/check`: 全サンプルを描画して、失敗（`error` に `message`・`template`・`line`）を返す。CI にも使えます
+    - `GET /__dev/api/package/validate`: テーマパッケージとしての適合性（マニフェスト必須項目、base.html、署名状態）を検証する
+    - `POST /__dev/api/package/sign`: テーマパッケージのダイジェストを計算し Ed25519 署名ファイル（`signature.json`）を生成・保存する（鍵ペアの自動生成または秘密鍵指定）
+    - `GET /__dev/api/package/export`: 配布用 ZIP アーカイブ（`samples/` や隠しファイルを除外）をダウンロードする
+    - `GET /__dev/api/files`、`GET`・`PUT`・`DELETE /__dev/api/files/<パス>`、`POST /__dev/api/rename`: ファイルの一覧・読み出し・保存・削除・改名。対象は `theme.json`（削除・改名不可）と、`templates/`・`samples/`・`assets/` の下のテキストファイル（`.html`・`.css`・`.js`・`.json`・`.svg` など、1MiB まで）です。`..`・隠しファイル・フォルダーの外は拒否します
+    - `POST /__dev/api/render`: 保存していない内容（`templates` に名前 → 中身、`samples` に名前 → JSON、オプショナルで `block` にブロック名）を反映して描画し、利用可能な `blocks` 一覧を返す。何も書き込みません
+    - 書き込み（`PUT`・`POST`）は、ループバックで待ち受けているときだけ使えます。ヘッダー `x-aegis-dev` が必要で、`Host` がループバックの名前でないリクエストは拒否します（ほかのサイトのページからの書き込みと、DNS リバインディングを防ぐため）。CORS は許可しません
 
 ### Theme Builder（エディター + ライブプレビュー）
 
@@ -391,14 +392,14 @@ task dev:theme-builder                 # 2 つ目のターミナル: Theme Build
 
 ### 確認するページと幅
 
-| ページ | URL の例（サンプルショップ） |
-|---|---|
-| トップ・記事一覧 | `/`、`/articles` |
-| 記事（見出し・リスト入り） | `/articles/how-to-brew-pour-over` |
-| 固定ページ | `/about` |
-| 商品一覧・商品 | `/products`、`/products/ethiopia-yirgacheffe` |
-| カート（空 / 商品を入れた状態） | `/cart` |
-| 404 | `/no-such-page` |
+| ページ                          | URL の例（サンプルショップ）                  |
+| ------------------------------- | --------------------------------------------- |
+| トップ・記事一覧                | `/`、`/articles`                              |
+| 記事（見出し・リスト入り）      | `/articles/how-to-brew-pour-over`             |
+| 固定ページ                      | `/about`                                      |
+| 商品一覧・商品                  | `/products`、`/products/ethiopia-yirgacheffe` |
+| カート（空 / 商品を入れた状態） | `/cart`                                       |
+| 404                             | `/no-such-page`                               |
 
 幅 **320 / 360 / 390px**（スマートフォン）と **1280px**（PC）で確かめます。ブラウザの開発者ツールでもよいですし、Playwright などで次の値を比べると、横スクロールが出るかを機械的に調べられます。
 

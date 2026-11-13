@@ -55,6 +55,7 @@ Place the following files in the AegisCMS server's `plugins/<name>/` (`<name>` i
 ## 🧩 Plugin Structure
 
 ### Manifest (`plugin.manifest.json`)
+
 Based on the zero-trust execution model, declare the minimum capabilities (permissions) the plugin needs. Any undeclared operation is blocked immediately by the host runtime.
 
 ```json
@@ -104,8 +105,8 @@ impl Plugin for MyPlugin {
 
 ### Available Host APIs
 
-| Module | Function | Description |
-|---|---|---|
-| `log` | `log_debug!`, `log_info!`, `log_warn!`, `log_error!` | Writes logs safely through the host's logger |
-| `net` | `net::is_allowed(url)` | Checks whether the destination URL is allowed by the manifest |
-| `kv` | `kv::set(key, val)`, `kv::set_json(key, val)` | Saves data to the KVS in the plugin's own namespace |
+| Module | Function                                             | Description                                                   |
+| ------ | ---------------------------------------------------- | ------------------------------------------------------------- |
+| `log`  | `log_debug!`, `log_info!`, `log_warn!`, `log_error!` | Writes logs safely through the host's logger                  |
+| `net`  | `net::is_allowed(url)`                               | Checks whether the destination URL is allowed by the manifest |
+| `kv`   | `kv::set(key, val)`, `kv::set_json(key, val)`        | Saves data to the KVS in the plugin's own namespace           |

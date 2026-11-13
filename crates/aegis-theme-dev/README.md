@@ -13,16 +13,16 @@ It can be started with the `aegis-server theme dev <dir>` command (or this crate
 ## Responsibilities and Features
 
 - **Zero-Config preview**:
-  - Runs without an external DB. Renders templates using built-in dummy posts, static pages, and category data.
-  - Placing a `sample-data.json` in the theme folder also lets you preview with the author's own mock data.
+    - Runs without an external DB. Renders templates using built-in dummy posts, static pages, and category data.
+    - Placing a `sample-data.json` in the theme folder also lets you preview with the author's own mock data.
 - **Live preview and hot reload**:
-  - Watches for changes to template files, assets, and settings files (file polling / Last Modified checks) and reloads the browser automatically.
+    - Watches for changes to template files, assets, and settings files (file polling / Last Modified checks) and reloads the browser automatically.
 - **Theme Builder UI integration API (`/__dev/api/*`)**:
-  - APIs to get the file tree of a theme, and to read and save files.
-  - A live preview API that instantly renders unsaved content (drafts) in the editor.
-  - Syntax validation of `theme.toml` and real-time feedback on template syntax errors.
+    - APIs to get the file tree of a theme, and to read and save files.
+    - A live preview API that instantly renders unsaved content (drafts) in the editor.
+    - Syntax validation of `theme.toml` and real-time feedback on template syntax errors.
 - **Security**:
-  - Because it is for development, it listens only on the `127.0.0.1` loopback address by default. This guards against DNS rebinding attacks and unauthorized access.
+    - Because it is for development, it listens only on the `127.0.0.1` loopback address by default. This guards against DNS rebinding attacks and unauthorized access.
 
 ## Usage
 

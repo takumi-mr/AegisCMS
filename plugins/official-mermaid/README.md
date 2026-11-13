@@ -23,11 +23,11 @@ graph TD;
 
 Change them in this plugin's settings screen under Admin Studio's **Settings › Plugins**, or in `[plugins.settings.official-mermaid]`.
 
-| Key | Description | Default |
-| --- | --- | --- |
-| `theme` | Diagram theme. `auto` (by the brightness of the page background: `dark` if dark, `default` if light), `default`, `dark`, `neutral`, `forest` | `auto` |
-| `security_level` | `strict` (disallows HTML and click handling inside diagrams), `antiscript`, `loose`, `sandbox`. Loosen it only for diagrams written by trusted people | `strict` |
-| `script_url` | URL of the Mermaid script. A path starting with `/` (when hosting on your own site, use something like `/assets/mermaid.min.js`), or `https://cdn.jsdelivr.net/...`. **URLs on other hosts are dropped by the host** (scripts can only be added from hosts declared in the manifest. [csp.md](../../docs/csp.md)) | `https://cdn.jsdelivr.net/npm/mermaid@10.9.3/dist/mermaid.min.js` |
+| Key              | Description                                                                                                                                                                                                                                                                                                       | Default                                                           |
+| ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
+| `theme`          | Diagram theme. `auto` (by the brightness of the page background: `dark` if dark, `default` if light), `default`, `dark`, `neutral`, `forest`                                                                                                                                                                      | `auto`                                                            |
+| `security_level` | `strict` (disallows HTML and click handling inside diagrams), `antiscript`, `loose`, `sandbox`. Loosen it only for diagrams written by trusted people                                                                                                                                                             | `strict`                                                          |
+| `script_url`     | URL of the Mermaid script. A path starting with `/` (when hosting on your own site, use something like `/assets/mermaid.min.js`), or `https://cdn.jsdelivr.net/...`. **URLs on other hosts are dropped by the host** (scripts can only be added from hosts declared in the manifest. [csp.md](../../docs/csp.md)) | `https://cdn.jsdelivr.net/npm/mermaid@10.9.3/dist/mermaid.min.js` |
 
 Invalid values (an unknown theme, a `javascript:` URL, etc.) fall back to the default.
 

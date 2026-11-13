@@ -10,22 +10,22 @@ AegisCMS は Bytecode Alliance の Wasmtime ランタイムを基盤とするゼ
 
 - **マクロによるフック自動生成**: `#[aegis_plugin]`（または `register_plugin!`）でライフサイクルフックを実装し、Wasm ABI エクスポートを自動生成。
 - **多彩なライフサイクルフック**:
-  - `on_before_save`: 記事・コンテンツ保存前のバリデーションや自動加工。
-  - `transform_content_ast`: ブロック AST（構文木）の走査・書き換え。
-  - `on_render_page`: 描画後の HTML や `<head>` タグへのカスタム CSS/JS の挿入。
-  - `render_blocks`: プラグイン独自のカスタムブロックを HTML にレンダリング。
-  - `on_user_authenticated`: ユーザーログイン時のロール付与や外部 IdP プロファイル同期。
-  - `calculate_order`: EC 注文フローにおける動的価格計算、クーポン割引、税金・送料の算出。
-  - `on_order_status_changed`: 注文ステータス遷移（決済完了、発送、返金など）に応じた処理。
-  - `check_comment`: コメントの自動判定（スパムスコア算出、NG ワード判定、承認状態制御）。
-  - `send_notification`: メールやチャットなどのマルチチャネル通知処理。
-  - `on_content_published`: コンテンツ公開時の外部通知・キャッシュウォーミング。
-  - `on_content_deleted`: コンテンツ削除時の外部連携リソース削除。
+    - `on_before_save`: 記事・コンテンツ保存前のバリデーションや自動加工。
+    - `transform_content_ast`: ブロック AST（構文木）の走査・書き換え。
+    - `on_render_page`: 描画後の HTML や `<head>` タグへのカスタム CSS/JS の挿入。
+    - `render_blocks`: プラグイン独自のカスタムブロックを HTML にレンダリング。
+    - `on_user_authenticated`: ユーザーログイン時のロール付与や外部 IdP プロファイル同期。
+    - `calculate_order`: EC 注文フローにおける動的価格計算、クーポン割引、税金・送料の算出。
+    - `on_order_status_changed`: 注文ステータス遷移（決済完了、発送、返金など）に応じた処理。
+    - `check_comment`: コメントの自動判定（スパムスコア算出、NG ワード判定、承認状態制御）。
+    - `send_notification`: メールやチャットなどのマルチチャネル通知処理。
+    - `on_content_published`: コンテンツ公開時の外部通知・キャッシュウォーミング。
+    - `on_content_deleted`: コンテンツ削除時の外部連携リソース削除。
 - **ホスト API**:
-  - **構造化ロギング**: `log_debug!`, `log_info!`, `log_warn!`, `log_error!` により、ホスト本体の `tracing` ログへ安全に出力。
-  - **ケイパビリティ制御付きネットワーク**: `net::is_allowed` および `http::fetch` による、マニフェスト許可ドメインへの安全な外部 HTTP 通信。
-  - **隔離 KVS**: プラグインごとに名前空間が分離されたキーバリューストア（`kv::get`, `kv::set`, `kv::delete`, `kv::get_json`, `kv::set_json`）。
-  - **設定値の取得**: Admin Studio で設定されたプラグイン設定値の読み取り（`config::get`）。
+    - **構造化ロギング**: `log_debug!`, `log_info!`, `log_warn!`, `log_error!` により、ホスト本体の `tracing` ログへ安全に出力。
+    - **ケイパビリティ制御付きネットワーク**: `net::is_allowed` および `http::fetch` による、マニフェスト許可ドメインへの安全な外部 HTTP 通信。
+    - **隔離 KVS**: プラグインごとに名前空間が分離されたキーバリューストア（`kv::get`, `kv::set`, `kv::delete`, `kv::get_json`, `kv::set_json`）。
+    - **設定値の取得**: Admin Studio で設定されたプラグイン設定値の読み取り（`config::get`）。
 - **ネイティブ単体テスト**: SDK に内蔵されたモック機能により、Wasm にコンパイルすることなく通常の `cargo test` でプラグインの動作を検証可能。
 
 ## クイックスタート

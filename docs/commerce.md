@@ -58,14 +58,14 @@ For the list of settings, see the [Configuration reference](configuration.md#212
 
 Create, edit, and delete in Admin Studio's **Products** tab (`editor` and above).
 
-| Field | Description |
-| --- | --- |
-| `price` | The selling price (an integer in the currency's smallest unit; yen for JPY). When operating tax-inclusive, the tax-inclusive price |
-| `compare_at_price` | The pre-discount price (display only; struck through) |
-| `stock` | Inventory count. If empty, inventory is not counted (unlimited) |
-| `sku` / `image_url` / `excerpt` / `category_id` | Product number, image (chosen from the media library), summary for lists, category |
-| `buy_url` | A link for selling externally without using `[commerce]` |
-| Body (blocks) | The product page's description. Entered in Markdown in Admin Studio |
+| Field                                           | Description                                                                                                                        |
+| ----------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `price`                                         | The selling price (an integer in the currency's smallest unit; yen for JPY). When operating tax-inclusive, the tax-inclusive price |
+| `compare_at_price`                              | The pre-discount price (display only; struck through)                                                                              |
+| `stock`                                         | Inventory count. If empty, inventory is not counted (unlimited)                                                                    |
+| `sku` / `image_url` / `excerpt` / `category_id` | Product number, image (chosen from the media library), summary for lists, category                                                 |
+| `buy_url`                                       | A link for selling externally without using `[commerce]`                                                                           |
+| Body (blocks)                                   | The product page's description. Entered in Markdown in Admin Studio                                                                |
 
 - Only `published` products can be ordered.
 - Even if you delete a product, past orders keep the product name and unit price at the time of the order.
@@ -76,14 +76,14 @@ Create, edit, and delete in Admin Studio's **Products** tab (`editor` and above)
 
 You can register variants per product (table `_aegis_product_variants`; created, edited, and deleted from the product edit screen in Admin Studio).
 
-| Item | Description |
-| --- | --- |
-| `title` | Display name (e.g. `M / Black`). On order lines it appears as "product name - display name" |
-| `sku` | Product number |
-| `price_override` | This variant's price. If empty, the parent product's `price` |
-| `stock` | This variant's inventory. If empty, unlimited |
-| `attributes` | Arbitrary attributes (such as `{"size": "M", "color": "black"}`). A fixed per-currency price can also be placed as `price_<currency>` |
-| `position` | Sort order |
+| Item             | Description                                                                                                                           |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| `title`          | Display name (e.g. `M / Black`). On order lines it appears as "product name - display name"                                           |
+| `sku`            | Product number                                                                                                                        |
+| `price_override` | This variant's price. If empty, the parent product's `price`                                                                          |
+| `stock`          | This variant's inventory. If empty, unlimited                                                                                         |
+| `attributes`     | Arbitrary attributes (such as `{"size": "M", "color": "black"}`). A fixed per-currency price can also be placed as `price_<currency>` |
+| `position`       | Sort order                                                                                                                            |
 
 - Cart rows and order lines are distinguished by "product × variant" (different variants of the same product are separate rows).
 - An order that specifies a variant reduces the variant's `stock`, not the parent product's (the same for reservation, cancellation, and restoring on refund).
@@ -110,13 +110,13 @@ The unit price is decided in the following order (for both quotes and orders, wi
 
 ### Public Site Pages
 
-| URL | Template | Description |
-| --- | --- | --- |
-| `/products` (`?page=N`) | `products.html` | The list of published products (`[theme].posts_per_page` at a time) |
-| `/products/{slug}` | `product.html` | A product page (quantity, add to cart) |
-| `/cart` | `cart.html` | Cart, coupon, checkout |
-| `/orders/{id}?token=...` | `order.html` | Order confirmation (for customers; the token in the URL is required) |
-| `/account`, `/account/login`, `/account/register` | `account.html` | Member account: My Page (order history, reviews, registration info), login, and sign-up ([Member accounts](members.md)) |
+| URL                                               | Template        | Description                                                                                                             |
+| ------------------------------------------------- | --------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| `/products` (`?page=N`)                           | `products.html` | The list of published products (`[theme].posts_per_page` at a time)                                                     |
+| `/products/{slug}`                                | `product.html`  | A product page (quantity, add to cart)                                                                                  |
+| `/cart`                                           | `cart.html`     | Cart, coupon, checkout                                                                                                  |
+| `/orders/{id}?token=...`                          | `order.html`    | Order confirmation (for customers; the token in the URL is required)                                                    |
+| `/account`, `/account/login`, `/account/register` | `account.html`  | Member account: My Page (order history, reviews, registration info), login, and sign-up ([Member accounts](members.md)) |
 
 ![Product list page of the sample shop "Asanagi Coffee"](images/commerce-storefront.png)
 
@@ -139,14 +139,14 @@ pending_payment ──▶ paid ───────▶ shipped ──▶ comple
            (an option to restore inventory on pre-shipment cancel/refund)
 ```
 
-| Status | Meaning | What changes it |
-| --- | --- | --- |
-| `pending_payment` | Inventory is reserved and waiting for payment | Creating the order (if the total is 0, it is `paid` from the start) |
-| `paid` | Paid | `manual`: Admin Studio's "Mark as paid" / `stripe`: webhook only |
-| `shipped` | Shipped | Admin Studio's "Mark as shipped" (a note such as a tracking number can be left) |
-| `completed` | Completed | Admin Studio's "Mark as completed" |
-| `cancelled` | Cancelled | Admin Studio's "Cancel order", payment expiry, Stripe expiry or failure |
-| `refunded` | Refunded | Admin Studio's "Refund" (on a full refund), Stripe's webhook (`charge.refunded`) |
+| Status            | Meaning                                       | What changes it                                                                  |
+| ----------------- | --------------------------------------------- | -------------------------------------------------------------------------------- |
+| `pending_payment` | Inventory is reserved and waiting for payment | Creating the order (if the total is 0, it is `paid` from the start)              |
+| `paid`            | Paid                                          | `manual`: Admin Studio's "Mark as paid" / `stripe`: webhook only                 |
+| `shipped`         | Shipped                                       | Admin Studio's "Mark as shipped" (a note such as a tracking number can be left)  |
+| `completed`       | Completed                                     | Admin Studio's "Mark as completed"                                               |
+| `cancelled`       | Cancelled                                     | Admin Studio's "Cancel order", payment expiry, Stripe expiry or failure          |
+| `refunded`        | Refunded                                      | Admin Studio's "Refund" (on a full refund), Stripe's webhook (`charge.refunded`) |
 
 - A status change is a conditional update: "change to Y only when the current status is X". Duplicate webhooks and simultaneous operations are not processed twice.
 - Cancelling a `paid` order does not trigger an automatic refund by the payment service. To refund, run "Refund" from the detail modal in Admin Studio (for Stripe payments the Stripe Refund API is run online, and for manual payments the refund history is recorded. On a full refund it moves automatically to the `refunded` status).
@@ -225,14 +225,14 @@ Placing `products.html` / `product.html` / `cart.html` / `order.html` in the the
 
 Values usable in templates:
 
-| Value | Description |
-| --- | --- |
-| `items` (list) / `fields` (product page) | The product's fields (such as `fields.price`). `fields.id` on the product page is the product ID |
-| `theme_vars.shop_enabled` | `"true"` / `"false"` (`[commerce].enabled`) |
-| `theme_vars.currency` | The base currency code |
-| `theme_vars.supported_currencies` / `currency_rates` | Selectable currencies and rates (JSON strings) |
-| `theme_vars.products_url` / `cart_url` / `shop_api` / `cart_script` | URLs including the base path |
-| `{{ fields.price \| money(theme_vars.currency) }}` | Displaying an amount (`¥1,200`, `$12.50`) |
+| Value                                                               | Description                                                                                      |
+| ------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| `items` (list) / `fields` (product page)                            | The product's fields (such as `fields.price`). `fields.id` on the product page is the product ID |
+| `theme_vars.shop_enabled`                                           | `"true"` / `"false"` (`[commerce].enabled`)                                                      |
+| `theme_vars.currency`                                               | The base currency code                                                                           |
+| `theme_vars.supported_currencies` / `currency_rates`                | Selectable currencies and rates (JSON strings)                                                   |
+| `theme_vars.products_url` / `cart_url` / `shop_api` / `cart_script` | URLs including the base path                                                                     |
+| `{{ fields.price \| money(theme_vars.currency) }}`                  | Displaying an amount (`¥1,200`, `$12.50`)                                                        |
 
 The cart script (`/shop/cart.js`) finds and operates on the following elements.
 
@@ -265,14 +265,14 @@ The cart's contents are in the browser's `localStorage` (`aegis.cart.v1`), and t
 
 ### 6.1 Public (No Login Needed)
 
-| API | Description |
-| --- | --- |
-| `GET /api/v1/shop/config` | `{ "enabled", "currency", "supported_currencies", "currency_rates", "product_type", "provider" }` |
-| `GET /api/v1/shop/products/{id or slug}/variants` | The list of a product's variants |
-| `POST /api/v1/shop/quote` | A quote (nothing is saved) |
-| `POST /api/v1/shop/checkout` | Create an order (`201`) |
-| `GET /api/v1/shop/orders/{id}?token=...` | The customer's order confirmation |
-| `POST /api/v1/shop/webhooks/{provider}` | Notifications from the payment service (`stripe`) |
+| API                                               | Description                                                                                       |
+| ------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| `GET /api/v1/shop/config`                         | `{ "enabled", "currency", "supported_currencies", "currency_rates", "product_type", "provider" }` |
+| `GET /api/v1/shop/products/{id or slug}/variants` | The list of a product's variants                                                                  |
+| `POST /api/v1/shop/quote`                         | A quote (nothing is saved)                                                                        |
+| `POST /api/v1/shop/checkout`                      | Create an order (`201`)                                                                           |
+| `GET /api/v1/shop/orders/{id}?token=...`          | The customer's order confirmation                                                                 |
+| `POST /api/v1/shop/webhooks/{provider}`           | Notifications from the payment service (`stripe`)                                                 |
 
 Body of a quote or order:
 
@@ -290,24 +290,24 @@ Body of a quote or order:
 - `product` is the product's ID or slug, and `variant` is the variant's ID (optional). Rows of the same product and variant are merged. `currency` is the base currency if omitted. `email` / `name` are required only for orders.
 - The order response is `{ "order": {...}, "token": "...", "order_url": "/orders/{id}?token=...", "redirect_url": "https://checkout.stripe.com/..." | null }`. If there is a `redirect_url`, go there; otherwise go to `order_url`. The `token` is needed for order confirmation, and the server stores only its SHA-256 (it cannot be reissued).
 
-| Status | Condition |
-| --- | --- |
-| `400` | Empty cart, quantity 0 or over the limit (`max_quantity_per_item`), more products than `max_items`, invalid email address |
-| `404` | The product does not exist, is not published, or has no price; the shop is disabled |
-| `409` | Insufficient inventory (includes `product_id`) |
-| `422` | The `calculate-order` plugin refused (such as an invalid coupon; `error` is a message to show the customer) |
-| `429` | Orders from the same IP exceeded `max_orders_per_ip_per_hour` (a measure against cornering stock) |
-| `502` | Could not start payment at the payment service (the order is cancelled and inventory is restored) |
+| Status | Condition                                                                                                                 |
+| ------ | ------------------------------------------------------------------------------------------------------------------------- |
+| `400`  | Empty cart, quantity 0 or over the limit (`max_quantity_per_item`), more products than `max_items`, invalid email address |
+| `404`  | The product does not exist, is not published, or has no price; the shop is disabled                                       |
+| `409`  | Insufficient inventory (includes `product_id`)                                                                            |
+| `422`  | The `calculate-order` plugin refused (such as an invalid coupon; `error` is a message to show the customer)               |
+| `429`  | Orders from the same IP exceeded `max_orders_per_ip_per_hour` (a measure against cornering stock)                         |
+| `502`  | Could not start payment at the payment service (the order is cancelled and inventory is restored)                         |
 
 ### 6.2 Administration (`editor` and Above)
 
-| API | Description |
-| --- | --- |
-| `GET /api/v1/orders?status=&limit=&offset=` | The order list (newest first; `limit` default 50, max 200). `{ "orders", "total", "limit", "offset" }` |
-| `GET /api/v1/orders/report?start=YYYY-MM-DD&end=YYYY-MM-DD` | Daily sales report (payment time in UTC, the end date inclusive; up to 367 days) |
-| `GET /api/v1/orders/{id}` | Order details (including the customer's email address, payment ID, notes, `can_mark_paid`, `can_refund`, `supports_online_refund`) |
-| `POST /api/v1/orders/{id}/status` | `{ "status": "paid" \| "shipped" \| "completed" \| "cancelled", "note": "optional" }`. `409` if the transition is not possible |
-| `POST /api/v1/orders/{id}/refund` | `{ "amount": 1000 (the full remaining amount if omitted), "reason": "optional", "restock": true }`. Records and runs a refund (`409` if not `can_refund`) |
+| API                                                         | Description                                                                                                                                               |
+| ----------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET /api/v1/orders?status=&limit=&offset=`                 | The order list (newest first; `limit` default 50, max 200). `{ "orders", "total", "limit", "offset" }`                                                    |
+| `GET /api/v1/orders/report?start=YYYY-MM-DD&end=YYYY-MM-DD` | Daily sales report (payment time in UTC, the end date inclusive; up to 367 days)                                                                          |
+| `GET /api/v1/orders/{id}`                                   | Order details (including the customer's email address, payment ID, notes, `can_mark_paid`, `can_refund`, `supports_online_refund`)                        |
+| `POST /api/v1/orders/{id}/status`                           | `{ "status": "paid" \| "shipped" \| "completed" \| "cancelled", "note": "optional" }`. `409` if the transition is not possible                            |
+| `POST /api/v1/orders/{id}/refund`                           | `{ "amount": 1000 (the full remaining amount if omitted), "reason": "optional", "restock": true }`. Records and runs a refund (`409` if not `can_refund`) |
 
 The Admin Studio Orders tab shows the daily order count, sales, refunded amount, and post-refund amount of the last 30 days per currency, and the period can be changed. Sales include orders that are paid, shipped, completed, and refunded.
 
@@ -324,10 +324,10 @@ The audit log records `order.create` (the order), `order.update` (status changes
 
 ## 7. Extending with Plugins
 
-| Hook | When to use |
-| --- | --- |
-| [`calculate-order`](plugin_hooks.md#15-calculate-order) | Shipping, tax, coupons, bulk discounts, refusing regions that cannot be delivered to, calling an external shipping API |
-| [`on-order-status-changed`](plugin_hooks.md#16-on-order-status-changed) | Integration with Slack, email delivery services, accounting software, and inventory management systems |
+| Hook                                                                    | When to use                                                                                                            |
+| ----------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| [`calculate-order`](plugin_hooks.md#15-calculate-order)                 | Shipping, tax, coupons, bulk discounts, refusing regions that cannot be delivered to, calling an external shipping API |
+| [`on-order-status-changed`](plugin_hooks.md#16-on-order-status-changed) | Integration with Slack, email delivery services, accounting software, and inventory management systems                 |
 
 Plugins cannot change prices or lines (only `adjustments` and `metadata`), and the host recalculates the total. For communication with external services use `http::fetch` (only destinations in `allowed_domains`), and for API keys use `[plugins.settings.<name>]` and `env:` ([Host API](plugin_hooks.md#5-host-api)).
 

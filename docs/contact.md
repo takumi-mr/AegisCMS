@@ -94,15 +94,15 @@ required = true
 
 ### 1.1 Fields
 
-| Key | Description |
-| --- | --- |
-| `name` | The submitted name (lowercase letters, digits, `_`. `website` is used for bot protection and cannot be used) |
-| `label` | The display name (it appears under this name in the inbox and notifications too) |
-| `type` | `text` (default) / `email` / `tel` / `textarea` / `select` / `checkbox` / `file` ([Attachments](#13-attachments)) |
-| `required` | Required (for a checkbox, it must be checked) |
-| `placeholder` | An example for the input (for `select`, the text of the unselected item) |
-| `options` | The choices of a `select` (required) |
-| `max_length` | Maximum number of characters (default 5000 for `textarea`, 200 otherwise) |
+| Key           | Description                                                                                                       |
+| ------------- | ----------------------------------------------------------------------------------------------------------------- |
+| `name`        | The submitted name (lowercase letters, digits, `_`. `website` is used for bot protection and cannot be used)      |
+| `label`       | The display name (it appears under this name in the inbox and notifications too)                                  |
+| `type`        | `text` (default) / `email` / `tel` / `textarea` / `select` / `checkbox` / `file` ([Attachments](#13-attachments)) |
+| `required`    | Required (for a checkbox, it must be checked)                                                                     |
+| `placeholder` | An example for the input (for `select`, the text of the unselected item)                                          |
+| `options`     | The choices of a `select` (required)                                                                              |
+| `max_length`  | Maximum number of characters (default 5000 for `textarea`, 200 otherwise)                                         |
 
 - The field named `name` is shown as the sender's name, and the `subject_field` field (default `subject`) as the subject, in the inbox list and notifications. The first field with `type = "email"` is the sender's email address (the destination for replies and auto-replies).
 - If you omit a form's `title`, `submit_label`, and `success_message`, they become the defaults in the `locale` language ("Contact", "Send", etc.). If you omit `fields`, they become the 4 fields of name, email address, subject, and body (also in the `locale` language).
@@ -126,12 +126,12 @@ secret = "env:TURNSTILE_SECRET"        # read from an environment variable (you 
 
 Cloudflare Turnstile, hCaptcha, and reCAPTCHA all use the same mechanism ("the widget adds a token to the form → the server sends the `secret` and token to `siteverify` and checks `success`"), so choosing the `provider` is enough. reCAPTCHA supports v2 (checkbox).
 
-| `provider` | Token field | Verification URL |
-| --- | --- | --- |
+| `provider`  | Token field             | Verification URL                                            |
+| ----------- | ----------------------- | ----------------------------------------------------------- |
 | `turnstile` | `cf-turnstile-response` | `https://challenges.cloudflare.com/turnstile/v0/siteverify` |
-| `hcaptcha` | `h-captcha-response` | `https://api.hcaptcha.com/siteverify` |
-| `recaptcha` | `g-recaptcha-response` | `https://www.google.com/recaptcha/api/siteverify` |
-| `custom` | `response_field` | `verify_url` |
+| `hcaptcha`  | `h-captcha-response`    | `https://api.hcaptcha.com/siteverify`                       |
+| `recaptcha` | `g-recaptcha-response`  | `https://www.google.com/recaptcha/api/siteverify`           |
+| `custom`    | `response_field`        | `verify_url`                                                |
 
 For another service of the same shape, set `provider = "custom"` and write all of `verify_url`, `script_url`, `widget_class` (the class of the widget's `div`), and `response_field`. Even when `provider` is one of the three above, writing these replaces the defaults. `verify_url` is where the secret is sent, so it must be `https://` only (`http://` to a local `localhost` / `127.0.0.1` is allowed for development).
 
@@ -171,14 +171,14 @@ The form is a plain HTML form without JavaScript (JavaScript is needed only for 
 
 ### 2.1 The Theme Template (`contact.html`)
 
-| Value | Description |
-| --- | --- |
-| `title` | The form's heading (`title`) |
-| `fields.form_html` | The built-in form's HTML (escaped; `{{ fields.form_html \| safe }}`) |
-| `fields.sent` | `true` on the page after submission (`?sent=1`) |
-| `fields.form` | The form's settings (`name`, `title`, `description`, `submit_label`, `success_message`, `fields`, `action`, `honeypot`, `captcha_html`). Used when building the form yourself |
-| `fields.values` / `fields.errors` | The input and errors when submission failed (`[{field, code, message}]`) |
-| `fields.notice` | A notice when it could not be sent (input errors, too many submissions, etc.; in the `locale` language) |
+| Value                             | Description                                                                                                                                                                   |
+| --------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `title`                           | The form's heading (`title`)                                                                                                                                                  |
+| `fields.form_html`                | The built-in form's HTML (escaped; `{{ fields.form_html \| safe }}`)                                                                                                          |
+| `fields.sent`                     | `true` on the page after submission (`?sent=1`)                                                                                                                               |
+| `fields.form`                     | The form's settings (`name`, `title`, `description`, `submit_label`, `success_message`, `fields`, `action`, `honeypot`, `captcha_html`). Used when building the form yourself |
+| `fields.values` / `fields.errors` | The input and errors when submission failed (`[{field, code, message}]`)                                                                                                      |
+| `fields.notice`                   | A notice when it could not be sent (input errors, too many submissions, etc.; in the `locale` language)                                                                       |
 
 When building the form yourself, `POST` to `fields.form.action` and always include an invisible field with the name `fields.form.honeypot` (`website`) (hidden so people cannot see it). When [CAPTCHA](#12-captcha-optional) is configured, also place `{{ fields.form.captcha_html | safe }}` before the submit button inside the `<form>` (empty if not configured).
 
@@ -198,10 +198,10 @@ In the **Contact** tab (editor and above; shown only when `[contact].enabled = t
 
 ## 4. Notifications
 
-| Kind | Recipient | Description |
-| --- | --- | --- |
-| `contact.received` | Operators (`notify_staff`) | The form, all entered fields, the IP address, and the URL to open the inbox (`admin_url`) |
-| `contact.auto_reply` | The sender (the form's `auto_reply`) | That it was received, and what was entered |
+| Kind                 | Recipient                            | Description                                                                               |
+| -------------------- | ------------------------------------ | ----------------------------------------------------------------------------------------- |
+| `contact.received`   | Operators (`notify_staff`)           | The form, all entered fields, the IP address, and the URL to open the inbox (`admin_url`) |
+| `contact.auto_reply` | The sender (the form's `auto_reply`) | That it was received, and what was entered                                                |
 
 The text can be edited in Admin Studio's **Settings › Notifications**. Neither is sent for items judged to be spam.
 
@@ -210,13 +210,13 @@ The text can be edited in Admin Studio's **Settings › Notifications**. Neither
 
 ## 5. API
 
-| Method and path | Permission | Description |
-| --- | --- | --- |
-| `GET /api/v1/contact/forms` | None | The list of forms and fields |
-| `POST /api/v1/contact/forms/{form}` | None | Submit as JSON (`{"name": "...", "email": "...", ...}`; `true` for checkboxes). `201 {"status": "received"}`; input errors are `400 {"error", "errors": [{field, code, message}]}`; too many submissions give `429` |
-| `GET /api/v1/contact/messages?status=new&form=default&q=quote&limit=50&offset=0` | editor | The inbox (newest first) and counts per status (`counts`). `q` is full-text search |
-| `GET /api/v1/contact/messages/{id}/attachments/{field}` | editor | Download an attachment (`{field}` is the field's name) |
-| `GET` / `PATCH` / `DELETE /api/v1/contact/messages/{id}` | editor | Get one, change its status (`{"status": "done"}`), or delete it |
-| `POST /api/v1/contact/messages/bulk` | editor | In bulk (`{"ids": [...], "action": "read" \| "done" \| "spam" \| "new" \| "delete"}`) |
+| Method and path                                                                  | Permission | Description                                                                                                                                                                                                         |
+| -------------------------------------------------------------------------------- | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET /api/v1/contact/forms`                                                      | None       | The list of forms and fields                                                                                                                                                                                        |
+| `POST /api/v1/contact/forms/{form}`                                              | None       | Submit as JSON (`{"name": "...", "email": "...", ...}`; `true` for checkboxes). `201 {"status": "received"}`; input errors are `400 {"error", "errors": [{field, code, message}]}`; too many submissions give `429` |
+| `GET /api/v1/contact/messages?status=new&form=default&q=quote&limit=50&offset=0` | editor     | The inbox (newest first) and counts per status (`counts`). `q` is full-text search                                                                                                                                  |
+| `GET /api/v1/contact/messages/{id}/attachments/{field}`                          | editor     | Download an attachment (`{field}` is the field's name)                                                                                                                                                              |
+| `GET` / `PATCH` / `DELETE /api/v1/contact/messages/{id}`                         | editor     | Get one, change its status (`{"status": "done"}`), or delete it                                                                                                                                                     |
+| `POST /api/v1/contact/messages/bulk`                                             | editor     | In bulk (`{"ids": [...], "action": "read" \| "done" \| "spam" \| "new" \| "delete"}`)                                                                                                                               |
 
 The `code`s for input errors are `required` / `too_long` / `invalid_email` / `invalid_tel` / `invalid_option` / `invalid_text` (for attachments `file_too_large` / `invalid_file_type`) (`message` is in the `[contact].locale` language).

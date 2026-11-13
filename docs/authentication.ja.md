@@ -16,57 +16,57 @@ AegisCMS のログインは、ユーザー名とパスワードを `AuthProvider
 
 ![Admin Studio のユーザー管理（Settings → Users）](images/users-admin.png)
 
-| カラム | 内容 |
-| --- | --- |
-| `id` | UUID |
-| `username` | ログイン名（一意。英数字と `.` `_` `-` `@`、1〜64 文字）。セッションの `user_id`・監査ログの actor になる |
-| `email` / `display_name` | 任意。セッションの `metadata` に入る |
-| `role` | `admin` / `editor` / `reviewer` / `contributor` / `viewer` |
-| `password_hash` | Argon2id（既定パラメータ）の PHC 文字列。平文は保存しない |
-| `disabled` | `1` ならログイン不可 |
-| `avatar_key` | アバター画像のストレージキー（`avatars/...`）。未設定なら NULL。既存の DB には起動時に列を追加 |
-| `pending_approval` | `1` なら自己登録後の管理者承認待ち状態。管理者が有効化すると自動的に `0` に更新される |
-| `totp_secret` | Base32 でエンコードされた TOTP シークレット（未設定なら NULL） |
-| `totp_enabled` | `1` なら二段階認証が有効化されている |
-| `backup_codes` | 使い捨てバックアップコードの SHA-256 ハッシュ配列（JSON 文字列） |
-| `created_at` / `updated_at` | RFC 3339 (UTC) |
+| カラム                      | 内容                                                                                                      |
+| --------------------------- | --------------------------------------------------------------------------------------------------------- |
+| `id`                        | UUID                                                                                                      |
+| `username`                  | ログイン名（一意。英数字と `.` `_` `-` `@`、1〜64 文字）。セッションの `user_id`・監査ログの actor になる |
+| `email` / `display_name`    | 任意。セッションの `metadata` に入る                                                                      |
+| `role`                      | `admin` / `editor` / `reviewer` / `contributor` / `viewer`                                                |
+| `password_hash`             | Argon2id（既定パラメータ）の PHC 文字列。平文は保存しない                                                 |
+| `disabled`                  | `1` ならログイン不可                                                                                      |
+| `avatar_key`                | アバター画像のストレージキー（`avatars/...`）。未設定なら NULL。既存の DB には起動時に列を追加            |
+| `pending_approval`          | `1` なら自己登録後の管理者承認待ち状態。管理者が有効化すると自動的に `0` に更新される                     |
+| `totp_secret`               | Base32 でエンコードされた TOTP シークレット（未設定なら NULL）                                            |
+| `totp_enabled`              | `1` なら二段階認証が有効化されている                                                                      |
+| `backup_codes`              | 使い捨てバックアップコードの SHA-256 ハッシュ配列（JSON 文字列）                                          |
+| `created_at` / `updated_at` | RFC 3339 (UTC)                                                                                            |
 
 ### ロールと API の権限
 
 ロールの基本強度は `admin` ⊃ `editor` ⊃ `reviewer` ⊃ `contributor` ⊃ `viewer` です（上位ロールは下位ロールの操作をカバーしますが、`reviewer` はレビュー業務に特化した最小権限ロールとして新規作成や削除が制限されています）。
 
-| ロール | できること |
-| --- | --- |
-| `admin` | すべて（ユーザー・テーマ・設定・監査ログを含む） |
-| `editor` | コンテンツの公開・予約公開・アーカイブ、他人のコンテンツの変更、レビューの承認・差し戻し、カテゴリ・タグ・ショップ・コメントなどの管理 |
-| `reviewer`（校閲者） | レビュー待ち（`pending`）コンテンツの校正（本文・タイトルの手直し）・承認（`published` / `scheduled`）・差し戻し（`draft`）、校正用メディアのアップロード。自発的な新規作成（POST）や削除（DELETE）、公開済みコンテンツの直接変更は不可（LLMマルチエージェント校正や外部校閲者向け最小権限） |
-| `contributor`（寄稿者） | 自分のコンテンツの下書き（`draft`）とレビューの依頼（`pending`）、メディアのアップロード。公開は `editor` / `reviewer` が行う（[レビュー](theme_and_publishing_guide.ja.md#レビュー寄稿者の下書きを承認して公開する)） |
-| `viewer` | 閲覧（下書きを含む） |
+| ロール                  | できること                                                                                                                                                                                                                                                                                   |
+| ----------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `admin`                 | すべて（ユーザー・テーマ・設定・監査ログを含む）                                                                                                                                                                                                                                             |
+| `editor`                | コンテンツの公開・予約公開・アーカイブ、他人のコンテンツの変更、レビューの承認・差し戻し、カテゴリ・タグ・ショップ・コメントなどの管理                                                                                                                                                       |
+| `reviewer`（校閲者）    | レビュー待ち（`pending`）コンテンツの校正（本文・タイトルの手直し）・承認（`published` / `scheduled`）・差し戻し（`draft`）、校正用メディアのアップロード。自発的な新規作成（POST）や削除（DELETE）、公開済みコンテンツの直接変更は不可（LLMマルチエージェント校正や外部校閲者向け最小権限） |
+| `contributor`（寄稿者） | 自分のコンテンツの下書き（`draft`）とレビューの依頼（`pending`）、メディアのアップロード。公開は `editor` / `reviewer` が行う（[レビュー](theme_and_publishing_guide.ja.md#レビュー寄稿者の下書きを承認して公開する)）                                                                       |
+| `viewer`                | 閲覧（下書きを含む）                                                                                                                                                                                                                                                                         |
 
-| API | 必要なロール |
-| --- | --- |
-| `GET /api/v1/health`（製品名とバージョンは `admin` のセッションにだけ返す）, `/metrics` | 不要（公開） |
-| `GET /setup`（Web インストーラ画面）, `GET /api/v1/setup/status`, `POST /api/v1/setup`（初期セットアップ） | 不要（未初期化時のみ受付。セットアップ完了後は 403 またはリダイレクト） |
-| 公開サイト（`/`, `/articles/*`, `/{slug}`, `/theme/assets/*`, `/uploads/*`）, Admin Studio の静的ファイル | 不要（公開） |
-| `POST /api/v1/auth/session`（ログイン）, `POST /api/v1/auth/session/verify-2fa`（[二段階認証](#12-二段階認証-2fa--totp)）, `GET` / `DELETE /api/v1/auth/session` | 不要（資格情報・セッション・2FA 検証で判定） |
-| `GET /api/v1/auth/providers`, `GET /api/v1/auth/oidc/login`, `GET /api/v1/auth/oidc/callback`（[シングルサインオン](#6-シングルサインオン-openid-connect)） | 不要 |
-| `POST /api/v1/auth/password-reset`, `POST /api/v1/auth/password-reset/confirm`（[パスワード再設定](#9-パスワードの再設定)） | 不要（メール確認・トークン検証） |
-| `GET /api/v1/auth/invitations/info`, `POST /api/v1/auth/invitations/accept`（[招待リンク](#10-ユーザー招待リンク)） | 不要（招待トークン検証） |
-| ショップ（`/products`, `/cart`, `/orders/{id}`, `/shop/cart.js`, `/api/v1/shop/*`。[EC](commerce.ja.md#61-公開ログイン不要)） | 不要（注文確認はトークン、Webhook は署名で確認） |
-| `GET /api/v1/schemas`, `GET /api/v1/schemas/{type}`, `GET /api/v1/openapi.json` | `viewer` |
-| `GET /api/v1/contents/{type}`, `GET /api/v1/contents/{type}/{slug}`（下書きを含む） | `viewer` |
-| `GET /api/v1/storage/objects` | `viewer` |
-| `POST /api/v1/preview`（エディタのプレビュー。保存しない。読者の種類 `viewer` を選んで見られるが、本物の会員のセッションは使わない） | `viewer` |
-| `POST /api/v1/contents/{type}`, `PUT` / `DELETE /api/v1/contents/{type}/{slug または id}`, `POST .../versions/{revision}/restore`, `PUT .../tags`（[記事・コンテンツ投稿 API](content-api.ja.md)） | `contributor`（自分の `draft` / `pending`。公開中のものは変更を `pending` として出すだけで、削除・版の復元・タグの付け外しはできない。状態は `draft` / `pending` にしかできない）。`reviewer` は `pending` の校正・承認（`published`/`scheduled`）・差し戻し（`draft`）・タグ調整のみ可能（新規作成・削除・復元は不可）。他人のコンテンツの自由な変更や直接公開・削除は `editor` |
-| `GET /api/v1/orders`, `GET /api/v1/orders/{id}`, `POST /api/v1/orders/{id}/status`（[EC](commerce.ja.md#62-管理editor-以上)） | `editor` |
-| `POST /api/v1/storage/upload`（[メディア](media.ja.md)） | `contributor`（`reviewer` 以上も含む） |
-| `DELETE /api/v1/storage/objects/{key}`（[メディア](media.ja.md)） | `editor` |
-| `GET /api/v1/users/{username}`, `PATCH /api/v1/users/{username}`, `PUT` / `DELETE /api/v1/users/{username}/avatar`, `POST /api/v1/users/me/2fa/*`（[ユーザー管理 API](#3-ユーザー管理-api)・[二段階認証](#12-二段階認証-2fa--totp)） | 本人（`viewer` 以上）か `admin` |
-| `GET` / `POST /api/v1/users/me/tokens`, `DELETE /api/v1/users/me/tokens/{id}`（[API トークン](#13-api-トークン)） | 本人（`viewer` 以上）。API トークンでは呼べない |
-| `POST /api/v1/users/{username}/2fa/reset`（[二段階認証のリセット](#123-管理者による解除--復旧)） | `admin` |
-| `GET /api/v1/users`, `POST /api/v1/users`, `DELETE /api/v1/users/{username}` | `admin` |
-| `POST /api/v1/auth/invitations`（[招待リンク](#10-ユーザー招待リンク)） | `admin` |
-| `GET /api/v1/audit-logs` | `admin` |
+| API                                                                                                                                                                                                                                  | 必要なロール                                                                                                                                                                                                                                                                                                                                                                     |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET /api/v1/health`（製品名とバージョンは `admin` のセッションにだけ返す）, `/metrics`                                                                                                                                              | 不要（公開）                                                                                                                                                                                                                                                                                                                                                                     |
+| `GET /setup`（Web インストーラ画面）, `GET /api/v1/setup/status`, `POST /api/v1/setup`（初期セットアップ）                                                                                                                           | 不要（未初期化時のみ受付。セットアップ完了後は 403 またはリダイレクト）                                                                                                                                                                                                                                                                                                          |
+| 公開サイト（`/`, `/articles/*`, `/{slug}`, `/theme/assets/*`, `/uploads/*`）, Admin Studio の静的ファイル                                                                                                                            | 不要（公開）                                                                                                                                                                                                                                                                                                                                                                     |
+| `POST /api/v1/auth/session`（ログイン）, `POST /api/v1/auth/session/verify-2fa`（[二段階認証](#12-二段階認証-2fa--totp)）, `GET` / `DELETE /api/v1/auth/session`                                                                     | 不要（資格情報・セッション・2FA 検証で判定）                                                                                                                                                                                                                                                                                                                                     |
+| `GET /api/v1/auth/providers`, `GET /api/v1/auth/oidc/login`, `GET /api/v1/auth/oidc/callback`（[シングルサインオン](#6-シングルサインオン-openid-connect)）                                                                          | 不要                                                                                                                                                                                                                                                                                                                                                                             |
+| `POST /api/v1/auth/password-reset`, `POST /api/v1/auth/password-reset/confirm`（[パスワード再設定](#9-パスワードの再設定)）                                                                                                          | 不要（メール確認・トークン検証）                                                                                                                                                                                                                                                                                                                                                 |
+| `GET /api/v1/auth/invitations/info`, `POST /api/v1/auth/invitations/accept`（[招待リンク](#10-ユーザー招待リンク)）                                                                                                                  | 不要（招待トークン検証）                                                                                                                                                                                                                                                                                                                                                         |
+| ショップ（`/products`, `/cart`, `/orders/{id}`, `/shop/cart.js`, `/api/v1/shop/*`。[EC](commerce.ja.md#61-公開ログイン不要)）                                                                                                        | 不要（注文確認はトークン、Webhook は署名で確認）                                                                                                                                                                                                                                                                                                                                 |
+| `GET /api/v1/schemas`, `GET /api/v1/schemas/{type}`, `GET /api/v1/openapi.json`                                                                                                                                                      | `viewer`                                                                                                                                                                                                                                                                                                                                                                         |
+| `GET /api/v1/contents/{type}`, `GET /api/v1/contents/{type}/{slug}`（下書きを含む）                                                                                                                                                  | `viewer`                                                                                                                                                                                                                                                                                                                                                                         |
+| `GET /api/v1/storage/objects`                                                                                                                                                                                                        | `viewer`                                                                                                                                                                                                                                                                                                                                                                         |
+| `POST /api/v1/preview`（エディタのプレビュー。保存しない。読者の種類 `viewer` を選んで見られるが、本物の会員のセッションは使わない）                                                                                                 | `viewer`                                                                                                                                                                                                                                                                                                                                                                         |
+| `POST /api/v1/contents/{type}`, `PUT` / `DELETE /api/v1/contents/{type}/{slug または id}`, `POST .../versions/{revision}/restore`, `PUT .../tags`（[記事・コンテンツ投稿 API](content-api.ja.md)）                                   | `contributor`（自分の `draft` / `pending`。公開中のものは変更を `pending` として出すだけで、削除・版の復元・タグの付け外しはできない。状態は `draft` / `pending` にしかできない）。`reviewer` は `pending` の校正・承認（`published`/`scheduled`）・差し戻し（`draft`）・タグ調整のみ可能（新規作成・削除・復元は不可）。他人のコンテンツの自由な変更や直接公開・削除は `editor` |
+| `GET /api/v1/orders`, `GET /api/v1/orders/{id}`, `POST /api/v1/orders/{id}/status`（[EC](commerce.ja.md#62-管理editor-以上)）                                                                                                        | `editor`                                                                                                                                                                                                                                                                                                                                                                         |
+| `POST /api/v1/storage/upload`（[メディア](media.ja.md)）                                                                                                                                                                             | `contributor`（`reviewer` 以上も含む）                                                                                                                                                                                                                                                                                                                                           |
+| `DELETE /api/v1/storage/objects/{key}`（[メディア](media.ja.md)）                                                                                                                                                                    | `editor`                                                                                                                                                                                                                                                                                                                                                                         |
+| `GET /api/v1/users/{username}`, `PATCH /api/v1/users/{username}`, `PUT` / `DELETE /api/v1/users/{username}/avatar`, `POST /api/v1/users/me/2fa/*`（[ユーザー管理 API](#3-ユーザー管理-api)・[二段階認証](#12-二段階認証-2fa--totp)） | 本人（`viewer` 以上）か `admin`                                                                                                                                                                                                                                                                                                                                                  |
+| `GET` / `POST /api/v1/users/me/tokens`, `DELETE /api/v1/users/me/tokens/{id}`（[API トークン](#13-api-トークン)）                                                                                                                    | 本人（`viewer` 以上）。API トークンでは呼べない                                                                                                                                                                                                                                                                                                                                  |
+| `POST /api/v1/users/{username}/2fa/reset`（[二段階認証のリセット](#123-管理者による解除--復旧)）                                                                                                                                     | `admin`                                                                                                                                                                                                                                                                                                                                                                          |
+| `GET /api/v1/users`, `POST /api/v1/users`, `DELETE /api/v1/users/{username}`                                                                                                                                                         | `admin`                                                                                                                                                                                                                                                                                                                                                                          |
+| `POST /api/v1/auth/invitations`（[招待リンク](#10-ユーザー招待リンク)）                                                                                                                                                              | `admin`                                                                                                                                                                                                                                                                                                                                                                          |
+| `GET /api/v1/audit-logs`                                                                                                                                                                                                             | `admin`                                                                                                                                                                                                                                                                                                                                                                          |
 
 - セッションが無い・無効・期限切れなら `401`、ロールが足りなければ `403` を返し、監査ログに `access.denied`（理由・必要なロール・エンドポイント）を記録します（[監査ログ](audit.ja.md#2-記録されるイベント)）。
 - コンテンツ作成時の `author_id` は省略するとログインユーザー（`user_id`）になります。他のユーザーを `author_id` に指定できるのは `admin` だけです（それ以外は `403`）。
@@ -126,23 +126,23 @@ Admin Studio の「Users」画面（`admin`）と、ヘッダーのアバター�
 }
 ```
 
-| API | 内容 |
-| --- | --- |
-| `GET /api/v1/users` | 全ユーザー（`{"users": [...]}`、username 順） |
-| `POST /api/v1/users` | 作成。本文は `username` / `password` / `role`（必須）、`email` / `display_name`（任意）。`201` |
-| `GET /api/v1/users/{username}` | 1 人分（本人か `admin`） |
-| `PATCH /api/v1/users/{username}` | 変更。省略した項目はそのまま、`email` / `display_name` は空文字で削除 |
-| `DELETE /api/v1/users/{username}` | 削除（ID 連携・アバター画像も削除。コンテンツの `author_id` は残る）。`204` |
-| `PUT /api/v1/users/{username}/avatar` | アバター画像を設定（multipart の `file`） |
-| `DELETE /api/v1/users/{username}/avatar` | アバター画像を外す |
+| API                                      | 内容                                                                                           |
+| ---------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| `GET /api/v1/users`                      | 全ユーザー（`{"users": [...]}`、username 順）                                                  |
+| `POST /api/v1/users`                     | 作成。本文は `username` / `password` / `role`（必須）、`email` / `display_name`（任意）。`201` |
+| `GET /api/v1/users/{username}`           | 1 人分（本人か `admin`）                                                                       |
+| `PATCH /api/v1/users/{username}`         | 変更。省略した項目はそのまま、`email` / `display_name` は空文字で削除                          |
+| `DELETE /api/v1/users/{username}`        | 削除（ID 連携・アバター画像も削除。コンテンツの `author_id` は残る）。`204`                    |
+| `PUT /api/v1/users/{username}/avatar`    | アバター画像を設定（multipart の `file`）                                                      |
+| `DELETE /api/v1/users/{username}/avatar` | アバター画像を外す                                                                             |
 
 `PATCH` の項目と権限:
 
-| 項目 | 本人 | `admin`（他のユーザー） |
-| --- | --- | --- |
-| `email`, `display_name` | ✓ | ✓ |
-| `password` | ✓（`current_password` が必要。違えば `403`） | ✓（現在のパスワード不要＝リセット） |
-| `role`, `disabled` | ✗（`admin` でも自分自身は `400`、それ以外は `403`） | ✓ |
+| 項目                    | 本人                                                | `admin`（他のユーザー）             |
+| ----------------------- | --------------------------------------------------- | ----------------------------------- |
+| `email`, `display_name` | ✓                                                   | ✓                                   |
+| `password`              | ✓（`current_password` が必要。違えば `403`）        | ✓（現在のパスワード不要＝リセット） |
+| `role`, `disabled`      | ✗（`admin` でも自分自身は `400`、それ以外は `403`） | ✓                                   |
 
 - 本人以外のユーザーへの `viewer` / `editor` のアクセスは `403` で拒否し、`access.denied`（`reason: not_own_account`、`resource_type: user`）を記録します。
 - 最後の有効な `admin` は降格・無効化・削除できません（`400`。全員が締め出されるのを防ぐ）。自分自身も削除できません。CLI（`aegis-server user role` など）は復旧用のため確かめません。
@@ -165,11 +165,11 @@ curl -s -X POST http://127.0.0.1:8080/api/v1/auth/session \
   -d '{"username":"admin","password":"change-me-please"}'
 ```
 
-| フィールド | 必須 | 内容 |
-| --- | --- | --- |
-| `username` | ✓ | ログイン名（前後の空白は無視） |
-| `password` | ✓ | パスワード |
-| `ttl_secs` | | 有効期限（秒）。`[cache].default_ttl_secs`（既定 3600）を超える値は既定値に切り詰める |
+| フィールド | 必須 | 内容                                                                                  |
+| ---------- | ---- | ------------------------------------------------------------------------------------- |
+| `username` | ✓    | ログイン名（前後の空白は無視）                                                        |
+| `password` | ✓    | パスワード                                                                            |
+| `ttl_secs` |      | 有効期限（秒）。`[cache].default_ttl_secs`（既定 3600）を超える値は既定値に切り詰める |
 
 成功時は `201` で次を返します。以降のリクエストでは `Authorization: Bearer <id>`（または `X-Session-Id: <id>`）を付けます。
 
@@ -184,13 +184,13 @@ curl -s -X POST http://127.0.0.1:8080/api/v1/auth/session \
 }
 ```
 
-| ステータス | 条件 |
-| --- | --- |
-| `401` | ユーザーが存在しない・パスワード不一致・アカウント無効（応答はすべて `Invalid username or password` で区別しない） |
-| `403` | 資格情報は正しいが、`on-user-authenticated` プラグインがログインを拒否した（本文はプラグインのメッセージ） |
-| `422` | `username` / `password` が無い（以前の `{"user_id", "role"}` 形式は受け付けない） |
-| `429` | ログイン失敗が続いたためロック中（`Retry-After` ヘッダーと本文の `retry_after_secs` に解除までの秒数。正しいパスワードでも拒否） |
-| `500` | DB・キャッシュのエラー、`on-user-authenticated` プラグインの失敗 |
+| ステータス | 条件                                                                                                                             |
+| ---------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| `401`      | ユーザーが存在しない・パスワード不一致・アカウント無効（応答はすべて `Invalid username or password` で区別しない）               |
+| `403`      | 資格情報は正しいが、`on-user-authenticated` プラグインがログインを拒否した（本文はプラグインのメッセージ）                       |
+| `422`      | `username` / `password` が無い（以前の `{"user_id", "role"}` 形式は受け付けない）                                                |
+| `429`      | ログイン失敗が続いたためロック中（`Retry-After` ヘッダーと本文の `retry_after_secs` に解除までの秒数。正しいパスワードでも拒否） |
+| `500`      | DB・キャッシュのエラー、`on-user-authenticated` プラグインの失敗                                                                 |
 
 ### `GET /api/v1/auth/session` / `DELETE /api/v1/auth/session`
 
@@ -210,12 +210,12 @@ Admin Studio（`/admin`）はログイン画面からこの API でログイン�
 - **監査ログ**: ログインの成否を `session.create` として記録します。失敗時は `details` に `username`・`provider`・`error`（`unknown_user` / `invalid_password` / `account_disabled` / `unsupported_credentials`）を残します。パスワードは記録しません。
 - **CPU 負荷**: Argon2 の検証は `spawn_blocking` で実行し、非同期ランタイムのワーカーを塞ぎません。
 - **ログイン試行のレート制限**（`[auth.login_rate_limit]`）: 認証失敗（ユーザー不在・パスワード不一致・アカウント無効）をユーザー名とクライアント IP ごとに数え、`window_secs`（既定 15 分）内に上限（既定: ユーザー名 5 回 / IP 20 回）に達すると、`lockout_secs`（既定 15 分）の間 `429` で拒否します。
-  - ロック中は資格情報を検証しません（正しいパスワードでも拒否し、Argon2 の負荷もかからない）。応答ではユーザー名と IP のどちらでロックされたかを区別しません。
-  - ユーザー名は大文字・小文字を区別せずに数え、存在しないユーザー名も同じように数えます（ロックの有無からユーザーの存在を推測させないため）。
-  - ログインに成功するとそのユーザー名の失敗回数はリセットされます。IP の失敗回数は、有効なアカウントを 1 つ持つ攻撃者が計数を消せないようリセットしません。
-  - 失敗回数は `[cache]` のバックエンドに保存します（キー `login:fail:*` / `login:lock:*`）。`memory` ではプロセスごと・再起動で消えるため、複数インスタンスで運用する場合は `redis` を使ってください。
-  - リバースプロキシ配下では全リクエストがプロキシの IP になるため、`[audit].trust_forwarded_for = true` にしてください（有効にすると `X-Forwarded-For` を偽装できるため、信頼できるプロキシ配下でのみ）。
-  - ユーザー名単位のロックは、第三者がわざと失敗してそのユーザーを一時的にログインできなくすることにも使えます。運用で問題になる場合は `max_failures_per_user` を大きくし、IP 単位の制限を主に使ってください。ロックの解除は CLI だけです（`aegis-server user unlock <ユーザー名>` / `user unlock-ip <IP>`。失敗回数も 0 に戻ります）。API や Admin Studio からは解除できません。ロックはサーバーのキャッシュにあるため、CLI からは `redis` のときだけ解除できます（`memory` ではサーバーの再起動）。
+    - ロック中は資格情報を検証しません（正しいパスワードでも拒否し、Argon2 の負荷もかからない）。応答ではユーザー名と IP のどちらでロックされたかを区別しません。
+    - ユーザー名は大文字・小文字を区別せずに数え、存在しないユーザー名も同じように数えます（ロックの有無からユーザーの存在を推測させないため）。
+    - ログインに成功するとそのユーザー名の失敗回数はリセットされます。IP の失敗回数は、有効なアカウントを 1 つ持つ攻撃者が計数を消せないようリセットしません。
+    - 失敗回数は `[cache]` のバックエンドに保存します（キー `login:fail:*` / `login:lock:*`）。`memory` ではプロセスごと・再起動で消えるため、複数インスタンスで運用する場合は `redis` を使ってください。
+    - リバースプロキシ配下では全リクエストがプロキシの IP になるため、`[audit].trust_forwarded_for = true` にしてください（有効にすると `X-Forwarded-For` を偽装できるため、信頼できるプロキシ配下でのみ）。
+    - ユーザー名単位のロックは、第三者がわざと失敗してそのユーザーを一時的にログインできなくすることにも使えます。運用で問題になる場合は `max_failures_per_user` を大きくし、IP 単位の制限を主に使ってください。ロックの解除は CLI だけです（`aegis-server user unlock <ユーザー名>` / `user unlock-ip <IP>`。失敗回数も 0 に戻ります）。API や Admin Studio からは解除できません。ロックはサーバーのキャッシュにあるため、CLI からは `redis` のときだけ解除できます（`memory` ではサーバーの再起動）。
 
 ---
 
@@ -268,22 +268,21 @@ cms-editors = "editor"
 
 ### 6.4 失敗時の理由（`login_error`・監査ログ `session.create` の `error`）
 
-| 理由 | 内容 |
-| --- | --- |
-| `idp_error` | IdP がエラーを返した（ユーザーがキャンセルしたなど） |
-| `invalid_state` | `state` が無い・期限切れ・使用済み |
-| `invalid_token` | トークン交換の失敗、ID トークンの検証失敗（詳細はサーバーの警告ログ） |
-| `missing_username` | ユーザー名にするクレームが無い・使えない文字を含む |
-| `username_taken` | 同名の（紐付けられていない）ユーザーが既にいる |
-| `not_provisioned` | `auto_create_users = false` で、紐付けられたユーザーがいない |
-| `account_disabled` | ユーザーが無効化されている |
-| `server_error` | IdP に接続できない・DB エラーなど（詳細はサーバーのエラーログ） |
+| 理由               | 内容                                                                  |
+| ------------------ | --------------------------------------------------------------------- |
+| `idp_error`        | IdP がエラーを返した（ユーザーがキャンセルしたなど）                  |
+| `invalid_state`    | `state` が無い・期限切れ・使用済み                                    |
+| `invalid_token`    | トークン交換の失敗、ID トークンの検証失敗（詳細はサーバーの警告ログ） |
+| `missing_username` | ユーザー名にするクレームが無い・使えない文字を含む                    |
+| `username_taken`   | 同名の（紐付けられていない）ユーザーが既にいる                        |
+| `not_provisioned`  | `auto_create_users = false` で、紐付けられたユーザーがいない          |
+| `account_disabled` | ユーザーが無効化されている                                            |
+| `server_error`     | IdP に接続できない・DB エラーなど（詳細はサーバーのエラーログ）       |
 
 `on-user-authenticated` プラグインが拒否した場合は、プラグインのメッセージが `login_error` になります。
 
 > [!NOTE]
 > SSO のログインは IdP 側で保護されるため、`[auth.login_rate_limit]` の対象外です。ディスカバリー文書（`/.well-known/openid-configuration`）は初回ログイン時に取得してプロセス内にキャッシュし、JWKS は未知の `kid` が来たとき（最短 60 秒間隔）に再取得します。IdP の Issuer を変更した場合はサーバーを再起動してください。
-
 
 ## 7. アカウント登録
 
@@ -358,8 +357,8 @@ channels = ["email"]   # 開発中は ["log"] でサーバーのログに出せ�
 ### 8.1 IdP 側の設定
 
 1. AegisCMS の SP メタデータ `https://<ホスト>/api/v1/auth/saml/metadata`（`enabled = true` で起動した後に取得できます）を IdP に読み込ませるか、次の値を手で登録します。
-   - **Entity ID（識別子）**: `entity_id` と同じ値
-   - **ACS（応答 URL / Reply URL）**: `https://<ホスト>/api/v1/auth/saml/acs`（`acs_url` と同じ値）。バインディングは HTTP-POST
+    - **Entity ID（識別子）**: `entity_id` と同じ値
+    - **ACS（応答 URL / Reply URL）**: `https://<ホスト>/api/v1/auth/saml/acs`（`acs_url` と同じ値）。バインディングは HTTP-POST
 2. **署名**: アサーション（推奨）または応答全体に署名するよう設定します（どちらか一方で十分です）。署名方式は RSA-SHA256 以上です（SHA-1 は拒否します）。
 3. **NameID**: `persistent`（変わらない ID）か `emailAddress` を使います。ログインのたびに変わる `transient` はユーザーを識別できないため拒否します。
 4. メールアドレス・表示名・グループを属性として送るよう設定し、その属性名を `email_attribute` などに書きます。
@@ -411,13 +410,13 @@ OpenID Connect（6.3）と同じ規則です。
 
 ### 8.4 検証の内容
 
-| 対象 | 検証 |
-| --- | --- |
-| XML | DTD・処理命令・未宣言の名前空間接頭辞・重複した属性を含む文書と、256 KiB を超える応答は拒否 |
-| 署名 | 応答全体かアサーションの少なくとも一方に、`idp_certificates` の鍵による署名が必要。応答の `KeyInfo` の証明書は使わない。Exclusive C14N・enveloped-signature のみ、RSA-SHA256 / 384 / 512。署名が参照する `ID` は文書内で一意 |
-| 応答 | `StatusCode` が `Success`（それ以外は `idp_error`）、`Destination` が `acs_url`、`Issuer` が `idp_entity_id`、アサーションがちょうど 1 つ |
-| アサーション | `Issuer` が `idp_entity_id`、`Conditions` の有効期間内、`AudienceRestriction` に `entity_id`、`AuthnStatement` がある |
-| Subject | NameID がある（`transient` 以外）。bearer の `SubjectConfirmationData` の `Recipient` が `acs_url`、`NotOnOrAfter` が未来、`InResponseTo` が発行済みで未使用の AuthnRequest の `ID` |
+| 対象         | 検証                                                                                                                                                                                                                         |
+| ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| XML          | DTD・処理命令・未宣言の名前空間接頭辞・重複した属性を含む文書と、256 KiB を超える応答は拒否                                                                                                                                  |
+| 署名         | 応答全体かアサーションの少なくとも一方に、`idp_certificates` の鍵による署名が必要。応答の `KeyInfo` の証明書は使わない。Exclusive C14N・enveloped-signature のみ、RSA-SHA256 / 384 / 512。署名が参照する `ID` は文書内で一意 |
+| 応答         | `StatusCode` が `Success`（それ以外は `idp_error`）、`Destination` が `acs_url`、`Issuer` が `idp_entity_id`、アサーションがちょうど 1 つ                                                                                    |
+| アサーション | `Issuer` が `idp_entity_id`、`Conditions` の有効期間内、`AudienceRestriction` に `entity_id`、`AuthnStatement` がある                                                                                                        |
+| Subject      | NameID がある（`transient` 以外）。bearer の `SubjectConfirmationData` の `Recipient` が `acs_url`、`NotOnOrAfter` が未来、`InResponseTo` が発行済みで未使用の AuthnRequest の `ID`                                          |
 
 時刻の検証には 60 秒の誤差を認めます。
 
@@ -437,6 +436,7 @@ AegisCMS では、標準的な SP-initiated Web Browser SSO（AuthnRequest、ACS
 現代の企業・組織におけるシングルサインオンは、JSON/REST ベースで構成がシンプルな **OpenID Connect (OIDC, [6. シングルサインオン](#6-シングルサインオン-openid-connect))** が第一推奨となっており、95% 以上のケースで OIDC で必要十分です。
 
 SAML における以下の高度な拡張機能は、XML 暗号化やプロトコル複雑性に伴う脆弱性リスクおよび保守コストを避けるため現時点では未対応（保留）としています。学術認証フェデレーション（学認・Shibboleth）や特定のレガシー社内規程など、将来的に実運用上の強い要望が寄せられた段階で再検討します：
+
 - **IdP メタデータ URL からの自動読み込み**: 現状は Entity ID・SSO URL・署名用証明書を設定ファイル（`aegis.toml`）に明示的に設定。
 - **暗号化アサーション (`EncryptedAssertion`)**: 暗号化されたアサーションの復号には未対応（平文アサーションの署名検証のみ対応）。
 - **AuthnRequest への署名付与**: `AuthnRequestsSigned="false"`（署名付きリクエストを強制する IdP には未対応）。
@@ -550,7 +550,6 @@ token_ttl_secs = 604800                        # 招待リンクの有効期限�
 3. サーバーはユーザーを有効化（`disabled = false`）すると同時に `pending_approval = false` にクリアし、該当ユーザーのメールアドレス宛にアカウント承認通知メール（`account.approved`）を自動送信します。
 4. ユーザーは届いたメールを確認後、直ちにログインできるようになります。単なる無効化アカウントの一時的な解除など `pending_approval` が `false` のユーザーを更新した際にはこの通知は送信されません。
 
-
 ---
 
 ## 12. 二段階認証 (2FA / TOTP)
@@ -584,13 +583,13 @@ AegisCMS では、パスワード認証に加えて **TOTP (Time-based One-Time 
 端末紛失等でログインできなくなったユーザーが存在する場合、管理者は以下のいずれかの方法で 2FA を解除できます。
 
 1. **Admin Studio からの解除**:
-   - **設定 → ユーザー**（`UserManager.tsx`）を開き、一覧で該当ユーザーの「2FA」列（有効バッジ）を確認します。
-   - ユーザー編集モーダルを開き、**2FA を強制解除** ボタンをクリックして確認ダイアログを承認します（`POST /api/v1/users/{username}/2fa/reset`）。
+    - **設定 → ユーザー**（`UserManager.tsx`）を開き、一覧で該当ユーザーの「2FA」列（有効バッジ）を確認します。
+    - ユーザー編集モーダルを開き、**2FA を強制解除** ボタンをクリックして確認ダイアログを承認します（`POST /api/v1/users/{username}/2fa/reset`）。
 2. **CLI からの緊急解除**:
-   ```bash
-   aegis-server user disable-2fa <username>
-   ```
-   解除と同時に対象ユーザーの既存セッションは即時失効され、次回からパスワードのみでログイン可能になります。
+    ```bash
+    aegis-server user disable-2fa <username>
+    ```
+    解除と同時に対象ユーザーの既存セッションは即時失効され、次回からパスワードのみでログイン可能になります。
 
 ---
 
@@ -624,11 +623,11 @@ curl -s http://127.0.0.1:8080/api/v1/contents/article \
 
 ### 13.3 API（ログイン中のユーザー自身。トークンでは呼べない）
 
-| API | 内容 |
-| --- | --- |
-| `GET /api/v1/users/me/tokens` | 自分のトークンの一覧（`{"tokens": [...]}`、新しい順）。ハッシュ・トークン本体は含まない |
-| `POST /api/v1/users/me/tokens` | 発行。本文は `name`（必須、64 文字まで）、`role`（`viewer` / `contributor` / `reviewer` / `editor`。既定 `viewer`）、`expires_in_days`（既定 90、`null` は無期限）。`201` で、一覧の項目に `token`（本体）を加えて返す |
-| `DELETE /api/v1/users/me/tokens/{id}` | 失効（他人のトークンは `404`）。`204`。直ちに使えなくなる |
+| API                                   | 内容                                                                                                                                                                                                                   |
+| ------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET /api/v1/users/me/tokens`         | 自分のトークンの一覧（`{"tokens": [...]}`、新しい順）。ハッシュ・トークン本体は含まない                                                                                                                                |
+| `POST /api/v1/users/me/tokens`        | 発行。本文は `name`（必須、64 文字まで）、`role`（`viewer` / `contributor` / `reviewer` / `editor`。既定 `viewer`）、`expires_in_days`（既定 90、`null` は無期限）。`201` で、一覧の項目に `token`（本体）を加えて返す |
+| `DELETE /api/v1/users/me/tokens/{id}` | 失効（他人のトークンは `404`）。`204`。直ちに使えなくなる                                                                                                                                                              |
 
 ```json
 {

@@ -23,22 +23,22 @@ enabled = ["official-page-toc"]
 
 Admin Studio の **Settings › Plugins** の「設定」（入力欄が出ます。項目はマニフェストの `settings` で宣言していて、保存時に値を検査します）か、設定ファイルの `[plugins.settings.official-page-toc]` で変えます。省略した項目・不正な値は既定値になります。
 
-| キー | 既定値 | 説明 |
-| --- | --- | --- |
-| `content_types` | `article,page` | 出すコンテンツの種類（カンマ区切り） |
-| `heading_levels` | `2,3` | 目次に入れる見出しの階層（`1`〜`6`） |
-| `min_headings` | `2` | 見出しがこれより少ないときは目次を出さない（進捗は出す） |
-| `show_toc` | `true` | 目次を出す |
-| `show_progress` | `true` | 進捗のバーを出す |
-| `position` | `right` | `right` / `left` |
-| `accent_color` | テーマの `--accent` | 進捗と現在の見出しの色。`#hex`・`rgb()`・`hsl()`・`var(--名前)`・色名 |
-| `top_offset_px` | `96` | 上からの位置。見出しへ移動したときの上の余白（固定ヘッダーの高さ）にも使う（0〜400） |
-| `width_px` | `220` | 目次の幅（120〜480） |
-| `min_viewport_px` | `1200` | これより画面が狭いと出さない（320〜4000） |
-| `smooth_scroll` | `true` | リンクへなめらかにスクロールする |
-| `locale` | `en` | 組み込みの文言の言語（`en` / `ja`） |
-| `title` | `On this page` / `目次` | 目次の見出し |
-| `progress_label` | `Reading progress` / `読了位置` | 進捗バーの読み上げ用の名前 |
+| キー              | 既定値                          | 説明                                                                                 |
+| ----------------- | ------------------------------- | ------------------------------------------------------------------------------------ |
+| `content_types`   | `article,page`                  | 出すコンテンツの種類（カンマ区切り）                                                 |
+| `heading_levels`  | `2,3`                           | 目次に入れる見出しの階層（`1`〜`6`）                                                 |
+| `min_headings`    | `2`                             | 見出しがこれより少ないときは目次を出さない（進捗は出す）                             |
+| `show_toc`        | `true`                          | 目次を出す                                                                           |
+| `show_progress`   | `true`                          | 進捗のバーを出す                                                                     |
+| `position`        | `right`                         | `right` / `left`                                                                     |
+| `accent_color`    | テーマの `--accent`             | 進捗と現在の見出しの色。`#hex`・`rgb()`・`hsl()`・`var(--名前)`・色名                |
+| `top_offset_px`   | `96`                            | 上からの位置。見出しへ移動したときの上の余白（固定ヘッダーの高さ）にも使う（0〜400） |
+| `width_px`        | `220`                           | 目次の幅（120〜480）                                                                 |
+| `min_viewport_px` | `1200`                          | これより画面が狭いと出さない（320〜4000）                                            |
+| `smooth_scroll`   | `true`                          | リンクへなめらかにスクロールする                                                     |
+| `locale`          | `en`                            | 組み込みの文言の言語（`en` / `ja`）                                                  |
+| `title`           | `On this page` / `目次`         | 目次の見出し                                                                         |
+| `progress_label`  | `Reading progress` / `読了位置` | 進捗バーの読み上げ用の名前                                                           |
 
 ```toml
 [plugins.settings.official-page-toc]

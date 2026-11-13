@@ -41,14 +41,14 @@ order_by:
 limit: 12
 ```
 
-| Key | Description |
-| --- | --- |
-| `from` | The content type (required) |
-| `where` | Column name → `{ operator: value }`. Operators are `eq` `ne` `gt` `gte` `lt` `lte` `in` `is_null`. Multiple columns are ANDed. For how `null` is handled, see 2.3 |
-| `group_by` | A list of columns. Date columns can specify `bucket: day \| month \| year` |
-| `select` | A list of aggregations. `fn` is `count` `sum` `avg` `min` `max`. `as` is the key name in the result. **If omitted, a list of records is returned** (2.2) |
-| `order_by` | `field` is a column name or a `select` `as`. `dir` is `asc` / `desc` |
-| `limit` | The upper limit on the number of rows. It cannot exceed the server's maximum (default 100). If omitted, the maximum. **The limit looks at row count only** (not bytes; designs where one row gets large are the query author's responsibility) |
+| Key        | Description                                                                                                                                                                                                                                    |
+| ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `from`     | The content type (required)                                                                                                                                                                                                                    |
+| `where`    | Column name → `{ operator: value }`. Operators are `eq` `ne` `gt` `gte` `lt` `lte` `in` `is_null`. Multiple columns are ANDed. For how `null` is handled, see 2.3                                                                              |
+| `group_by` | A list of columns. Date columns can specify `bucket: day \| month \| year`                                                                                                                                                                     |
+| `select`   | A list of aggregations. `fn` is `count` `sum` `avg` `min` `max`. `as` is the key name in the result. **If omitted, a list of records is returned** (2.2)                                                                                       |
+| `order_by` | `field` is a column name or a `select` `as`. `dir` is `asc` / `desc`                                                                                                                                                                           |
+| `limit`    | The upper limit on the number of rows. It cannot exceed the server's maximum (default 100). If omitted, the maximum. **The limit looks at row count only** (not bytes; designs where one row gets large are the query author's responsibility) |
 
 ### 2.1 `group_by` on a Relation Column
 
@@ -96,8 +96,8 @@ At startup (and at `task migrate`), all definitions are checked against the sche
 
 - The host builds SQL from the definition and passes values as `sqlx` bind variables. Column names come from the validated declaration and never from input.
 - Conditions the host **always** adds (they cannot be removed by the declaration):
-  - Published (reads the published version's values; 4.1)
-  - `access` is empty
+    - Published (reads the published version's values; 4.1)
+    - `access` is empty
 - The result must be the same on the SQLite / PostgreSQL / MySQL adapters.
 
 ### 4.1 The Version Read: Mirrored to Public-Side Columns
@@ -117,13 +117,13 @@ Public pages read the snapshot of the publication pointer, so if the working ver
 
 `[queries]` ([configuration.md 2.26](configuration.md#226-queries--declarative-queries)).
 
-| Key | Default | Description |
-| --- | --- | --- |
-| `max_limit` | 100 | The maximum value of `limit` (rows) |
-| `timeout_ms` | 2000 | Timeout for one execution |
-| `max_concurrency` | 8 | Number that can run at the same time |
-| `max_in_items` | 100 | Maximum length of an `in` list |
-| `timezone` | `UTC` | The time zone used for date `bucket`s and datetime conditions (IANA name; an error is a startup error; changing it recreates the side tables) |
+| Key               | Default | Description                                                                                                                                   |
+| ----------------- | ------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| `max_limit`       | 100     | The maximum value of `limit` (rows)                                                                                                           |
+| `timeout_ms`      | 2000    | Timeout for one execution                                                                                                                     |
+| `max_concurrency` | 8       | Number that can run at the same time                                                                                                          |
+| `max_in_items`    | 100     | Maximum length of an `in` list                                                                                                                |
+| `timezone`        | `UTC`   | The time zone used for date `bucket`s and datetime conditions (IANA name; an error is a startup error; changing it recreates the side tables) |
 
 ### 4.3 Indexes
 
@@ -223,11 +223,11 @@ On the theme side:
 
 **What you cannot do**:
 
-| Situation | Example |
-| --- | --- |
-| Filter by an attribute of the target | "Products whose category name is Shoes". You can only filter by a fixed id value such as `category_id: { eq: "<id>" }` |
-| Order by another type's aggregate | Show "products with a high average review" as a product list |
-| Read system tables | Products by order count, articles by comment count, counts per tag. `from` is only content types declared in schemas; tags, comments, orders, and reviews are out of scope |
+| Situation                            | Example                                                                                                                                                                    |
+| ------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Filter by an attribute of the target | "Products whose category name is Shoes". You can only filter by a fixed id value such as `category_id: { eq: "<id>" }`                                                     |
+| Order by another type's aggregate    | Show "products with a high average review" as a product list                                                                                                               |
+| Read system tables                   | Products by order count, articles by comment count, counts per tag. `from` is only content types declared in schemas; tags, comments, orders, and reviews are out of scope |
 
 **Alternatives**:
 

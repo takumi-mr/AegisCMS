@@ -17,10 +17,10 @@ AegisCMS's plugin system is built on **`Wasmtime`, the WebAssembly runtime from 
 
 - **Completely separate memory spaces**: no physical memory is shared between the host and the guest (Wasm); they run strictly isolated inside a sandbox.
 - **Resource limits (fuel & timeout)**:
-  - **Fuel (instruction quota)**: sets an upper limit on the number of Wasm instructions that can be executed, to prevent infinite loops and DoS attacks.
-  - **Asynchronous timeout**: forcibly stops plugin execution that exceeds the specified milliseconds (e.g. 250 ms).
+    - **Fuel (instruction quota)**: sets an upper limit on the number of Wasm instructions that can be executed, to prevent infinite loops and DoS attacks.
+    - **Asynchronous timeout**: forcibly stops plugin execution that exceeds the specified milliseconds (e.g. 250 ms).
 - **Capability-based permission management (zero-trust)**:
-  - Anything other than the permissions a plugin declares in `plugin.manifest.json` (network domains, KVS namespace, hooks) is blocked.
+    - Anything other than the permissions a plugin declares in `plugin.manifest.json` (network domains, KVS namespace, hooks) is blocked.
 
 ---
 
@@ -67,8 +67,8 @@ serde = { version = "1.0", features = ["derive"] }
 
 - The `serde_json` that `#[aegis_plugin]` uses is re-exported by the SDK, so you do not need to write it in `Cargo.toml`. If you use `serde_json::json!` and the like directly in the plugin's code, either add `serde_json = "1.0"` or write `use aegis_plugin_sdk::serde_json;`.
 - **Note when creating a new plugin inside this repository**: the root `Cargo.toml` makes `plugins/official-*` and `sdk/templates/rust` members of the workspace. Running `cargo build` in a new folder that is not a member fails with `error: current package believes it's in a workspace when it's not`. Do one of the following.
-  - To bring it in as an official plugin, add `"plugins/<name>"` to the root `Cargo.toml`'s `[workspace] members` (it also becomes a target of `cargo test --workspace` / `clippy --workspace`).
-  - For a personal plugin, write an empty `[workspace]` at the end of the plugin's `Cargo.toml` to make it a standalone crate. In that case, run the pre-PR checks (`cargo fmt --check`, `cargo clippy -- -D warnings`, `cargo test`) yourself inside the plugin's folder.
+    - To bring it in as an official plugin, add `"plugins/<name>"` to the root `Cargo.toml`'s `[workspace] members` (it also becomes a target of `cargo test --workspace` / `clippy --workspace`).
+    - For a personal plugin, write an empty `[workspace]` at the end of the plugin's `Cargo.toml` to make it a standalone crate. In that case, run the pre-PR checks (`cargo fmt --check`, `cargo clippy -- -D warnings`, `cargo test`) yourself inside the plugin's folder.
 
 ### 2.2 Plugin Manifest (`plugin.manifest.json`)
 
@@ -275,11 +275,11 @@ enabled = ["my-plugin"]
 
 AegisCMS provides official SDKs and development templates not only for Rust but also for **AssemblyScript**, which is friendly to frontend/web developers, and **TinyGo** for Go developers.
 
-| Language | Official package | Official template | Package source | Distribution ecosystem (GitHub-centered) |
-|---|---|---|---|---|
-| **Rust** | `aegis-plugin-sdk` | [`sdk/templates/rust`](../sdk/templates/rust) | [`crates/aegis-plugin-sdk`](../crates/aegis-plugin-sdk) | GitHub (Git dependency `git = "https://github.com/takumi-mr/AegisCMS"`) |
-| **AssemblyScript** | `@takumi-mr/plugin-sdk` | [`sdk/templates/assemblyscript`](../sdk/templates/assemblyscript) | [`sdk/assemblyscript`](../sdk/assemblyscript) | GitHub Packages (`npm.pkg.github.com`) |
-| **TinyGo** | `github.com/takumi-mr/AegisCMS/sdk/tinygo` | [`sdk/templates/tinygo`](../sdk/templates/tinygo) | [`sdk/tinygo`](../sdk/tinygo) | GitHub (Go Modules `go get github.com/...`) |
+| Language           | Official package                           | Official template                                                 | Package source                                          | Distribution ecosystem (GitHub-centered)                                |
+| ------------------ | ------------------------------------------ | ----------------------------------------------------------------- | ------------------------------------------------------- | ----------------------------------------------------------------------- |
+| **Rust**           | `aegis-plugin-sdk`                         | [`sdk/templates/rust`](../sdk/templates/rust)                     | [`crates/aegis-plugin-sdk`](../crates/aegis-plugin-sdk) | GitHub (Git dependency `git = "https://github.com/takumi-mr/AegisCMS"`) |
+| **AssemblyScript** | `@takumi-mr/plugin-sdk`                    | [`sdk/templates/assemblyscript`](../sdk/templates/assemblyscript) | [`sdk/assemblyscript`](../sdk/assemblyscript)           | GitHub Packages (`npm.pkg.github.com`)                                  |
+| **TinyGo**         | `github.com/takumi-mr/AegisCMS/sdk/tinygo` | [`sdk/templates/tinygo`](../sdk/templates/tinygo)                 | [`sdk/tinygo`](../sdk/tinygo)                           | GitHub (Go Modules `go get github.com/...`)                             |
 
 ---
 
@@ -299,6 +299,7 @@ npm run build
 ```
 
 A lifecycle hook implementation example (`assembly/index.ts`):
+
 ```typescript
 import {
   allocate as sdkAllocate,
@@ -348,6 +349,7 @@ tinygo build -target=wasm-unknown -opt=z -no-debug -o plugin.wasm main.go
 ```
 
 A lifecycle hook implementation example (`main.go`):
+
 ```go
 package main
 
@@ -395,26 +397,26 @@ For details, see [`sdk/templates/tinygo/README.md`](../sdk/templates/tinygo/READ
 
 AegisCMS's official SDKs let you use all lifecycle hooks and host APIs type-safely not only in Rust but also in AssemblyScript and TinyGo.
 
-| Hook | When / purpose | Rust (`aegis-plugin-sdk`) | AssemblyScript (`@takumi-mr/plugin-sdk`) | TinyGo (`sdk/tinygo`) |
-|---|---|---|---|---|
-| `on-before-save` | Validation before saving an article, title processing | `Plugin::on_before_save` | `parsePostContext`, `serializePostContext` | `RunHook`, `PostContext` |
-| `transform-content-ast` | Traversing and transforming the article AST | `Plugin::transform_content_ast` | `readHookJson`, `writeJson` | `RunHook`, `[]BlockNode` |
-| `on-render-page` | Injecting CSS/JS/ads/table of contents into public HTML | `Plugin::on_render_page`, `InjectedScript` | `parsePageRenderContext`, `serializePageRenderContext`, `InjectedScript` | `RunHook`, `PageRenderContext`, `InlineScript`, `ExternalScript` |
-| `calculate-order` | Cart and order amount calculation (shipping, discounts) | `Plugin::calculate_order` | `OrderContext`, `writeOrderResult` | `RunHook`, `OrderContext`, `OrderAdjustment` |
-| `on-order-status-changed` | Order status change notification (webhook integration, etc.) | `Plugin::on_order_status_changed` | `OrderStatusChange`, `writeOk` | `RunNotificationHook`, `OrderStatusChange` |
-| `send-notification` | Notification delivery (Slack/email/external integration) | `Plugin::send_notification` | `NotificationMessage`, `writeDelivery`, `writeDeliveryError` | `RunDeliveryHook`, `NotificationMessage`, `Delivery` |
-| `on-content-published` | Article publication notification (external delivery, SNS) | `Plugin::on_content_published` | `PublishedContent`, `writeOk` | `RunNotificationHook`, `PublishedContent` |
-| `check-comment` | Spam check before a comment is posted | `Plugin::check_comment` | `CommentSubmission`, `CommentVerdict`, `writeVerdict` | `RunCheckCommentHook`, `CommentSubmission`, `CommentVerdict` |
-| `render-blocks` | HTML rendering of custom blocks | `Plugin::render_blocks` | `readBlocks`, `writeBlocksHtml`, `BlockNode` | `RunRenderBlocksHook`, `BlockNode`, `HTML` |
+| Hook                      | When / purpose                                               | Rust (`aegis-plugin-sdk`)                  | AssemblyScript (`@takumi-mr/plugin-sdk`)                                 | TinyGo (`sdk/tinygo`)                                            |
+| ------------------------- | ------------------------------------------------------------ | ------------------------------------------ | ------------------------------------------------------------------------ | ---------------------------------------------------------------- |
+| `on-before-save`          | Validation before saving an article, title processing        | `Plugin::on_before_save`                   | `parsePostContext`, `serializePostContext`                               | `RunHook`, `PostContext`                                         |
+| `transform-content-ast`   | Traversing and transforming the article AST                  | `Plugin::transform_content_ast`            | `readHookJson`, `writeJson`                                              | `RunHook`, `[]BlockNode`                                         |
+| `on-render-page`          | Injecting CSS/JS/ads/table of contents into public HTML      | `Plugin::on_render_page`, `InjectedScript` | `parsePageRenderContext`, `serializePageRenderContext`, `InjectedScript` | `RunHook`, `PageRenderContext`, `InlineScript`, `ExternalScript` |
+| `calculate-order`         | Cart and order amount calculation (shipping, discounts)      | `Plugin::calculate_order`                  | `OrderContext`, `writeOrderResult`                                       | `RunHook`, `OrderContext`, `OrderAdjustment`                     |
+| `on-order-status-changed` | Order status change notification (webhook integration, etc.) | `Plugin::on_order_status_changed`          | `OrderStatusChange`, `writeOk`                                           | `RunNotificationHook`, `OrderStatusChange`                       |
+| `send-notification`       | Notification delivery (Slack/email/external integration)     | `Plugin::send_notification`                | `NotificationMessage`, `writeDelivery`, `writeDeliveryError`             | `RunDeliveryHook`, `NotificationMessage`, `Delivery`             |
+| `on-content-published`    | Article publication notification (external delivery, SNS)    | `Plugin::on_content_published`             | `PublishedContent`, `writeOk`                                            | `RunNotificationHook`, `PublishedContent`                        |
+| `check-comment`           | Spam check before a comment is posted                        | `Plugin::check_comment`                    | `CommentSubmission`, `CommentVerdict`, `writeVerdict`                    | `RunCheckCommentHook`, `CommentSubmission`, `CommentVerdict`     |
+| `render-blocks`           | HTML rendering of custom blocks                              | `Plugin::render_blocks`                    | `readBlocks`, `writeBlocksHtml`, `BlockNode`                             | `RunRenderBlocksHook`, `BlockNode`, `HTML`                       |
 
 #### Host API Support List
 
-| Host API | Purpose | Rust | AssemblyScript | TinyGo |
-|---|---|---|---|---|
-| Logging (`host.log`) | Debug logs from the sandbox | `log_info!`, `log_warn!`, `log_error!` | `log.info`, `log.warn`, `log.error` | `LogInfo`, `LogWarn`, `LogError` |
-| Reading settings (`config_get`) | Reading `[plugins.settings.<plugin>]` | `config_get`, `config_get_or` | `config.get`, `config.getOr` | `ConfigGet`, `ConfigGetOr` |
-| KVS (`kv_get`, `kv_set`) | Persistent key-value store | `kv_get`, `kv_set` | `kv.get`, `kv.set` | `KVGet`, `KVSet` |
-| HTTP (`http_fetch`) | External requests to allowed domains | `http_fetch`, `http_post_json` | `http.fetch`, `HttpRequest.postJson` | `HTTPFetch`, `NewHTTPPostJSON` |
+| Host API                        | Purpose                               | Rust                                   | AssemblyScript                       | TinyGo                           |
+| ------------------------------- | ------------------------------------- | -------------------------------------- | ------------------------------------ | -------------------------------- |
+| Logging (`host.log`)            | Debug logs from the sandbox           | `log_info!`, `log_warn!`, `log_error!` | `log.info`, `log.warn`, `log.error`  | `LogInfo`, `LogWarn`, `LogError` |
+| Reading settings (`config_get`) | Reading `[plugins.settings.<plugin>]` | `config_get`, `config_get_or`          | `config.get`, `config.getOr`         | `ConfigGet`, `ConfigGetOr`       |
+| KVS (`kv_get`, `kv_set`)        | Persistent key-value store            | `kv_get`, `kv_set`                     | `kv.get`, `kv.set`                   | `KVGet`, `KVSet`                 |
+| HTTP (`http_fetch`)             | External requests to allowed domains  | `http_fetch`, `http_post_json`         | `http.fetch`, `HttpRequest.postJson` | `HTTPFetch`, `NewHTTPPostJSON`   |
 
 ---
 
@@ -492,6 +494,7 @@ func main() {}
 
 > [!TIP]
 > For sample code that includes implementations of all hooks (commerce, notifications, comments, blocks, page rendering), see the following.
+>
 > - AssemblyScript: [`sdk/examples/assemblyscript-hooks`](../sdk/examples/assemblyscript-hooks)
 > - TinyGo: [`sdk/tinygo/examples/hooks`](../sdk/tinygo/examples/hooks)
 
@@ -588,53 +591,53 @@ Steps for releasing manually from local, without using the CI workflow.
 Cargo can resolve dependencies by specifying a GitHub repository directly, so uploading to crates.io is not needed.
 
 1. **Create and push a Git tag for the version**:
-   ```bash
-   git tag vX.Y.Z   # e.g. v0.2.0
-   git push origin vX.Y.Z
-   ```
+    ```bash
+    git tag vX.Y.Z   # e.g. v0.2.0
+    git push origin vX.Y.Z
+    ```
 2. **Consumer-side settings**:
    Users can install it just by writing the following in `Cargo.toml`. Cargo resolves the internal macro crate (`aegis-plugin-macros`) from the same repository automatically.
-   ```toml
-   [dependencies]
-   aegis-plugin-sdk = { git = "https://github.com/takumi-mr/AegisCMS", tag = "v0.2.0" }
-   ```
+    ```toml
+    [dependencies]
+    aegis-plugin-sdk = { git = "https://github.com/takumi-mr/AegisCMS", tag = "v0.2.0" }
+    ```
 
 #### 2. AssemblyScript SDK (`GitHub Packages`)
 
 1. **Pre-verification**:
-   ```bash
-   task sdk:pack:dry-run
-   ```
+    ```bash
+    task sdk:pack:dry-run
+    ```
 2. **Publish to GitHub Packages**:
    Publish with a Personal Access Token (PAT, `write:packages` permission).
-   ```bash
-   cd sdk/assemblyscript
-   npm publish
-   ```
+    ```bash
+    cd sdk/assemblyscript
+    npm publish
+    ```
 3. **Consumer-side settings**:
    Set the registry in the user's project root or `~/.npmrc` and `npm install`.
-   ```text
-   @takumi-mr:registry=https://npm.pkg.github.com
-   ```
-   ```bash
-   npm install @takumi-mr/plugin-sdk
-   ```
+    ```text
+    @takumi-mr:registry=https://npm.pkg.github.com
+    ```
+    ```bash
+    npm install @takumi-mr/plugin-sdk
+    ```
 
 #### 3. TinyGo SDK (`Go Modules`)
 
 With Go Modules, a module placed in a subdirectory is published and resolved with a Git tag of the form `<directory path>/<version>`.
 
 1. **Static verification**:
-   ```bash
-   task sdk:check
-   ```
+    ```bash
+    task sdk:check
+    ```
 2. **Create and push a Git tag**:
-   ```bash
-   git tag sdk/tinygo/v0.1.0
-   git push origin sdk/tinygo/v0.1.0
-   ```
+    ```bash
+    git tag sdk/tinygo/v0.1.0
+    git push origin sdk/tinygo/v0.1.0
+    ```
 3. **Consumer-side settings**:
    Users can install it with the standard `go get`.
-   ```bash
-   go get github.com/takumi-mr/AegisCMS/sdk/tinygo@v0.1.0
-   ```
+    ```bash
+    go get github.com/takumi-mr/AegisCMS/sdk/tinygo@v0.1.0
+    ```

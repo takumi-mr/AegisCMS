@@ -23,17 +23,17 @@ enabled = ["official-share-buttons"]
 
 Admin Studio の **Settings › Plugins** の「設定」か、設定ファイルの `[plugins.settings.official-share-buttons]` でカスタマイズできます。
 
-| キー | 既定値 | 説明 |
-| --- | --- | --- |
-| `content_types` | `article` | 共有ボタンを表示するコンテンツの種類（カンマ区切り） |
-| `platforms` | `x,line,copy` | 表示する共有先（カンマ区切り、表示順）。`x`, `line`, `copy`, `facebook`, `hatena`, `bluesky`, `threads`, `pocket`, `linkedin` が利用可能 |
-| `custom_services` | `""` | 追加のカスタム共有先（1行に1件、形式: `サービス名\|共有URLテンプレート\|背景色`）。使えるプレースホルダー: `{url}`, `{title}` |
-| `position` | `bottom` | 配置位置: `bottom`（本文末尾）/ `top`（本文先頭）/ `both`（先頭と末尾の両方） |
-| `style` | `buttons` | `buttons`（アイコン＋ラベル文字）/ `icons`（アイコンのみ） |
-| `shape` | `rounded` | ボタンの角の丸み: `rounded`（角丸）/ `pill`（カプセル型）/ `square`（四角） |
-| `heading` | `""` | ボタン上部の見出し文（空欄の場合は言語に応じた「この記事をシェアする」/「Share this article」） |
-| `x_via` | `""` | X シェア時の `@ユーザー名`（via パラメータに付与） |
-| `x_hashtags` | `""` | X シェア時のハッシュタグ（#なし、カンマ区切り） |
+| キー              | 既定値        | 説明                                                                                                                                     |
+| ----------------- | ------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| `content_types`   | `article`     | 共有ボタンを表示するコンテンツの種類（カンマ区切り）                                                                                     |
+| `platforms`       | `x,line,copy` | 表示する共有先（カンマ区切り、表示順）。`x`, `line`, `copy`, `facebook`, `hatena`, `bluesky`, `threads`, `pocket`, `linkedin` が利用可能 |
+| `custom_services` | `""`          | 追加のカスタム共有先（1行に1件、形式: `サービス名\|共有URLテンプレート\|背景色`）。使えるプレースホルダー: `{url}`, `{title}`            |
+| `position`        | `bottom`      | 配置位置: `bottom`（本文末尾）/ `top`（本文先頭）/ `both`（先頭と末尾の両方）                                                            |
+| `style`           | `buttons`     | `buttons`（アイコン＋ラベル文字）/ `icons`（アイコンのみ）                                                                               |
+| `shape`           | `rounded`     | ボタンの角の丸み: `rounded`（角丸）/ `pill`（カプセル型）/ `square`（四角）                                                              |
+| `heading`         | `""`          | ボタン上部の見出し文（空欄の場合は言語に応じた「この記事をシェアする」/「Share this article」）                                          |
+| `x_via`           | `""`          | X シェア時の `@ユーザー名`（via パラメータに付与）                                                                                       |
+| `x_hashtags`      | `""`          | X シェア時のハッシュタグ（#なし、カンマ区切り）                                                                                          |
 
 ### 設定例（config.toml）
 
@@ -52,4 +52,3 @@ Misskey|https://misskey-hub.net/share?text={title}&url={url}|#86b300
 ### 記事ごとの非表示設定
 
 特定の記事で共有ボタンを隠したい場合は、記事のカスタムフィールドに `hide_share_buttons: true` を設定します。
-

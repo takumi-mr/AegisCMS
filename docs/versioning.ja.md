@@ -6,12 +6,12 @@ AegisCMS は [Semantic Versioning 2.0.0](https://semver.org/lang/ja/) に従い�
 
 ## 1. 何にバージョンを付けるか
 
-| 対象 | バージョン | 置き場所 | タグ |
-|---|---|---|---|
-| **コア**: 全 `aegis-*` crate・Rust SDK（`aegis-plugin-sdk`）・Admin Studio・Theme Builder・Plugin Builder | 一括（同じ番号） | ルートの `Cargo.toml` の `[workspace.package]`、各 `package.json` | `v0.2.0` |
-| **AssemblyScript SDK** `@takumi-mr/plugin-sdk` | 個別 | `sdk/assemblyscript/package.json` | `sdk-assemblyscript-v0.2.0` |
-| **TinyGo SDK** | 個別 | タグそのもの（Go モジュールの規約） | `sdk/tinygo/v0.2.0` |
-| **公式プラグイン** `plugins/official-*` | プラグインごとに個別 | `Cargo.toml` と `plugin.manifest.json` の `version` | `plugin-official-ads-v0.1.1` |
+| 対象                                                                                                      | バージョン           | 置き場所                                                          | タグ                         |
+| --------------------------------------------------------------------------------------------------------- | -------------------- | ----------------------------------------------------------------- | ---------------------------- |
+| **コア**: 全 `aegis-*` crate・Rust SDK（`aegis-plugin-sdk`）・Admin Studio・Theme Builder・Plugin Builder | 一括（同じ番号）     | ルートの `Cargo.toml` の `[workspace.package]`、各 `package.json` | `v0.2.0`                     |
+| **AssemblyScript SDK** `@takumi-mr/plugin-sdk`                                                            | 個別                 | `sdk/assemblyscript/package.json`                                 | `sdk-assemblyscript-v0.2.0`  |
+| **TinyGo SDK**                                                                                            | 個別                 | タグそのもの（Go モジュールの規約）                               | `sdk/tinygo/v0.2.0`          |
+| **公式プラグイン** `plugins/official-*`                                                                   | プラグインごとに個別 | `Cargo.toml` と `plugin.manifest.json` の `version`               | `plugin-official-ads-v0.1.1` |
 
 - コアの crate は `version.workspace = true` で 1 つの番号を共有します。個別に番号を持たせないでください。
 - `sdk/templates/` と `sdk/examples/` はコピー元のひな形で、単独ではリリースしません（バージョンは `0.1.0` のままで構いません）。ただし Rust テンプレートの `aegis-plugin-sdk` へのバージョン要求はコアに追従させます。
@@ -34,12 +34,12 @@ ABI の中身は [plugin_abi_specification.md](plugin_abi_specification.ja.md) �
 
 [CLAUDE.md の 4](../CLAUDE.md) の Conventional Commits がそのままバージョンに反映されます。
 
-| コミット | 上がるバージョン |
-|---|---|
-| `fix:` / `perf:` | パッチ |
-| `feat:` | マイナー（1.0 前も同じ） |
+| コミット                             | 上がるバージョン                     |
+| ------------------------------------ | ------------------------------------ |
+| `fix:` / `perf:`                     | パッチ                               |
+| `feat:`                              | マイナー（1.0 前も同じ）             |
 | `feat!:` や本文の `BREAKING CHANGE:` | 1.0 前はマイナー、1.0 以降はメジャー |
-| `docs` / `style` / `test` / `chore` | 上がらない（CHANGELOG にも出ない） |
+| `docs` / `style` / `test` / `chore`  | 上がらない（CHANGELOG にも出ない）   |
 
 > [!WARNING]
 > **コミットメッセージ・PR のタイトルと本文に、生の HTML（特に `<script>` と `<style>`）を書かないでください。** リリース PR の本文はコミットメッセージから作られ、release-please はそれを HTML として読みます。`<script>` が 2 つ以上あるなどで読み取りが崩れると、リリース PR をマージしても**タグも GitHub Release も作られず**、`autorelease: pending` のまま残ります。以降のリリース PR も「untagged, merged release PRs outstanding」で作られなくなります（ワークフローは success と表示されるので気づきにくい）。バッククォートで囲んでも防げません。「script 要素」のように言葉で書いてください。`破壊的変更`の説明（`BREAKING CHANGE:`）で特に起きやすいです。PR では `scripts/check-release-notes-html.mjs`（`commit-lint.yml`）が検査します。
@@ -53,9 +53,9 @@ ABI の中身は [plugin_abi_specification.md](plugin_abi_specification.ja.md) �
 1. `main` に変更をマージすると、`Release Please` ワークフローがリリース PR（バージョン更新 + 各 `CHANGELOG.md`）を作る、または更新する。
 2. リリース PR のバージョンと CHANGELOG を確かめてマージする。`Cargo.lock` はワークフローが同じ PR に追従させる。
 3. マージするとタグと GitHub Release が作られる。さらに `release-please.yml` の `paths_released` 出力に基づき、リリースされた対象パスの公開ワークフローが自動発火する：
-   - **AssemblyScript SDK** (`sdk/assemblyscript`): GitHub Packages (`@takumi-mr/plugin-sdk`) へ npm パッケージが自動公開される (`release-sdk.yml`)。
-   - **コア** (`.`): GitHub Container Registry (`ghcr.io/takumi-mr/aegiscms`) へ公式 Docker イメージが自動でビルド＆プッシュされる (`release-docker.yml`)。
-   - **TinyGo SDK** (`sdk/tinygo`): 作成されたタグ (`sdk/tinygo/vX.Y.Z`) 自体が Go モジュールとしての配布となる。
+    - **AssemblyScript SDK** (`sdk/assemblyscript`): GitHub Packages (`@takumi-mr/plugin-sdk`) へ npm パッケージが自動公開される (`release-sdk.yml`)。
+    - **コア** (`.`): GitHub Container Registry (`ghcr.io/takumi-mr/aegiscms`) へ公式 Docker イメージが自動でビルド＆プッシュされる (`release-docker.yml`)。
+    - **TinyGo SDK** (`sdk/tinygo`): 作成されたタグ (`sdk/tinygo/vX.Y.Z`) 自体が Go モジュールとしての配布となる。
 
 リリース PR にも CI を走らせるため（`GITHUB_TOKEN` で作った PR では CI が動かない）、リポジトリの secret に `RELEASE_PLEASE_TOKEN`（PAT）を登録しています。Fine-grained PAT なら、対象リポジトリに **Contents** と **Pull requests** の Read and write が要ります（足りないと PR のブランチ作成で失敗する）。未登録でも `GITHUB_TOKEN` で動きますが、リリース PR の CI は動きません。
 
@@ -79,8 +79,8 @@ ABI の中身は [plugin_abi_specification.md](plugin_abi_specification.ja.md) �
 - **置き場所**: [`crates/aegis-db/migrations/`](../crates/aegis-db/migrations) の `sqlite/`・`postgres/`・`mysql/`。方言ごとに SQL を手で書く（型や索引の書き方が違うため）。ファイル名は `NNNN_説明.sql`（4 桁の連番）で、**3 つの方言で同じ番号・同じ名前**にそろえる（そろっていないとテストが落ちる）。
 - **`0001_baseline`**: v0.4 のシステムテーブルの定義。すべて `IF NOT EXISTS` なので、v0.4 が作った DB は何も変えずに「適用済み」として採用される（バックアップ → 復元は要らない）。
 - **記録と検査**: 適用済みの手順は DB の `_sqlx_migrations` に、チェックサムつきで残る。次の 2 つは起動を止める。
-  - **公開した手順のファイルを書き換えた**（チェックサムが違う）。直したいときは、新しい手順を足す。
-  - **DB が、今のバイナリの知らない手順まで適用済み**（新しい版で更新した DB を古い版で開いた）。古い版では動かさない。戻すときは、更新前に取ったバックアップから復元する。
+    - **公開した手順のファイルを書き換えた**（チェックサムが違う）。直したいときは、新しい手順を足す。
+    - **DB が、今のバイナリの知らない手順まで適用済み**（新しい版で更新した DB を古い版で開いた）。古い版では動かさない。戻すときは、更新前に取ったバックアップから復元する。
 - **起動時に自動で流す**（`init`・`run`・`task migrate`）。同時に複数台が起動しても、PostgreSQL・MySQL は sqlx が排他する。
 - **巻き戻し（down）は作らない**。戻すときは、更新前のバックアップ（`task dump`）から復元する。
 

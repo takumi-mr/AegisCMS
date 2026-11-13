@@ -13,25 +13,25 @@ It provides flexible form definitions through the configuration file (`aegis.tom
 ## Responsibilities and Features
 
 - **Configuration-driven forms (`form`, `config`)**:
-  - Field definitions for name, email address, subject, type selection (select box / radio buttons), message body, and so on.
-  - Required-field validation, length limits, and email address syntax checks.
-  - Automatic generation of form HTML and error messages for templates.
+    - Field definitions for name, email address, subject, type selection (select box / radio buttons), message body, and so on.
+    - Required-field validation, length limits, and email address syntax checks.
+    - Automatic generation of form HTML and error messages for templates.
 - **Bot and spam defense**:
-  - **Honeypot field**: immediately discards simple bots through a hidden input field that humans cannot see.
-  - **CAPTCHA integration**: bot verification in conjunction with `aegis-captcha`.
-  - **Rate limiting**: limits consecutive submissions from the same IP address.
+    - **Honeypot field**: immediately discards simple bots through a hidden input field that humans cannot see.
+    - **CAPTCHA integration**: bot verification in conjunction with `aegis-captcha`.
+    - **Rate limiting**: limits consecutive submissions from the same IP address.
 - **Inbox and privacy management (`ContactService`)**:
-  - Stores received inquiries in the internal database (`_aegis_contact_messages`).
-  - Listing and viewing received messages, and read/unread management, from Admin Studio.
-  - Automatic cleanup after the personal data retention period (`retention_days`).
+    - Stores received inquiries in the internal database (`_aegis_contact_messages`).
+    - Listing and viewing received messages, and read/unread management, from Admin Studio.
+    - Automatic cleanup after the personal data retention period (`retention_days`).
 - **Notification integration (`messages`)**:
-  - Sends a thank-you email (auto-reply) on completion and an incoming-message notification email to administrators (via `aegis-notify`).
+    - Sends a thank-you email (auto-reply) on completion and an incoming-message notification email to administrators (via `aegis-notify`).
 
 ## Module Layout
 
-| Module | Description |
-| :--- | :--- |
-| `lib` | `ContactService` implementation; storing, retrieving, and automatically deleting messages |
-| `form` | Input validation and HTML form generation |
-| `messages` | Localized error messages and notification text |
-| `config` | Contact form settings (`ContactConfig`) |
+| Module     | Description                                                                               |
+| :--------- | :---------------------------------------------------------------------------------------- |
+| `lib`      | `ContactService` implementation; storing, retrieving, and automatically deleting messages |
+| `form`     | Input validation and HTML form generation                                                 |
+| `messages` | Localized error messages and notification text                                            |
+| `config`   | Contact form settings (`ContactConfig`)                                                   |

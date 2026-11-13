@@ -17,10 +17,10 @@ AegisCMS のプラグインシステムは、**Bytecode Alliance 製 WebAssembly
 
 - **完全なメモリ空間の分離**: ホストとゲスト（Wasm）間で物理メモリは共有されず、サンドボックス内で厳格に隔離実行されます。
 - **リソース制限 (Fuel & Timeout)**:
-  - **Fuel（命令数クォータ）**: 無限ループや DoS 攻撃を防ぐため、Wasm 命令の実行可能上限数を設定。
-  - **非同期タイムアウト**: 指定ミリ秒（例: 250ms）を超過したプラグイン実行を強制停止。
+    - **Fuel（命令数クォータ）**: 無限ループや DoS 攻撃を防ぐため、Wasm 命令の実行可能上限数を設定。
+    - **非同期タイムアウト**: 指定ミリ秒（例: 250ms）を超過したプラグイン実行を強制停止。
 - **ケイパビリティベースの権限管理 (Zero-Trust)**:
-  - プラグインは `plugin.manifest.json` で宣言した権限（ネットワークドメイン、KVSネームスペース、フック）以外の一切の操作が遮断されます。
+    - プラグインは `plugin.manifest.json` で宣言した権限（ネットワークドメイン、KVSネームスペース、フック）以外の一切の操作が遮断されます。
 
 ---
 
@@ -67,8 +67,8 @@ serde = { version = "1.0", features = ["derive"] }
 
 - `#[aegis_plugin]` が使う `serde_json` は SDK が再エクスポートしているので、`Cargo.toml` に書く必要はありません。プラグインのコードで `serde_json::json!` などを直接使うなら、`serde_json = "1.0"` を足すか、`use aegis_plugin_sdk::serde_json;` と書きます。
 - **このリポジトリの中に新しいプラグインを作るときの注意**: ルートの `Cargo.toml` は `plugins/official-*` と `sdk/templates/rust` をワークスペースのメンバーにしています。メンバーでない新しいフォルダーで `cargo build` すると `error: current package believes it's in a workspace when it's not` で失敗します。次のどちらかにしてください。
-  - 公式プラグインとして取り込むなら、ルートの `Cargo.toml` の `[workspace] members` に `"plugins/<name>"` を足す（`cargo test --workspace` / `clippy --workspace` の対象にもなる）。
-  - 個人のプラグインなら、プラグインの `Cargo.toml` の末尾に空の `[workspace]` を書き、独立した crate にする。このときは PR 前の確認（`cargo fmt --check`・`cargo clippy -- -D warnings`・`cargo test`）をプラグインのフォルダーの中で自分で実行する。
+    - 公式プラグインとして取り込むなら、ルートの `Cargo.toml` の `[workspace] members` に `"plugins/<name>"` を足す（`cargo test --workspace` / `clippy --workspace` の対象にもなる）。
+    - 個人のプラグインなら、プラグインの `Cargo.toml` の末尾に空の `[workspace]` を書き、独立した crate にする。このときは PR 前の確認（`cargo fmt --check`・`cargo clippy -- -D warnings`・`cargo test`）をプラグインのフォルダーの中で自分で実行する。
 
 ### 2.2 プラグインマニフェスト (`plugin.manifest.json`)
 
@@ -275,11 +275,11 @@ enabled = ["my-plugin"]
 
 AegisCMS では、Rust だけでなくフロントエンド/Web 開発者に親和性の高い **AssemblyScript**、および Go 開発者向けの **TinyGo** に対応した公式 SDK および開発テンプレートを提供しています。
 
-| 言語 | 公式パッケージ | 公式テンプレート | パッケージソース | 配布エコシステム (GitHub 中心) |
-|---|---|---|---|---|
-| **Rust** | `aegis-plugin-sdk` | [`sdk/templates/rust`](../sdk/templates/rust) | [`crates/aegis-plugin-sdk`](../crates/aegis-plugin-sdk) | GitHub (Git 依存 `git = "https://github.com/takumi-mr/AegisCMS"`) |
-| **AssemblyScript** | `@takumi-mr/plugin-sdk` | [`sdk/templates/assemblyscript`](../sdk/templates/assemblyscript) | [`sdk/assemblyscript`](../sdk/assemblyscript) | GitHub Packages (`npm.pkg.github.com`) |
-| **TinyGo** | `github.com/takumi-mr/AegisCMS/sdk/tinygo` | [`sdk/templates/tinygo`](../sdk/templates/tinygo) | [`sdk/tinygo`](../sdk/tinygo) | GitHub (Go Modules `go get github.com/...`) |
+| 言語               | 公式パッケージ                             | 公式テンプレート                                                  | パッケージソース                                        | 配布エコシステム (GitHub 中心)                                    |
+| ------------------ | ------------------------------------------ | ----------------------------------------------------------------- | ------------------------------------------------------- | ----------------------------------------------------------------- |
+| **Rust**           | `aegis-plugin-sdk`                         | [`sdk/templates/rust`](../sdk/templates/rust)                     | [`crates/aegis-plugin-sdk`](../crates/aegis-plugin-sdk) | GitHub (Git 依存 `git = "https://github.com/takumi-mr/AegisCMS"`) |
+| **AssemblyScript** | `@takumi-mr/plugin-sdk`                    | [`sdk/templates/assemblyscript`](../sdk/templates/assemblyscript) | [`sdk/assemblyscript`](../sdk/assemblyscript)           | GitHub Packages (`npm.pkg.github.com`)                            |
+| **TinyGo**         | `github.com/takumi-mr/AegisCMS/sdk/tinygo` | [`sdk/templates/tinygo`](../sdk/templates/tinygo)                 | [`sdk/tinygo`](../sdk/tinygo)                           | GitHub (Go Modules `go get github.com/...`)                       |
 
 ---
 
@@ -299,6 +299,7 @@ npm run build
 ```
 
 ライフサイクルフックの実装例 (`assembly/index.ts`):
+
 ```typescript
 import {
   allocate as sdkAllocate,
@@ -348,6 +349,7 @@ tinygo build -target=wasm-unknown -opt=z -no-debug -o plugin.wasm main.go
 ```
 
 ライフサイクルフックの実装例 (`main.go`):
+
 ```go
 package main
 
@@ -395,26 +397,26 @@ func main() {}
 
 AegisCMS の公式 SDK は、Rust だけでなく AssemblyScript および TinyGo においても全ライフサイクルフックとホスト API を型安全に利用できます。
 
-| フック名 | 契機・用途 | Rust (`aegis-plugin-sdk`) | AssemblyScript (`@takumi-mr/plugin-sdk`) | TinyGo (`sdk/tinygo`) |
-|---|---|---|---|---|
-| `on-before-save` | 記事保存前検証・タイトル加工 | `Plugin::on_before_save` | `parsePostContext`, `serializePostContext` | `RunHook`, `PostContext` |
-| `transform-content-ast` | 記事 AST の構文走査・変換 | `Plugin::transform_content_ast` | `readHookJson`, `writeJson` | `RunHook`, `[]BlockNode` |
-| `on-render-page` | 公開 HTML への CSS/JS/広告/目次注入 | `Plugin::on_render_page`, `InjectedScript` | `parsePageRenderContext`, `serializePageRenderContext`, `InjectedScript` | `RunHook`, `PageRenderContext`, `InlineScript`, `ExternalScript` |
-| `calculate-order` | カート・注文金額計算（送料・割引） | `Plugin::calculate_order` | `OrderContext`, `writeOrderResult` | `RunHook`, `OrderContext`, `OrderAdjustment` |
-| `on-order-status-changed` | 注文状態変更通知（Webhook連携など） | `Plugin::on_order_status_changed` | `OrderStatusChange`, `writeOk` | `RunNotificationHook`, `OrderStatusChange` |
-| `send-notification` | 通知配信（Slack/メール/外部連携） | `Plugin::send_notification` | `NotificationMessage`, `writeDelivery`, `writeDeliveryError` | `RunDeliveryHook`, `NotificationMessage`, `Delivery` |
-| `on-content-published` | 記事公開通知（外部配信・SNS） | `Plugin::on_content_published` | `PublishedContent`, `writeOk` | `RunNotificationHook`, `PublishedContent` |
-| `check-comment` | コメント投稿前のスパム検査 | `Plugin::check_comment` | `CommentSubmission`, `CommentVerdict`, `writeVerdict` | `RunCheckCommentHook`, `CommentSubmission`, `CommentVerdict` |
-| `render-blocks` | カスタムブロックの HTML 描画 | `Plugin::render_blocks` | `readBlocks`, `writeBlocksHtml`, `BlockNode` | `RunRenderBlocksHook`, `BlockNode`, `HTML` |
+| フック名                  | 契機・用途                          | Rust (`aegis-plugin-sdk`)                  | AssemblyScript (`@takumi-mr/plugin-sdk`)                                 | TinyGo (`sdk/tinygo`)                                            |
+| ------------------------- | ----------------------------------- | ------------------------------------------ | ------------------------------------------------------------------------ | ---------------------------------------------------------------- |
+| `on-before-save`          | 記事保存前検証・タイトル加工        | `Plugin::on_before_save`                   | `parsePostContext`, `serializePostContext`                               | `RunHook`, `PostContext`                                         |
+| `transform-content-ast`   | 記事 AST の構文走査・変換           | `Plugin::transform_content_ast`            | `readHookJson`, `writeJson`                                              | `RunHook`, `[]BlockNode`                                         |
+| `on-render-page`          | 公開 HTML への CSS/JS/広告/目次注入 | `Plugin::on_render_page`, `InjectedScript` | `parsePageRenderContext`, `serializePageRenderContext`, `InjectedScript` | `RunHook`, `PageRenderContext`, `InlineScript`, `ExternalScript` |
+| `calculate-order`         | カート・注文金額計算（送料・割引）  | `Plugin::calculate_order`                  | `OrderContext`, `writeOrderResult`                                       | `RunHook`, `OrderContext`, `OrderAdjustment`                     |
+| `on-order-status-changed` | 注文状態変更通知（Webhook連携など） | `Plugin::on_order_status_changed`          | `OrderStatusChange`, `writeOk`                                           | `RunNotificationHook`, `OrderStatusChange`                       |
+| `send-notification`       | 通知配信（Slack/メール/外部連携）   | `Plugin::send_notification`                | `NotificationMessage`, `writeDelivery`, `writeDeliveryError`             | `RunDeliveryHook`, `NotificationMessage`, `Delivery`             |
+| `on-content-published`    | 記事公開通知（外部配信・SNS）       | `Plugin::on_content_published`             | `PublishedContent`, `writeOk`                                            | `RunNotificationHook`, `PublishedContent`                        |
+| `check-comment`           | コメント投稿前のスパム検査          | `Plugin::check_comment`                    | `CommentSubmission`, `CommentVerdict`, `writeVerdict`                    | `RunCheckCommentHook`, `CommentSubmission`, `CommentVerdict`     |
+| `render-blocks`           | カスタムブロックの HTML 描画        | `Plugin::render_blocks`                    | `readBlocks`, `writeBlocksHtml`, `BlockNode`                             | `RunRenderBlocksHook`, `BlockNode`, `HTML`                       |
 
 #### ホスト API 対応一覧
 
-| ホスト API | 用途 | Rust | AssemblyScript | TinyGo |
-|---|---|---|---|---|
-| ログ出力 (`host.log`) | サンドボックスからのデバッグログ | `log_info!`, `log_warn!`, `log_error!` | `log.info`, `log.warn`, `log.error` | `LogInfo`, `LogWarn`, `LogError` |
-| 設定値取得 (`config_get`) | `[plugins.settings.<plugin>]` の読み取り | `config_get`, `config_get_or` | `config.get`, `config.getOr` | `ConfigGet`, `ConfigGetOr` |
-| KVS (`kv_get`, `kv_set`) | 永続キーバリューストア | `kv_get`, `kv_set` | `kv.get`, `kv.set` | `KVGet`, `KVSet` |
-| HTTP 通信 (`http_fetch`) | 許可ドメインへの外部リクエスト | `http_fetch`, `http_post_json` | `http.fetch`, `HttpRequest.postJson` | `HTTPFetch`, `NewHTTPPostJSON` |
+| ホスト API                | 用途                                     | Rust                                   | AssemblyScript                       | TinyGo                           |
+| ------------------------- | ---------------------------------------- | -------------------------------------- | ------------------------------------ | -------------------------------- |
+| ログ出力 (`host.log`)     | サンドボックスからのデバッグログ         | `log_info!`, `log_warn!`, `log_error!` | `log.info`, `log.warn`, `log.error`  | `LogInfo`, `LogWarn`, `LogError` |
+| 設定値取得 (`config_get`) | `[plugins.settings.<plugin>]` の読み取り | `config_get`, `config_get_or`          | `config.get`, `config.getOr`         | `ConfigGet`, `ConfigGetOr`       |
+| KVS (`kv_get`, `kv_set`)  | 永続キーバリューストア                   | `kv_get`, `kv_set`                     | `kv.get`, `kv.set`                   | `KVGet`, `KVSet`                 |
+| HTTP 通信 (`http_fetch`)  | 許可ドメインへの外部リクエスト           | `http_fetch`, `http_post_json`         | `http.fetch`, `HttpRequest.postJson` | `HTTPFetch`, `NewHTTPPostJSON`   |
 
 ---
 
@@ -492,6 +494,7 @@ func main() {}
 
 > [!TIP]
 > 全フック（コマース、通知、コメント、ブロック、ページ描画）の実装を含むサンプルコードは、以下を参照してください。
+>
 > - AssemblyScript: [`sdk/examples/assemblyscript-hooks`](../sdk/examples/assemblyscript-hooks)
 > - TinyGo: [`sdk/tinygo/examples/hooks`](../sdk/tinygo/examples/hooks)
 
@@ -588,53 +591,53 @@ CI ワークフローを使わずにローカルから手動でリリースす�
 Cargo は GitHub リポジトリを直接指定して依存関係を解決できるため、crates.io へのアップロードは不要です。
 
 1. **バージョンの Git タグを作成・プッシュ**:
-   ```bash
-   git tag vX.Y.Z   # 例: v0.2.0
-   git push origin vX.Y.Z
-   ```
+    ```bash
+    git tag vX.Y.Z   # 例: v0.2.0
+    git push origin vX.Y.Z
+    ```
 2. **利用側の設定**:
    利用者は `Cargo.toml` に以下を記述するだけでインストールできます。内部マクロクレート（`aegis-plugin-macros`）も同一リポジトリから Cargo が自動解決します。
-   ```toml
-   [dependencies]
-   aegis-plugin-sdk = { git = "https://github.com/takumi-mr/AegisCMS", tag = "v0.2.0" }
-   ```
+    ```toml
+    [dependencies]
+    aegis-plugin-sdk = { git = "https://github.com/takumi-mr/AegisCMS", tag = "v0.2.0" }
+    ```
 
 #### 2. AssemblyScript SDK (`GitHub Packages`)
 
 1. **事前検証**:
-   ```bash
-   task sdk:pack:dry-run
-   ```
+    ```bash
+    task sdk:pack:dry-run
+    ```
 2. **GitHub Packages への公開**:
    Personal Access Token (PAT, `write:packages` 権限) を用いて公開します。
-   ```bash
-   cd sdk/assemblyscript
-   npm publish
-   ```
+    ```bash
+    cd sdk/assemblyscript
+    npm publish
+    ```
 3. **利用側の設定**:
    利用者のプロジェクトルートまたは `~/.npmrc` にレジストリを設定して `npm install` します。
-   ```text
-   @takumi-mr:registry=https://npm.pkg.github.com
-   ```
-   ```bash
-   npm install @takumi-mr/plugin-sdk
-   ```
+    ```text
+    @takumi-mr:registry=https://npm.pkg.github.com
+    ```
+    ```bash
+    npm install @takumi-mr/plugin-sdk
+    ```
 
 #### 3. TinyGo SDK (`Go Modules`)
 
 Go Modules では、サブディレクトリに配置されたモジュールは `<ディレクトリパス>/<バージョン>` 形式の Git タグで公開・解決されます。
 
 1. **静的検証**:
-   ```bash
-   task sdk:check
-   ```
+    ```bash
+    task sdk:check
+    ```
 2. **Git タグの付与とプッシュ**:
-   ```bash
-   git tag sdk/tinygo/v0.1.0
-   git push origin sdk/tinygo/v0.1.0
-   ```
+    ```bash
+    git tag sdk/tinygo/v0.1.0
+    git push origin sdk/tinygo/v0.1.0
+    ```
 3. **利用側の設定**:
    利用者は標準の `go get` でインストールできます。
-   ```bash
-   go get github.com/takumi-mr/AegisCMS/sdk/tinygo@v0.1.0
-   ```
+    ```bash
+    go get github.com/takumi-mr/AegisCMS/sdk/tinygo@v0.1.0
+    ```

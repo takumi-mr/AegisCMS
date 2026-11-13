@@ -8,11 +8,11 @@ Uploaded files such as images are stored in the `[storage]` backend (local disk 
 
 ![Media library opened from an image block](images/media-library.png)
 
-| API | Required role | Description |
-| --- | --- | --- |
-| `POST /api/v1/storage/upload` | `editor` | Saves the multipart `file` and returns `201` with `{ key, url, size, content_type }`. The key is `YYYY/MM/<8 chars>-<file name>` (it can also be specified with the `key` / `path` field). The limit is `[storage].max_upload_mb` (exceeding it returns `413`) |
-| `GET /api/v1/storage/objects` | `viewer` | A list, newest first. `prefix` (key prefix match), `content_type` (mime type prefix match, e.g. `image/`), `q` (key substring match), `limit` (default 50, max 500), `offset`, `include_avatars` (whether to include avatar images under `avatars/`; by default they are excluded unless `prefix` starts with `avatars`) |
-| `DELETE /api/v1/storage/objects/{key}` | `editor` | Deletes a file (see below) |
+| API                                    | Required role | Description                                                                                                                                                                                                                                                                                                              |
+| -------------------------------------- | ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `POST /api/v1/storage/upload`          | `editor`      | Saves the multipart `file` and returns `201` with `{ key, url, size, content_type }`. The key is `YYYY/MM/<8 chars>-<file name>` (it can also be specified with the `key` / `path` field). The limit is `[storage].max_upload_mb` (exceeding it returns `413`)                                                           |
+| `GET /api/v1/storage/objects`          | `viewer`      | A list, newest first. `prefix` (key prefix match), `content_type` (mime type prefix match, e.g. `image/`), `q` (key substring match), `limit` (default 50, max 500), `offset`, `include_avatars` (whether to include avatar images under `avatars/`; by default they are excluded unless `prefix` starts with `avatars`) |
+| `DELETE /api/v1/storage/objects/{key}` | `editor`      | Deletes a file (see below)                                                                                                                                                                                                                                                                                               |
 
 All operations are recorded in the audit log (`storage.upload` / `storage.delete`; [Audit log](audit.md#2-recorded-events)).
 
@@ -27,14 +27,14 @@ curl -i -X DELETE http://127.0.0.1:8080/api/v1/storage/objects/2026/10/1a2b3c4d-
   -H "Authorization: Bearer $TOKEN"
 ```
 
-| Status | Condition |
-| --- | --- |
-| `204` | Deleted |
-| `400` | The key is empty or contains `..` |
-| `401` / `403` | No session or an invalid one / below `editor` |
-| `404` | No file with that key |
-| `409` | It is referenced from saved content or a user's avatar (when `force=true` is absent). Nothing is deleted |
-| `500` | Storage or DB error |
+| Status        | Condition                                                                                                |
+| ------------- | -------------------------------------------------------------------------------------------------------- |
+| `204`         | Deleted                                                                                                  |
+| `400`         | The key is empty or contains `..`                                                                        |
+| `401` / `403` | No session or an invalid one / below `editor`                                                            |
+| `404`         | No file with that key                                                                                    |
+| `409`         | It is referenced from saved content or a user's avatar (when `force=true` is absent). Nothing is deleted |
+| `500`         | Storage or DB error                                                                                      |
 
 ### Files in Use (`409`)
 

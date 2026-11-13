@@ -8,13 +8,13 @@ You will create a Rust plugin that adds a **custom block** that can be placed in
 
 The mechanism first: the block's **definition** (name and input fields) is in `plugin.manifest.json`, and it is Wasm's `render_blocks` that **builds the HTML**. What is saved in the article is only the block name and attributes (`attributes`), and the plugin builds the HTML on each display ([Body blocks 4](blocks.md#4-plugin-blocks), [Hooks 1.10](plugin_hooks.md#110-render-blocks)).
 
-| Step | Time | What you use |
-| --- | --- | --- |
-| 1. Preparation and generating the scaffold | 1 min | Rust, `wasm32-unknown-unknown` |
-| 2. Write the block | 5 min | An editor |
-| 3. Test and build | 1 min the first time | `cargo` |
-| 4. Check with the dev server | A few seconds to 1 min | `aegis-server plugin dev` |
-| 5. Place it in an article on a real server | 3 min | `aegis-server`, `curl` |
+| Step                                       | Time                   | What you use                   |
+| ------------------------------------------ | ---------------------- | ------------------------------ |
+| 1. Preparation and generating the scaffold | 1 min                  | Rust, `wasm32-unknown-unknown` |
+| 2. Write the block                         | 5 min                  | An editor                      |
+| 3. Test and build                          | 1 min the first time   | `cargo`                        |
+| 4. Check with the dev server               | A few seconds to 1 min | `aegis-server plugin dev`      |
+| 5. Place it in an article on a real server | 3 min                  | `aegis-server`, `curl`         |
 
 > [!NOTE]
 > The dev server is split into the standalone crate `aegis-plugin-dev`, so it starts quickly, in seconds to tens of seconds, even the first time.
@@ -234,16 +234,16 @@ When you fix the plugin's code, just rebuild and replace `plugin.wasm`. **Withou
 
 ## When You Get Stuck
 
-| Symptom | Cause and fix |
-| --- | --- |
-| `current package believes it's in a workspace when it's not` | `plugins/<name>/` is not a member of the root workspace. Add an empty `[workspace]` at the end of `Cargo.toml` (step 1) |
-| `failed to load manifest` / path not found | After copying, the `path` of `aegis-plugin-sdk` is still one level too deep. Make it `../../crates/aegis-plugin-sdk` |
-| `mismatched types: expected HashMap<String, Value>, found Value` (tests) | The SDK's `BlockNode.attributes` is a `HashMap`. Use `BlockNode::new` and `set_attribute` |
-| The display does not change after a rebuild (dev server) | The automatic build copies to `plugin.wasm` in a folder with `Cargo.toml`. If you use `--build-command` or `dev.build_command`, that command itself must update `plugin.wasm` |
-| The server does not start | An enabled plugin cannot be loaded (a `name` vs folder name mismatch, a faulty `blocks`, or a missing `entrypoint`). Look at the startup log and `plugin list` |
-| Nothing appears on the public page | `render_blocks` returns `None` (insufficient input or a name mismatch), or the plugin is disabled. Check that it appears in `GET /api/v1/blocks` |
-| The display is broken | User input is not `escape`d. Sanitization only removes things like `<script>` |
-| `all fuel consumed` | One rendering exceeded `resource_limits.max_fuel_units`. When there are many blocks, raise the limit or make the processing lighter |
+| Symptom                                                                  | Cause and fix                                                                                                                                                                 |
+| ------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `current package believes it's in a workspace when it's not`             | `plugins/<name>/` is not a member of the root workspace. Add an empty `[workspace]` at the end of `Cargo.toml` (step 1)                                                       |
+| `failed to load manifest` / path not found                               | After copying, the `path` of `aegis-plugin-sdk` is still one level too deep. Make it `../../crates/aegis-plugin-sdk`                                                          |
+| `mismatched types: expected HashMap<String, Value>, found Value` (tests) | The SDK's `BlockNode.attributes` is a `HashMap`. Use `BlockNode::new` and `set_attribute`                                                                                     |
+| The display does not change after a rebuild (dev server)                 | The automatic build copies to `plugin.wasm` in a folder with `Cargo.toml`. If you use `--build-command` or `dev.build_command`, that command itself must update `plugin.wasm` |
+| The server does not start                                                | An enabled plugin cannot be loaded (a `name` vs folder name mismatch, a faulty `blocks`, or a missing `entrypoint`). Look at the startup log and `plugin list`                |
+| Nothing appears on the public page                                       | `render_blocks` returns `None` (insufficient input or a name mismatch), or the plugin is disabled. Check that it appears in `GET /api/v1/blocks`                              |
+| The display is broken                                                    | User input is not `escape`d. Sanitization only removes things like `<script>`                                                                                                 |
+| `all fuel consumed`                                                      | One rendering exceeded `resource_limits.max_fuel_units`. When there are many blocks, raise the limit or make the processing lighter                                           |
 
 ## What to Read Next
 

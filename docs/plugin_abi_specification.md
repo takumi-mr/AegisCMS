@@ -17,9 +17,9 @@ AegisCMS's plugin system uses the Bytecode Alliance's WebAssembly runtime `Wasmt
 - **Sandbox isolation**: a plugin is completely isolated inside the guest's 32-bit linear memory space and cannot directly access the host's physical memory or OS resources.
 - **Complete instance separation**: an independent `Store` and `Instance` are created for each hook call, preventing state contamination and memory sharing between plugins (use the host-provided KVS for persistent state).
 - **Zero-trust execution control**:
-  - **Fuel (CPU quota)**: strictly limits the number of instructions usable in each hook call (against infinite loops and DoS).
-  - **Asynchronous timeout**: a hook call exceeding the specified milliseconds (e.g. 250 ms) is forcibly terminated by the host.
-  - **Capability guard**: network and storage access not declared in `plugin.manifest.json` is blocked immediately when the host API is called.
+    - **Fuel (CPU quota)**: strictly limits the number of instructions usable in each hook call (against infinite loops and DoS).
+    - **Asynchronous timeout**: a hook call exceeding the specified milliseconds (e.g. 250 ms) is forcibly terminated by the host.
+    - **Capability guard**: network and storage access not declared in `plugin.manifest.json` is blocked immediately when the host API is called.
 
 ---
 
@@ -42,10 +42,10 @@ allocate(len: i32) -> i32
 ```
 
 - **Argument**:
-  - `len` (i32): the byte size to allocate.
+    - `len` (i32): the byte size to allocate.
 - **Return value**:
-  - The starting offset address on the guest linear memory of the allocated region (`ptr`: i32).
-  - Returns `0` if allocation fails, such as from memory exhaustion.
+    - The starting offset address on the guest linear memory of the allocated region (`ptr`: i32).
+    - Returns `0` if allocation fails, such as from memory exhaustion.
 
 ### 2.3 Steps for Passing Data from Host to Guest
 
@@ -59,6 +59,7 @@ allocate(len: i32) -> i32
 Lifecycle hook functions pack the transformed data or execution result into a single **64-bit signed integer (`i64`)** and return it to the host.
 
 #### Packing Rule
+
 - **Upper 32 bits**: the starting pointer of the guest memory holding the result data (`ptr` as i32)
 - **Lower 32 bits**: the byte length of the result data (`len` as u32)
 
@@ -67,20 +68,22 @@ packed_result (i64) = ((ptr as i64) << 32) | ((len as u32) as i64)
 ```
 
 #### Packing Implementation Examples by Language
+
 - **Rust**:
-  ```rust
-  ((ptr as i64) << 32) | ((len as u32) as i64)
-  ```
+    ```rust
+    ((ptr as i64) << 32) | ((len as u32) as i64)
+    ```
 - **AssemblyScript**:
-  ```typescript
-  ((ptr as i64) << 32) | ((len as i64) & 0xFFFFFFFF)
-  ```
+    ```typescript
+    ((ptr as i64) << 32) | ((len as i64) & 0xFFFFFFFF)
+    ```
 - **TinyGo / Go**:
-  ```go
-  (int64(ptr) << 32) | (int64(uint32(length)) & 0xFFFFFFFF)
-  ```
+    ```go
+    (int64(ptr) << 32) | (int64(uint32(length)) & 0xFFFFFFFF)
+    ```
 
 #### The Host's Unpacking
+
 From the received `i64`, the host restores the pointer with `(packed >> 32) as i32` and the byte length with `packed as u32`, and reads the result bytes from guest memory.
 
 ---
@@ -105,13 +108,13 @@ Safely outputs logs through the host's structured logging facility (`tracing`).
 ```
 
 - **Arguments**:
-  - `level` (i32): the log level
-    - `0`: DEBUG
-    - `1`: INFO
-    - `2`: WARN
-    - `3` (or anything else): ERROR
-  - `ptr` (i32): the starting pointer of the log message string (UTF-8)
-  - `len` (i32): the byte length of the log message string
+    - `level` (i32): the log level
+        - `0`: DEBUG
+        - `1`: INFO
+        - `2`: WARN
+        - `3` (or anything else): ERROR
+    - `ptr` (i32): the starting pointer of the log message string (UTF-8)
+    - `len` (i32): the byte length of the log message string
 
 ### 3.2 `host.http_check_allowed`
 
@@ -122,11 +125,11 @@ The host verifies whether the destination URL is allowed by `capabilities.networ
 ```
 
 - **Arguments**:
-  - `ptr` (i32): the starting pointer of the URL string to verify (UTF-8)
-  - `len` (i32): the byte length of the URL string
+    - `ptr` (i32): the starting pointer of the URL string to verify (UTF-8)
+    - `len` (i32): the byte length of the URL string
 - **Return value** (i32):
-  - `1`: allowed (Allowed)
-  - `0`: denied (Denied / invalid URL)
+    - `1`: allowed (Allowed)
+    - `0`: denied (Denied / invalid URL)
 
 ### 3.3 `host.kv_set`
 
@@ -137,14 +140,14 @@ Persists and updates data in the Key-Value store of the plugin's own namespace. 
 ```
 
 - **Arguments**:
-  - `k_ptr` (i32): the starting pointer of the key string (UTF-8)
-  - `k_len` (i32): the byte length of the key string
-  - `v_ptr` (i32): the starting pointer of the value string (UTF-8)
-  - `v_len` (i32): the byte length of the value string
+    - `k_ptr` (i32): the starting pointer of the key string (UTF-8)
+    - `k_len` (i32): the byte length of the key string
+    - `v_ptr` (i32): the starting pointer of the value string (UTF-8)
+    - `v_len` (i32): the byte length of the value string
 - **Return value** (i32):
-  - `0`: success (Ok)
-  - `1`: insufficient permission (Denied: storage permission not declared in the manifest)
-  - `2`: error (Internal Error: memory access failure or lock contention)
+    - `0`: success (Ok)
+    - `1`: insufficient permission (Denied: storage permission not declared in the manifest)
+    - `2`: error (Internal Error: memory access failure or lock contention)
 - The value is stored in the server's `[cache]` backend (with `redis` it remains after a restart).
 
 ### 3.4 Common Convention for Imports That Return Results to Guest Memory
@@ -169,10 +172,10 @@ Sends an HTTP request to a destination permitted by `allowed_domains`.
 ```
 
 - **Arguments**: the `ptr`, `len` of the request JSON
-  ```json
-  { "method": "POST", "url": "https://hooks.slack.com/services/…",
-    "headers": { "Content-Type": "application/json" }, "body": "{\"text\":\"hi\"}" }
-  ```
+    ```json
+    { "method": "POST", "url": "https://hooks.slack.com/services/…",
+      "headers": { "Content-Type": "application/json" }, "body": "{\"text\":\"hi\"}" }
+    ```
 - **Return value** (i64): the `(ptr << 32) | len` of the response JSON `{"status": 200, "headers": {"content-type": "…"}, "body": "…"}`, or on failure `{"error": "<reason>"}` (`0` if it could not be written)
 - **Limits**: the methods are GET / POST / PUT / PATCH / DELETE; the body is 1 MiB for both sending and receiving; 10 seconds per call; up to 8 calls per hook invocation. The waiting time is included in the hook's `execution_timeout_ms`
 - **Destination restrictions**: only `http` / `https`, and ports only 443 for `https` and 80 or 8080 for `http`. It does not connect to internal IP addresses (loopback, private, link-local, etc., including where host names resolve to). The host follows redirects up to 3 times and checks the allowed domains and the above restrictions **at each destination** (moving to a destination that is not allowed is an error)
@@ -194,18 +197,18 @@ Reads values from the server's `[plugins.settings.<plugin name>]`.
 
 A plugin exports the following functions corresponding to the hooks it wants to run. They are called by the host only when the corresponding hook name (kebab-case) is declared in the manifest's `capabilities.hooks`.
 
-| Manifest hook name | Wasm export function name | Arguments | Return | Role |
-|---|---|---|---|---|
-| `on-before-save` | `on_before_save` | `(ptr: i32, len: i32)` | `i64` | Validation, value correction, and save refusal right before an article is saved |
-| `transform-content-ast` | `transform_content_ast` | `(ptr: i32, len: i32)` | `i64` | Transforming and decorating the block AST array |
-| `on-render-page` | `on_render_page` | `(ptr: i32, len: i32)` | `i64` | Dynamic changes to the public page rendering context |
-| `on-user-authenticated` | `on_user_authenticated` | `(ptr: i32, len: i32)` | `i64` | Role mapping after a successful login, supplementing attributes, refusing login |
-| `calculate-order` | `calculate_order` | `(ptr: i32, len: i32)` | `i64` | Adding shipping, tax, discounts; refusing an order |
-| `on-order-status-changed` | `on_order_status_changed` | `(ptr: i32, len: i32)` | `i64` | Notification of order creation and status changes |
-| `send-notification` | `send_notification` | `(ptr: i32, len: i32)` | `i64` | A notification delivery channel (Slack, SMS, etc.) |
-| `on-content-published` | `on_content_published` | `(ptr: i32, len: i32)` | `i64` | Notification when content is published, such as by scheduled publication |
-| `check-comment` | `check_comment` | `(ptr: i32, len: i32)` | `i64` | Comment moderation ([4.8.1](#481-check_comment)) |
-| `render-blocks` | `render_blocks` | `(ptr: i32, len: i32)` | `i64` | HTML for custom body blocks ([4.9](#49-render_blocks)) |
+| Manifest hook name        | Wasm export function name | Arguments              | Return | Role                                                                            |
+| ------------------------- | ------------------------- | ---------------------- | ------ | ------------------------------------------------------------------------------- |
+| `on-before-save`          | `on_before_save`          | `(ptr: i32, len: i32)` | `i64`  | Validation, value correction, and save refusal right before an article is saved |
+| `transform-content-ast`   | `transform_content_ast`   | `(ptr: i32, len: i32)` | `i64`  | Transforming and decorating the block AST array                                 |
+| `on-render-page`          | `on_render_page`          | `(ptr: i32, len: i32)` | `i64`  | Dynamic changes to the public page rendering context                            |
+| `on-user-authenticated`   | `on_user_authenticated`   | `(ptr: i32, len: i32)` | `i64`  | Role mapping after a successful login, supplementing attributes, refusing login |
+| `calculate-order`         | `calculate_order`         | `(ptr: i32, len: i32)` | `i64`  | Adding shipping, tax, discounts; refusing an order                              |
+| `on-order-status-changed` | `on_order_status_changed` | `(ptr: i32, len: i32)` | `i64`  | Notification of order creation and status changes                               |
+| `send-notification`       | `send_notification`       | `(ptr: i32, len: i32)` | `i64`  | A notification delivery channel (Slack, SMS, etc.)                              |
+| `on-content-published`    | `on_content_published`    | `(ptr: i32, len: i32)` | `i64`  | Notification when content is published, such as by scheduled publication        |
+| `check-comment`           | `check_comment`           | `(ptr: i32, len: i32)` | `i64`  | Comment moderation ([4.8.1](#481-check_comment))                                |
+| `render-blocks`           | `render_blocks`           | `(ptr: i32, len: i32)` | `i64`  | HTML for custom body blocks ([4.9](#49-render_blocks))                          |
 
 ### 4.1 `on_before_save`
 
@@ -213,10 +216,10 @@ Called right before an article is saved to the database.
 
 - **Input**: a UTF-8 JSON-encoded `PostContext`
 - **Return value**:
-  - On success: the modified `PostContext` as UTF-8 JSON, packed into an `i64`
-  - To refuse saving: the error envelope `{"error": "<refusal reason message>"}` as UTF-8 JSON, packed into an `i64`
+    - On success: the modified `PostContext` as UTF-8 JSON, packed into an `i64`
+    - To refuse saving: the error envelope `{"error": "<refusal reason message>"}` as UTF-8 JSON, packed into an `i64`
 - **Behavior on refusal**:
-  - When an error envelope is returned, the host immediately aborts saving the article, and the API returns `422 Unprocessable Entity`.
+    - When an error envelope is returned, the host immediately aborts saving the article, and the API returns `422 Unprocessable Entity`.
 
 ### 4.2 `transform_content_ast`
 
@@ -225,8 +228,8 @@ Transforms the article body's block AST array. It runs on save and on the admin 
 - **Input**: a UTF-8 JSON-encoded `BlockNode[]` array
 - **Return value**: the transformed `BlockNode[]` array as UTF-8 JSON, packed into an `i64`
 - **Notes**:
-  - If you do not change the block array, you can pack and return the `(ptr, len)` passed in as is.
-  - It runs on every preview, so do not give it external side effects (HTTP requests or KVS writes).
+    - If you do not change the block array, you can pack and return the `(ptr, len)` passed in as is.
+    - It runs on every preview, so do not give it external side effects (HTTP requests or KVS writes).
 
 ### 4.3 `on_render_page`
 
@@ -235,7 +238,7 @@ Called right before rendering a public page (`GET /`, `GET /articles/{slug}`) or
 - **Input**: a UTF-8 JSON-encoded `PageRenderContext`
 - **Return value**: the modified `PageRenderContext` as UTF-8 JSON, packed into an `i64`
 - **Notes**:
-  - You can dynamically update the site title (`site_title`), extra CSS (`extra_css`), extra header (`extra_head`), and template variables (`variables`).
+    - You can dynamically update the site title (`site_title`), extra CSS (`extra_css`), extra header (`extra_head`), and template variables (`variables`).
 
 ### 4.4 `on_user_authenticated`
 
@@ -243,10 +246,10 @@ Called after credentials are verified at login (password, OpenID Connect) and be
 
 - **Input**: a UTF-8 JSON-encoded `UserAuthContext` (`provider`, `user_id`, `email`, `display_name`, `role`, `metadata`; for details see [Plugin hooks](plugin_hooks.md#23-userauthcontext))
 - **Return value**:
-  - On success: the modified `UserAuthContext` as UTF-8 JSON, packed into an `i64` (`role` / `display_name` / `email` / `metadata` are reflected in the session; changes to `provider` / `user_id` are ignored)
-  - To refuse login: the error envelope `{"error": "<refusal reason message>"}`. The API returns `403 Forbidden`
+    - On success: the modified `UserAuthContext` as UTF-8 JSON, packed into an `i64` (`role` / `display_name` / `email` / `metadata` are reflected in the session; changes to `provider` / `user_id` are ignored)
+    - To refuse login: the error envelope `{"error": "<refusal reason message>"}`. The API returns `403 Forbidden`
 - **Notes**:
-  - `role` is one of `admin` / `editor` / `viewer`. Anything else, and traps and timeouts, also make the login fail (erring on the safe side).
+    - `role` is one of `admin` / `editor` / `viewer`. Anything else, and traps and timeouts, also make the login fail (erring on the safe side).
 
 ### 4.5 `calculate_order`
 
@@ -283,12 +286,12 @@ Called on every notification for a plugin that has `"plugin:<name>"` written in 
 
 - **Return value**:
 
-| Return value | Meaning |
-| --- | --- |
-| `0` | Sent |
-| `{"skipped": true}` | A notification it does not handle (not a failure; not left in the audit log either) |
-| `{"error": "...", "permanent": false}` | A transient failure. The host retries at intervals (the same if `permanent` is omitted) |
-| `{"error": "...", "permanent": true}` | A failure that would not change on retry (a configuration defect, the other side's 4xx, etc.) |
+| Return value                           | Meaning                                                                                       |
+| -------------------------------------- | --------------------------------------------------------------------------------------------- |
+| `0`                                    | Sent                                                                                          |
+| `{"skipped": true}`                    | A notification it does not handle (not a failure; not left in the audit log either)           |
+| `{"error": "...", "permanent": false}` | A transient failure. The host retries at intervals (the same if `permanent` is omitted)       |
+| `{"error": "...", "permanent": true}`  | A failure that would not change on retry (a configuration defect, the other side's 4xx, etc.) |
 
 ### 4.8 `on_content_published`
 
@@ -320,6 +323,7 @@ Turns the custom blocks declared in the manifest's `blocks` into HTML. It is cal
 All data types are serialized as JSON and passed through linear memory.
 
 ### 5.1 `PostContext`
+
 ```json
 {
   "id": "post_01hgbc3...",
@@ -335,6 +339,7 @@ All data types are serialized as JSON and passed through linear memory.
 ```
 
 ### 5.2 `BlockNode`
+
 ```json
 {
   "name": "core/paragraph",
@@ -345,11 +350,13 @@ All data types are serialized as JSON and passed through linear memory.
   "text": "Text content"
 }
 ```
+
 - `attributes`: a key-value object of attributes (`{}` or `null` if unspecified).
 - `children`: an array of nested child `BlockNode`s.
 - `text`: the block's text body (`""` or `null` if unspecified).
 
 ### 5.3 `PageRenderContext`
+
 ```json
 {
   "site_title": "AegisCMS Site",
@@ -445,14 +452,17 @@ For a call that does not call `kv_get` / `kv_set` / `http_fetch` and whose `conf
 - The budget is `[runtime].render_cache_mb` (default 32, 0 disables). For the mechanism, see [architecture.md 10.8](architecture.md#108-caching-the-result-of-on-render-page-aegis-runtimesrcwasmresult_cachers).
 
 ### 5.4 Error Envelope
+
 ```json
 {
   "error": "Title is a required field"
 }
 ```
+
 When a hook wants to refuse processing, it returns this JSON to the host.
 
 ### 5.5 `PublishedContent`
+
 ```json
 {
   "id": "c0a80101-0000-0000-0000-000000000001",
@@ -467,6 +477,7 @@ When a hook wants to refuse processing, it returns this JSON to the host.
   }
 }
 ```
+
 Information about published content passed to the `on_content_published` hook.
 
 ---
@@ -515,11 +526,11 @@ Information about published content passed to the `on_content_published` hook.
 
 ## 7. Implementation Guidelines by Language
 
-| Item | Rust | AssemblyScript | TinyGo |
-|---|---|---|---|
-| **Official SDK** | `crates/aegis-plugin-sdk` | `sdk/assemblyscript` (`@takumi-mr/plugin-sdk`) | `sdk/tinygo` (`github.com/takumi-mr/AegisCMS/sdk/tinygo`) |
-| **Official template** | `sdk/templates/rust` (for blocks: `sdk/templates/rust-block`) | `sdk/templates/assemblyscript` | `sdk/templates/tinygo` |
-| **Build command** | `cargo build --target wasm32-unknown-unknown --release` | `npm run asbuild` | `tinygo build -target=wasm-unknown -o plugin.wasm main.go` |
-| **Host imports** | `#[link(wasm_import_module = "host")] extern "C"` | `@external("host", "...")` | `//go:wasmimport host ...` |
-| **Memory allocator** | `std::alloc::alloc` | `heap.alloc` | `unsafe.Pointer(&buf[0])` / `malloc` |
-| **JSON handling** | `serde_json` | A lightweight JSON builder / parser | `encoding/json` |
+| Item                  | Rust                                                          | AssemblyScript                                 | TinyGo                                                     |
+| --------------------- | ------------------------------------------------------------- | ---------------------------------------------- | ---------------------------------------------------------- |
+| **Official SDK**      | `crates/aegis-plugin-sdk`                                     | `sdk/assemblyscript` (`@takumi-mr/plugin-sdk`) | `sdk/tinygo` (`github.com/takumi-mr/AegisCMS/sdk/tinygo`)  |
+| **Official template** | `sdk/templates/rust` (for blocks: `sdk/templates/rust-block`) | `sdk/templates/assemblyscript`                 | `sdk/templates/tinygo`                                     |
+| **Build command**     | `cargo build --target wasm32-unknown-unknown --release`       | `npm run asbuild`                              | `tinygo build -target=wasm-unknown -o plugin.wasm main.go` |
+| **Host imports**      | `#[link(wasm_import_module = "host")] extern "C"`             | `@external("host", "...")`                     | `//go:wasmimport host ...`                                 |
+| **Memory allocator**  | `std::alloc::alloc`                                           | `heap.alloc`                                   | `unsafe.Pointer(&buf[0])` / `malloc`                       |
+| **JSON handling**     | `serde_json`                                                  | A lightweight JSON builder / parser            | `encoding/json`                                            |

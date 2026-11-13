@@ -8,13 +8,13 @@
 
 仕組みだけ先に: ブロックの**定義**（名前と入力欄）は `plugin.manifest.json`、**HTML** を作るのは Wasm の `render_blocks` です。記事に保存されるのはブロック名と属性（`attributes`）だけで、HTML は表示のたびにプラグインが作ります（[本文のブロック 4](blocks.ja.md#4-プラグインのブロック)・[フック 1.10](plugin_hooks.ja.md#110-render-blocks)）。
 
-| 手順 | 所要 | 使うもの |
-| --- | --- | --- |
-| 1. 準備とひな形の生成 | 1 分 | Rust・`wasm32-unknown-unknown` |
-| 2. ブロックを書く | 5 分 | エディター |
-| 3. テストして、ビルドする | 初回 1 分 | `cargo` |
-| 4. 開発サーバーで確かめる | 数秒〜1 分 | `aegis-server plugin dev` |
-| 5. 実サーバーの記事に置く | 3 分 | `aegis-server`・`curl` |
+| 手順                      | 所要       | 使うもの                       |
+| ------------------------- | ---------- | ------------------------------ |
+| 1. 準備とひな形の生成     | 1 分       | Rust・`wasm32-unknown-unknown` |
+| 2. ブロックを書く         | 5 分       | エディター                     |
+| 3. テストして、ビルドする | 初回 1 分  | `cargo`                        |
+| 4. 開発サーバーで確かめる | 数秒〜1 分 | `aegis-server plugin dev`      |
+| 5. 実サーバーの記事に置く | 3 分       | `aegis-server`・`curl`         |
 
 > [!NOTE]
 > 開発サーバーは独立クレート `aegis-plugin-dev` に分離されているため、初回でも数秒〜数十秒で高速に起動します。
@@ -234,16 +234,16 @@ Admin Studio（`http://localhost:8080/admin/`）では、ブロックの追加�
 
 ## つまずいたとき
 
-| 症状 | 原因と直し方 |
-| --- | --- |
-| `current package believes it's in a workspace when it's not` | `plugins/<name>/` がルートのワークスペースのメンバーではない。`Cargo.toml` の末尾に空の `[workspace]` を足す（手順 1） |
-| `failed to load manifest` / パスが見つからない | コピーしたあと、`aegis-plugin-sdk` の `path` が 1 段深いまま。`../../crates/aegis-plugin-sdk` にする |
-| `mismatched types: expected HashMap<String, Value>, found Value`（テスト） | SDK の `BlockNode.attributes` は `HashMap`。`BlockNode::new` と `set_attribute` を使う |
-| 再ビルドしても表示が変わらない（開発サーバー） | 自動ビルドは `Cargo.toml` のあるフォルダーで `plugin.wasm` へ自動コピーする。`--build-command` や `dev.build_command` を使っているなら、そのコマンド自身が `plugin.wasm` を更新すること |
-| サーバーが起動しない | 有効にしたプラグインが読み込めない（`name` とフォルダー名の違い、`blocks` の不備、`entrypoint` が無い）。起動ログと `plugin list` を見る |
-| 公開ページに何も出ない | `render_blocks` が `None` を返している（入力不足・名前の不一致）。または、プラグインが無効。`GET /api/v1/blocks` に出ているか確かめる |
-| 表示が崩れる | 利用者の入力を `escape` していない。サニタイズは `<script>` などを取り除くだけ |
-| `all fuel consumed` | 1 回の描画の命令数が `resource_limits.max_fuel_units` を超えた。ブロックの数が多いときは上限を上げるか、処理を軽くする |
+| 症状                                                                       | 原因と直し方                                                                                                                                                                            |
+| -------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `current package believes it's in a workspace when it's not`               | `plugins/<name>/` がルートのワークスペースのメンバーではない。`Cargo.toml` の末尾に空の `[workspace]` を足す（手順 1）                                                                  |
+| `failed to load manifest` / パスが見つからない                             | コピーしたあと、`aegis-plugin-sdk` の `path` が 1 段深いまま。`../../crates/aegis-plugin-sdk` にする                                                                                    |
+| `mismatched types: expected HashMap<String, Value>, found Value`（テスト） | SDK の `BlockNode.attributes` は `HashMap`。`BlockNode::new` と `set_attribute` を使う                                                                                                  |
+| 再ビルドしても表示が変わらない（開発サーバー）                             | 自動ビルドは `Cargo.toml` のあるフォルダーで `plugin.wasm` へ自動コピーする。`--build-command` や `dev.build_command` を使っているなら、そのコマンド自身が `plugin.wasm` を更新すること |
+| サーバーが起動しない                                                       | 有効にしたプラグインが読み込めない（`name` とフォルダー名の違い、`blocks` の不備、`entrypoint` が無い）。起動ログと `plugin list` を見る                                                |
+| 公開ページに何も出ない                                                     | `render_blocks` が `None` を返している（入力不足・名前の不一致）。または、プラグインが無効。`GET /api/v1/blocks` に出ているか確かめる                                                   |
+| 表示が崩れる                                                               | 利用者の入力を `escape` していない。サニタイズは `<script>` などを取り除くだけ                                                                                                          |
+| `all fuel consumed`                                                        | 1 回の描画の命令数が `resource_limits.max_fuel_units` を超えた。ブロックの数が多いときは上限を上げるか、処理を軽くする                                                                  |
 
 ## 次に読むもの
 

@@ -94,15 +94,15 @@ required = true
 
 ### 1.1 項目
 
-| キー | 内容 |
-| --- | --- |
-| `name` | 送信される名前（英小文字・数字・`_`。`website` はボット除けに使うので使えない） |
-| `label` | 表示名（受信箱・通知にもこの名前で出る） |
-| `type` | `text`（既定）/ `email` / `tel` / `textarea` / `select` / `checkbox` / `file`（[添付ファイル](#13-添付ファイル)） |
-| `required` | 必須（チェックボックスなら、チェックが必須） |
-| `placeholder` | 入力欄の例（`select` では未選択の項目の文言） |
-| `options` | `select` の選択肢（必須） |
-| `max_length` | 最大文字数（既定は `textarea` が 5000、それ以外は 200） |
+| キー          | 内容                                                                                                              |
+| ------------- | ----------------------------------------------------------------------------------------------------------------- |
+| `name`        | 送信される名前（英小文字・数字・`_`。`website` はボット除けに使うので使えない）                                   |
+| `label`       | 表示名（受信箱・通知にもこの名前で出る）                                                                          |
+| `type`        | `text`（既定）/ `email` / `tel` / `textarea` / `select` / `checkbox` / `file`（[添付ファイル](#13-添付ファイル)） |
+| `required`    | 必須（チェックボックスなら、チェックが必須）                                                                      |
+| `placeholder` | 入力欄の例（`select` では未選択の項目の文言）                                                                     |
+| `options`     | `select` の選択肢（必須）                                                                                         |
+| `max_length`  | 最大文字数（既定は `textarea` が 5000、それ以外は 200）                                                           |
 
 - 名前が `name` の項目は送信者の名前、`subject_field`（既定 `subject`）の項目は件名として受信箱の一覧と通知に出ます。最初の `type = "email"` の項目が送信者のメールアドレスです（返信と自動返信の宛先）。
 - フォームの `title`・`submit_label`・`success_message` を省くと、`locale` の言語の既定の文言（「お問い合わせ」「送信する」など）になります。`fields` を省くと、名前・メールアドレス・件名・本文の 4 項目（同じく `locale` の言語）になります。
@@ -126,12 +126,12 @@ secret = "env:TURNSTILE_SECRET"        # 環境変数から読む（設定ファ
 
 Cloudflare Turnstile・hCaptcha・reCAPTCHA は、どれも「ウィジェットがフォームにトークンを足す → サーバーが `secret` とトークンを `siteverify` に送って `success` を確かめる」という同じ仕組みなので、`provider` を選ぶだけで足ります。reCAPTCHA は v2（チェックボックス）に対応しています。
 
-| `provider` | トークンの欄 | 検証の URL |
-| --- | --- | --- |
+| `provider`  | トークンの欄            | 検証の URL                                                  |
+| ----------- | ----------------------- | ----------------------------------------------------------- |
 | `turnstile` | `cf-turnstile-response` | `https://challenges.cloudflare.com/turnstile/v0/siteverify` |
-| `hcaptcha` | `h-captcha-response` | `https://api.hcaptcha.com/siteverify` |
-| `recaptcha` | `g-recaptcha-response` | `https://www.google.com/recaptcha/api/siteverify` |
-| `custom` | `response_field` | `verify_url` |
+| `hcaptcha`  | `h-captcha-response`    | `https://api.hcaptcha.com/siteverify`                       |
+| `recaptcha` | `g-recaptcha-response`  | `https://www.google.com/recaptcha/api/siteverify`           |
+| `custom`    | `response_field`        | `verify_url`                                                |
 
 同じ形の別のサービスは `provider = "custom"` にして、`verify_url`・`script_url`・`widget_class`（ウィジェットの `div` の class）・`response_field` をすべて書きます。`provider` が上の 3 つのときも、これらを書くと既定値を置き換えられます。`verify_url` は秘密を送る先なので `https://` だけです（手元の `localhost` / `127.0.0.1` への `http://` は開発用に認めます）。
 
@@ -171,14 +171,14 @@ type = "file"
 
 ### 2.1 テーマのテンプレート（`contact.html`）
 
-| 値 | 内容 |
-| --- | --- |
-| `title` | フォームの見出し（`title`） |
-| `fields.form_html` | 組み込みのフォームの HTML（エスケープ済み。`{{ fields.form_html \| safe }}`） |
-| `fields.sent` | 送信した後のページ（`?sent=1`）なら `true` |
-| `fields.form` | フォームの設定（`name`・`title`・`description`・`submit_label`・`success_message`・`fields`・`action`・`honeypot`・`captcha_html`）。自分でフォームを組み立てるときに使う |
-| `fields.values` / `fields.errors` | 送信に失敗したときの入力と誤り（`[{field, code, message}]`） |
-| `fields.notice` | 送信できなかったときの知らせ（入力の誤り・送信が多すぎるなど。`locale` の言語） |
+| 値                                | 内容                                                                                                                                                                      |
+| --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `title`                           | フォームの見出し（`title`）                                                                                                                                               |
+| `fields.form_html`                | 組み込みのフォームの HTML（エスケープ済み。`{{ fields.form_html \| safe }}`）                                                                                             |
+| `fields.sent`                     | 送信した後のページ（`?sent=1`）なら `true`                                                                                                                                |
+| `fields.form`                     | フォームの設定（`name`・`title`・`description`・`submit_label`・`success_message`・`fields`・`action`・`honeypot`・`captcha_html`）。自分でフォームを組み立てるときに使う |
+| `fields.values` / `fields.errors` | 送信に失敗したときの入力と誤り（`[{field, code, message}]`）                                                                                                              |
+| `fields.notice`                   | 送信できなかったときの知らせ（入力の誤り・送信が多すぎるなど。`locale` の言語）                                                                                           |
 
 自分でフォームを組み立てるときは、`fields.form.action` に `POST` し、`fields.form.honeypot`（`website`）の名前の見えない欄を必ず入れてください（人には見えないように隠す）。[CAPTCHA](#12-captcha任意) を設定しているときは、`<form>` の中の送信ボタンの前に `{{ fields.form.captcha_html | safe }}` も置いてください（設定が無ければ空です）。
 
@@ -198,10 +198,10 @@ type = "file"
 
 ## 4. 通知
 
-| 種類 | 宛先 | 内容 |
-| --- | --- | --- |
-| `contact.received` | 運営者（`notify_staff`） | フォーム、入力されたすべての項目、IP アドレス、受信箱を開く URL（`admin_url`） |
-| `contact.auto_reply` | 送信した人（フォームの `auto_reply`） | 受け付けたことと、入力した内容 |
+| 種類                 | 宛先                                  | 内容                                                                           |
+| -------------------- | ------------------------------------- | ------------------------------------------------------------------------------ |
+| `contact.received`   | 運営者（`notify_staff`）              | フォーム、入力されたすべての項目、IP アドレス、受信箱を開く URL（`admin_url`） |
+| `contact.auto_reply` | 送信した人（フォームの `auto_reply`） | 受け付けたことと、入力した内容                                                 |
 
 文面は Admin Studio の **設定 › 通知** で編集できます。スパムと判定したものは、どちらも送りません。
 
@@ -210,13 +210,13 @@ type = "file"
 
 ## 5. API
 
-| メソッド・パス | 権限 | 内容 |
-| --- | --- | --- |
-| `GET /api/v1/contact/forms` | なし | フォームと項目の一覧 |
-| `POST /api/v1/contact/forms/{form}` | なし | JSON で送信（`{"name": "...", "email": "...", ...}`。チェックボックスは `true`）。`201 {"status": "received"}`、入力の誤りは `400 {"error", "errors": [{field, code, message}]}`、送信が多すぎると `429` |
-| `GET /api/v1/contact/messages?status=new&form=default&q=見積&limit=50&offset=0` | editor | 受信箱（新しい順）と状態ごとの件数（`counts`）。`q` は全文検索 |
-| `GET /api/v1/contact/messages/{id}/attachments/{field}` | editor | 添付ファイルのダウンロード（`{field}` は項目の名前） |
-| `GET` / `PATCH` / `DELETE /api/v1/contact/messages/{id}` | editor | 1 件の取得・状態の変更（`{"status": "done"}`）・削除 |
-| `POST /api/v1/contact/messages/bulk` | editor | まとめて（`{"ids": [...], "action": "read" \| "done" \| "spam" \| "new" \| "delete"}`） |
+| メソッド・パス                                                                  | 権限   | 内容                                                                                                                                                                                                     |
+| ------------------------------------------------------------------------------- | ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET /api/v1/contact/forms`                                                     | なし   | フォームと項目の一覧                                                                                                                                                                                     |
+| `POST /api/v1/contact/forms/{form}`                                             | なし   | JSON で送信（`{"name": "...", "email": "...", ...}`。チェックボックスは `true`）。`201 {"status": "received"}`、入力の誤りは `400 {"error", "errors": [{field, code, message}]}`、送信が多すぎると `429` |
+| `GET /api/v1/contact/messages?status=new&form=default&q=見積&limit=50&offset=0` | editor | 受信箱（新しい順）と状態ごとの件数（`counts`）。`q` は全文検索                                                                                                                                           |
+| `GET /api/v1/contact/messages/{id}/attachments/{field}`                         | editor | 添付ファイルのダウンロード（`{field}` は項目の名前）                                                                                                                                                     |
+| `GET` / `PATCH` / `DELETE /api/v1/contact/messages/{id}`                        | editor | 1 件の取得・状態の変更（`{"status": "done"}`）・削除                                                                                                                                                     |
+| `POST /api/v1/contact/messages/bulk`                                            | editor | まとめて（`{"ids": [...], "action": "read" \| "done" \| "spam" \| "new" \| "delete"}`）                                                                                                                  |
 
 入力の誤りの `code` は `required` / `too_long` / `invalid_email` / `invalid_tel` / `invalid_option` / `invalid_text`（添付ファイルは `file_too_large` / `invalid_file_type`）です（`message` は `[contact].locale` の言語）。

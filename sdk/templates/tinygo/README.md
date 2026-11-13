@@ -54,6 +54,7 @@ sdk/templates/tinygo/
 Implement against the official SDK package [`github.com/takumi-mr/AegisCMS/sdk/tinygo`](../../tinygo).
 
 ### Manifest (`plugin.manifest.json`)
+
 Based on the zero-trust execution model, declare the minimum capabilities (permissions) the plugin needs. Any undeclared operation is blocked immediately by the host runtime.
 
 ```json
@@ -80,17 +81,17 @@ Based on the zero-trust execution model, declare the minimum capabilities (permi
 
 ### Available Lifecycle Hooks
 
-| Exported function | Arguments | Return | Description |
-|---|---|---|---|
-| `allocate(size: int32)` | `size: int32` | `uintptr` | Memory allocator (required) |
-| `on_before_save(ptr: int32, length: int32)` | `(ptr, len)` | `int64` | Validation, value correction, and rejection before saving an article |
-| `transform_content_ast(ptr: int32, length: int32)` | `(ptr, len)` | `int64` | Transforming the body block AST array |
-| `on_render_page(ptr: int32, length: int32)` | `(ptr, len)` | `int64` | Dynamically updating the public page rendering context |
+| Exported function                                  | Arguments     | Return    | Description                                                          |
+| -------------------------------------------------- | ------------- | --------- | -------------------------------------------------------------------- |
+| `allocate(size: int32)`                            | `size: int32` | `uintptr` | Memory allocator (required)                                          |
+| `on_before_save(ptr: int32, length: int32)`        | `(ptr, len)`  | `int64`   | Validation, value correction, and rejection before saving an article |
+| `transform_content_ast(ptr: int32, length: int32)` | `(ptr, len)`  | `int64`   | Transforming the body block AST array                                |
+| `on_render_page(ptr: int32, length: int32)`        | `(ptr, len)`  | `int64`   | Dynamically updating the public page rendering context               |
 
 ### Available Host APIs
 
-| Function | Description |
-|---|---|
-| `sdk.LogDebug(msg)`, `sdk.LogInfo(msg)`, `sdk.LogWarn(msg)`, `sdk.LogError(msg)` | Writes logs safely through the host's logger |
-| `sdk.NetIsAllowed(url)` | Checks whether the destination URL is allowed by the manifest |
-| `sdk.KVSet(key, value)` | Saves data to the KVS in the plugin's own namespace |
+| Function                                                                         | Description                                                   |
+| -------------------------------------------------------------------------------- | ------------------------------------------------------------- |
+| `sdk.LogDebug(msg)`, `sdk.LogInfo(msg)`, `sdk.LogWarn(msg)`, `sdk.LogError(msg)` | Writes logs safely through the host's logger                  |
+| `sdk.NetIsAllowed(url)`                                                          | Checks whether the destination URL is allowed by the manifest |
+| `sdk.KVSet(key, value)`                                                          | Saves data to the KVS in the plugin's own namespace           |

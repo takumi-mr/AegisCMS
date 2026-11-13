@@ -32,14 +32,14 @@ enabled = ["official-code-lines"]
 
 Admin Studio の **Settings › Plugins** の「設定」か、設定ファイルの `[plugins.settings.official-code-lines]` で変えます。省略した項目・不正な値は既定値になります。
 
-| キー | 既定値 | 説明 |
-| --- | --- | --- |
-| `content_types` | `article,page` | 動かすコンテンツの種類（カンマ区切り） |
-| `selector` | `.prose` | 本文の範囲（CSS セレクター。カンマ区切りで複数）。この中の `<pre>` だけを対象にする |
-| `line_numbers` | `true` | 行番号を付ける |
-| `show_filename` | `true` | ファイル名の見出しを出す |
-| `min_lines` | `2` | 行番号を付ける最小の行数（1〜1000） |
-| `number_color` | テーマの `--text-muted` | 行番号の色。`#hex`・`rgb()`・`hsl()`・`var(--名前)`・色名 |
+| キー            | 既定値                  | 説明                                                                                |
+| --------------- | ----------------------- | ----------------------------------------------------------------------------------- |
+| `content_types` | `article,page`          | 動かすコンテンツの種類（カンマ区切り）                                              |
+| `selector`      | `.prose`                | 本文の範囲（CSS セレクター。カンマ区切りで複数）。この中の `<pre>` だけを対象にする |
+| `line_numbers`  | `true`                  | 行番号を付ける                                                                      |
+| `show_filename` | `true`                  | ファイル名の見出しを出す                                                            |
+| `min_lines`     | `2`                     | 行番号を付ける最小の行数（1〜1000）                                                 |
+| `number_color`  | テーマの `--text-muted` | 行番号の色。`#hex`・`rgb()`・`hsl()`・`var(--名前)`・色名                           |
 
 ```toml
 [plugins.settings.official-code-lines]

@@ -23,14 +23,14 @@ In this plugin's settings screen under Admin Studio's **Settings › Plugins**, 
 
 The priority is "article field › theme variable › plugin setting › default (`dracula`)".
 
-| Theme ID | Theme name | Characteristics |
-|---|---|---|
-| `dracula` (default) | Dracula | An elegant dark background with vivid pink, purple, and cyan accents |
-| `github-dark` | GitHub Dark | GitHub's calm dark blue-gray |
-| `one-dark` | One Dark Pro | The classic dark of VS Code / Atom |
-| `nord` | Nord Arctic | A Nordic palette of blue and snow white |
-| `github-light` | GitHub Light | A white-based light theme |
-| `monokai` | Monokai Pro | A classic with high contrast |
+| Theme ID            | Theme name   | Characteristics                                                      |
+| ------------------- | ------------ | -------------------------------------------------------------------- |
+| `dracula` (default) | Dracula      | An elegant dark background with vivid pink, purple, and cyan accents |
+| `github-dark`       | GitHub Dark  | GitHub's calm dark blue-gray                                         |
+| `one-dark`          | One Dark Pro | The classic dark of VS Code / Atom                                   |
+| `nord`              | Nord Arctic  | A Nordic palette of blue and snow white                              |
+| `github-light`      | GitHub Light | A white-based light theme                                            |
+| `monokai`           | Monokai Pro  | A classic with high contrast                                         |
 
 ```json
 { "code_theme": "nord" }

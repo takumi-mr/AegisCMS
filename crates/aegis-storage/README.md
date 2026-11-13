@@ -11,22 +11,22 @@ File and media storage backend implementations for AegisCMS (local disk / AWS S3
 ## Responsibilities and Features
 
 - **LocalStorageBackend**:
-  - Safe storage on the server's local disk (`data/uploads/`, etc.).
-  - Path traversal prevention (validation and normalization of invalid paths containing `..`).
-  - Automatic directory creation, MIME type inference, and public URL prefixing.
+    - Safe storage on the server's local disk (`data/uploads/`, etc.).
+    - Path traversal prevention (validation and normalization of invalid paths containing `..`).
+    - Automatic directory creation, MIME type inference, and public URL prefixing.
 - **S3StorageBackend**:
-  - Supports AWS S3 and S3-compatible storage (Cloudflare R2, MinIO, Wasabi, Google Cloud Storage, etc.).
-  - Builds AWS Signature Version 4 (SigV4) signed requests itself (no heavy external SDK required).
-  - Custom endpoints and path-style / virtual-host-style bucket access.
+    - Supports AWS S3 and S3-compatible storage (Cloudflare R2, MinIO, Wasabi, Google Cloud Storage, etc.).
+    - Builds AWS Signature Version 4 (SigV4) signed requests itself (no heavy external SDK required).
+    - Custom endpoints and path-style / virtual-host-style bucket access.
 - **Factory function (`create_storage_backend`)**:
-  - Automatically creates the appropriate backend instance from the contents of `StorageConfig`.
+    - Automatically creates the appropriate backend instance from the contents of `StorageConfig`.
 
 ## Module Layout
 
-| Module | Description |
-| :--- | :--- |
-| `local` | Local file system storage implementation (`LocalStorageBackend`) |
-| `s3` | AWS S3-compatible object storage implementation (`S3StorageBackend`) |
+| Module   | Description                                                                 |
+| :------- | :-------------------------------------------------------------------------- |
+| `local`  | Local file system storage implementation (`LocalStorageBackend`)            |
+| `s3`     | AWS S3-compatible object storage implementation (`S3StorageBackend`)        |
 | `config` | Storage settings (`StorageConfig`, `LocalStorageConfig`, `S3StorageConfig`) |
 
 ## Usage Example

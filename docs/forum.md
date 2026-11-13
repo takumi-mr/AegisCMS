@@ -30,11 +30,11 @@ For the list of settings, see the [Configuration reference](configuration.md#216
 
 ## 2. Public Site
 
-| URL | Template | Description |
-| --- | --- | --- |
-| `/forum` | `forum_index.html` | The category list and recently updated threads |
+| URL                                  | Template              | Description                                                                         |
+| ------------------------------------ | --------------------- | ----------------------------------------------------------------------------------- |
+| `/forum`                             | `forum_index.html`    | The category list and recently updated threads                                      |
 | `/forum/{category slug}` (`?page=N`) | `forum_category.html` | The category's thread list (pinned → newest last post) and the thread creation form |
-| `/forum/{category slug}/{thread ID}` | `forum_thread.html` | The list of replies (with reply numbers) and the reply form |
+| `/forum/{category slug}/{thread ID}` | `forum_thread.html`   | The list of replies (with reply numbers) and the reply form                         |
 
 ![Top page of the sample forum "Yamabiko"](images/forum-public.png)
 
@@ -64,41 +64,41 @@ The **Forum** tab (shown when `[forum].enabled = true`):
 
 ## 4. API
 
-| API | Permission | Description |
-| --- | --- | --- |
-| `GET /api/v1/forum/categories` | Not needed | The category list |
-| `GET /api/v1/forum/categories/{slug}` | Not needed | A category |
-| `POST /api/v1/forum/categories` | `admin` | Create a category (`201`) |
-| `PUT` / `DELETE /api/v1/forum/categories/{id}` | `admin` | Update or delete a category |
-| `GET /api/v1/forum/threads?category_slug=&limit=&cursor_last_post_at=&cursor_id=` | Not needed | The thread list (`limit` is 1–100, default `default_page_size`) |
-| `GET /api/v1/forum/categories/{slug}/threads` | Not needed | The category's thread list (same query) |
-| `GET /api/v1/forum/threads/{id}` | Not needed | A thread |
-| `GET /api/v1/forum/threads/{id}/posts?cursor_post_number=&limit=` | Not needed | The list of replies (after `cursor_post_number`) |
-| `POST /api/v1/forum/threads` | Not needed (with `posting = "members"`, a logged-in member or staff) | `{ "category_id", "title", "body", "author_name" }`. `{ "thread", "initial_post" }` (`201`) |
-| `POST /api/v1/forum/posts` | Same | `{ "thread_id", "body", "author_name", "reply_to_number" }`. `{ "post" }` (`201`) |
-| `POST /api/v1/forum/threads/{id}/pin` | `editor` | `{ "pinned": true }` |
-| `POST /api/v1/forum/threads/{id}/lock` | `editor` | `{ "locked": true }` |
-| `DELETE /api/v1/forum/threads/{id}` | `editor` | Delete a thread and its replies |
-| `DELETE /api/v1/forum/posts/{id}` | `editor` | Delete a reply (soft delete; the reply number remains) |
+| API                                                                               | Permission                                                           | Description                                                                                 |
+| --------------------------------------------------------------------------------- | -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| `GET /api/v1/forum/categories`                                                    | Not needed                                                           | The category list                                                                           |
+| `GET /api/v1/forum/categories/{slug}`                                             | Not needed                                                           | A category                                                                                  |
+| `POST /api/v1/forum/categories`                                                   | `admin`                                                              | Create a category (`201`)                                                                   |
+| `PUT` / `DELETE /api/v1/forum/categories/{id}`                                    | `admin`                                                              | Update or delete a category                                                                 |
+| `GET /api/v1/forum/threads?category_slug=&limit=&cursor_last_post_at=&cursor_id=` | Not needed                                                           | The thread list (`limit` is 1–100, default `default_page_size`)                             |
+| `GET /api/v1/forum/categories/{slug}/threads`                                     | Not needed                                                           | The category's thread list (same query)                                                     |
+| `GET /api/v1/forum/threads/{id}`                                                  | Not needed                                                           | A thread                                                                                    |
+| `GET /api/v1/forum/threads/{id}/posts?cursor_post_number=&limit=`                 | Not needed                                                           | The list of replies (after `cursor_post_number`)                                            |
+| `POST /api/v1/forum/threads`                                                      | Not needed (with `posting = "members"`, a logged-in member or staff) | `{ "category_id", "title", "body", "author_name" }`. `{ "thread", "initial_post" }` (`201`) |
+| `POST /api/v1/forum/posts`                                                        | Same                                                                 | `{ "thread_id", "body", "author_name", "reply_to_number" }`. `{ "post" }` (`201`)           |
+| `POST /api/v1/forum/threads/{id}/pin`                                             | `editor`                                                             | `{ "pinned": true }`                                                                        |
+| `POST /api/v1/forum/threads/{id}/lock`                                            | `editor`                                                             | `{ "locked": true }`                                                                        |
+| `DELETE /api/v1/forum/threads/{id}`                                               | `editor`                                                             | Delete a thread and its replies                                                             |
+| `DELETE /api/v1/forum/posts/{id}`                                                 | `editor`                                                             | Delete a reply (soft delete; the reply number remains)                                      |
 
 Paging uses cursors. To get the next page, pass the `last_post_at` and `id` of the last thread in the previous response (`post_number` for replies).
 
-| Status | Condition |
-| --- | --- |
-| `400` | The title or body length is out of range, etc. |
-| `403` | Posting to a locked thread, login is required (`posting = "members"`), or you are not in a position that can write in that category |
-| `404` | No such category or thread (a category with a visibility you cannot see also counts as "none"), or the forum is disabled |
-| `429` | Consecutive posts within `rate_limit_secs` |
+| Status | Condition                                                                                                                           |
+| ------ | ----------------------------------------------------------------------------------------------------------------------------------- |
+| `400`  | The title or body length is out of range, etc.                                                                                      |
+| `403`  | Posting to a locked thread, login is required (`posting = "members"`), or you are not in a position that can write in that category |
+| `404`  | No such category or thread (a category with a visibility you cannot see also counts as "none"), or the forum is disabled            |
+| `429`  | Consecutive posts within `rate_limit_secs`                                                                                          |
 
 ### 4.0 Posts by Members and Staff, and Visibility
 
 A post is made in one of the following positions. The position is **decided by the server** from the session attached to the request (values in the body are not read).
 
-| Position | Authentication | Name | Recorded kind (`author_kind`) |
-| --- | --- | --- | --- |
-| Staff | A CMS session (`Authorization: Bearer` / `X-Session-Id`) | `author_name` can be specified (otherwise the display name) | `staff` |
-| Member | A member session (`Authorization: Bearer mses_...`, or the browser's cookie) | The **public name** (`nickname`); a specified value is ignored | `member` |
-| Anonymous | None | `author_name` (otherwise `Anonymous`) | None |
+| Position  | Authentication                                                               | Name                                                           | Recorded kind (`author_kind`) |
+| --------- | ---------------------------------------------------------------------------- | -------------------------------------------------------------- | ----------------------------- |
+| Staff     | A CMS session (`Authorization: Bearer` / `X-Session-Id`)                     | `author_name` can be specified (otherwise the display name)    | `staff`                       |
+| Member    | A member session (`Authorization: Bearer mses_...`, or the browser's cookie) | The **public name** (`nickname`); a specified value is ignored | `member`                      |
+| Anonymous | None                                                                         | `author_name` (otherwise `Anonymous`)                          | None                          |
 
 - A member **cannot post without a public name** (`400` `{"code": "nickname_required"}`; the real name is not shown). It is set in My Page ([Member accounts 13](members.md#13-public-name-nickname-implemented)).
 - The approval workflow's "auto-approve people who have approved posts" looks at the pair `(author_kind, author_id)`. A staff member and a member with the same ID are different people.
@@ -108,11 +108,11 @@ A post is made in one of the following positions. The position is **decided by t
 
 **Category visibility `visibility`** (specified when creating or updating a category; also selectable in the admin screen's "Categories"):
 
-| Value | Who can read | Who can write |
-| --- | --- | --- |
-| `public` (default) | Anyone | Follows `posting` |
-| `members` | Members and staff | Members and staff |
-| `staff` | Staff (people logged in to the CMS) | Staff |
+| Value              | Who can read                        | Who can write     |
+| ------------------ | ----------------------------------- | ----------------- |
+| `public` (default) | Anyone                              | Follows `posting` |
+| `members`          | Members and staff                   | Members and staff |
+| `staff`            | Staff (people logged in to the CMS) | Staff             |
 
 - For people who cannot see them, the category and its threads are **treated as nonexistent** (`404`; it does not even reveal their existence). They do not appear in lists either.
 - Pages of members-only and staff-only categories vary by viewer, so they are returned with `Cache-Control: private, no-store` and are not put in shared caches. The top (`/forum`) seen by members and staff is the same when those categories are included. **Pages of public categories are cached as before** (they do not change depending on whether you are logged in).

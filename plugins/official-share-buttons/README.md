@@ -23,17 +23,17 @@ enabled = ["official-share-buttons"]
 
 Customize it in the "Settings" of Admin Studio's **Settings › Plugins**, or in `[plugins.settings.official-share-buttons]` in the config file.
 
-| Key | Default | Description |
-| --- | --- | --- |
-| `content_types` | `article` | Content types to show the share buttons on (comma-separated) |
-| `platforms` | `x,line,copy` | Share targets to show (comma-separated, in display order). `x`, `line`, `copy`, `facebook`, `hatena`, `bluesky`, `threads`, `pocket`, `linkedin` are available |
-| `custom_services` | `""` | Additional custom share targets (one per line, format: `service name\|share URL template\|background color`). Available placeholders: `{url}`, `{title}` |
-| `position` | `bottom` | Placement: `bottom` (end of the body) / `top` (start of the body) / `both` (start and end) |
-| `style` | `buttons` | `buttons` (icon + label text) / `icons` (icon only) |
-| `shape` | `rounded` | Corner roundness of the buttons: `rounded` / `pill` / `square` |
-| `heading` | `""` | Heading text above the buttons (when empty, "Share this article" in the language in use) |
-| `x_via` | `""` | `@username` when sharing on X (added to the via parameter) |
-| `x_hashtags` | `""` | Hashtags when sharing on X (without #, comma-separated) |
+| Key               | Default       | Description                                                                                                                                                    |
+| ----------------- | ------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `content_types`   | `article`     | Content types to show the share buttons on (comma-separated)                                                                                                   |
+| `platforms`       | `x,line,copy` | Share targets to show (comma-separated, in display order). `x`, `line`, `copy`, `facebook`, `hatena`, `bluesky`, `threads`, `pocket`, `linkedin` are available |
+| `custom_services` | `""`          | Additional custom share targets (one per line, format: `service name\|share URL template\|background color`). Available placeholders: `{url}`, `{title}`       |
+| `position`        | `bottom`      | Placement: `bottom` (end of the body) / `top` (start of the body) / `both` (start and end)                                                                     |
+| `style`           | `buttons`     | `buttons` (icon + label text) / `icons` (icon only)                                                                                                            |
+| `shape`           | `rounded`     | Corner roundness of the buttons: `rounded` / `pill` / `square`                                                                                                 |
+| `heading`         | `""`          | Heading text above the buttons (when empty, "Share this article" in the language in use)                                                                       |
+| `x_via`           | `""`          | `@username` when sharing on X (added to the via parameter)                                                                                                     |
+| `x_hashtags`      | `""`          | Hashtags when sharing on X (without #, comma-separated)                                                                                                        |
 
 ### Example (config.toml)
 

@@ -56,13 +56,13 @@ max_per_ip_per_hour = 10      # 同じ IP からの 1 時間あたりの投稿�
 
 投稿は次の順で状態が決まり、後の段は前の段より厳しくだけできます。
 
-| 順 | 条件 | 状態 |
-| --- | --- | --- |
-| 1 | 名前・メールアドレス・本文に `spam_words` の語がある | `spam` |
-| 2 | `hold_words` の語がある、またはリンク（`http://` / `https://` / `www.`）が `max_links` より多い | `pending` |
-| 3 | 承認制（`require_approval`）で、同じ名前とメールアドレスの承認済みコメントが無い（または `auto_approve_known` がオフ） | `pending` |
-| 4 | それ以外 | `approved` |
-| 5 | `check-comment` プラグインが `hold` / `spam` を返した（[6](#6-プラグインで審査する)）。プラグインが失敗したら `pending` | `pending` / `spam` |
+| 順  | 条件                                                                                                                    | 状態               |
+| --- | ----------------------------------------------------------------------------------------------------------------------- | ------------------ |
+| 1   | 名前・メールアドレス・本文に `spam_words` の語がある                                                                    | `spam`             |
+| 2   | `hold_words` の語がある、またはリンク（`http://` / `https://` / `www.`）が `max_links` より多い                         | `pending`          |
+| 3   | 承認制（`require_approval`）で、同じ名前とメールアドレスの承認済みコメントが無い（または `auto_approve_known` がオフ）  | `pending`          |
+| 4   | それ以外                                                                                                                | `approved`         |
+| 5   | `check-comment` プラグインが `hold` / `spam` を返した（[6](#6-プラグインで審査する)）。プラグインが失敗したら `pending` | `pending` / `spam` |
 
 - 語の判定は大文字・小文字を区別しない部分一致です。
 - スパムとハニーポットに掛かった投稿にも、投稿者には「承認待ち」と同じ応答を返します（判定を悟らせないため）。
@@ -90,14 +90,14 @@ max_per_ip_per_hour = 10      # 同じ IP からの 1 時間あたりの投稿�
 {% if comments %}{% include "comments.html" %}{% endif %}
 ```
 
-| 変数 | 内容 |
-| --- | --- |
-| `comments.count` | 承認済みのコメント数 |
-| `comments["items"]` | 承認済みのコメント（スレッドの順。返信は親の直後） |
-| `comments.open` | 新しいコメントを受け付けているか（`close_after_days`・Admin Studio での受付の停止） |
-| `comments.post_url` | 投稿先（`POST`、ベースパス込み） |
-| `comments.content_id` | コンテンツの ID |
-| `comments.max_depth` / `comments.max_length` | 返信できる深さ / 本文の最大文字数 |
+| 変数                                         | 内容                                                                                |
+| -------------------------------------------- | ----------------------------------------------------------------------------------- |
+| `comments.count`                             | 承認済みのコメント数                                                                |
+| `comments["items"]`                          | 承認済みのコメント（スレッドの順。返信は親の直後）                                  |
+| `comments.open`                              | 新しいコメントを受け付けているか（`close_after_days`・Admin Studio での受付の停止） |
+| `comments.post_url`                          | 投稿先（`POST`、ベースパス込み）                                                    |
+| `comments.content_id`                        | コンテンツの ID                                                                     |
+| `comments.max_depth` / `comments.max_length` | 返信できる深さ / 本文の最大文字数                                                   |
 
 `items` の各要素は `id` / `parent_id` / `author_name` / `body_html`（エスケープ済みの本文。段落と改行だけ）/ `created_at` / `depth`（0 から。`max_depth` まで）/ `staff`（Admin Studio からの返信）/ `avatar_url`（[3.1](#31-アバター)。無ければ `null`）です。メールアドレス・IP アドレスはテンプレートに渡りません。`items` は Jinja の辞書のメソッド名と重なるため `comments["items"]` で参照します。
 
@@ -139,27 +139,27 @@ max_per_ip_per_hour = 10      # 同じ IP からの 1 時間あたりの投稿�
 
 ### 5.1 公開（ログイン不要）
 
-| メソッド・パス | 内容 |
-| --- | --- |
-| `GET /api/v1/contents/{type}/{slug または id}/comments` | 承認済みのコメント（テンプレートの `comments` と同じ形） |
+| メソッド・パス                                           | 内容                                                                                                                                                         |
+| -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `GET /api/v1/contents/{type}/{slug または id}/comments`  | 承認済みのコメント（テンプレートの `comments` と同じ形）                                                                                                     |
 | `POST /api/v1/contents/{type}/{slug または id}/comments` | 投稿。本文は `name` / `email` / `body`（必須）、`parent_id`（返信先）、`notify_replies`（返信・承認をメールで知らせる）、`website`（ハニーポット。空にする） |
-| `GET /comments/unsubscribe?id=...&token=...` | 返信通知を止める（通知メールのリンク。HTML） |
+| `GET /comments/unsubscribe?id=...&token=...`             | 返信通知を止める（通知メールのリンク。HTML）                                                                                                                 |
 
 投稿の応答は、公開されたら `201` と `{"status": "approved", "comment": {...}}`、承認待ち（スパム・ハニーポットを含む）なら `202` と `{"status": "pending"}` です。エラーは `400`（入力の不備・返信先が無い・深すぎる）、`403`（コメントを閉じた。`close_after_days` を過ぎた・Admin Studio で止めた）、`404`（公開中でない・コメントを受け付けない種類）、`409`（同じ本文をすでに投稿している）、`422`（プラグインが断った。`error` は投稿者に見せる文）、`429`（投稿が多すぎる）です。
 
 ### 5.2 管理
 
-| メソッド・パス | ロール | 内容 |
-| --- | --- | --- |
-| `GET /api/v1/comments` | `editor` | 一覧（新しい順）。`status` / `content_type` / `content_id` / `limit`（既定 50、最大 200）/ `offset`。応答は `comments`・`total`・状態ごとの件数 `counts` |
-| `PATCH /api/v1/comments/{id}` | `editor` | 状態を変える（`{"status": "approved"}` など）、本文を直す（`{"body": "..."}`）。両方同時でもよい（本文を先に直す）。どちらも無いと `400` |
-| `GET /api/v1/contents/{type}/{id}/comments/state` | `editor` | そのコンテンツへの新しいコメントの受付状態を取得する。`id` は ID か slug。応答は `{"content_type", "content_id", "open"}` |
-| `PUT /api/v1/contents/{type}/{id}/comments/state` | `editor` | そのコンテンツへの新しいコメントの受付を止める・再開する（`{"open": false}`）。`id` は ID か slug。応答は `{"content_type", "content_id", "open"}` |
-| `DELETE /api/v1/comments/{id}` | `editor` | 完全に削除する |
-| `POST /api/v1/comments/bulk` | `editor` | まとめて操作する（`{"ids": [...], "action": "approved" \| "pending" \| "spam" \| "trash" \| "delete"}`）。応答は `{"count": 変えた件数}` |
-| `POST /api/v1/comments/{id}/replies` | `editor` | 返信する（`{"body": "..."}`） |
-| `GET /api/v1/comments/settings` | `editor` | 承認の設定（`policy`: 実際の値、`overrides`: Admin Studio で変えた値、`defaults`: 設定ファイルの値） |
-| `PUT /api/v1/comments/settings` | `admin` | 承認の設定を変える（`{"require_approval": false, "auto_approve_known": null}`。`null` は設定ファイルの値に戻す） |
+| メソッド・パス                                    | ロール   | 内容                                                                                                                                                     |
+| ------------------------------------------------- | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET /api/v1/comments`                            | `editor` | 一覧（新しい順）。`status` / `content_type` / `content_id` / `limit`（既定 50、最大 200）/ `offset`。応答は `comments`・`total`・状態ごとの件数 `counts` |
+| `PATCH /api/v1/comments/{id}`                     | `editor` | 状態を変える（`{"status": "approved"}` など）、本文を直す（`{"body": "..."}`）。両方同時でもよい（本文を先に直す）。どちらも無いと `400`                 |
+| `GET /api/v1/contents/{type}/{id}/comments/state` | `editor` | そのコンテンツへの新しいコメントの受付状態を取得する。`id` は ID か slug。応答は `{"content_type", "content_id", "open"}`                                |
+| `PUT /api/v1/contents/{type}/{id}/comments/state` | `editor` | そのコンテンツへの新しいコメントの受付を止める・再開する（`{"open": false}`）。`id` は ID か slug。応答は `{"content_type", "content_id", "open"}`       |
+| `DELETE /api/v1/comments/{id}`                    | `editor` | 完全に削除する                                                                                                                                           |
+| `POST /api/v1/comments/bulk`                      | `editor` | まとめて操作する（`{"ids": [...], "action": "approved" \| "pending" \| "spam" \| "trash" \| "delete"}`）。応答は `{"count": 変えた件数}`                 |
+| `POST /api/v1/comments/{id}/replies`              | `editor` | 返信する（`{"body": "..."}`）                                                                                                                            |
+| `GET /api/v1/comments/settings`                   | `editor` | 承認の設定（`policy`: 実際の値、`overrides`: Admin Studio で変えた値、`defaults`: 設定ファイルの値）                                                     |
+| `PUT /api/v1/comments/settings`                   | `admin`  | 承認の設定を変える（`{"require_approval": false, "auto_approve_known": null}`。`null` は設定ファイルの値に戻す）                                         |
 
 監査ログには `comment.create`（Admin Studio からの返信）/ `comment.moderate` / `comment.update`（本文の編集）/ `comment.delete` / `comment.settings_update`（承認の設定・コンテンツごとの受付の切り替え）が残ります（[監査ログ](audit.ja.md)）。
 

@@ -145,6 +145,16 @@ tasks:
     cmds:
       - npm --prefix admin run format:check
 
+  fmt:md:
+    desc: Prettier でリポジトリ全体の Markdown を整形 (設定は .prettierrc.json / .prettierignore)
+    cmds:
+      - npx --yes prettier@3.9.10 --write "**/*.md"
+
+  fmt:md:check:
+    desc: Prettier でリポジトリ全体の Markdown の書式を検証
+    cmds:
+      - npx --yes prettier@3.9.10 --check "**/*.md"
+
   fmt:plugin-builder:check:
     desc: Prettier で Plugin Builder のコードフォーマット検証
     cmds:
@@ -166,11 +176,12 @@ tasks:
       - node scripts/generate-licenses.mjs
 
   check:
-    desc: PR・コミット前の全検証チェックを一括実行 (fmt, prettier, clippy, oxlint, test, test:admin, test:storybook, admin:build, theme-builder)
+    desc: PR・コミット前の全検証チェックを一括実行 (fmt, prettier, md, clippy, oxlint, test, test:admin, test:storybook, admin:build, theme-builder)
     cmds:
       - task: version:check
       - task: fmt:check
       - task: fmt:admin:check
+      - task: fmt:md:check
       - task: fmt:theme-builder:check
       - task: fmt:plugin-builder:check
       - task: lint

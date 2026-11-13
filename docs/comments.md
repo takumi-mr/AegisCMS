@@ -56,13 +56,13 @@ Other `[comments]` items: `avatars` ([3.1](#31-avatars)) and `reject_duplicates`
 
 A post's status is decided in the following order, and later steps can only be stricter than earlier ones.
 
-| Order | Condition | Status |
-| --- | --- | --- |
-| 1 | The name, email address, or body contains a word from `spam_words` | `spam` |
-| 2 | It has a word from `hold_words`, or more links (`http://` / `https://` / `www.`) than `max_links` | `pending` |
-| 3 | With the approval workflow (`require_approval`), there is no approved comment with the same name and email address (or `auto_approve_known` is off) | `pending` |
-| 4 | Otherwise | `approved` |
-| 5 | The `check-comment` plugin returned `hold` / `spam` ([6](#6-moderating-with-plugins)). If the plugin fails, `pending` | `pending` / `spam` |
+| Order | Condition                                                                                                                                           | Status             |
+| ----- | --------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------ |
+| 1     | The name, email address, or body contains a word from `spam_words`                                                                                  | `spam`             |
+| 2     | It has a word from `hold_words`, or more links (`http://` / `https://` / `www.`) than `max_links`                                                   | `pending`          |
+| 3     | With the approval workflow (`require_approval`), there is no approved comment with the same name and email address (or `auto_approve_known` is off) | `pending`          |
+| 4     | Otherwise                                                                                                                                           | `approved`         |
+| 5     | The `check-comment` plugin returned `hold` / `spam` ([6](#6-moderating-with-plugins)). If the plugin fails, `pending`                               | `pending` / `spam` |
 
 - Word matching is a case-insensitive substring match.
 - Posts caught as spam or by the honeypot also get the same response as "awaiting approval" for the poster (so as not to reveal the judgment).
@@ -90,14 +90,14 @@ The public pages (`article.html` / `page.html` / `product.html`) of the kinds in
 {% if comments %}{% include "comments.html" %}{% endif %}
 ```
 
-| Variable | Description |
-| --- | --- |
-| `comments.count` | The number of approved comments |
-| `comments["items"]` | Approved comments (in thread order; replies right after their parent) |
-| `comments.open` | Whether new comments are accepted (`close_after_days`, stopping acceptance in Admin Studio) |
-| `comments.post_url` | The post destination (`POST`, including the base path) |
-| `comments.content_id` | The content's ID |
-| `comments.max_depth` / `comments.max_length` | The depth replies can go / the maximum number of characters in the body |
+| Variable                                     | Description                                                                                 |
+| -------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| `comments.count`                             | The number of approved comments                                                             |
+| `comments["items"]`                          | Approved comments (in thread order; replies right after their parent)                       |
+| `comments.open`                              | Whether new comments are accepted (`close_after_days`, stopping acceptance in Admin Studio) |
+| `comments.post_url`                          | The post destination (`POST`, including the base path)                                      |
+| `comments.content_id`                        | The content's ID                                                                            |
+| `comments.max_depth` / `comments.max_length` | The depth replies can go / the maximum number of characters in the body                     |
 
 Each element of `items` has `id` / `parent_id` / `author_name` / `body_html` (the escaped body; paragraphs and line breaks only) / `created_at` / `depth` (from 0, up to `max_depth`) / `staff` (a reply from Admin Studio) / `avatar_url` ([3.1](#31-avatars); `null` if none). Email addresses and IP addresses are not passed to the template. `items` overlaps with a Jinja dict method name, so reference it as `comments["items"]`.
 
@@ -139,27 +139,27 @@ Deleting content also deletes its comments.
 
 ### 5.1 Public (No Login Needed)
 
-| Method and path | Description |
-| --- | --- |
-| `GET /api/v1/contents/{type}/{slug or id}/comments` | Approved comments (the same shape as the template's `comments`) |
+| Method and path                                      | Description                                                                                                                                                                                   |
+| ---------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET /api/v1/contents/{type}/{slug or id}/comments`  | Approved comments (the same shape as the template's `comments`)                                                                                                                               |
 | `POST /api/v1/contents/{type}/{slug or id}/comments` | Post. The body is `name` / `email` / `body` (required), `parent_id` (the reply target), `notify_replies` (notify by email of replies and approval), and `website` (the honeypot; leave empty) |
-| `GET /comments/unsubscribe?id=...&token=...` | Stop reply notifications (the link in notification emails; HTML) |
+| `GET /comments/unsubscribe?id=...&token=...`         | Stop reply notifications (the link in notification emails; HTML)                                                                                                                              |
 
 The response to a post is `201` with `{"status": "approved", "comment": {...}}` when published, and `202` with `{"status": "pending"}` when awaiting approval (including spam and honeypot). Errors are `400` (invalid input, no reply target, too deep), `403` (comments closed: `close_after_days` passed or stopped in Admin Studio), `404` (not published, or a kind that does not accept comments), `409` (the same body was already posted), `422` (a plugin refused it; `error` is text to show the poster), and `429` (too many posts).
 
 ### 5.2 Administration
 
-| Method and path | Role | Description |
-| --- | --- | --- |
-| `GET /api/v1/comments` | `editor` | A list (newest first). `status` / `content_type` / `content_id` / `limit` (default 50, max 200) / `offset`. The response is `comments`, `total`, and the counts per status `counts` |
-| `PATCH /api/v1/comments/{id}` | `editor` | Change the status (such as `{"status": "approved"}`) or fix the body (`{"body": "..."}`). Both at once is fine (the body is fixed first). Neither gives `400` |
-| `GET /api/v1/contents/{type}/{id}/comments/state` | `editor` | Get the acceptance state of new comments on that content. `id` is an ID or slug. The response is `{"content_type", "content_id", "open"}` |
-| `PUT /api/v1/contents/{type}/{id}/comments/state` | `editor` | Stop or resume new comments on that content (`{"open": false}`). `id` is an ID or slug. The response is `{"content_type", "content_id", "open"}` |
-| `DELETE /api/v1/comments/{id}` | `editor` | Delete permanently |
-| `POST /api/v1/comments/bulk` | `editor` | Operate in bulk (`{"ids": [...], "action": "approved" \| "pending" \| "spam" \| "trash" \| "delete"}`). The response is `{"count": number changed}` |
-| `POST /api/v1/comments/{id}/replies` | `editor` | Reply (`{"body": "..."}`) |
-| `GET /api/v1/comments/settings` | `editor` | Approval settings (`policy`: the actual values, `overrides`: values changed in Admin Studio, `defaults`: the config file's values) |
-| `PUT /api/v1/comments/settings` | `admin` | Change the approval settings (`{"require_approval": false, "auto_approve_known": null}`; `null` returns to the config file's value) |
+| Method and path                                   | Role     | Description                                                                                                                                                                         |
+| ------------------------------------------------- | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET /api/v1/comments`                            | `editor` | A list (newest first). `status` / `content_type` / `content_id` / `limit` (default 50, max 200) / `offset`. The response is `comments`, `total`, and the counts per status `counts` |
+| `PATCH /api/v1/comments/{id}`                     | `editor` | Change the status (such as `{"status": "approved"}`) or fix the body (`{"body": "..."}`). Both at once is fine (the body is fixed first). Neither gives `400`                       |
+| `GET /api/v1/contents/{type}/{id}/comments/state` | `editor` | Get the acceptance state of new comments on that content. `id` is an ID or slug. The response is `{"content_type", "content_id", "open"}`                                           |
+| `PUT /api/v1/contents/{type}/{id}/comments/state` | `editor` | Stop or resume new comments on that content (`{"open": false}`). `id` is an ID or slug. The response is `{"content_type", "content_id", "open"}`                                    |
+| `DELETE /api/v1/comments/{id}`                    | `editor` | Delete permanently                                                                                                                                                                  |
+| `POST /api/v1/comments/bulk`                      | `editor` | Operate in bulk (`{"ids": [...], "action": "approved" \| "pending" \| "spam" \| "trash" \| "delete"}`). The response is `{"count": number changed}`                                 |
+| `POST /api/v1/comments/{id}/replies`              | `editor` | Reply (`{"body": "..."}`)                                                                                                                                                           |
+| `GET /api/v1/comments/settings`                   | `editor` | Approval settings (`policy`: the actual values, `overrides`: values changed in Admin Studio, `defaults`: the config file's values)                                                  |
+| `PUT /api/v1/comments/settings`                   | `admin`  | Change the approval settings (`{"require_approval": false, "auto_approve_known": null}`; `null` returns to the config file's value)                                                 |
 
 The audit log records `comment.create` (a reply from Admin Studio) / `comment.moderate` / `comment.update` (editing the body) / `comment.delete` / `comment.settings_update` (approval settings and the per-content acceptance switch) ([Audit log](audit.md)).
 

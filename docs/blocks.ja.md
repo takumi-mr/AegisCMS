@@ -16,23 +16,23 @@ Admin Studio ではブロックごとに編集するか、Markdown で書きま�
 
 ![エディタのブロックの追加ボタンと本文のブロック（右はプレビュー）](images/blocks-editor.png)
 
-| ブロック | 属性 | Markdown | 出力する HTML |
-|---|---|---|---|
-| `core/heading` | `level`（1〜6、既定 2）、`id`（保存時に自動で付く） | `## 見出し` | `<h2 id="...">` |
-| `core/paragraph` | | 空行で区切った文章 | `<p>` |
-| `core/list` | `ordered`（真偽値）。項目は子の `core/list-item` の `text`。タスクリストの項目は `attributes.checked`（真偽値） | `- 項目` / `1. 項目` / `- [ ] 未完了` / `- [x] 完了` | `<ul>` / `<ol>`（タスクがあれば `class="contains-task-list"`、項目は `<li class="task-list-item"><input type="checkbox" disabled>`。GFM と同じ読み取り専用のチェックボックス） |
-| `core/code` | `language`、`filename`（任意。120 文字まで） | ` ```rust ` 〜 ` ``` `（ファイル名は ` ```rust title="src/main.rs" `） | `<pre data-filename="src/main.rs"><code class="language-rust">`（`data-filename` はファイル名があるときだけ。表示は[公式プラグイン `official-code-lines`](../plugins/official-code-lines)かテーマの CSS） |
-| `core/image` | `src`、`alt` | `![alt](src)` | `<figure><img>` |
-| `core/table` | `rows`（文字列の配列の配列）、`header`（1 行目を見出し行にする。既定 `true`）、`align`（列ごとの `"left"` / `"center"` / `"right"` / `null`） | GFM の表（下記） | `<div class="aegis-table"><table>` |
-| `core/toc` | `title`（空なら見出しを出さない）、`maxLevel`（2〜6、既定 3） | `[TOC]`、`[TOC title="目次" maxLevel=4]` | `<nav class="aegis-toc">` |
-| `core/quote` | `cite`（出典。任意） | `> 引用`（最後の行が `> — 出典` なら出典） | `<blockquote>`（出典があれば `<figure class="aegis-quote">` と `<figcaption>`） |
-| `core/callout` | `variant`（`note` / `tip` / `important` / `warning` / `caution`、既定 `note`）、`title`（任意） | `> [!WARNING] 見出し` に続く `> 本文`、または `:::warning 見出し` 〜 `:::` | `<aside class="aegis-callout aegis-callout-warning" role="note">` |
-| `core/separator` | | `---`（`***`・`___` も可） | `<hr>` |
-| `core/details` | `summary`（見出し）、`open`（最初から開く。既定 `false`） | `:::details 見出し` 〜 `:::`（開いた状態は `:::details+`） | `<details class="aegis-details"><summary>` |
-| `core/footnote` | `label`（英数字・`_`・`-`、40 文字まで）。注釈の文章は `text` | 本文に `[^1]`、定義は `[^1]: 注釈`（1 行） | 文書の末尾の `<section class="aegis-footnotes">`（本文の参照は `<sup class="aegis-fnref">`） |
-| `core/paywall` | なし | `<!-- paywall -->`（HTML のコメント。GitHub では何も表示されない） | 「ここから先は会員向け」の区切り。記事・ページに `access` があるときだけ効き、これより後ろは必要なレベルのない閲覧者の HTML・フィード・検索・API に出ない。読める閲覧者には何も出さない（[members.md 15.3](members.ja.md#153-本文のここから先)） |
-| `core/contact-form` | `form`（`[[contact.forms]]` の名前。既定 `default`） | `[CONTACT]`、`[CONTACT form="sales"]` | [問い合わせフォーム](contact.ja.md#2-フォームを置く)（`[contact].enabled` のときだけ） |
-| `core/html` | `mode`（`sanitized` / `sandbox`） | ` ```html ` / ` ```html:sandbox ` | [カスタム HTML](theme_authoring_guide.ja.md#31-どの-url-でどのテンプレートが使われるか) |
+| ブロック            | 属性                                                                                                                                          | Markdown                                                                   | 出力する HTML                                                                                                                                                                                                                                    |
+| ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `core/heading`      | `level`（1〜6、既定 2）、`id`（保存時に自動で付く）                                                                                           | `## 見出し`                                                                | `<h2 id="...">`                                                                                                                                                                                                                                  |
+| `core/paragraph`    |                                                                                                                                               | 空行で区切った文章                                                         | `<p>`                                                                                                                                                                                                                                            |
+| `core/list`         | `ordered`（真偽値）。項目は子の `core/list-item` の `text`。タスクリストの項目は `attributes.checked`（真偽値）                               | `- 項目` / `1. 項目` / `- [ ] 未完了` / `- [x] 完了`                       | `<ul>` / `<ol>`（タスクがあれば `class="contains-task-list"`、項目は `<li class="task-list-item"><input type="checkbox" disabled>`。GFM と同じ読み取り専用のチェックボックス）                                                                   |
+| `core/code`         | `language`、`filename`（任意。120 文字まで）                                                                                                  | ` ```rust ` 〜 ` ``` `（ファイル名は ` ```rust title="src/main.rs" `）     | `<pre data-filename="src/main.rs"><code class="language-rust">`（`data-filename` はファイル名があるときだけ。表示は[公式プラグイン `official-code-lines`](../plugins/official-code-lines)かテーマの CSS）                                        |
+| `core/image`        | `src`、`alt`                                                                                                                                  | `![alt](src)`                                                              | `<figure><img>`                                                                                                                                                                                                                                  |
+| `core/table`        | `rows`（文字列の配列の配列）、`header`（1 行目を見出し行にする。既定 `true`）、`align`（列ごとの `"left"` / `"center"` / `"right"` / `null`） | GFM の表（下記）                                                           | `<div class="aegis-table"><table>`                                                                                                                                                                                                               |
+| `core/toc`          | `title`（空なら見出しを出さない）、`maxLevel`（2〜6、既定 3）                                                                                 | `[TOC]`、`[TOC title="目次" maxLevel=4]`                                   | `<nav class="aegis-toc">`                                                                                                                                                                                                                        |
+| `core/quote`        | `cite`（出典。任意）                                                                                                                          | `> 引用`（最後の行が `> — 出典` なら出典）                                 | `<blockquote>`（出典があれば `<figure class="aegis-quote">` と `<figcaption>`）                                                                                                                                                                  |
+| `core/callout`      | `variant`（`note` / `tip` / `important` / `warning` / `caution`、既定 `note`）、`title`（任意）                                               | `> [!WARNING] 見出し` に続く `> 本文`、または `:::warning 見出し` 〜 `:::` | `<aside class="aegis-callout aegis-callout-warning" role="note">`                                                                                                                                                                                |
+| `core/separator`    |                                                                                                                                               | `---`（`***`・`___` も可）                                                 | `<hr>`                                                                                                                                                                                                                                           |
+| `core/details`      | `summary`（見出し）、`open`（最初から開く。既定 `false`）                                                                                     | `:::details 見出し` 〜 `:::`（開いた状態は `:::details+`）                 | `<details class="aegis-details"><summary>`                                                                                                                                                                                                       |
+| `core/footnote`     | `label`（英数字・`_`・`-`、40 文字まで）。注釈の文章は `text`                                                                                 | 本文に `[^1]`、定義は `[^1]: 注釈`（1 行）                                 | 文書の末尾の `<section class="aegis-footnotes">`（本文の参照は `<sup class="aegis-fnref">`）                                                                                                                                                     |
+| `core/paywall`      | なし                                                                                                                                          | `<!-- paywall -->`（HTML のコメント。GitHub では何も表示されない）         | 「ここから先は会員向け」の区切り。記事・ページに `access` があるときだけ効き、これより後ろは必要なレベルのない閲覧者の HTML・フィード・検索・API に出ない。読める閲覧者には何も出さない（[members.md 15.3](members.ja.md#153-本文のここから先)） |
+| `core/contact-form` | `form`（`[[contact.forms]]` の名前。既定 `default`）                                                                                          | `[CONTACT]`、`[CONTACT form="sales"]`                                      | [問い合わせフォーム](contact.ja.md#2-フォームを置く)（`[contact].enabled` のときだけ）                                                                                                                                                           |
+| `core/html`         | `mode`（`sanitized` / `sandbox`）                                                                                                             | ` ```html ` / ` ```html:sandbox `                                          | [カスタム HTML](theme_authoring_guide.ja.md#31-どの-url-でどのテンプレートが使われるか)                                                                                                                                                          |
 
 `<プラグイン名>/<ブロック名>` のブロックは、そのプラグインが描画します（[4. プラグインのブロック](#4-プラグインのブロック)）。それ以外の知らない名前のブロックは、名前の `/` を `-` にしたカスタム要素（`<my-plugin-card>`）として出力します。
 
@@ -114,16 +114,16 @@ Q&A や補足の詳細に使います。HTML 標準の `<details>` / `<summary>`
 
 段落・リストの項目・見出し・表のセル・引用・注記・折りたたみの本文と見出しで使えます。
 
-| 書き方 | 出力 |
-|---|---|
-| `**太字**` | `<strong>` |
-| `*斜体*` | `<em>` |
-| `~~取り消し線~~` | `<del>` |
-| `` `コード` `` | `<code>`（中の記号はそのまま） |
-| `[テキスト](URL)` | `<a href="URL">` |
-| `![代替テキスト](URL)` | `<img loading="lazy">`（行に画像だけを書くと `core/image` ブロックになる） |
+| 書き方                               | 出力                                                                        |
+| ------------------------------------ | --------------------------------------------------------------------------- |
+| `**太字**`                           | `<strong>`                                                                  |
+| `*斜体*`                             | `<em>`                                                                      |
+| `~~取り消し線~~`                     | `<del>`                                                                     |
+| `` `コード` ``                       | `<code>`（中の記号はそのまま）                                              |
+| `[テキスト](URL)`                    | `<a href="URL">`                                                            |
+| `![代替テキスト](URL)`               | `<img loading="lazy">`（行に画像だけを書くと `core/image` ブロックになる）  |
 | `[![CI](バッジの画像URL)](リンク先)` | `<a><img></a>`（GitHub・shields.io などのバッジ。画像のホストは限定しない） |
-| `\*` | 記号をそのまま出す |
+| `\*`                                 | 記号をそのまま出す                                                          |
 
 - `*` の直後・閉じの `*` の直前が空白だと書式になりません（`2 * 3 * 4` はそのまま）。閉じの無い記号もそのまま出ます。
 - `_斜体_` は使えません（`snake_case` の識別子を壊さないため）。
@@ -140,14 +140,14 @@ Q&A や補足の詳細に使います。HTML 標準の `<details>` / `<summary>`
 
 テーマで見た目を変えるときのクラス:
 
-| クラス | 要素 |
-|---|---|
-| `.aegis-table` | 表を包む `<div>`（横スクロール） |
-| `.aegis-toc`、`.aegis-toc-title` | 目次の `<nav>` と見出し |
-| `.aegis-quote` | 出典のある引用の `<figure>`（出典は `figcaption`） |
-| `.aegis-callout`、`.aegis-callout-{note,tip,important,warning,caution}`、`.aegis-callout-title` | 注記と種類・見出し |
-| `.aegis-details`、`.aegis-details-body` | 折りたたみと、その本文 |
-| `.aegis-linkcard`（`data-provider`）、`.aegis-linkcard-site`、`.aegis-linkcard-path` | URL だけの段落のリンクカードと、サイト名・パス |
+| クラス                                                                                                                    | 要素                                                 |
+| ------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------- |
+| `.aegis-table`                                                                                                            | 表を包む `<div>`（横スクロール）                     |
+| `.aegis-toc`、`.aegis-toc-title`                                                                                          | 目次の `<nav>` と見出し                              |
+| `.aegis-quote`                                                                                                            | 出典のある引用の `<figure>`（出典は `figcaption`）   |
+| `.aegis-callout`、`.aegis-callout-{note,tip,important,warning,caution}`、`.aegis-callout-title`                           | 注記と種類・見出し                                   |
+| `.aegis-details`、`.aegis-details-body`                                                                                   | 折りたたみと、その本文                               |
+| `.aegis-linkcard`（`data-provider`）、`.aegis-linkcard-site`、`.aegis-linkcard-path`                                      | URL だけの段落のリンクカードと、サイト名・パス       |
 | `.aegis-contact-form`、`.aegis-contact-field`、`.aegis-contact-error`、`.aegis-contact-required`、`.aegis-contact-submit` | 問い合わせフォームと項目・誤り・必須の印・送信ボタン |
 
 ```css

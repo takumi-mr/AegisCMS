@@ -56,19 +56,19 @@ label = "埋め込みの動画"
 description = "YouTube などの動画を表示します。"
 ```
 
-| キー | 型 | 既定値 | 説明 |
-| --- | --- | --- | --- |
-| `enabled` | bool | `false` | `true` でバナーを出す |
-| `layout` | string | `"banner"` | バナーの形。`banner` / `box` / `modal` |
-| `position` | string | 形の既定 | 位置。`banner`: `bottom`(既定)/ `top`、`box`: `bottom-right`(既定)/ `bottom-left` / `top-right` / `top-left`、`modal`: `center` |
-| `backdrop` | bool | `modal` だけ `true` | 背景を暗くして、ページを操作できなくする |
-| `delay_ms` | integer | `0` | 表示を遅らせる時間(0〜10000) |
-| `cookie_days` | integer | `180` | 選択を残す日数(1〜395) |
-| `policy_url` | string | `""` | プライバシーポリシーの URL(`/` で始まるパスか `http(s)://`)。空ならリンクを出さない |
-| `message` | string | `""` | 説明文(600 文字まで)。空ならテーマの既定の文 |
-| `reopen_button` | bool | `true` | 選択したあとに出す、設定を開き直す小さなボタン |
-| `revision` | integer | `1` | 増やすと、保存済みの選択が無効になって、もう一度聞く |
-| `categories` | table[] | `analytics` と `marketing` | 同意の対象にする区分(10 個まで) |
+| キー            | 型      | 既定値                     | 説明                                                                                                                            |
+| --------------- | ------- | -------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| `enabled`       | bool    | `false`                    | `true` でバナーを出す                                                                                                           |
+| `layout`        | string  | `"banner"`                 | バナーの形。`banner` / `box` / `modal`                                                                                          |
+| `position`      | string  | 形の既定                   | 位置。`banner`: `bottom`(既定)/ `top`、`box`: `bottom-right`(既定)/ `bottom-left` / `top-right` / `top-left`、`modal`: `center` |
+| `backdrop`      | bool    | `modal` だけ `true`        | 背景を暗くして、ページを操作できなくする                                                                                        |
+| `delay_ms`      | integer | `0`                        | 表示を遅らせる時間(0〜10000)                                                                                                    |
+| `cookie_days`   | integer | `180`                      | 選択を残す日数(1〜395)                                                                                                          |
+| `policy_url`    | string  | `""`                       | プライバシーポリシーの URL(`/` で始まるパスか `http(s)://`)。空ならリンクを出さない                                             |
+| `message`       | string  | `""`                       | 説明文(600 文字まで)。空ならテーマの既定の文                                                                                    |
+| `reopen_button` | bool    | `true`                     | 選択したあとに出す、設定を開き直す小さなボタン                                                                                  |
+| `revision`      | integer | `1`                        | 増やすと、保存済みの選択が無効になって、もう一度聞く                                                                            |
+| `categories`    | table[] | `analytics` と `marketing` | 同意の対象にする区分(10 個まで)                                                                                                 |
 
 - 区分の `id` は英小文字で始まり、英小文字・数字・`-`・`_`(32 文字以内)。`necessary`(必須)は常にオンで、定義できません。
 - `analytics`・`marketing`・`preferences`・`functional` には、テーマの言語の名前と説明が付きます。ほかの `id` は `label`(60 文字まで)が必要です。`description` は 300 文字までです。
@@ -125,32 +125,32 @@ window.AegisConsent.open();                  // 設定を開く
 
 ### 3.1 テンプレートに渡る値
 
-| 値 | 内容 |
-| --- | --- |
-| `fields.consent.layout` | `banner` / `box` / `modal` |
-| `fields.consent.position` | 位置(`bottom`・`top`・`bottom-right`・`bottom-left`・`top-right`・`top-left`・`center`) |
-| `fields.consent.backdrop` | 背景を暗くするか(`true` / `false`) |
-| `fields.consent.policy_url` | プライバシーポリシーの URL(無ければ空) |
-| `fields.consent.reopen_button` | 設定を開き直すボタンを出すか |
-| `fields.consent.delay_ms` / `cookie_days` | 表示の遅れ・選択を残す日数 |
-| `fields.message` | `[consent].message`(空なら、テーマの `t("consent.message")` など自分の文を使う) |
-| `fields.categories` | 区分の一覧。`id`・`label`・`description`(組み込みの区分は、名前を決めていなければ空) |
-| `fields.preview` | テーマ開発サーバーのプレビューのとき `true`(最初から表示する) |
-| `site_title`, `locale`, `base_path`, `t("...")` | ほかのテンプレートと同じ(`t("consent.title")` などの組み込みの文言も使える) |
+| 値                                              | 内容                                                                                    |
+| ----------------------------------------------- | --------------------------------------------------------------------------------------- |
+| `fields.consent.layout`                         | `banner` / `box` / `modal`                                                              |
+| `fields.consent.position`                       | 位置(`bottom`・`top`・`bottom-right`・`bottom-left`・`top-right`・`top-left`・`center`) |
+| `fields.consent.backdrop`                       | 背景を暗くするか(`true` / `false`)                                                      |
+| `fields.consent.policy_url`                     | プライバシーポリシーの URL(無ければ空)                                                  |
+| `fields.consent.reopen_button`                  | 設定を開き直すボタンを出すか                                                            |
+| `fields.consent.delay_ms` / `cookie_days`       | 表示の遅れ・選択を残す日数                                                              |
+| `fields.message`                                | `[consent].message`(空なら、テーマの `t("consent.message")` など自分の文を使う)         |
+| `fields.categories`                             | 区分の一覧。`id`・`label`・`description`(組み込みの区分は、名前を決めていなければ空)    |
+| `fields.preview`                                | テーマ開発サーバーのプレビューのとき `true`(最初から表示する)                           |
+| `site_title`, `locale`, `base_path`, `t("...")` | ほかのテンプレートと同じ(`t("consent.title")` などの組み込みの文言も使える)             |
 
 ### 3.2 スクリプトと結びつける属性
 
 スクリプトは、次の属性で要素を見つけて動かします。**見た目や構造は自由**ですが、これらの属性は残してください。
 
-| 属性 | 役目 |
-| --- | --- |
-| `data-aegis-consent-root` | ダイアログ全体。**最初は `hidden`**(スクリプトが表示する)。開いている間 `data-aegis-consent-state="ask"`(最初の質問)または `"details"`(区分の選択)になる |
-| `data-aegis-consent-action="reject-all"` / `"accept-all"` | すべて拒否 / すべて許可して閉じる。**最初のフォーカスは `reject-all`** に入る |
-| `data-aegis-consent-action="customize"` | 区分の選択を開く(開くと自分は隠れる) |
-| `data-aegis-consent-details` | 区分のチェックボックスを入れる部分。**最初は `hidden`** |
-| `input[data-aegis-consent-category="<区分の ID>"]` | 区分ごとのチェックボックス(スクリプトが今の選択で埋める) |
-| `data-aegis-consent-action="save"` | 選択した区分で保存して閉じる。**最初は `hidden`** |
-| `data-aegis-consent-reopen` | 選択したあとに出る、設定を開き直すボタン。**最初は `hidden`** |
+| 属性                                                      | 役目                                                                                                                                                     |
+| --------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `data-aegis-consent-root`                                 | ダイアログ全体。**最初は `hidden`**(スクリプトが表示する)。開いている間 `data-aegis-consent-state="ask"`(最初の質問)または `"details"`(区分の選択)になる |
+| `data-aegis-consent-action="reject-all"` / `"accept-all"` | すべて拒否 / すべて許可して閉じる。**最初のフォーカスは `reject-all`** に入る                                                                            |
+| `data-aegis-consent-action="customize"`                   | 区分の選択を開く(開くと自分は隠れる)                                                                                                                     |
+| `data-aegis-consent-details`                              | 区分のチェックボックスを入れる部分。**最初は `hidden`**                                                                                                  |
+| `input[data-aegis-consent-category="<区分の ID>"]`        | 区分ごとのチェックボックス(スクリプトが今の選択で埋める)                                                                                                 |
+| `data-aegis-consent-action="save"`                        | 選択した区分で保存して閉じる。**最初は `hidden`**                                                                                                        |
+| `data-aegis-consent-reopen`                               | 選択したあとに出る、設定を開き直すボタン。**最初は `hidden`**                                                                                            |
 
 - 「選択する」(`customize` / `details` / `save`)を持たない、2 つのボタンだけのバナーも作れます。その場合、`accept-all` は全区分の許可、`reject-all` は全区分の拒否になります。
 - `layout` が `modal` のときは、スクリプトが Tab キーのフォーカスをダイアログの中に閉じ込めます(`role="dialog"`、`aria-modal="true"` と、見出し・説明への `aria-labelledby` / `aria-describedby` を付けてください)。
@@ -172,14 +172,14 @@ window.AegisConsent.open();                  // 設定を開く
 
 組み込みのテンプレートのスタイルは `/_aegis/consent.css` で、すべて詳細度 0 の `:where()` です。テーマの CSS で、`.aegis-consent-*` を指定すれば上書きできます。自分のテンプレートを作るときは、このファイルのクラスを使わず、テーマの CSS に書いてかまいません。
 
-| クラス | 部分 |
-| --- | --- |
-| `.aegis-consent` / `.aegis-consent-layout-<形>` / `.aegis-consent-pos-<位置>` / `.aegis-consent-backdrop` | 外枠(形・位置・背景) |
-| `.aegis-consent-body` | 本体のカード |
-| `.aegis-consent-title` / `.aegis-consent-message` / `.aegis-consent-policy` | 見出し・説明・ポリシーへのリンク |
-| `.aegis-consent-details` / `.aegis-consent-category` | 区分の一覧・1 つの区分 |
-| `.aegis-consent-actions` / `.aegis-consent-button` | ボタンの並び・ボタン(拒否と許可は同じ見た目) |
-| `.aegis-consent-reopen` | 選択したあとの「Cookie の設定」ボタン |
+| クラス                                                                                                    | 部分                                         |
+| --------------------------------------------------------------------------------------------------------- | -------------------------------------------- |
+| `.aegis-consent` / `.aegis-consent-layout-<形>` / `.aegis-consent-pos-<位置>` / `.aegis-consent-backdrop` | 外枠(形・位置・背景)                         |
+| `.aegis-consent-body`                                                                                     | 本体のカード                                 |
+| `.aegis-consent-title` / `.aegis-consent-message` / `.aegis-consent-policy`                               | 見出し・説明・ポリシーへのリンク             |
+| `.aegis-consent-details` / `.aegis-consent-category`                                                      | 区分の一覧・1 つの区分                       |
+| `.aegis-consent-actions` / `.aegis-consent-button`                                                        | ボタンの並び・ボタン(拒否と許可は同じ見た目) |
+| `.aegis-consent-reopen`                                                                                   | 選択したあとの「Cookie の設定」ボタン        |
 
 ### 3.5 作りながら確かめる
 

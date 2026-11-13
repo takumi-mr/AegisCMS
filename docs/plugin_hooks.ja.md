@@ -22,17 +22,17 @@ Wasm プラグインから利用できるフック、マニフェスト項目、
 
 ## 1. フック一覧
 
-| マニフェストのフック名 | Wasm エクスポート名 | SDK トレイトメソッド | 入力 | 出力 | 状態 |
-| --- | --- | --- | --- | --- | --- |
-| `transform-content-ast` | `transform_content_ast` | `Plugin::transform_content_ast` | `BlockNode[]` | `BlockNode[]` | ✅ 実装済み |
-| `on-before-save` | `on_before_save` | `Plugin::on_before_save` | `PostContext` | `PostContext` | ✅ 実装済み（`title` / `slug` / 本文の変更、保存の拒否） |
-| `on-user-authenticated` | `on_user_authenticated` | `Plugin::on_user_authenticated` | `UserAuthContext` | `UserAuthContext` | ✅ 実装済み（ロールマッピング、属性の補完、ログインの拒否） |
-| `calculate-order` | `calculate_order` | `Plugin::calculate_order` | `OrderContext` | `OrderContext` | ✅ 実装済み（送料・税・割引の追加、注文の拒否。[EC](commerce.ja.md)） |
-| `on-order-status-changed` | `on_order_status_changed` | `Plugin::on_order_status_changed` | `OrderStatusChange` | なし | ✅ 実装済み（注文の作成・状態の変化の通知） |
-| `send-notification` | `send_notification` | `Plugin::send_notification` | `NotificationMessage` | `Delivery` | ✅ 実装済み（通知の配信チャネル。Slack・SMS など。[通知](notifications.ja.md#5-配信方法を加える)） |
-| `on-content-published` | `on_content_published` | `Plugin::on_content_published` | `PublishedContent` | なし | ✅ 実装済み（予約公開などコンテンツ公開時の通知） |
-| `check-comment` | `check_comment` | `Plugin::check_comment` | `CommentSubmission` | `CommentVerdict` | ✅ 実装済み（コメントの審査。スパム判定・承認待ち・投稿の拒否。[コメント](comments.ja.md)） |
-| `render-blocks` | `render_blocks` | `Plugin::render_blocks` | `BlockNode[]`（このプラグインのブロック） | `Option<String>[]`（HTML） | ✅ 実装済み（本文のカスタムブロックの描画。[1.10](#110-render-blocks)） |
+| マニフェストのフック名    | Wasm エクスポート名       | SDK トレイトメソッド              | 入力                                      | 出力                       | 状態                                                                                               |
+| ------------------------- | ------------------------- | --------------------------------- | ----------------------------------------- | -------------------------- | -------------------------------------------------------------------------------------------------- |
+| `transform-content-ast`   | `transform_content_ast`   | `Plugin::transform_content_ast`   | `BlockNode[]`                             | `BlockNode[]`              | ✅ 実装済み                                                                                        |
+| `on-before-save`          | `on_before_save`          | `Plugin::on_before_save`          | `PostContext`                             | `PostContext`              | ✅ 実装済み（`title` / `slug` / 本文の変更、保存の拒否）                                           |
+| `on-user-authenticated`   | `on_user_authenticated`   | `Plugin::on_user_authenticated`   | `UserAuthContext`                         | `UserAuthContext`          | ✅ 実装済み（ロールマッピング、属性の補完、ログインの拒否）                                        |
+| `calculate-order`         | `calculate_order`         | `Plugin::calculate_order`         | `OrderContext`                            | `OrderContext`             | ✅ 実装済み（送料・税・割引の追加、注文の拒否。[EC](commerce.ja.md)）                              |
+| `on-order-status-changed` | `on_order_status_changed` | `Plugin::on_order_status_changed` | `OrderStatusChange`                       | なし                       | ✅ 実装済み（注文の作成・状態の変化の通知）                                                        |
+| `send-notification`       | `send_notification`       | `Plugin::send_notification`       | `NotificationMessage`                     | `Delivery`                 | ✅ 実装済み（通知の配信チャネル。Slack・SMS など。[通知](notifications.ja.md#5-配信方法を加える)） |
+| `on-content-published`    | `on_content_published`    | `Plugin::on_content_published`    | `PublishedContent`                        | なし                       | ✅ 実装済み（予約公開などコンテンツ公開時の通知）                                                  |
+| `check-comment`           | `check_comment`           | `Plugin::check_comment`           | `CommentSubmission`                       | `CommentVerdict`           | ✅ 実装済み（コメントの審査。スパム判定・承認待ち・投稿の拒否。[コメント](comments.ja.md)）        |
+| `render-blocks`           | `render_blocks`           | `Plugin::render_blocks`           | `BlockNode[]`（このプラグインのブロック） | `Option<String>[]`（HTML） | ✅ 実装済み（本文のカスタムブロックの描画。[1.10](#110-render-blocks)）                            |
 
 - フックを有効にするには、**マニフェストの `capabilities.hooks` にフック名（ケバブケース）を列挙**する必要があります。列挙されていないフックは、Wasm 側に関数がエクスポートされていても呼び出されません。
 - 逆に、マニフェストに列挙されていても該当の関数がエクスポートされていない場合は、入力がそのまま次へ渡されます（エラーにはなりません）。
@@ -81,20 +81,20 @@ fn on_before_save(&mut self, post: PostContext) -> Result<PostContext>;
 
 - 入力: `PostContext`（`blocks_json` は `transform-content-ast` 適用後の内容）
 - 出力: `PostContext`。次のプラグインへの入力になり、最後のプラグインの出力が保存されます。
-  - **`title` / `slug` / `blocks_json` の変更は保存に反映されます**（API の応答も変更後の値。Admin Studio は保存後に保存された内容をエディタに表示します）。
-  - `id` と `author_id` の変更は無視されます（警告ログのみ）。プラグインが著者を差し替えることはできません。
-  - `blocks_json` を変更した場合、組み込み AST パイプライン（見出しの id 付与）を再度適用してから保存します。HTML のレンダリングとセキュリティリライターは通常どおり適用されます。`transform-content-ast` は再実行されません。
-  - 空の `slug`、`BlockNode[]` としてパースできない `blocks_json` を返すとプラグインエラーとして保存を中止します（`blocks_json` を空文字列にした場合は空の本文）。
+    - **`title` / `slug` / `blocks_json` の変更は保存に反映されます**（API の応答も変更後の値。Admin Studio は保存後に保存された内容をエディタに表示します）。
+    - `id` と `author_id` の変更は無視されます（警告ログのみ）。プラグインが著者を差し替えることはできません。
+    - `blocks_json` を変更した場合、組み込み AST パイプライン（見出しの id 付与）を再度適用してから保存します。HTML のレンダリングとセキュリティリライターは通常どおり適用されます。`transform-content-ast` は再実行されません。
+    - 空の `slug`、`BlockNode[]` としてパースできない `blocks_json` を返すとプラグインエラーとして保存を中止します（`blocks_json` を空文字列にした場合は空の本文）。
 - **保存の拒否**: SDK でトレイトメソッドから `Err(...)` を返すと保存は中止され、API は `422 Unprocessable Entity` と `{"error": "Rejected by plugin: <プラグイン名>: <メッセージ>"}` を返します（Admin Studio ではエラーのトーストに表示）。利用者に見せるメッセージには `PluginError::Rejected` を使ってください（他のバリアントは `Execution error: ...` のように種別が前に付きます）。監査ログには `content.create`（`denied`）だけを記録します。
 
-  ```rust
-  fn on_before_save(&mut self, post: PostContext) -> Result<PostContext> {
-      if post.title.trim().is_empty() {
-          return Err(PluginError::Rejected("title is required".to_string()));
-      }
-      Ok(post)
-  }
-  ```
+    ```rust
+    fn on_before_save(&mut self, post: PostContext) -> Result<PostContext> {
+        if post.title.trim().is_empty() {
+            return Err(PluginError::Rejected("title is required".to_string()));
+        }
+        Ok(post)
+    }
+    ```
 
 - **プラグインの失敗**: パニック（Wasm トラップ）、タイムアウト、Fuel 枯渇、メモリ上限超過、不正な JSON の返却などでも保存は中止され、API は `500 Internal Server Error` と `{"error": "Plugin hook failed: ..."}` を返します。監査ログには `plugin.error` と `content.create`（`denied`）を記録します。
 
@@ -108,10 +108,10 @@ fn on_user_authenticated(&mut self, ctx: UserAuthContext) -> Result<UserAuthCont
 
 - 入力: `UserAuthContext`（[2.3](#23-userauthcontext)）。`role` はユーザーアカウント（ローカル認証）またはプロバイダが決めたロールです。
 - 出力: `UserAuthContext`。次のプラグインへの入力になり、最後のプラグインの出力でセッションを発行します。
-  - `role` / `display_name` / `email` / `metadata` の変更はセッションに反映されます。`metadata` はセッションの `metadata` に入ります（`provider` / `display_name` / `email` のキーはサーバーが設定するため上書きできません）。
-  - `provider` と `user_id` の変更は無視されます（警告ログのみ）。
-  - `role` は `admin` / `editor` / `viewer` のいずれかでなければならず、それ以外を返すとプラグインエラーとしてログインは失敗します。
-  - ロールを変更した場合は、監査ログ `session.create`（`success`）の `details.role_mapped` に `{ "from": 元のロール, "to": 新しいロール }` を記録します。
+    - `role` / `display_name` / `email` / `metadata` の変更はセッションに反映されます。`metadata` はセッションの `metadata` に入ります（`provider` / `display_name` / `email` のキーはサーバーが設定するため上書きできません）。
+    - `provider` と `user_id` の変更は無視されます（警告ログのみ）。
+    - `role` は `admin` / `editor` / `viewer` のいずれかでなければならず、それ以外を返すとプラグインエラーとしてログインは失敗します。
+    - ロールを変更した場合は、監査ログ `session.create`（`success`）の `details.role_mapped` に `{ "from": 元のロール, "to": 新しいロール }` を記録します。
 - **ログインの拒否**: `Err(PluginError::Rejected("..."))` を返すと、API は `403 Forbidden` と `{"error": "Rejected by plugin: <プラグイン名>: <メッセージ>"}` を返し、セッションは発行されません。監査ログは `session.create`（`denied`、`details.error = "plugin_rejected"`）です。
 - **プラグインの失敗**: トラップ・タイムアウト・不正な JSON・不明なロールなどでもログインは失敗します（安全側に倒す）。API は `500` を返し、監査ログに `plugin.error` と `session.create`（`failure`、`details.error = "plugin_failed"`）を記録します。
 - 拒否・失敗はどちらもログイン試行の失敗回数（[レート制限](authentication.ja.md#5-セキュリティ上の挙動)）には数えません（資格情報は正しいため）。
@@ -180,12 +180,12 @@ impl Plugin for SlackPlugin {
 }
 ```
 
-| 返り値 | ホストの扱い |
-| --- | --- |
-| `Ok(Delivery::Sent)` | 送信済み。監査ログ `notification.send`（`success`、`channel: plugin:<名前>`） |
-| `Ok(Delivery::Skipped)` | このプラグインが扱わない通知（種類・宛先）。失敗ではなく、監査ログにも残さない |
-| `Err(PluginError::Execution / Host)` | 一時的な失敗。`[notifications].max_attempts` まで間隔を空けて再試行する（タイムアウト・トラップも同じ） |
-| `Err(PluginError::Rejected / Serialization)` | 再試行しても変わらない失敗（設定の不備、相手が 4xx で断ったなど）。再試行しない |
+| 返り値                                       | ホストの扱い                                                                                            |
+| -------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| `Ok(Delivery::Sent)`                         | 送信済み。監査ログ `notification.send`（`success`、`channel: plugin:<名前>`）                           |
+| `Ok(Delivery::Skipped)`                      | このプラグインが扱わない通知（種類・宛先）。失敗ではなく、監査ログにも残さない                          |
+| `Err(PluginError::Execution / Host)`         | 一時的な失敗。`[notifications].max_attempts` まで間隔を空けて再試行する（タイムアウト・トラップも同じ） |
+| `Err(PluginError::Rejected / Serialization)` | 再試行しても変わらない失敗（設定の不備、相手が 4xx で断ったなど）。再試行しない                         |
 
 - マニフェストの `capabilities.hooks` に `send-notification` が無い・`[plugins].enabled` に無いプラグインを `channels` に書くと、サーバーは起動しません。
 - 再試行・送信数の上限（監査イベントの `max_per_hour`）・監査ログ・テンプレートはホストが行います。宛先の選び分け（運営者向けだけ、`audit.` だけなど）はプラグインが `Skipped` で行います。
@@ -265,21 +265,21 @@ impl Plugin for MyBlocks {
 
 ### 2.1 `PostContext`
 
-| フィールド | 型 | 説明 |
-| --- | --- | --- |
-| `id` | string | 新規発行されたコンテンツ ID (UUID v4) |
-| `title` | string | タイトル |
-| `slug` | string | スラッグ |
-| `author_id` | string | 著者 ID（未指定時は空文字列） |
-| `blocks_json` | string | ブロック配列を JSON 文字列化したもの |
+| フィールド    | 型     | 説明                                  |
+| ------------- | ------ | ------------------------------------- |
+| `id`          | string | 新規発行されたコンテンツ ID (UUID v4) |
+| `title`       | string | タイトル                              |
+| `slug`        | string | スラッグ                              |
+| `author_id`   | string | 著者 ID（未指定時は空文字列）         |
+| `blocks_json` | string | ブロック配列を JSON 文字列化したもの  |
 
 SDK ヘルパー:
 
-| メソッド | 説明 |
-| --- | --- |
-| `PostContext::new(title, slug)` | テスト用コンストラクタ |
-| `post.blocks()` | `blocks_json` を `Vec<BlockNode>` にパース |
-| `post.set_blocks(&blocks)` | `Vec<BlockNode>` を `blocks_json` に書き戻す |
+| メソッド                        | 説明                                         |
+| ------------------------------- | -------------------------------------------- |
+| `PostContext::new(title, slug)` | テスト用コンストラクタ                       |
+| `post.blocks()`                 | `blocks_json` を `Vec<BlockNode>` にパース   |
+| `post.set_blocks(&blocks)`      | `Vec<BlockNode>` を `blocks_json` に書き戻す |
 
 ### 2.2 `BlockNode`
 
@@ -287,37 +287,37 @@ SDK ヘルパー:
 { "name": "core/heading", "attributes": { "level": 2 }, "text": "見出し", "children": [] }
 ```
 
-| フィールド | 型 | 説明 |
-| --- | --- | --- |
-| `name` | string | ブロック種別（`core/heading`, `core/paragraph`, `core/code`, `core/image`, `core/table` など。一覧と属性は [本文のブロック](blocks.ja.md)） |
-| `attributes` | object \| null | 任意の属性。属性を省略して保存されたブロックは `null` で渡される（SDK は空のマップとして読む） |
-| `text` | string \| null | テキスト内容 |
-| `children` | `BlockNode[]` | 子ブロック |
+| フィールド   | 型             | 説明                                                                                                                                        |
+| ------------ | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| `name`       | string         | ブロック種別（`core/heading`, `core/paragraph`, `core/code`, `core/image`, `core/table` など。一覧と属性は [本文のブロック](blocks.ja.md)） |
+| `attributes` | object \| null | 任意の属性。属性を省略して保存されたブロックは `null` で渡される（SDK は空のマップとして読む）                                              |
+| `text`       | string \| null | テキスト内容                                                                                                                                |
+| `children`   | `BlockNode[]`  | 子ブロック                                                                                                                                  |
 
 SDK ヘルパー:
 
-| メソッド | 説明 |
-| --- | --- |
-| `BlockNode::new(name)` | 空のブロックを作成 |
-| `BlockNode::paragraph(text)` | `core/paragraph` |
+| メソッド                          | 説明                               |
+| --------------------------------- | ---------------------------------- |
+| `BlockNode::new(name)`            | 空のブロックを作成                 |
+| `BlockNode::paragraph(text)`      | `core/paragraph`                   |
 | `BlockNode::heading(level, text)` | `core/heading`（`level` 属性付き） |
 | `BlockNode::code(language, code)` | `core/code`（`language` 属性付き） |
-| `block.attribute(key)` | 属性を取得 |
-| `block.set_attribute(key, value)` | 属性を設定 |
+| `block.attribute(key)`            | 属性を取得                         |
+| `block.set_attribute(key, value)` | 属性を設定                         |
 
 > [!NOTE]
 > SDK の `BlockNode.attributes` は `HashMap<String, serde_json::Value>` です（本体側の `aegis-ast` の `BlockNode` は 1 つの `serde_json::Value` で、型が違います）。プラグインのテストでブロックを作るときは `BlockNode::new(name)` に `set_attribute` で足すか、`HashMap::from([("level".to_string(), json!(2))])` のように書きます。`json!({...})` をそのまま `attributes` に入れるとコンパイルエラーになります。
 
 ### 2.3 `UserAuthContext`
 
-| フィールド | 型 | 説明 |
-| --- | --- | --- |
-| `provider` | string | 認証したプロバイダ（`local` / `oidc` / `saml`）。変更は無視される |
-| `user_id` | string | セッションの `user_id`（ローカル認証ではユーザー名）。変更は無視される |
-| `email` | string | メールアドレス（未登録なら空文字列） |
-| `display_name` | string \| null | 表示名 |
-| `role` | string | `admin` / `editor` / `viewer` |
-| `metadata` | object | プロバイダ固有の属性。OIDC では `issuer`、`sub`、`claims`（ID トークンのクレーム。`groups` などのマッピングに使える）、SAML では `issuer`、`name_id`、`name_id_format`、`session_index`、`attributes`（属性名 → 値の配列）、ローカル認証では空 |
+| フィールド     | 型             | 説明                                                                                                                                                                                                                                           |
+| -------------- | -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `provider`     | string         | 認証したプロバイダ（`local` / `oidc` / `saml`）。変更は無視される                                                                                                                                                                              |
+| `user_id`      | string         | セッションの `user_id`（ローカル認証ではユーザー名）。変更は無視される                                                                                                                                                                         |
+| `email`        | string         | メールアドレス（未登録なら空文字列）                                                                                                                                                                                                           |
+| `display_name` | string \| null | 表示名                                                                                                                                                                                                                                         |
+| `role`         | string         | `admin` / `editor` / `viewer`                                                                                                                                                                                                                  |
+| `metadata`     | object         | プロバイダ固有の属性。OIDC では `issuer`、`sub`、`claims`（ID トークンのクレーム。`groups` などのマッピングに使える）、SAML では `issuer`、`name_id`、`name_id_format`、`session_index`、`attributes`（属性名 → 値の配列）、ローカル認証では空 |
 
 ### 2.4 `OrderContext` / `OrderStatusChange`
 
@@ -352,49 +352,49 @@ SDK ヘルパー:
 
 ### 2.5 `NotificationMessage` / `Recipient` / `Delivery`（`send-notification`）
 
-| フィールド | 型 | 説明 |
-| --- | --- | --- |
-| `kind` | string | 通知の種類（`order.placed` / `order.paid` / `order.shipped` / `order.cancelled` / `audit.<操作>` / `test`） |
-| `recipient` | object | `{"type": "staff"}`（運営者）または `{"type": "person", "email": "...", "name": "..."}` |
-| `subject` | string | 件名（テンプレートから作ったもの） |
-| `body` | string | 本文（プレーンテキスト） |
-| `html` | string（省略可） | HTML の本文（`[notifications].html = true` のとき。メール配信 API へ送るチャネル向け。[通知 3.1](notifications.ja.md#31-html-メール)） |
-| `data` | object | テンプレートに渡した値（`order` / `audit` / `site_name` / `site_url` / `admin_url` / `kind` など。[通知 3](notifications.ja.md#3-テンプレート)） |
+| フィールド  | 型               | 説明                                                                                                                                             |
+| ----------- | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `kind`      | string           | 通知の種類（`order.placed` / `order.paid` / `order.shipped` / `order.cancelled` / `audit.<操作>` / `test`）                                      |
+| `recipient` | object           | `{"type": "staff"}`（運営者）または `{"type": "person", "email": "...", "name": "..."}`                                                          |
+| `subject`   | string           | 件名（テンプレートから作ったもの）                                                                                                               |
+| `body`      | string           | 本文（プレーンテキスト）                                                                                                                         |
+| `html`      | string（省略可） | HTML の本文（`[notifications].html = true` のとき。メール配信 API へ送るチャネル向け。[通知 3.1](notifications.ja.md#31-html-メール)）           |
+| `data`      | object           | テンプレートに渡した値（`order` / `audit` / `site_name` / `site_url` / `admin_url` / `kind` など。[通知 3](notifications.ja.md#3-テンプレート)） |
 
 `Delivery` は `Sent`（送った）/ `Skipped`（扱わない）。
 
 ### 2.6 `PluginError`（SDK）
 
-| バリアント | 用途 |
-| --- | --- |
-| `PluginError::Rejected(String)` | 入力を受け付けない（`on_before_save` の保存拒否、`on_user_authenticated` のログイン拒否）。メッセージがそのまま API の応答に出る |
-| `PluginError::Execution(String)` | プラグインロジックのエラー |
-| `PluginError::Serialization(String)` | JSON 変換エラー（`serde_json::Error` から自動変換） |
-| `PluginError::Host(String)` | ホスト API 呼び出しのエラー |
+| バリアント                           | 用途                                                                                                                             |
+| ------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------- |
+| `PluginError::Rejected(String)`      | 入力を受け付けない（`on_before_save` の保存拒否、`on_user_authenticated` のログイン拒否）。メッセージがそのまま API の応答に出る |
+| `PluginError::Execution(String)`     | プラグインロジックのエラー                                                                                                       |
+| `PluginError::Serialization(String)` | JSON 変換エラー（`serde_json::Error` から自動変換）                                                                              |
+| `PluginError::Host(String)`          | ホスト API 呼び出しのエラー                                                                                                      |
 
 ### 2.7 `PublishedContent`（`on-content-published`）
 
-| フィールド | 型 | 説明 |
-| --- | --- | --- |
-| `id` | string | 公開されたコンテンツ ID (UUID v4) |
-| `content_type` | string | スキーマ名（`articles`, `news` など） |
-| `title` | string | タイトル |
-| `slug` | string | スラッグ |
-| `published_at` | string | 公開日時 (RFC 3339) |
-| `author_id` | string \| null | 著者 ID（未指定時は null） |
-| `fields` | object | カスタムフィールド値のマップ |
+| フィールド     | 型             | 説明                                  |
+| -------------- | -------------- | ------------------------------------- |
+| `id`           | string         | 公開されたコンテンツ ID (UUID v4)     |
+| `content_type` | string         | スキーマ名（`articles`, `news` など） |
+| `title`        | string         | タイトル                              |
+| `slug`         | string         | スラッグ                              |
+| `published_at` | string         | 公開日時 (RFC 3339)                   |
+| `author_id`    | string \| null | 著者 ID（未指定時は null）            |
+| `fields`       | object         | カスタムフィールド値のマップ          |
 
 ### 2.8 `CommentSubmission` / `CommentVerdict`（`check-comment`）
 
-| フィールド | 型 | 説明 |
-| --- | --- | --- |
-| `content_type` / `content_id` | string | コメントが付くコンテンツの種類と ID |
-| `content_title` / `content_slug` | string | コンテンツのタイトルとスラッグ |
-| `parent_id` | string \| null | 返信先のコメント ID |
-| `author_name` / `author_email` | string | 投稿者の名前とメールアドレス（小文字） |
-| `body` | string | 本文（プレーンテキスト） |
-| `ip` / `user_agent` | string \| null | 投稿者の IP アドレスとブラウザ |
-| `status` | string | ホストの判定（`approved` / `pending`） |
+| フィールド                       | 型             | 説明                                   |
+| -------------------------------- | -------------- | -------------------------------------- |
+| `content_type` / `content_id`    | string         | コメントが付くコンテンツの種類と ID    |
+| `content_title` / `content_slug` | string         | コンテンツのタイトルとスラッグ         |
+| `parent_id`                      | string \| null | 返信先のコメント ID                    |
+| `author_name` / `author_email`   | string         | 投稿者の名前とメールアドレス（小文字） |
+| `body`                           | string         | 本文（プレーンテキスト）               |
+| `ip` / `user_agent`              | string \| null | 投稿者の IP アドレスとブラウザ         |
+| `status`                         | string         | ホストの判定（`approved` / `pending`） |
 
 `CommentVerdict` は `{"verdict": "allow"}`、`{"verdict": "hold", "reason": "..."}`、`{"verdict": "spam", "reason": "..."}` のいずれかです（`reason` はログに残す理由。省略可）。
 
@@ -422,21 +422,21 @@ SDK ヘルパー:
 }
 ```
 
-| キー | 型 | 必須 | 説明 |
-| --- | --- | --- | --- |
-| `name` | string | ✅ | プラグインの識別子。英小文字・数字で始まり、英小文字・数字・`-`・`_` のみ（64 文字以内）。インストール先のディレクトリ名・`[plugins].enabled`・ログのタグ (`[Wasm:<name>]`) に使用 |
-| `version` | string | ✅ | バージョン |
-| `entrypoint` | string | ✅ | Wasm バイナリのパス（マニフェストからの相対） |
-| `display_name` / `description` / `author` / `license` / `tags` / `homepage` / `repository` / `min_aegis_version` | | | ストアや一覧表示用のメタデータ（テーマの `theme.json` と同じ項目。`author` は文字列または `{"name", "email", "url"}`）。動作には影響しない |
-| `capabilities.network.allowed_domains` | string[] | | `net::is_allowed` で許可するドメイン。完全一致またはサブドメイン一致 |
-| `capabilities.storage.kv_namespace` | string | | KVS のネームスペース。未宣言の場合 `kv::set` は権限エラー |
-| `capabilities.hooks` | string[] | | 有効にするフック名（[1. フック一覧](#1-フック一覧)） |
-| `capabilities.csp.script_domains` / `style_domains` / `connect_domains` / `frame_domains` / `img_domains` | string[] | | 外部のスクリプト・CSS・通信先・フレーム・画像のホスト。有効にしている間、サーバーが CSP の `script-src` / `style-src` / `connect-src` / `frame-src` / `img-src` に足す。**CDN などから `<script>` を読み込むプラグインは、そのホストを宣言する**（宣言が無いと、既定の CSP が遮断する）。ホスト名だけ（スキームなし）。Admin Studio のプラグインの一覧の「機能・権限」に表示される |
-| `capabilities.inline_scripts` | boolean | `false` | `on-render-page` の `scripts`（構造化した注入）でインラインのスクリプトを足す宣言。宣言がないとホストが捨てる。外部のスクリプトのホストは上の `script_domains`（[ABI 仕様 5.3.3a](plugin_abi_specification.ja.md#533a-on_render_page-でスクリプトを足すscriptsabi-2)） |
-| `capabilities.embed.frame_domains` | string[] | | カスタムブロックに埋め込める `<iframe>` の配信元のホスト（[3.2](#32-外部のページの埋め込み-capabilitiesembed)） |
-| `blocks` | object[] | | 本文に置けるカスタムブロックの宣言（[3.1](#31-カスタムブロック-blocks)） |
-| `settings` | object[] | | 設定項目の宣言。Admin Studio のプラグイン設定に入力欄として出て、保存時に値を検査する（[3.3](#33-設定項目-settings)） |
-| `resource_limits` | object | | 省略した項目（または全体）はサーバー設定 `[runtime].default_*` で補われる（下記） |
+| キー                                                                                                             | 型       | 必須    | 説明                                                                                                                                                                                                                                                                                                                                                                               |
+| ---------------------------------------------------------------------------------------------------------------- | -------- | ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `name`                                                                                                           | string   | ✅      | プラグインの識別子。英小文字・数字で始まり、英小文字・数字・`-`・`_` のみ（64 文字以内）。インストール先のディレクトリ名・`[plugins].enabled`・ログのタグ (`[Wasm:<name>]`) に使用                                                                                                                                                                                                 |
+| `version`                                                                                                        | string   | ✅      | バージョン                                                                                                                                                                                                                                                                                                                                                                         |
+| `entrypoint`                                                                                                     | string   | ✅      | Wasm バイナリのパス（マニフェストからの相対）                                                                                                                                                                                                                                                                                                                                      |
+| `display_name` / `description` / `author` / `license` / `tags` / `homepage` / `repository` / `min_aegis_version` |          |         | ストアや一覧表示用のメタデータ（テーマの `theme.json` と同じ項目。`author` は文字列または `{"name", "email", "url"}`）。動作には影響しない                                                                                                                                                                                                                                         |
+| `capabilities.network.allowed_domains`                                                                           | string[] |         | `net::is_allowed` で許可するドメイン。完全一致またはサブドメイン一致                                                                                                                                                                                                                                                                                                               |
+| `capabilities.storage.kv_namespace`                                                                              | string   |         | KVS のネームスペース。未宣言の場合 `kv::set` は権限エラー                                                                                                                                                                                                                                                                                                                          |
+| `capabilities.hooks`                                                                                             | string[] |         | 有効にするフック名（[1. フック一覧](#1-フック一覧)）                                                                                                                                                                                                                                                                                                                               |
+| `capabilities.csp.script_domains` / `style_domains` / `connect_domains` / `frame_domains` / `img_domains`        | string[] |         | 外部のスクリプト・CSS・通信先・フレーム・画像のホスト。有効にしている間、サーバーが CSP の `script-src` / `style-src` / `connect-src` / `frame-src` / `img-src` に足す。**CDN などから `<script>` を読み込むプラグインは、そのホストを宣言する**（宣言が無いと、既定の CSP が遮断する）。ホスト名だけ（スキームなし）。Admin Studio のプラグインの一覧の「機能・権限」に表示される |
+| `capabilities.inline_scripts`                                                                                    | boolean  | `false` | `on-render-page` の `scripts`（構造化した注入）でインラインのスクリプトを足す宣言。宣言がないとホストが捨てる。外部のスクリプトのホストは上の `script_domains`（[ABI 仕様 5.3.3a](plugin_abi_specification.ja.md#533a-on_render_page-でスクリプトを足すscriptsabi-2)）                                                                                                             |
+| `capabilities.embed.frame_domains`                                                                               | string[] |         | カスタムブロックに埋め込める `<iframe>` の配信元のホスト（[3.2](#32-外部のページの埋め込み-capabilitiesembed)）                                                                                                                                                                                                                                                                    |
+| `blocks`                                                                                                         | object[] |         | 本文に置けるカスタムブロックの宣言（[3.1](#31-カスタムブロック-blocks)）                                                                                                                                                                                                                                                                                                           |
+| `settings`                                                                                                       | object[] |         | 設定項目の宣言。Admin Studio のプラグイン設定に入力欄として出て、保存時に値を検査する（[3.3](#33-設定項目-settings)）                                                                                                                                                                                                                                                              |
+| `resource_limits`                                                                                                | object   |         | 省略した項目（または全体）はサーバー設定 `[runtime].default_*` で補われる（下記）                                                                                                                                                                                                                                                                                                  |
 
 有効にしたプラグインのマニフェストが読めない、`name` とディレクトリ名が違う、`entrypoint` のファイルが無い、ホストに無い関数をインポートしている（[ABI 仕様](plugin_abi_specification.ja.md#3-ホスト-api-インポート仕様-host-モジュール)）場合は、**サーバーが起動しません**。アクセス制限などを実装したプラグインが黙って外れたまま動き続けることを防ぐためです。有効にしていないプラグインの不備は警告ログと `aegis-server plugin list` に表示されます。
 
@@ -461,28 +461,28 @@ SDK ヘルパー:
 ]
 ```
 
-| キー | 説明 |
-| --- | --- |
-| `name` | ブロック名（プラグイン名と同じ形式）。本文には `<プラグイン名>/<name>` で保存する |
-| `label` / `description` | Admin Studio に出す名前・説明。文字列か、言語ごとの `{"en": ..., "ja": ...}`（Admin Studio の言語 → 英語 → 最初のものの順に使う） |
-| `fields[].name` | 属性名（英字で始まり、英数字と `_`）。値は `attributes.<name>` |
-| `fields[].type` | `string`（1 行）/ `text`（複数行）/ `url` / `number` / `boolean` / `select`（`options` が必要）/ `image`（URL。アップロード・メディアライブラリから選べる）/ `list`（項目を増やせる繰り返し。下記） |
-| `fields[].label` / `placeholder` / `help` | 入力欄の名前・プレースホルダー・説明（`label` と同じく言語ごとにできる） |
-| `fields[].required` | 空のとき、エディタに注意を出す（保存は止めない） |
-| `fields[].default` | 新しく置いたブロックの初期値 |
-| `fields[].fields` | `list` の 1 項目の入力欄（上の `fields[]` と同じ形。`list` の中に `list` は置けない）。`list` だけに書ける |
-| `fields[].max_items` | `list` の項目数の上限（1〜100。省略すると 100）。`list` だけに書ける |
-| `refreshable` | `true` にすると、ブロックのフォームに「再取得」ボタンが出る。押すとブロックに `refresh: true` の属性を付けて `transform-content-ast` を通し（保存はしない）、返ってきた属性でフォームを更新する。プラグインは属性を作り直したら `refresh` を外す（`official-link-embed` を参照） |
+| キー                                      | 説明                                                                                                                                                                                                                                                                             |
+| ----------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `name`                                    | ブロック名（プラグイン名と同じ形式）。本文には `<プラグイン名>/<name>` で保存する                                                                                                                                                                                                |
+| `label` / `description`                   | Admin Studio に出す名前・説明。文字列か、言語ごとの `{"en": ..., "ja": ...}`（Admin Studio の言語 → 英語 → 最初のものの順に使う）                                                                                                                                                |
+| `fields[].name`                           | 属性名（英字で始まり、英数字と `_`）。値は `attributes.<name>`                                                                                                                                                                                                                   |
+| `fields[].type`                           | `string`（1 行）/ `text`（複数行）/ `url` / `number` / `boolean` / `select`（`options` が必要）/ `image`（URL。アップロード・メディアライブラリから選べる）/ `list`（項目を増やせる繰り返し。下記）                                                                              |
+| `fields[].label` / `placeholder` / `help` | 入力欄の名前・プレースホルダー・説明（`label` と同じく言語ごとにできる）                                                                                                                                                                                                         |
+| `fields[].required`                       | 空のとき、エディタに注意を出す（保存は止めない）                                                                                                                                                                                                                                 |
+| `fields[].default`                        | 新しく置いたブロックの初期値                                                                                                                                                                                                                                                     |
+| `fields[].fields`                         | `list` の 1 項目の入力欄（上の `fields[]` と同じ形。`list` の中に `list` は置けない）。`list` だけに書ける                                                                                                                                                                       |
+| `fields[].max_items`                      | `list` の項目数の上限（1〜100。省略すると 100）。`list` だけに書ける                                                                                                                                                                                                             |
+| `refreshable`                             | `true` にすると、ブロックのフォームに「再取得」ボタンが出る。押すとブロックに `refresh: true` の属性を付けて `transform-content-ast` を通し（保存はしない）、返ってきた属性でフォームを更新する。プラグインは属性を作り直したら `refresh` を外す（`official-link-embed` を参照） |
 
 Admin Studio のフォームが `attributes` に入れる値の型は次のとおりです。API や Markdown から保存されるブロックは任意の JSON を持てるので、プラグインは型の違いにも耐えるようにしてください（`official-blocks` の `attr` や `sdk/templates/rust-block` を参照）。
 
-| `fields[].type` | `attributes` の値 | 備考 |
-| --- | --- | --- |
-| `string` / `text` / `url` / `image` | 文字列 | 入力が空なら、キーごと無い（または空文字列） |
-| `select` | 文字列（`options[].value`） | `required` でなければ、選ばないと空文字列。数字の選択肢（見出しのレベルなど）も `"3"` のような**文字列**で届く |
-| `number` | JSON の数値 | 空にすると、キーごと無くなる。`default` に書いた数値はそのまま入る |
-| `boolean` | `true` / `false` | 一度も操作していないと、キーが無い（`default` があればその値） |
-| `list` | オブジェクトの配列（`fields[].fields` の `name` をキーにした値）。項目が無いときは空配列か、キーごと無い | 項目の追加・削除・並べ替えができる。`required` は「何か入力した項目が 1 つ以上ある」こと。項目の中の `required` はその項目に注意を出す。`select` と `boolean` だけの項目は「空」として数える。項目の値の型は上の行と同じ |
+| `fields[].type`                     | `attributes` の値                                                                                        | 備考                                                                                                                                                                                                                     |
+| ----------------------------------- | -------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `string` / `text` / `url` / `image` | 文字列                                                                                                   | 入力が空なら、キーごと無い（または空文字列）                                                                                                                                                                             |
+| `select`                            | 文字列（`options[].value`）                                                                              | `required` でなければ、選ばないと空文字列。数字の選択肢（見出しのレベルなど）も `"3"` のような**文字列**で届く                                                                                                           |
+| `number`                            | JSON の数値                                                                                              | 空にすると、キーごと無くなる。`default` に書いた数値はそのまま入る                                                                                                                                                       |
+| `boolean`                           | `true` / `false`                                                                                         | 一度も操作していないと、キーが無い（`default` があればその値）                                                                                                                                                           |
+| `list`                              | オブジェクトの配列（`fields[].fields` の `name` をキーにした値）。項目が無いときは空配列か、キーごと無い | 項目の追加・削除・並べ替えができる。`required` は「何か入力した項目が 1 つ以上ある」こと。項目の中の `required` はその項目に注意を出す。`select` と `boolean` だけの項目は「空」として数える。項目の値の型は上の行と同じ |
 
 宣言の不備（名前の形式・重複、選択肢の無い `select`、`fields` の無い `list`・入れ子の `list`、範囲外の `max_items`、知らない `type`）があると、そのプラグインを有効にしたサーバーは起動しません。
 
@@ -542,25 +542,25 @@ Admin Studio のフォームが `attributes` に入れる値の型は次のと�
 ]
 ```
 
-| キー | 必須 | 説明 |
-| --- | --- | --- |
-| `key` | ✅ | 設定のキー。英字で始まり、英数字と `_` のみ（64 文字以内）。`config::get(key)` で読む |
-| `type` | ✅ | 入力欄の種類（下の表） |
-| `label` | ✅ | 入力欄の名前。文字列か `{"en": ..., "ja": ...}`（Admin Studio の言語 → 英語 → 最初のものの順に使う） |
-| `description` / `placeholder` | | 入力欄の下の説明・薄い文字。`label` と同じ形式 |
-| `default` | | 未設定のときにプラグインが使う値。入力欄の薄い文字や「既定値（…）」の選択肢に出すだけで、**保存はしない**（プラグイン側でも同じ既定値を使うこと） |
-| `options` | `select` で必須 | `[{"value": "...", "label": ...}]`。`value` は空でなく、重ならない |
-| `min` / `max` | | `number` の下限・上限 |
-| `max_length` | | 文字数の上限（`string` 500、`text` 20000、`url` 2000 が既定） |
+| キー                          | 必須            | 説明                                                                                                                                              |
+| ----------------------------- | --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `key`                         | ✅              | 設定のキー。英字で始まり、英数字と `_` のみ（64 文字以内）。`config::get(key)` で読む                                                             |
+| `type`                        | ✅              | 入力欄の種類（下の表）                                                                                                                            |
+| `label`                       | ✅              | 入力欄の名前。文字列か `{"en": ..., "ja": ...}`（Admin Studio の言語 → 英語 → 最初のものの順に使う）                                              |
+| `description` / `placeholder` |                 | 入力欄の下の説明・薄い文字。`label` と同じ形式                                                                                                    |
+| `default`                     |                 | 未設定のときにプラグインが使う値。入力欄の薄い文字や「既定値（…）」の選択肢に出すだけで、**保存はしない**（プラグイン側でも同じ既定値を使うこと） |
+| `options`                     | `select` で必須 | `[{"value": "...", "label": ...}]`。`value` は空でなく、重ならない                                                                                |
+| `min` / `max`                 |                 | `number` の下限・上限                                                                                                                             |
+| `max_length`                  |                 | 文字数の上限（`string` 500、`text` 20000、`url` 2000 が既定）                                                                                     |
 
-| `type` | 入力欄 | 保存される値の検査 |
-| --- | --- | --- |
-| `string` / `text` | 1 行 / 複数行 | 文字数の上限。制御文字は不可（`text` は改行・タブは可） |
-| `url` | 1 行 | `http://`・`https://`、または `/` で始まる相対パス（`//` と空白は不可） |
-| `number` | 数値 | 数値であること、`min`・`max` の範囲 |
-| `boolean` | 既定値 / オン / オフ | `true` か `false` |
-| `select` | 選択肢 | `options` のどれか |
-| `color` | 色の選択と文字 | `#hex`・`rgb()`・`hsl()`・`var(--名前)`・色名（CSS にそのまま入れても安全な形） |
+| `type`            | 入力欄               | 保存される値の検査                                                              |
+| ----------------- | -------------------- | ------------------------------------------------------------------------------- |
+| `string` / `text` | 1 行 / 複数行        | 文字数の上限。制御文字は不可（`text` は改行・タブは可）                         |
+| `url`             | 1 行                 | `http://`・`https://`、または `/` で始まる相対パス（`//` と空白は不可）         |
+| `number`          | 数値                 | 数値であること、`min`・`max` の範囲                                             |
+| `boolean`         | 既定値 / オン / オフ | `true` か `false`                                                               |
+| `select`          | 選択肢               | `options` のどれか                                                              |
+| `color`           | 色の選択と文字       | `#hex`・`rgb()`・`hsl()`・`var(--名前)`・色名（CSS にそのまま入れても安全な形） |
 
 - **値は文字列で保存**します（`boolean` は `"true"` / `"false"`、`number` は 10 進数）。読むときは `config::get` が返す文字列を、プラグインが型に直します。
 - **空欄は「未設定」**です。宣言した項目の空の値は保存せず（キーごと消します）、プラグインは `config::get` が `None` のときの既定値を使います。検査はサーバー（`PUT /api/v1/plugins/{name}/settings`）でも行い、誤りは `400 {"code": "invalid_setting", "errors": [{"key", "message"}]}` で返します（保存は 1 つもしません）。宣言のないキーは検査しません。
@@ -569,11 +569,11 @@ Admin Studio のフォームが `attributes` に入れる値の型は次のと�
 
 ## 4. リソース制限 (`resource_limits`)
 
-| キー | 省略時の値 | 説明 |
-| --- | --- | --- |
-| `max_fuel_units` | `[runtime].default_max_fuel_units`（既定 `100000000`） | フック 1 回あたりの Wasm 命令実行量の上限。超過するとトラップ |
-| `execution_timeout_ms` | `[runtime].default_timeout_ms`（既定 `250`） | フック 1 回あたりの実行時間の上限（最小 50ms に切り上げ） |
-| `max_memory_mb` | `[runtime].default_max_memory_mb`（既定 `16`） | 線形メモリの上限（MiB、最小 1）。`memory.grow` で超えようとするとトラップし、初期メモリが上限を超えるモジュールはインスタンス化に失敗する。Rust の `wasm32-unknown-unknown` ビルドは初期メモリだけで約 1.1 MiB を使うため、2 以上を指定する。インスタンスのプールを使う場合（既定）は `[runtime].pool_max_memory_mb`（既定 `64`）以下にする（超えると読み込み時にエラー） |
+| キー                   | 省略時の値                                             | 説明                                                                                                                                                                                                                                                                                                                                                                      |
+| ---------------------- | ------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `max_fuel_units`       | `[runtime].default_max_fuel_units`（既定 `100000000`） | フック 1 回あたりの Wasm 命令実行量の上限。超過するとトラップ                                                                                                                                                                                                                                                                                                             |
+| `execution_timeout_ms` | `[runtime].default_timeout_ms`（既定 `250`）           | フック 1 回あたりの実行時間の上限（最小 50ms に切り上げ）                                                                                                                                                                                                                                                                                                                 |
+| `max_memory_mb`        | `[runtime].default_max_memory_mb`（既定 `16`）         | 線形メモリの上限（MiB、最小 1）。`memory.grow` で超えようとするとトラップし、初期メモリが上限を超えるモジュールはインスタンス化に失敗する。Rust の `wasm32-unknown-unknown` ビルドは初期メモリだけで約 1.1 MiB を使うため、2 以上を指定する。インスタンスのプールを使う場合（既定）は `[runtime].pool_max_memory_mb`（既定 `64`）以下にする（超えると読み込み時にエラー） |
 
 - 項目ごとに補われるため、`{"max_memory_mb": 8}` のように一部だけ指定できます。
 - 上限超過（トラップ）はプラグインのエラーとして扱われます（各フックのエラー時の挙動に従い、`plugin.error` を監査ログに記録）。
@@ -587,26 +587,26 @@ Admin Studio のフォームが `attributes` に入れる値の型は次のと�
 
 ホストは `host` モジュールとして以下の関数をインポート提供します。
 
-| SDK API | Wasm インポート | シグネチャ | 必要な権限 |
-| --- | --- | --- | --- |
-| `log_debug!` / `log_info!` / `log_warn!` / `log_error!` | `host.log` | `(level: i32, ptr: i32, len: i32)` | なし |
-| `net::is_allowed(url) -> bool` | `host.http_check_allowed` | `(ptr: i32, len: i32) -> i32` | `capabilities.network` |
-| `kv::set(key, value) -> Result<()>` | `host.kv_set` | `(k_ptr, k_len, v_ptr, v_len) -> i32` | `capabilities.storage` |
-| `kv::set_json(key, &value) -> Result<()>` | `host.kv_set` | 同上（値を JSON 文字列化） | `capabilities.storage` |
-| `kv::get(key) -> Result<Option<String>>` / `kv::get_json` | `host.kv_get` | `(k_ptr, k_len) -> i64` | `capabilities.storage` |
-| `http::fetch(&Request) -> Result<Response>` | `host.http_fetch` | `(req_ptr, req_len) -> i64` | `capabilities.network` |
-| `config::get(key) -> Option<String>` / `config::get_or(key, default)` | `host.config_get` | `(k_ptr, k_len) -> i64` | なし |
+| SDK API                                                               | Wasm インポート           | シグネチャ                            | 必要な権限             |
+| --------------------------------------------------------------------- | ------------------------- | ------------------------------------- | ---------------------- |
+| `log_debug!` / `log_info!` / `log_warn!` / `log_error!`               | `host.log`                | `(level: i32, ptr: i32, len: i32)`    | なし                   |
+| `net::is_allowed(url) -> bool`                                        | `host.http_check_allowed` | `(ptr: i32, len: i32) -> i32`         | `capabilities.network` |
+| `kv::set(key, value) -> Result<()>`                                   | `host.kv_set`             | `(k_ptr, k_len, v_ptr, v_len) -> i32` | `capabilities.storage` |
+| `kv::set_json(key, &value) -> Result<()>`                             | `host.kv_set`             | 同上（値を JSON 文字列化）            | `capabilities.storage` |
+| `kv::get(key) -> Result<Option<String>>` / `kv::get_json`             | `host.kv_get`             | `(k_ptr, k_len) -> i64`               | `capabilities.storage` |
+| `http::fetch(&Request) -> Result<Response>`                           | `host.http_fetch`         | `(req_ptr, req_len) -> i64`           | `capabilities.network` |
+| `config::get(key) -> Option<String>` / `config::get_or(key, default)` | `host.config_get`         | `(k_ptr, k_len) -> i64`               | なし                   |
 
 `i64` を返す関数は、ホストがゲストの `allocate` で確保した領域に結果を書き込み、`(ptr << 32) | len` を返します（SDK が読み取って解放します）。
 
 ### 5.1 ログ (`host.log`)
 
-| `level` | SDK マクロ | ホスト側 `tracing` レベル |
-| --- | --- | --- |
-| `0` | `log_debug!` | `debug` |
-| `1` | `log_info!` | `info` |
-| `2` | `log_warn!` | `warn` |
-| `3` 以上 | `log_error!` | `error` |
+| `level`  | SDK マクロ   | ホスト側 `tracing` レベル |
+| -------- | ------------ | ------------------------- |
+| `0`      | `log_debug!` | `debug`                   |
+| `1`      | `log_info!`  | `info`                    |
+| `2`      | `log_warn!`  | `warn`                    |
+| `3` 以上 | `log_error!` | `error`                   |
 
 ### 5.2 ネットワーク許可チェック (`host.http_check_allowed`)
 
@@ -616,11 +616,11 @@ Admin Studio のフォームが `attributes` に入れる値の型は次のと�
 
 ### 5.3 KVS 書き込み (`host.kv_set`)
 
-| 戻り値 | 意味 | SDK の結果 |
-| --- | --- | --- |
-| `0` | 成功 | `Ok(())` |
-| `1` | 権限なし（`capabilities.storage` 未宣言） | `Err(PluginError::Host(...))` |
-| `2` | メモリ読み取り失敗などのエラー | `Err(PluginError::Host(...))` |
+| 戻り値 | 意味                                      | SDK の結果                    |
+| ------ | ----------------------------------------- | ----------------------------- |
+| `0`    | 成功                                      | `Ok(())`                      |
+| `1`    | 権限なし（`capabilities.storage` 未宣言） | `Err(PluginError::Host(...))` |
+| `2`    | メモリ読み取り失敗などのエラー            | `Err(PluginError::Host(...))` |
 
 - キーは `{kv_namespace}:{key}` の形でホスト側に保存され、他プラグインのネームスペースとは分離されます。
 - 値はサーバーの `[cache]` のバックエンドにキー `plugin-kv:{kv_namespace}:{key}` で保存します（有効期限なし）。`redis` なら再起動後も残り、全サーバーで共有されます。`memory` ではプロセス内にだけあり、再起動で消えます。
@@ -664,13 +664,13 @@ let fee: i64 = config::get_or("shipping_fee", 0); // 読めなければ既定値
 
 `cargo test` などネイティブターゲット (`not(target_arch = "wasm32")`) でビルドした場合、SDK のホスト API はモックに置き換わります。
 
-| API | モックの挙動 |
-| --- | --- |
-| ログ | 標準出力に `[WasmMock:LEVEL] message` を出力 |
-| `net::is_allowed` | 常に `true`（マニフェストは参照しない） |
-| `kv::set` / `kv::get` | スレッドローカルのメモリに保存・読み出し |
-| `config::get` | `host::mock::set_config(key, value)` で設定した値 |
-| `http::fetch` | 送らずに記録して `200` を返す（`host::mock::take_http_requests()` で取り出す） |
+| API                   | モックの挙動                                                                   |
+| --------------------- | ------------------------------------------------------------------------------ |
+| ログ                  | 標準出力に `[WasmMock:LEVEL] message` を出力                                   |
+| `net::is_allowed`     | 常に `true`（マニフェストは参照しない）                                        |
+| `kv::set` / `kv::get` | スレッドローカルのメモリに保存・読み出し                                       |
+| `config::get`         | `host::mock::set_config(key, value)` で設定した値                              |
+| `http::fetch`         | 送らずに記録して `200` を返す（`host::mock::take_http_requests()` で取り出す） |
 
 `host::mock::reset()` でモックを空にできます。
 
@@ -680,15 +680,15 @@ let fee: i64 = config::get_or("shipping_fee", 0); // 読めなければ既定値
 
 ## 6. 低水準 ABI（SDK を使わない場合）
 
-| エクスポート | シグネチャ | 必須 | 説明 |
-| --- | --- | --- | --- |
-| `memory` | memory | ✅ | リニアメモリ |
-| `allocate` | `(len: i32) -> i32` | ✅ | ホストが入力 JSON を書き込む領域を確保し、ポインタを返す |
-| `transform_content_ast` | `(ptr: i32, len: i32) -> i64` | | 入力 `BlockNode[]` JSON、戻り値 `(ptr << 32) \| len` |
-| `on_before_save` | `(ptr: i32, len: i32) -> i64` | | 入力 `PostContext` JSON、戻り値 `(ptr << 32) \| len` |
-| `on_user_authenticated` | `(ptr: i32, len: i32) -> i64` | | 入力 `UserAuthContext` JSON、戻り値 `(ptr << 32) \| len` |
-| `calculate_order` | `(ptr: i32, len: i32) -> i64` | | 入力 `OrderContext` JSON、戻り値 `(ptr << 32) \| len`（`{"error"}` で拒否） |
-| `on_order_status_changed` | `(ptr: i32, len: i32) -> i64` | | 入力 `OrderStatusChange` JSON。戻り値は `0`（成功）か `{"error"}` |
+| エクスポート              | シグネチャ                    | 必須 | 説明                                                                        |
+| ------------------------- | ----------------------------- | ---- | --------------------------------------------------------------------------- |
+| `memory`                  | memory                        | ✅   | リニアメモリ                                                                |
+| `allocate`                | `(len: i32) -> i32`           | ✅   | ホストが入力 JSON を書き込む領域を確保し、ポインタを返す                    |
+| `transform_content_ast`   | `(ptr: i32, len: i32) -> i64` |      | 入力 `BlockNode[]` JSON、戻り値 `(ptr << 32) \| len`                        |
+| `on_before_save`          | `(ptr: i32, len: i32) -> i64` |      | 入力 `PostContext` JSON、戻り値 `(ptr << 32) \| len`                        |
+| `on_user_authenticated`   | `(ptr: i32, len: i32) -> i64` |      | 入力 `UserAuthContext` JSON、戻り値 `(ptr << 32) \| len`                    |
+| `calculate_order`         | `(ptr: i32, len: i32) -> i64` |      | 入力 `OrderContext` JSON、戻り値 `(ptr << 32) \| len`（`{"error"}` で拒否） |
+| `on_order_status_changed` | `(ptr: i32, len: i32) -> i64` |      | 入力 `OrderStatusChange` JSON。戻り値は `0`（成功）か `{"error"}`           |
 
 - 戻り値の `len` が `0` の場合、ホストは入力をそのまま採用します。
 - `on_before_save` で保存を、`on_user_authenticated` でログインを拒否するには、入力の型の代わりに `{"error": "<メッセージ>"}` を返します（SDK の `abi::write_error_to_host`）。`error` キーを持つオブジェクトはすべて拒否として扱います。

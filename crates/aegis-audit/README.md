@@ -13,20 +13,20 @@ To meet enterprise security requirements, it provides tamper resistance, fan-out
 ## Responsibilities and Features
 
 - **AuditService**:
-  - Asynchronously receives audit events (`AuditEvent`) from across the application and delivers them to the sinks in bulk.
-  - Attaches the origin context (`AuditOrigin`: IP address, User-Agent, request ID).
-  - Automatically purges old logs past the retention period (`retention_days`).
+    - Asynchronously receives audit events (`AuditEvent`) from across the application and delivers them to the sinks in bulk.
+    - Attaches the origin context (`AuditOrigin`: IP address, User-Agent, request ID).
+    - Automatically purges old logs past the retention period (`retention_days`).
 - **Output sinks (`AuditSink`)**:
-  - `DatabaseAuditSink`: structured persistence in the database (the `_aegis_audit_logs` table). Searchable and viewable from Admin Studio.
-  - `LogAuditSink`: JSON output to the host's `tracing` log (or syslog / stdout). Ideal for SIEM integration.
-  - `PrometheusAuditSink`: aggregates and exposes the frequency of audit events and anomalous events (authentication failures, access denials, etc.) as Prometheus counter metrics.
+    - `DatabaseAuditSink`: structured persistence in the database (the `_aegis_audit_logs` table). Searchable and viewable from Admin Studio.
+    - `LogAuditSink`: JSON output to the host's `tracing` log (or syslog / stdout). Ideal for SIEM integration.
+    - `PrometheusAuditSink`: aggregates and exposes the frequency of audit events and anomalous events (authentication failures, access denials, etc.) as Prometheus counter metrics.
 
 ## Module Layout
 
-| Module | Description |
-| :--- | :--- |
-| `database` | Database output sink (`DatabaseAuditSink`) |
-| `log` | Structured logging output sink (`LogAuditSink`) |
-| `metrics` | Prometheus metrics output sink (`PrometheusAuditSink`) |
-| `origin` | Request context extraction (`AuditOrigin`) |
-| `config` | Audit settings (`AuditConfig`, `AuditSinkKind`) |
+| Module     | Description                                            |
+| :--------- | :----------------------------------------------------- |
+| `database` | Database output sink (`DatabaseAuditSink`)             |
+| `log`      | Structured logging output sink (`LogAuditSink`)        |
+| `metrics`  | Prometheus metrics output sink (`PrometheusAuditSink`) |
+| `origin`   | Request context extraction (`AuditOrigin`)             |
+| `config`   | Audit settings (`AuditConfig`, `AuditSinkKind`)        |

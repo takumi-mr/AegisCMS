@@ -58,6 +58,7 @@ docker run --rm --network aegiscms_lab --memory 1g --cpus 2 --pids-limit 256 `
 Active scans can also be run, limited to the disposable environment. Two profiles are provided: an unauthenticated scan and a logged-in authenticated scan.
 
 ### 1. Unauthenticated Scan (Web + API)
+
 The plan in the repository (`docker/pentest/zap-active.yaml`) targets public web pages and the main API endpoints (including the OpenAPI definition `docker/pentest/openapi.json`) and scans at Low intensity. The result HTML is saved to `docs/security-reports/zap-active-report.html`.
 
 ```powershell
@@ -71,6 +72,7 @@ docker compose -f docker-compose.pentest.yml down
 ```
 
 ### 2. Logged-In Authenticated Scan (Medium Intensity)
+
 A separate profile (`docker/pentest/zap-authenticated.yaml`) injects an administrator session (Bearer token / X-Session-Id) into every request with the ZAP Replacer, and runs an active scan at Medium intensity against protected APIs and Admin Studio. The result is saved to `docs/security-reports/zap-authenticated-report.html`.
 
 ```powershell

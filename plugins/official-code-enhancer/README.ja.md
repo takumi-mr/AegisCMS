@@ -23,14 +23,14 @@ Admin Studio の **Settings › Plugins** のこのプラグインの設定画�
 
 優先順位は「記事のフィールド › テーマ変数 › プラグインの設定 › 既定（`dracula`）」です。
 
-| テーマ ID | テーマ名 | 特徴 |
-|---|---|---|
-| `dracula` (既定) | Dracula | 上品なダーク背景に鮮やかなピンク・パープル・シアンのアクセント |
-| `github-dark` | GitHub Dark | GitHub の落ち着いたダークブルーグレー |
-| `one-dark` | One Dark Pro | VS Code / Atom の定番のダーク |
-| `nord` | Nord Arctic | 北欧の青と雪白の配色 |
-| `github-light` | GitHub Light | 白基調のライト |
-| `monokai` | Monokai Pro | 高コントラストのクラシック |
+| テーマ ID        | テーマ名     | 特徴                                                           |
+| ---------------- | ------------ | -------------------------------------------------------------- |
+| `dracula` (既定) | Dracula      | 上品なダーク背景に鮮やかなピンク・パープル・シアンのアクセント |
+| `github-dark`    | GitHub Dark  | GitHub の落ち着いたダークブルーグレー                          |
+| `one-dark`       | One Dark Pro | VS Code / Atom の定番のダーク                                  |
+| `nord`           | Nord Arctic  | 北欧の青と雪白の配色                                           |
+| `github-light`   | GitHub Light | 白基調のライト                                                 |
+| `monokai`        | Monokai Pro  | 高コントラストのクラシック                                     |
 
 ```json
 { "code_theme": "nord" }

@@ -55,6 +55,7 @@ sdk/templates/assemblyscript/
 Implement against the official npm package [`@takumi-mr/plugin-sdk`](../../assemblyscript).
 
 ### Manifest (`plugin.manifest.json`)
+
 Based on the zero-trust execution model, declare the minimum capabilities (permissions) the plugin needs. Any undeclared operation is blocked immediately by the host runtime.
 
 ```json
@@ -81,17 +82,17 @@ Based on the zero-trust execution model, declare the minimum capabilities (permi
 
 ### Available Lifecycle Hooks
 
-| Exported function | Arguments | Return | Description |
-|---|---|---|---|
-| `allocate(len: i32)` | `len: i32` | `i32` | Memory allocator (required) |
-| `on_before_save(ptr: i32, len: i32)` | `(ptr, len)` | `i64` | Validation, value correction, and rejection before saving an article |
-| `transform_content_ast(ptr: i32, len: i32)` | `(ptr, len)` | `i64` | Transforming the body block AST array |
-| `on_render_page(ptr: i32, len: i32)` | `(ptr, len)` | `i64` | Dynamically updating the public page rendering context |
+| Exported function                           | Arguments    | Return | Description                                                          |
+| ------------------------------------------- | ------------ | ------ | -------------------------------------------------------------------- |
+| `allocate(len: i32)`                        | `len: i32`   | `i32`  | Memory allocator (required)                                          |
+| `on_before_save(ptr: i32, len: i32)`        | `(ptr, len)` | `i64`  | Validation, value correction, and rejection before saving an article |
+| `transform_content_ast(ptr: i32, len: i32)` | `(ptr, len)` | `i64`  | Transforming the body block AST array                                |
+| `on_render_page(ptr: i32, len: i32)`        | `(ptr, len)` | `i64`  | Dynamically updating the public page rendering context               |
 
 ### Available Host APIs
 
-| Module | Function | Description |
-|---|---|---|
-| `log` | `log.debug(msg)`, `log.info(msg)`, `log.warn(msg)`, `log.error(msg)` | Writes logs safely through the host's logger |
-| `net` | `net.isAllowed(url)` | Checks whether the destination URL is allowed by the manifest |
-| `kv` | `kv.set(key, value)` | Saves data to the KVS in the plugin's own namespace |
+| Module | Function                                                             | Description                                                   |
+| ------ | -------------------------------------------------------------------- | ------------------------------------------------------------- |
+| `log`  | `log.debug(msg)`, `log.info(msg)`, `log.warn(msg)`, `log.error(msg)` | Writes logs safely through the host's logger                  |
+| `net`  | `net.isAllowed(url)`                                                 | Checks whether the destination URL is allowed by the manifest |
+| `kv`   | `kv.set(key, value)`                                                 | Saves data to the KVS in the plugin's own namespace           |

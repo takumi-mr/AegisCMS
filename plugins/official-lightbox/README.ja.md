@@ -25,15 +25,15 @@ enabled = ["official-lightbox"]
 
 Admin Studio の **Settings › Plugins** の「設定」か、設定ファイルの `[plugins.settings.official-lightbox]` で変えます。省略した項目・不正な値は既定値になります。
 
-| キー | 既定値 | 説明 |
-| --- | --- | --- |
-| `content_types` | `article,page` | 動かすコンテンツの種類（カンマ区切り） |
-| `selector` | `.prose` | 本文の範囲（CSS セレクター。カンマ区切りで複数）。この中の画像だけを対象にする |
-| `min_width_px` | `120` | 対象にする画像の最小の幅（0〜2000） |
-| `show_caption` | `true` | `alt` を説明文として出す |
-| `animate` | `true` | ふわっと表示する（`prefers-reduced-motion` のときはしない） |
-| `bg_color` | `rgba(0,0,0,.88)` | 背景色。`#hex`・`rgb()`・`hsl()`・`var(--名前)`・色名 |
-| `locale` | `en` | 読み上げ用の名前の言語（`en` / `ja`） |
+| キー            | 既定値            | 説明                                                                           |
+| --------------- | ----------------- | ------------------------------------------------------------------------------ |
+| `content_types` | `article,page`    | 動かすコンテンツの種類（カンマ区切り）                                         |
+| `selector`      | `.prose`          | 本文の範囲（CSS セレクター。カンマ区切りで複数）。この中の画像だけを対象にする |
+| `min_width_px`  | `120`             | 対象にする画像の最小の幅（0〜2000）                                            |
+| `show_caption`  | `true`            | `alt` を説明文として出す                                                       |
+| `animate`       | `true`            | ふわっと表示する（`prefers-reduced-motion` のときはしない）                    |
+| `bg_color`      | `rgba(0,0,0,.88)` | 背景色。`#hex`・`rgb()`・`hsl()`・`var(--名前)`・色名                          |
+| `locale`        | `en`              | 読み上げ用の名前の言語（`en` / `ja`）                                          |
 
 ## 見た目を変える
 

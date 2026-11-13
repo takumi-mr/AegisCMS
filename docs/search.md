@@ -54,14 +54,14 @@ content_types = ["article", "page"]  # content kinds to search
 
 Values passed to the template:
 
-| Value | Description |
-| --- | --- |
-| `fields.query` | The search terms |
-| `fields.category` | The ID of the category being filtered on (empty if none) |
-| `fields.tag` | The tag being filtered on (empty if none) |
-| `fields.sort` | The order (`relevance` or `newest`; unknown values become `relevance`) |
-| `items` | The matching content (best match first). `item.title`, `item.content_type`, `item.published_at`, `item.fields.url` (the public page URL, including `base_path`), `item.fields.snippet_html` (an excerpt of the body; escaped HTML with the search terms wrapped in `<mark>`, so output it as `{{ item.fields.snippet_html \| safe }}`) |
-| `pagination` | `total_items` (number of matches), `total_pages`, `prev_url` / `next_url` |
+| Value             | Description                                                                                                                                                                                                                                                                                                                            |
+| ----------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `fields.query`    | The search terms                                                                                                                                                                                                                                                                                                                       |
+| `fields.category` | The ID of the category being filtered on (empty if none)                                                                                                                                                                                                                                                                               |
+| `fields.tag`      | The tag being filtered on (empty if none)                                                                                                                                                                                                                                                                                              |
+| `fields.sort`     | The order (`relevance` or `newest`; unknown values become `relevance`)                                                                                                                                                                                                                                                                 |
+| `items`           | The matching content (best match first). `item.title`, `item.content_type`, `item.published_at`, `item.fields.url` (the public page URL, including `base_path`), `item.fields.snippet_html` (an excerpt of the body; escaped HTML with the search terms wrapped in `<mark>`, so output it as `{{ item.fields.snippet_html \| safe }}`) |
+| `pagination`      | `total_items` (number of matches), `total_pages`, `prev_url` / `next_url`                                                                                                                                                                                                                                                              |
 
 ```html
 <form role="search" action="{{ base_path }}/search">
@@ -76,21 +76,22 @@ Values passed to the template:
 A search box placed in the theme's header or elsewhere works by simply submitting this form to `/search`.
 
 ### Integration with Analytics
+
 When analytics (`[analytics]`) is enabled, the keywords searched on the search page (`/search?q=...`) are aggregated automatically in a form that does not identify individuals (counted only on access to the first page). Keywords whose search returned 0 results are recorded separately as "searches with no results", and can be used in Admin Studio's Analytics dashboard and CSV export to analyze demand for content (calls to the search API `GET /api/v1/search` are not aggregated).
 
 ## 4. API
 
 `GET /api/v1/search?q=search+terms&type=article,page&category=category-ID&tag=tag-slug&sort=newest&limit=10&offset=0` (no login required)
 
-| Parameter | Description |
-| --- | --- |
-| `q` | The search terms (up to 200 characters; exceeding it returns `400`) |
-| `type` | Content kinds to filter on (comma-separated; only those in `[search].content_types`) |
-| `category` | The ID of the category to filter on (no filtering if empty) |
-| `tag` | The slug or ID of the tag to filter on (no filtering if empty) |
-| `sort` | The order. `relevance` (best match first; default) or `newest` (newest publication date first). An unknown value returns `400` |
-| `limit` | Number of items (default 10, max 50) |
-| `offset` | Number of items to skip |
+| Parameter  | Description                                                                                                                    |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| `q`        | The search terms (up to 200 characters; exceeding it returns `400`)                                                            |
+| `type`     | Content kinds to filter on (comma-separated; only those in `[search].content_types`)                                           |
+| `category` | The ID of the category to filter on (no filtering if empty)                                                                    |
+| `tag`      | The slug or ID of the tag to filter on (no filtering if empty)                                                                 |
+| `sort`     | The order. `relevance` (best match first; default) or `newest` (newest publication date first). An unknown value returns `400` |
+| `limit`    | Number of items (default 10, max 50)                                                                                           |
+| `offset`   | Number of items to skip                                                                                                        |
 
 ```json
 {

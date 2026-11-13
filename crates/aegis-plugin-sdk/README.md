@@ -10,22 +10,22 @@ AegisCMS uses a zero-trust plugin system built on the Bytecode Alliance's Wasmti
 
 - **Macro-generated hooks**: implement lifecycle hooks with `#[aegis_plugin]` (or `register_plugin!`), and the Wasm ABI exports are generated automatically.
 - **A variety of lifecycle hooks**:
-  - `on_before_save`: validation and automatic processing before an article or content is saved.
-  - `transform_content_ast`: traversing and rewriting the block AST (syntax tree).
-  - `on_render_page`: inserting custom CSS/JS into the rendered HTML or the `<head>` tag.
-  - `render_blocks`: rendering the plugin's own custom blocks to HTML.
-  - `on_user_authenticated`: role assignment at user login and syncing external IdP profiles.
-  - `calculate_order`: dynamic price calculation, coupon discounts, and tax and shipping calculation in the e-commerce order flow.
-  - `on_order_status_changed`: processing in response to order status transitions (payment completed, shipped, refunded, etc.).
-  - `check_comment`: automatic comment evaluation (spam score calculation, banned word detection, approval state control).
-  - `send_notification`: multi-channel notification handling for email, chat, and so on.
-  - `on_content_published`: external notifications and cache warming when content is published.
-  - `on_content_deleted`: deleting externally linked resources when content is deleted.
+    - `on_before_save`: validation and automatic processing before an article or content is saved.
+    - `transform_content_ast`: traversing and rewriting the block AST (syntax tree).
+    - `on_render_page`: inserting custom CSS/JS into the rendered HTML or the `<head>` tag.
+    - `render_blocks`: rendering the plugin's own custom blocks to HTML.
+    - `on_user_authenticated`: role assignment at user login and syncing external IdP profiles.
+    - `calculate_order`: dynamic price calculation, coupon discounts, and tax and shipping calculation in the e-commerce order flow.
+    - `on_order_status_changed`: processing in response to order status transitions (payment completed, shipped, refunded, etc.).
+    - `check_comment`: automatic comment evaluation (spam score calculation, banned word detection, approval state control).
+    - `send_notification`: multi-channel notification handling for email, chat, and so on.
+    - `on_content_published`: external notifications and cache warming when content is published.
+    - `on_content_deleted`: deleting externally linked resources when content is deleted.
 - **Host API**:
-  - **Structured logging**: `log_debug!`, `log_info!`, `log_warn!`, `log_error!` write safely to the host's `tracing` log.
-  - **Capability-controlled networking**: safe external HTTP communication to the domains allowed by the manifest, via `net::is_allowed` and `http::fetch`.
-  - **Isolated KVS**: a key-value store with a namespace separated per plugin (`kv::get`, `kv::set`, `kv::delete`, `kv::get_json`, `kv::set_json`).
-  - **Reading settings**: reading the plugin settings configured in Admin Studio (`config::get`).
+    - **Structured logging**: `log_debug!`, `log_info!`, `log_warn!`, `log_error!` write safely to the host's `tracing` log.
+    - **Capability-controlled networking**: safe external HTTP communication to the domains allowed by the manifest, via `net::is_allowed` and `http::fetch`.
+    - **Isolated KVS**: a key-value store with a namespace separated per plugin (`kv::get`, `kv::set`, `kv::delete`, `kv::get_json`, `kv::set_json`).
+    - **Reading settings**: reading the plugin settings configured in Admin Studio (`config::get`).
 - **Native unit tests**: with the SDK's built-in mocks, you can verify plugin behavior with plain `cargo test`, without compiling to Wasm.
 
 ## Quick Start

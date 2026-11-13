@@ -9,10 +9,10 @@ An official Wasm plugin that adds [Microsoft Clarity](https://clarity.microsoft.
 - **`on-render-page`** puts Clarity's standard startup code into `<head>`.
 - **Waits for cookie consent**: By default it is emitted as `type="text/plain"` with `data-aegis-consent="analytics"`, and the consent banner's (`[consent]`) script runs it after the visitor consents ([consent.md](../../docs/consent.md)). **Clarity does not run unless `[consent].enabled = true`**. Set `require_consent = false` only on sites that need no consent.
 - **Adds the CSP automatically**: When the plugin is enabled, the following hosts from Clarity's official guidance ([Clarity Content Security Policy](https://learn.microsoft.com/en-us/clarity/clarity-csp)) are added to the CSP. You do not need to rewrite the site-wide CSP.
-  - `script-src`: `www.clarity.ms`, `scripts.clarity.ms`
-  - `connect-src`: `www.clarity.ms`, `scripts.clarity.ms`, `a.clarity.ms` to `z.clarity.ms`, `c.bing.com`
-  - `img-src`: `c.clarity.ms`, `c.bing.com`
-  - A wildcard (`*.clarity.ms`) cannot be written for CSP hosts, so the individual hosts from the official guidance are listed. `scripts.clarity.ms` is not in the official guidance and is based on user reports ([microsoft/clarity#913](https://github.com/microsoft/clarity/issues/913)). If Clarity's hosts change, fix `capabilities.csp` in `plugin.manifest.json`.
+    - `script-src`: `www.clarity.ms`, `scripts.clarity.ms`
+    - `connect-src`: `www.clarity.ms`, `scripts.clarity.ms`, `a.clarity.ms` to `z.clarity.ms`, `c.bing.com`
+    - `img-src`: `c.clarity.ms`, `c.bing.com`
+    - A wildcard (`*.clarity.ms`) cannot be written for CSP hosts, so the individual hosts from the official guidance are listed. `scripts.clarity.ms` is not in the official guidance and is based on user reports ([microsoft/clarity#913](https://github.com/microsoft/clarity/issues/913)). If Clarity's hosts change, fix `capabilities.csp` in `plugin.manifest.json`.
 
 ## Pages That Are Not Recorded
 

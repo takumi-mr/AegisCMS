@@ -88,21 +88,21 @@ Use `sdk.RunHook(ptr, length, "PageRenderContext", func(ctx *sdk.PageRenderConte
 - **HTML around the article body**: Set `ctx.PrependContent` / `ctx.AppendContent` instead of round-tripping `ctx.ContentHTML`. Check `ctx.ContentLength > 0` to see whether the page has body content even when `content_html` is omitted via `capabilities.render_page.input`.
 - **Declarative queries (`ctx.Queries`)**: Read query results declared in `capabilities.render_page.queries` via `ctx.Queries["<query_name>"]` (`map[string]interface{}`).
 - **Scripts (`ctx.Scripts`)**: Raw `<script>` tags and `on*` attributes in `ExtraHead`, `PrependContent`, and `AppendContent` are stripped by the host. Append `sdk.InjectedScript` entries to `ctx.Scripts` instead:
-  - `sdk.InlineScript("window.init = 1;")` (requires `"inline_scripts": true` in `capabilities`)
-  - `sdk.ExternalScript("https://cdn.example.com/lib.js").Async().Deferred().WithCrossorigin().WithConsent("analytics")` (requires `"cdn.example.com"` in `capabilities.csp.script_domains`)
+    - `sdk.InlineScript("window.init = 1;")` (requires `"inline_scripts": true` in `capabilities`)
+    - `sdk.ExternalScript("https://cdn.example.com/lib.js").Async().Deferred().WithCrossorigin().WithConsent("analytics")` (requires `"cdn.example.com"` in `capabilities.csp.script_domains`)
 
 ### Commerce, Notification, Comment & Block Hooks
 
 The hooks above after `on_render_page` are declared in the manifest's `capabilities.hooks` in kebab-case (`calculate-order`, ...). Each has a runner that reads the input, calls your function and writes the result in the ABI format:
 
-| Hook | Runner | Your function |
-| --- | --- | --- |
-| `calculate-order` | `sdk.RunHook(ptr, length, "OrderContext", f)` | `func(*sdk.OrderContext) error` (append to `Adjustments`; the host applies only `Adjustments` and `Metadata`) |
-| `on-order-status-changed` | `sdk.RunNotificationHook(ptr, length, "OrderStatusChange", f)` | `func(*sdk.OrderStatusChange) error` |
-| `on-content-published` | `sdk.RunNotificationHook(ptr, length, "PublishedContent", f)` | `func(*sdk.PublishedContent) error` |
-| `send-notification` | `sdk.RunDeliveryHook(ptr, length, f)` | `func(*sdk.NotificationMessage) (sdk.Delivery, error)` (`DeliverySent` / `DeliverySkipped`) |
-| `check-comment` | `sdk.RunCheckCommentHook(ptr, length, f)` | `func(*sdk.CommentSubmission) (sdk.CommentVerdict, error)` (`AllowComment()` / `HoldComment(reason)` / `SpamComment(reason)`) |
-| `render-blocks` | `sdk.RunRenderBlocksHook(ptr, length, f)` | `func([]sdk.BlockNode) ([]*string, error)` (`sdk.HTML(...)`; `nil` hides the block) |
+| Hook                      | Runner                                                         | Your function                                                                                                                 |
+| ------------------------- | -------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| `calculate-order`         | `sdk.RunHook(ptr, length, "OrderContext", f)`                  | `func(*sdk.OrderContext) error` (append to `Adjustments`; the host applies only `Adjustments` and `Metadata`)                 |
+| `on-order-status-changed` | `sdk.RunNotificationHook(ptr, length, "OrderStatusChange", f)` | `func(*sdk.OrderStatusChange) error`                                                                                          |
+| `on-content-published`    | `sdk.RunNotificationHook(ptr, length, "PublishedContent", f)`  | `func(*sdk.PublishedContent) error`                                                                                           |
+| `send-notification`       | `sdk.RunDeliveryHook(ptr, length, f)`                          | `func(*sdk.NotificationMessage) (sdk.Delivery, error)` (`DeliverySent` / `DeliverySkipped`)                                   |
+| `check-comment`           | `sdk.RunCheckCommentHook(ptr, length, f)`                      | `func(*sdk.CommentSubmission) (sdk.CommentVerdict, error)` (`AllowComment()` / `HoldComment(reason)` / `SpamComment(reason)`) |
+| `render-blocks`           | `sdk.RunRenderBlocksHook(ptr, length, f)`                      | `func([]sdk.BlockNode) ([]*string, error)` (`sdk.HTML(...)`; `nil` hides the block)                                           |
 
 `sdk.Reject(message)` refuses the input (the message is shown as is) and, in `send-notification`, marks the failure as permanent so the host does not retry. Any other error is retried. See [`sdk/examples`](../examples) for complete plugins.
 

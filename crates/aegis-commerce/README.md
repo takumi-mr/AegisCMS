@@ -13,26 +13,26 @@ It is integrated with Wasm plugin hooks for flexible price, tax, and discount ru
 ## Responsibilities and Features
 
 - **Quotes and price calculation (`CommerceService::quote`)**:
-  - Subtotal calculation for the items (variants) in the cart.
-  - Dynamic injection of coupon discounts, shipping fees, reduced tax rates, etc., by Wasm plugins (`calculate_order`).
-  - Rounding and formatting according to the currency unit.
+    - Subtotal calculation for the items (variants) in the cart.
+    - Dynamic injection of coupon discounts, shipping fees, reduced tax rates, etc., by Wasm plugins (`calculate_order`).
+    - Rounding and formatting according to the currency unit.
 - **Order lifecycle and inventory management (`orders`)**:
-  - A strict state machine for order creation (`pending`), payment completion (`paid`), shipment (`fulfilled`), cancellation (`cancelled`), and refund (`refunded`).
-  - Atomic inventory decrement at order creation and automatic inventory restoration on cancellation.
+    - A strict state machine for order creation (`pending`), payment completion (`paid`), shipment (`fulfilled`), cancellation (`cancelled`), and refund (`refunded`).
+    - Atomic inventory decrement at order creation and automatic inventory restoration on cancellation.
 - **Payment provider integration (`payment`)**:
-  - **Stripe (`stripe`)**: creating Stripe Checkout Sessions, verifying Stripe webhook signatures, and reflecting statuses automatically.
-  - **Manual**: manual reconciliation flows such as bank transfer, invoice payment, and cash on delivery.
+    - **Stripe (`stripe`)**: creating Stripe Checkout Sessions, verifying Stripe webhook signatures, and reflecting statuses automatically.
+    - **Manual**: manual reconciliation flows such as bank transfer, invoice payment, and cash on delivery.
 - **Member order history and product review management (`member_data`, `review`)**:
-  - Viewing a member's order history, and cleanup on withdrawal (detaching orders from the member and anonymizing reviews). The member account itself is handled by `aegis-members`.
-  - Posting and moderating purchaser-only ratings and product reviews.
+    - Viewing a member's order history, and cleanup on withdrawal (detaching orders from the member and anonymizing reviews). The member account itself is handled by `aegis-members`.
+    - Posting and moderating purchaser-only ratings and product reviews.
 
 ## Module Layout
 
-| Module | Description |
-| :--- | :--- |
-| `lib` | `CommerceService` implementation; quote and order state machine |
-| `payment` | Payment provider abstraction (`PaymentProvider`) |
-| `stripe` | Stripe API integration and webhook handling |
+| Module        | Description                                                                                                             |
+| :------------ | :---------------------------------------------------------------------------------------------------------------------- |
+| `lib`         | `CommerceService` implementation; quote and order state machine                                                         |
+| `payment`     | Payment provider abstraction (`PaymentProvider`)                                                                        |
+| `stripe`      | Stripe API integration and webhook handling                                                                             |
 | `member_data` | Member order history and cleanup on withdrawal (the members crate does not know about orders, so this crate links them) |
-| `review` | Product review management |
-| `config` | E-commerce settings (`CommerceConfig`: currency, shipping fees, payment keys, etc.) |
+| `review`      | Product review management                                                                                               |
+| `config`      | E-commerce settings (`CommerceConfig`: currency, shipping fees, payment keys, etc.)                                     |

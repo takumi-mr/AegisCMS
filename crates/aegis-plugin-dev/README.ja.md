@@ -13,18 +13,18 @@ AegisCMS Wasm プラグイン開発者向けのスタンドアロン・ローカ
 ## 主な責務・提供機能
 
 - **フックのダイレクト実行 (`POST /__dev/api/invoke`)**:
-  - テストペイロード（JSON）を渡して、指定したフック（`on-before-save`, `transform-content-ast`, `calculate-order` 等）を直接実行。
-  - 消費 Fuel（CPU 命令数）、実行時間（ミリ秒）、Wasm ログ出力（`log_*`）をリアルタイムに収集・可視化。
+    - テストペイロード（JSON）を渡して、指定したフック（`on-before-save`, `transform-content-ast`, `calculate-order` 等）を直接実行。
+    - 消費 Fuel（CPU 命令数）、実行時間（ミリ秒）、Wasm ログ出力（`log_*`）をリアルタイムに収集・可視化。
 - **ホスト環境のモックと追跡**:
-  - プラグイン固有 KVS のインメモリシミュレーションと、キー更新履歴の追跡。
-  - 外部 HTTP リクエスト（`http::fetch`）のモック応答設定と、実際の発行履歴検査。
-  - プラグイン設定値（`config::get`）の動的インジェクション。
+    - プラグイン固有 KVS のインメモリシミュレーションと、キー更新履歴の追跡。
+    - 外部 HTTP リクエスト（`http::fetch`）のモック応答設定と、実際の発行履歴検査。
+    - プラグイン設定値（`config::get`）の動的インジェクション。
 - **HTML ライブプレビュー (`POST /__dev/api/preview`)**:
-  - `on-render-page` や `render-blocks` などのフロントエンド系フックについて、サンプルの HTML やブロック AST を入力として即座に描画結果をプレビュー。
+    - `on-render-page` や `render-blocks` などのフロントエンド系フックについて、サンプルの HTML やブロック AST を入力として即座に描画結果をプレビュー。
 - **自動再コンパイルとホットリロード**:
-  - Wasm バイナリやマニフェストの更新を検知し、インスタンスを自動リロード。
+    - Wasm バイナリやマニフェストの更新を検知し、インスタンスを自動リロード。
 - **Plugin Builder UI 連携 API**:
-  - ブラウザ上の Plugin Builder（React + Vite）からプラグインのテスト実行やマニフェスト編集を行うための REST API を提供。
+    - ブラウザ上の Plugin Builder（React + Vite）からプラグインのテスト実行やマニフェスト編集を行うための REST API を提供。
 
 ## 使い方
 

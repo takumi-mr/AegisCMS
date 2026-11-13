@@ -32,14 +32,14 @@ The theme must output `extra_head` and `extra_css` (the built-in templates do).
 
 Change them in the "Settings" of Admin Studio's **Settings › Plugins**, or in `[plugins.settings.official-code-lines]` in the config file. Omitted items and invalid values fall back to the defaults.
 
-| Key | Default | Description |
-| --- | --- | --- |
-| `content_types` | `article,page` | Content types to run on (comma-separated) |
-| `selector` | `.prose` | The scope of the body (CSS selectors; several separated by commas). Only `<pre>` elements inside it are targeted |
-| `line_numbers` | `true` | Add line numbers |
-| `show_filename` | `true` | Show the file name heading |
-| `min_lines` | `2` | Minimum number of lines to add line numbers (1–1000) |
-| `number_color` | The theme's `--text-muted` | Color of the line numbers. `#hex`, `rgb()`, `hsl()`, `var(--name)`, or a color name |
+| Key             | Default                    | Description                                                                                                      |
+| --------------- | -------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| `content_types` | `article,page`             | Content types to run on (comma-separated)                                                                        |
+| `selector`      | `.prose`                   | The scope of the body (CSS selectors; several separated by commas). Only `<pre>` elements inside it are targeted |
+| `line_numbers`  | `true`                     | Add line numbers                                                                                                 |
+| `show_filename` | `true`                     | Show the file name heading                                                                                       |
+| `min_lines`     | `2`                        | Minimum number of lines to add line numbers (1–1000)                                                             |
+| `number_color`  | The theme's `--text-muted` | Color of the line numbers. `#hex`, `rgb()`, `hsl()`, `var(--name)`, or a color name                              |
 
 ```toml
 [plugins.settings.official-code-lines]

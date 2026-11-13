@@ -1,0 +1,23 @@
+name: Markdown Format
+
+# ci.yml skips Markdown-only changes (paths-ignore), so this check has its own workflow.
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "**.md"
+      - ".prettierrc.json"
+      - ".prettierignore"
+      - ".github/workflows/markdown-format.yml"
+
+jobs:
+  prettier:
+    name: Prettier (Markdown)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Check Markdown formatting
+        run: npx --yes prettier@3.9.10 --check "**/*.md"

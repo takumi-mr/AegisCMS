@@ -13,18 +13,18 @@ Started with the `aegis-server plugin dev <dir>` command (or this crate's standa
 ## Responsibilities and Features
 
 - **Direct hook execution (`POST /__dev/api/invoke`)**:
-  - Passes a test payload (JSON) and runs the specified hook (`on-before-save`, `transform-content-ast`, `calculate-order`, etc.) directly.
-  - Collects and visualizes in real time the fuel consumed (CPU instruction count), execution time (milliseconds), and Wasm log output (`log_*`).
+    - Passes a test payload (JSON) and runs the specified hook (`on-before-save`, `transform-content-ast`, `calculate-order`, etc.) directly.
+    - Collects and visualizes in real time the fuel consumed (CPU instruction count), execution time (milliseconds), and Wasm log output (`log_*`).
 - **Host environment mocking and tracking**:
-  - In-memory simulation of the plugin-specific KVS and tracking of key update history.
-  - Mock response settings for external HTTP requests (`http::fetch`) and inspection of the requests actually issued.
-  - Dynamic injection of plugin settings (`config::get`).
+    - In-memory simulation of the plugin-specific KVS and tracking of key update history.
+    - Mock response settings for external HTTP requests (`http::fetch`) and inspection of the requests actually issued.
+    - Dynamic injection of plugin settings (`config::get`).
 - **Live HTML preview (`POST /__dev/api/preview`)**:
-  - For frontend hooks such as `on-render-page` and `render-blocks`, instantly previews the rendered result using sample HTML or a block AST as input.
+    - For frontend hooks such as `on-render-page` and `render-blocks`, instantly previews the rendered result using sample HTML or a block AST as input.
 - **Automatic recompilation and hot reload**:
-  - Detects updates to the Wasm binary and manifest and reloads the instance automatically.
+    - Detects updates to the Wasm binary and manifest and reloads the instance automatically.
 - **Plugin Builder UI integration API**:
-  - Provides a REST API for running plugin tests and editing the manifest from Plugin Builder (React + Vite) in the browser.
+    - Provides a REST API for running plugin tests and editing the manifest from Plugin Builder (React + Vite) in the browser.
 
 ## Usage
 

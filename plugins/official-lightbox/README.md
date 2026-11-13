@@ -25,15 +25,15 @@ The theme must output `extra_head` and `extra_css` (the built-in templates do).
 
 Change them in the "Settings" of Admin Studio's **Settings › Plugins**, or in `[plugins.settings.official-lightbox]` in the config file. Omitted items and invalid values fall back to the defaults.
 
-| Key | Default | Description |
-| --- | --- | --- |
-| `content_types` | `article,page` | Content types to run on (comma-separated) |
-| `selector` | `.prose` | The scope of the body (CSS selectors; several separated by commas). Only images inside it are targeted |
-| `min_width_px` | `120` | Minimum width of images to target (0–2000) |
-| `show_caption` | `true` | Show the `alt` as a caption |
-| `animate` | `true` | Fade in on display (not when `prefers-reduced-motion` is set) |
-| `bg_color` | `rgba(0,0,0,.88)` | Background color. `#hex`, `rgb()`, `hsl()`, `var(--name)`, or a color name |
-| `locale` | `en` | Language of the screen-reader names (`en` / `ja`) |
+| Key             | Default           | Description                                                                                            |
+| --------------- | ----------------- | ------------------------------------------------------------------------------------------------------ |
+| `content_types` | `article,page`    | Content types to run on (comma-separated)                                                              |
+| `selector`      | `.prose`          | The scope of the body (CSS selectors; several separated by commas). Only images inside it are targeted |
+| `min_width_px`  | `120`             | Minimum width of images to target (0–2000)                                                             |
+| `show_caption`  | `true`            | Show the `alt` as a caption                                                                            |
+| `animate`       | `true`            | Fade in on display (not when `prefers-reduced-motion` is set)                                          |
+| `bg_color`      | `rgba(0,0,0,.88)` | Background color. `#hex`, `rgb()`, `hsl()`, `var(--name)`, or a color name                             |
+| `locale`        | `en`              | Language of the screen-reader names (`en` / `ja`)                                                      |
 
 ## Changing the Appearance
 

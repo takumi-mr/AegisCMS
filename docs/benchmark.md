@@ -10,9 +10,9 @@ A record of running AegisCMS and WordPress in Docker environments with the same 
 
 ## 1. Results (2026-11-09, median of 3 rounds at 50 concurrent for 10 seconds)
 
-| Page | AegisCMS (no cache) | WordPress (no cache) | AegisCMS + nginx cache | WordPress + nginx cache |
-| --- | ---: | ---: | ---: | ---: |
-| List (top) | **884 req/s** (p50 65 ms) | 33 req/s (p50 1,400 ms) | 10,657 req/s (p50 2.1 ms) | 11,992 req/s (p50 1.9 ms) |
+| Page           |        AegisCMS (no cache) |    WordPress (no cache) |    AegisCMS + nginx cache |   WordPress + nginx cache |
+| -------------- | -------------------------: | ----------------------: | ------------------------: | ------------------------: |
+| List (top)     |  **884 req/s** (p50 65 ms) | 33 req/s (p50 1,400 ms) | 10,657 req/s (p50 2.1 ms) | 11,992 req/s (p50 1.9 ms) |
 | Single article | **421 req/s** (p50 107 ms) | 35 req/s (p50 1,300 ms) | 11,316 req/s (p50 2.0 ms) | 11,999 req/s (p50 2.0 ms) |
 
 - **Without cache** (the speed for requests that miss the cache, the first request, and right after a purge): AegisCMS is about 27 times faster on the list and about 12 times on the article. Response times are over 1 second versus around 0.1 seconds, an order of magnitude apart.
@@ -21,15 +21,15 @@ A record of running AegisCMS and WordPress in Docker environments with the same 
 
 ## 2. Conditions
 
-| Item | AegisCMS | WordPress |
-| --- | --- | --- |
-| Version | This repository's main (2026-11-09, after #314) | WordPress 6.9.4 (`wordpress:6-php8.3-fpm`), PHP 8.3, MariaDB 11.8 |
-| Setup | 1 container (SQLite). No plugins, default theme | php-fpm + nginx + MariaDB. No plugins, default theme (twentytwentyfive) |
-| Data | 2,000 articles (about 4 KB; about 10 blocks such as headings, paragraphs, code, lists) | 2,000 posts (about 2.9 KB; headings, paragraphs, lists, code) |
-| Page size | List about 38 KB, article about 35 KB | List about 104 KB, article about 88 KB (the block theme's CSS is in the HTML) |
-| Resources | 2 CPUs, 2 GB | php-fpm 2 CPUs, 2 GB (`pm.static`, 16 processes), MariaDB 2 CPUs, 2 GB, nginx 2 CPUs |
-| Load | `wrk -t4 -c50 -d10s` (from inside the same Docker network; after a 3-second warm-up, the 4 setups alternate for 3 rounds) | Same as left |
-| Cache | nginx `proxy_cache` (10 minutes) | nginx `fastcgi_cache` (10 minutes; logged-in users, commenters, requests with a query, and the admin screen are not passed through — WordPress's standard setup) |
+| Item      | AegisCMS                                                                                                                  | WordPress                                                                                                                                                        |
+| --------- | ------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Version   | This repository's main (2026-11-09, after #314)                                                                           | WordPress 6.9.4 (`wordpress:6-php8.3-fpm`), PHP 8.3, MariaDB 11.8                                                                                                |
+| Setup     | 1 container (SQLite). No plugins, default theme                                                                           | php-fpm + nginx + MariaDB. No plugins, default theme (twentytwentyfive)                                                                                          |
+| Data      | 2,000 articles (about 4 KB; about 10 blocks such as headings, paragraphs, code, lists)                                    | 2,000 posts (about 2.9 KB; headings, paragraphs, lists, code)                                                                                                    |
+| Page size | List about 38 KB, article about 35 KB                                                                                     | List about 104 KB, article about 88 KB (the block theme's CSS is in the HTML)                                                                                    |
+| Resources | 2 CPUs, 2 GB                                                                                                              | php-fpm 2 CPUs, 2 GB (`pm.static`, 16 processes), MariaDB 2 CPUs, 2 GB, nginx 2 CPUs                                                                             |
+| Load      | `wrk -t4 -c50 -d10s` (from inside the same Docker network; after a 3-second warm-up, the 4 setups alternate for 3 rounds) | Same as left                                                                                                                                                     |
+| Cache     | nginx `proxy_cache` (10 minutes)                                                                                          | nginx `fastcgi_cache` (10 minutes; logged-in users, commenters, requests with a query, and the admin screen are not passed through — WordPress's standard setup) |
 
 - WordPress has OPcache enabled (the official image's default). No object cache (Redis, etc.) or page cache plugin is installed (the page cache is on the nginx side).
 - WordPress is slow without cache because on every request PHP loads WordPress core and the theme, queries the DB, and renders the block theme (about 60 ms/request on 2 CPUs). With more plugins, it gets even slower.

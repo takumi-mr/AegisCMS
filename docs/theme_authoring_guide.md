@@ -68,16 +68,16 @@ themes/my-theme/
 }
 ```
 
-| Key | Required | Description |
-|---|---|---|
-| `id` | ✓ | The theme's ID (kebab-case). Make it the same as the directory name. If empty, the directory name is used |
-| `name` | ✓ | Display name |
-| `version` | | Semantic version (default `1.0.0`) |
-| `description` | | Description text |
-| `author` | | A string, or `{ "name", "email", "url" }` |
-| `license` / `homepage` / `repository` / `min_aegis_version` | | Information for distribution |
-| `preview_image` | | The preview image's file name. If absent, `preview.svg` → `.png` → `.webp` → `.jpg` are tried in order |
-| `tags` | | Tags for classification |
+| Key                                                         | Required | Description                                                                                               |
+| ----------------------------------------------------------- | -------- | --------------------------------------------------------------------------------------------------------- |
+| `id`                                                        | ✓        | The theme's ID (kebab-case). Make it the same as the directory name. If empty, the directory name is used |
+| `name`                                                      | ✓        | Display name                                                                                              |
+| `version`                                                   |          | Semantic version (default `1.0.0`)                                                                        |
+| `description`                                               |          | Description text                                                                                          |
+| `author`                                                    |          | A string, or `{ "name", "email", "url" }`                                                                 |
+| `license` / `homepage` / `repository` / `min_aegis_version` |          | Information for distribution                                                                              |
+| `preview_image`                                             |          | The preview image's file name. If absent, `preview.svg` → `.png` → `.webp` → `.jpg` are tried in order    |
+| `tags`                                                      |          | Tags for classification                                                                                   |
 
 If `theme.json` is missing or cannot be read as JSON, the theme appears in the list with a name made from the directory name (`my-theme` → `My Theme`) and a default description (when unreadable, a warning appears in the server log).
 
@@ -87,38 +87,38 @@ Templates are written in [MiniJinja](https://docs.rs/minijinja) (Jinja2-compatib
 
 ### 3.1 Which Template Is Used at Which URL
 
-| URL | Template | Main variables |
-|---|---|---|
-| `/` (`[theme].front_page = "posts"`, the default) | `index.html` | `title` (`Latest Stories`), `items`, `pagination` |
-| `/` (`front_page = "template"`) | `front.html` | `content_type` (`front`), `items` (the latest `posts_per_page` articles), `pagination` (continues at `/articles?page=2`) |
-| `/` (`front_page = "page:<slug>"`) | Same as a static page (`page.html`, etc.) | Same as a static page. URLs such as canonical are `/` |
-| `/articles` | `index.html` | `title` (`Latest Stories`), `items`, `pagination` |
-| `/category/{slug}` | `category.html` | `title` (category name), `slug`, `fields` (the category's fields, such as `description`), `items`, `pagination` |
-| `/tags/{slug}` | `tag.html` | `title` (tag name), `slug`, `fields` (`description`), `items` (articles, static pages, and products, newest first; the public page URL is `item.fields.url`), `pagination` ([Tags](tags.md#6-public-site)) |
-| `/tags` | `tags.html` | `items` (tags that have published content; `item.title` is the name, with `item.fields.url`, `item.fields.count`, `item.fields.description`) ([Tags](tags.md#6-public-site)) |
-| `/search` | `search.html` | [Site search](search.md#3-the-search-page-search) (`fields.query`, `items`, `pagination`) |
-| (inserted before `</body>` of each page) | `consent.html` | [Cookie consent banner](consent.md#3-building-the-banner-in-a-theme-templatesconsenthtml) (a fragment that does not extend `base.html`. `fields.consent`, `fields.categories`, `fields.message`. The script operates it with `data-aegis-consent-*` attributes) |
-| (inserted right after `<body>` of each page) | `notices.html` | [Notice banners](notices.md#3-building-notices-in-a-theme-templatesnoticeshtml) (a fragment that does not extend `base.html`. `fields.notices`. The script operates it with `data-aegis-notice-*` attributes) |
-| `/newsletter`, `/newsletter/confirm`, `/newsletter/unsubscribe` | `page.html` | [Newsletter](newsletter.md#3-the-sign-up-page) (`content_html` holds the description and form, confirm and unsubscribe buttons, and results. `slug` is `newsletter`) |
-| `/contact`, `/contact/{name}` | `contact.html` | [Contact form](contact.md#21-the-theme-template-contacthtml) (`fields.form_html`, `fields.sent`, `fields.form`) |
-| `/articles/{slug}` | `article.html` | `title`, `content_html`, `author`, `published_at`, `updated_at`, `fields`, `relations`, `comments` ([Comments](#6-comment-section)) |
-| `/{slug}` | `page.html` (static page) or `article.html` | Same as above |
-| `/{slug}` (a static page whose `layout` is `blank`) | `blank.html` | Same as above. A blank page with no header, footer, or width constraints (for landing pages). If you put another name in `layout` (e.g. `landing`), the theme's `landing.html` is used |
-| Under `/forum` | `forum_index.html` / `forum_category.html` / `forum_thread.html` | [Forum](forum.md#2-public-site) |
-| Not found / unpublished | `404.html` | `title` (`Page Not Found`), `content_html` (a sentence of reason) |
-| `/products` | `products.html` | `title`, `items`, `pagination`, `theme_vars` |
-| `/products/{slug}` | `product.html` | `title`, `content_html`, `fields` (`price` / `stock`, etc.), `relations`, `theme_vars` (including `reviews_*`; for the review section see [Member accounts 4.4](members.md#44-reviews-on-product-pages)) |
-| `/cart` | `cart.html` | `theme_vars` |
-| `/orders/{id}` | `order.html` | `slug` (the order ID), `theme_vars` |
-| `/account`, `/account/login`, `/account/register` | `account.html` | `slug` (`home` / `login` / `register`), `theme_vars` (`account_*`; [Member accounts 4.3](members.md#43-theme)) |
+| URL                                                             | Template                                                         | Main variables                                                                                                                                                                                                                                                  |
+| --------------------------------------------------------------- | ---------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `/` (`[theme].front_page = "posts"`, the default)               | `index.html`                                                     | `title` (`Latest Stories`), `items`, `pagination`                                                                                                                                                                                                               |
+| `/` (`front_page = "template"`)                                 | `front.html`                                                     | `content_type` (`front`), `items` (the latest `posts_per_page` articles), `pagination` (continues at `/articles?page=2`)                                                                                                                                        |
+| `/` (`front_page = "page:<slug>"`)                              | Same as a static page (`page.html`, etc.)                        | Same as a static page. URLs such as canonical are `/`                                                                                                                                                                                                           |
+| `/articles`                                                     | `index.html`                                                     | `title` (`Latest Stories`), `items`, `pagination`                                                                                                                                                                                                               |
+| `/category/{slug}`                                              | `category.html`                                                  | `title` (category name), `slug`, `fields` (the category's fields, such as `description`), `items`, `pagination`                                                                                                                                                 |
+| `/tags/{slug}`                                                  | `tag.html`                                                       | `title` (tag name), `slug`, `fields` (`description`), `items` (articles, static pages, and products, newest first; the public page URL is `item.fields.url`), `pagination` ([Tags](tags.md#6-public-site))                                                      |
+| `/tags`                                                         | `tags.html`                                                      | `items` (tags that have published content; `item.title` is the name, with `item.fields.url`, `item.fields.count`, `item.fields.description`) ([Tags](tags.md#6-public-site))                                                                                    |
+| `/search`                                                       | `search.html`                                                    | [Site search](search.md#3-the-search-page-search) (`fields.query`, `items`, `pagination`)                                                                                                                                                                       |
+| (inserted before `</body>` of each page)                        | `consent.html`                                                   | [Cookie consent banner](consent.md#3-building-the-banner-in-a-theme-templatesconsenthtml) (a fragment that does not extend `base.html`. `fields.consent`, `fields.categories`, `fields.message`. The script operates it with `data-aegis-consent-*` attributes) |
+| (inserted right after `<body>` of each page)                    | `notices.html`                                                   | [Notice banners](notices.md#3-building-notices-in-a-theme-templatesnoticeshtml) (a fragment that does not extend `base.html`. `fields.notices`. The script operates it with `data-aegis-notice-*` attributes)                                                   |
+| `/newsletter`, `/newsletter/confirm`, `/newsletter/unsubscribe` | `page.html`                                                      | [Newsletter](newsletter.md#3-the-sign-up-page) (`content_html` holds the description and form, confirm and unsubscribe buttons, and results. `slug` is `newsletter`)                                                                                            |
+| `/contact`, `/contact/{name}`                                   | `contact.html`                                                   | [Contact form](contact.md#21-the-theme-template-contacthtml) (`fields.form_html`, `fields.sent`, `fields.form`)                                                                                                                                                 |
+| `/articles/{slug}`                                              | `article.html`                                                   | `title`, `content_html`, `author`, `published_at`, `updated_at`, `fields`, `relations`, `comments` ([Comments](#6-comment-section))                                                                                                                             |
+| `/{slug}`                                                       | `page.html` (static page) or `article.html`                      | Same as above                                                                                                                                                                                                                                                   |
+| `/{slug}` (a static page whose `layout` is `blank`)             | `blank.html`                                                     | Same as above. A blank page with no header, footer, or width constraints (for landing pages). If you put another name in `layout` (e.g. `landing`), the theme's `landing.html` is used                                                                          |
+| Under `/forum`                                                  | `forum_index.html` / `forum_category.html` / `forum_thread.html` | [Forum](forum.md#2-public-site)                                                                                                                                                                                                                                 |
+| Not found / unpublished                                         | `404.html`                                                       | `title` (`Page Not Found`), `content_html` (a sentence of reason)                                                                                                                                                                                               |
+| `/products`                                                     | `products.html`                                                  | `title`, `items`, `pagination`, `theme_vars`                                                                                                                                                                                                                    |
+| `/products/{slug}`                                              | `product.html`                                                   | `title`, `content_html`, `fields` (`price` / `stock`, etc.), `relations`, `theme_vars` (including `reviews_*`; for the review section see [Member accounts 4.4](members.md#44-reviews-on-product-pages))                                                        |
+| `/cart`                                                         | `cart.html`                                                      | `theme_vars`                                                                                                                                                                                                                                                    |
+| `/orders/{id}`                                                  | `order.html`                                                     | `slug` (the order ID), `theme_vars`                                                                                                                                                                                                                             |
+| `/account`, `/account/login`, `/account/register`               | `account.html`                                                   | `slug` (`home` / `login` / `register`), `theme_vars` (`account_*`; [Member accounts 4.3](members.md#43-theme))                                                                                                                                                  |
 
 ### 3.1.1 The Top Page (`[theme].front_page`)
 
-| Value | What is shown at `/` | Article list |
-|---|---|---|
-| `"posts"` (default) | The article list (`index.html`) | Both `/` and `/articles`. Inside the template they cannot be told apart, so elements you want only on the top, like a hero, also appear on `/articles` |
-| `"template"` | The theme's `front.html`. For landing pages. The latest articles go into `items`, so you can use them for a "news" section and the like. If the theme has none, the same display as `index.html` | `/articles` |
-| `"page:<slug>"` | A static page (editable in Admin Studio; the "Blank LP" layout can be used too). If the page does not exist or is unpublished, the article list | `/articles` |
+| Value               | What is shown at `/`                                                                                                                                                                             | Article list                                                                                                                                           |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `"posts"` (default) | The article list (`index.html`)                                                                                                                                                                  | Both `/` and `/articles`. Inside the template they cannot be told apart, so elements you want only on the top, like a hero, also appear on `/articles` |
+| `"template"`        | The theme's `front.html`. For landing pages. The latest articles go into `items`, so you can use them for a "news" section and the like. If the theme has none, the same display as `index.html` | `/articles`                                                                                                                                            |
+| `"page:<slug>"`     | A static page (editable in Admin Studio; the "Blank LP" layout can be used too). If the page does not exist or is unpublished, the article list                                                  | `/articles`                                                                                                                                            |
 
 When using anything other than `"posts"`, make the theme navigation's link to the article list `{{ base_path }}/articles`.
 
@@ -136,19 +136,19 @@ A static page's layout is chosen in Admin Studio's editor ("Theme default" / "Bl
 
 Variables usable on all pages:
 
-| Variable | Description |
-|---|---|
-| `base_path` | The path where the site is published (e.g. `/cms`; an empty string when published at the root). **Always prefix links within the site and assets with it** |
-| `site_title` / `site_description` | The site name (the value changed in Admin Studio's **Settings › Site**, or else `[theme].site_title`) / `[theme].site_description` |
-| `title` / `slug` | The page's title and slug |
-| `content_type` | `index` / `article` / `page` / `error`, etc. |
-| `extra_css` | `[theme].custom_css` and CSS added by plugins |
-| `extra_head` | HTML to add to `<head>` (the site's favicon `<link rel="icon">` and what plugins added). **Always output `{{ extra_head \| safe }}` inside `<head>`** |
-| `theme_vars` | A dictionary of strings passed by plugins and the shop |
-| `locale` | The display language (`[theme].locale`, `en` / `ja`). Used for `<html lang="{{ locale }}">` |
-| `t("key", ...)` | A function that returns built-in text in the display language (`{{ t("nav.home") }}`; keys are in `crates/aegis-theme/src/messages.rs`). Write your own text directly in the theme. Do not use `t` as a loop variable (it would hide this function) |
-| `admin_url` | The URL of the link to Admin Studio (including `base_path` and `[server].admin_path`). **It is an empty string when the setting is not to show it**, so wrap it in `{% if admin_url %}...{% endif %}`. Do not write `/admin/` directly |
-| `show_powered_by` | Whether to show a notice such as "Powered by AegisCMS" in the footer (`[theme].show_powered_by`, default `true`). Wrap the notice in `{% if show_powered_by %}...{% endif %}` |
+| Variable                          | Description                                                                                                                                                                                                                                         |
+| --------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `base_path`                       | The path where the site is published (e.g. `/cms`; an empty string when published at the root). **Always prefix links within the site and assets with it**                                                                                          |
+| `site_title` / `site_description` | The site name (the value changed in Admin Studio's **Settings › Site**, or else `[theme].site_title`) / `[theme].site_description`                                                                                                                  |
+| `title` / `slug`                  | The page's title and slug                                                                                                                                                                                                                           |
+| `content_type`                    | `index` / `article` / `page` / `error`, etc.                                                                                                                                                                                                        |
+| `extra_css`                       | `[theme].custom_css` and CSS added by plugins                                                                                                                                                                                                       |
+| `extra_head`                      | HTML to add to `<head>` (the site's favicon `<link rel="icon">` and what plugins added). **Always output `{{ extra_head \| safe }}` inside `<head>`**                                                                                               |
+| `theme_vars`                      | A dictionary of strings passed by plugins and the shop                                                                                                                                                                                              |
+| `locale`                          | The display language (`[theme].locale`, `en` / `ja`). Used for `<html lang="{{ locale }}">`                                                                                                                                                         |
+| `t("key", ...)`                   | A function that returns built-in text in the display language (`{{ t("nav.home") }}`; keys are in `crates/aegis-theme/src/messages.rs`). Write your own text directly in the theme. Do not use `t` as a loop variable (it would hide this function) |
+| `admin_url`                       | The URL of the link to Admin Studio (including `base_path` and `[server].admin_path`). **It is an empty string when the setting is not to show it**, so wrap it in `{% if admin_url %}...{% endif %}`. Do not write `/admin/` directly              |
+| `show_powered_by`                 | Whether to show a notice such as "Powered by AegisCMS" in the footer (`[theme].show_powered_by`, default `true`). Wrap the notice in `{% if show_powered_by %}...{% endif %}`                                                                       |
 
 > [!NOTE]
 > Names that built-in features output (`aegis-consent-*`, `data-aegis-*`, `/_aegis/consent.js`, etc.) are replaced with the prefix of `[server].namespace` (default `cms`) just before the response is returned. In templates and CSS you can keep writing `aegis-`, and since the same replacement applies to HTML, CSS, and JS they do not disagree. In the browser's developer tools and on the site they are visible under names such as `cms-consent-*` ([configuration.md 4.6](configuration.md#46-making-it-harder-to-identify-the-cms-in-use)).
@@ -161,13 +161,13 @@ Paging (`pagination`): `page`, `per_page`, `total_items`, `total_pages`, `prev_u
 
 ### 3.3 Filters
 
-| Filter | Example | Result |
-|---|---|---|
-| `date_short` | `{{ published_at \| date_short }}` | `2026-10-23` (the first 10 characters) |
-| `datetime_short` | `{{ created_at \| datetime_short }}` | `2026-10-23 14:05` (to the minute; still UTC, with `T` turned into a space) |
-| `truncate(n)` | `{{ item.excerpt \| truncate(90) }}` | Cuts past n characters and appends `...` (counted in characters, so safe for Japanese too) |
-| `money(currency)` | `{{ fields.price \| money(theme_vars.currency) }}` | `¥1,780` (amounts are integers in the smallest unit) |
-| `safe` | `{{ content_html \| safe }}` | Do not escape |
+| Filter            | Example                                            | Result                                                                                     |
+| ----------------- | -------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| `date_short`      | `{{ published_at \| date_short }}`                 | `2026-10-23` (the first 10 characters)                                                     |
+| `datetime_short`  | `{{ created_at \| datetime_short }}`               | `2026-10-23 14:05` (to the minute; still UTC, with `T` turned into a space)                |
+| `truncate(n)`     | `{{ item.excerpt \| truncate(90) }}`               | Cuts past n characters and appends `...` (counted in characters, so safe for Japanese too) |
+| `money(currency)` | `{{ fields.price \| money(theme_vars.currency) }}` | `¥1,780` (amounts are integers in the smallest unit)                                       |
+| `safe`            | `{{ content_html \| safe }}`                       | Do not escape                                                                              |
 
 `safe` may be added only to `content_html` (already sanitized by the server), `extra_css`, and `extra_head`. Do not add it to values users entered, such as custom fields.
 
@@ -260,17 +260,17 @@ A summary of points to watch from breakages that actually happened.
 
 - **Let the header wrap, and do not let the site name wrap.** Japanese can break between characters, so when pushed by a horizontal menu the site name lines up vertically one character at a time.
 
-  ```css
-  .header-inner { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.75rem 1.5rem; }
-  .brand { white-space: nowrap; }
-  .nav { display: flex; flex-wrap: wrap; gap: 0.5rem 1rem; }
-  ```
+    ```css
+    .header-inner { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.75rem 1.5rem; }
+    .brand { white-space: nowrap; }
+    .nav { display: flex; flex-wrap: wrap; gap: 0.5rem 1rem; }
+    ```
 
 - **Wrap a grid's minimum width in `min(..., 100%)`.** `minmax(320px, 1fr)` overflows horizontally when the screen width minus margins is under 320px.
 
-  ```css
-  .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(320px, 100%), 1fr)); }
-  ```
+    ```css
+    .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(320px, 100%), 1fr)); }
+    ```
 
 - **Add `min-width: 0` to inputs placed side by side.** A `flex: 1` `<input>` has a minimum width set by the browser and pushes the neighboring button off the screen.
 - **Avoid fixed `width`s.** Use `max-width: 900px; width: 100%` rather than `width: 900px`. Put large decorative elements (such as background glows) inside a parent with `position: fixed` or `overflow: hidden`.
@@ -343,24 +343,25 @@ The dev server is split into the standalone lightweight crate `aegis-theme-dev` 
 - **Assets**: served at `/theme/assets/...` and `/themes/<id>/assets/...`.
 - **Samples for declarative queries (`queries`)**: when a template reads `queries.<name>` ([queries.md](queries.md)), write **query name → array of results** in `samples/queries.json`. It becomes the `queries` for all pages, not a page sample (saving reflects it in the next render; Theme Builder can render even unsaved content being edited). A name that does not exist is undefined, and reads such as `queries.x[0]` are rendering errors. Results must be arrays (aggregations are an array of rows, and a list with `select` omitted has the same shape as `items`), and anything else shows as an error. To make a scaffold from the site's definitions:
 
-  ```bash
-  cargo run -p aegis-theme-dev -- themes/my-theme --init-queries --queries-dir ../site/queries --schemas-dir ../site/schemas
-  ```
+    ```bash
+    cargo run -p aegis-theme-dev -- themes/my-theme --init-queries --queries-dir ../site/queries --schemas-dir ../site/schemas
+    ```
 
-  It does not run queries; it writes fixed values matching the definitions' shapes (3 rows for aggregations, up to 3 items for lists) to `samples/queries.json` and finishes (the server is not started). Results of existing queries are kept, and only missing names are added (`--force` recreates). The values have no meaning, so edit them by hand to fit the situations you want to check, such as empty results, long strings, and 0. `theme dev` does not issue real queries (because it uses no DB).
+    It does not run queries; it writes fixed values matching the definitions' shapes (3 rows for aggregations, up to 3 items for lists) to `samples/queries.json` and finishes (the server is not started). Results of existing queries are kept, and only missing names are added (`--force` recreates). The values have no meaning, so edit them by hand to fit the situations you want to check, such as empty results, long strings, and 0. `theme dev` does not issue real queries (because it uses no DB).
+
 - **Differences from the public site**: plugins' `on-render-page`, the data of the comment section, shop, and forum, and the `[theme]` settings (`theme_vars`, `custom_css`) are not reflected. Write them in `samples/*.json` if needed. Do the final check on a real site.
 - **Listening and display language**: the default is `127.0.0.1:8090` (`--host`, `--port`). The display language can be specified with `--locale <LOCALE>` (`-l`, default `en`; e.g. `-l ja`). Templates are a development feature that can run arbitrary code, so do not expose it to a public network.
 - **Error location**: when it fails, you can tell which line of which template (when it happens beyond an `{% include %}` or `{% extends %}`, the file and line beyond).
 - **JSON API** (for the Theme Builder UI):
-  - `GET /__dev/api/theme`: the manifest, templates, and list of samples
-  - `GET /__dev/api/samples/<name>`: the rendering data
-  - `GET /__dev/api/check`: renders all samples and returns failures (`message`, `template`, `line` in `error`). Usable in CI
-  - `GET /__dev/api/package/validate`: validates conformance as a theme package (required manifest items, base.html, signature status)
-  - `POST /__dev/api/package/sign`: computes the theme package digest and generates and saves an Ed25519 signature file (`signature.json`) (automatic key pair generation or specifying a private key)
-  - `GET /__dev/api/package/export`: downloads a ZIP archive for distribution (excluding `samples/` and hidden files)
-  - `GET /__dev/api/files`, `GET`, `PUT`, `DELETE /__dev/api/files/<path>`, `POST /__dev/api/rename`: list, read, save, delete, and rename files. The targets are `theme.json` (cannot be deleted or renamed) and text files under `templates/`, `samples/`, and `assets/` (`.html`, `.css`, `.js`, `.json`, `.svg`, etc., up to 1MiB). `..`, hidden files, and anything outside the folder are rejected
-  - `POST /__dev/api/render`: renders reflecting unsaved content (`templates` as name → contents, `samples` as name → JSON, and optionally `block` for a block name), and returns the list of available `blocks`. It writes nothing
-  - Writes (`PUT`, `POST`) are available only when listening on loopback. The header `x-aegis-dev` is required, and requests whose `Host` is not a loopback name are rejected (to prevent writes from other sites' pages and DNS rebinding). CORS is not allowed
+    - `GET /__dev/api/theme`: the manifest, templates, and list of samples
+    - `GET /__dev/api/samples/<name>`: the rendering data
+    - `GET /__dev/api/check`: renders all samples and returns failures (`message`, `template`, `line` in `error`). Usable in CI
+    - `GET /__dev/api/package/validate`: validates conformance as a theme package (required manifest items, base.html, signature status)
+    - `POST /__dev/api/package/sign`: computes the theme package digest and generates and saves an Ed25519 signature file (`signature.json`) (automatic key pair generation or specifying a private key)
+    - `GET /__dev/api/package/export`: downloads a ZIP archive for distribution (excluding `samples/` and hidden files)
+    - `GET /__dev/api/files`, `GET`, `PUT`, `DELETE /__dev/api/files/<path>`, `POST /__dev/api/rename`: list, read, save, delete, and rename files. The targets are `theme.json` (cannot be deleted or renamed) and text files under `templates/`, `samples/`, and `assets/` (`.html`, `.css`, `.js`, `.json`, `.svg`, etc., up to 1MiB). `..`, hidden files, and anything outside the folder are rejected
+    - `POST /__dev/api/render`: renders reflecting unsaved content (`templates` as name → contents, `samples` as name → JSON, and optionally `block` for a block name), and returns the list of available `blocks`. It writes nothing
+    - Writes (`PUT`, `POST`) are available only when listening on loopback. The header `x-aegis-dev` is required, and requests whose `Host` is not a loopback name are rejected (to prevent writes from other sites' pages and DNS rebinding). CORS is not allowed
 
 ### Theme Builder (Editor + Live Preview)
 
@@ -391,14 +392,14 @@ Files are on the left, the editor (with syntax coloring for Jinja, HTML, CSS, an
 
 ### Pages and Widths to Check
 
-| Page | Example URL (sample shop) |
-|---|---|
-| Top / article list | `/`, `/articles` |
-| An article (with headings and lists) | `/articles/how-to-brew-pour-over` |
-| A static page | `/about` |
-| Product list / product | `/products`, `/products/ethiopia-yirgacheffe` |
-| Cart (empty / with items) | `/cart` |
-| 404 | `/no-such-page` |
+| Page                                 | Example URL (sample shop)                     |
+| ------------------------------------ | --------------------------------------------- |
+| Top / article list                   | `/`, `/articles`                              |
+| An article (with headings and lists) | `/articles/how-to-brew-pour-over`             |
+| A static page                        | `/about`                                      |
+| Product list / product               | `/products`, `/products/ethiopia-yirgacheffe` |
+| Cart (empty / with items)            | `/cart`                                       |
+| 404                                  | `/no-such-page`                               |
 
 Check at widths **320 / 360 / 390px** (smartphones) and **1280px** (PC). Browser developer tools are fine, and with Playwright or the like you can compare the following values to check mechanically whether horizontal scrolling appears.
 
