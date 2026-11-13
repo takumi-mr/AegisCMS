@@ -1,186 +1,188 @@
-[← ドキュメント一覧に戻る](README.ja.md)
+[← Back to the documentation index](README.md)
 
-# 通知（メール）
+**English** | [日本語](notifications.ja.md)
 
-注文の受付・入金確認・発送・取り消しを顧客と運営者に、管理者のログインやログインのロックなどの監査イベントを運営者に、メールで知らせます（`[notifications]`）。メールは外部の SMTP サーバー（自社のメールサーバー、Amazon SES、SendGrid、Google Workspace など）から送ります。
+# Notifications (Email)
 
-配信方法は「チャネル」として差し替えられる作りで、メール（`email`）とサーバーのログ（`log`）が組み込みです。Slack や SMS などは、Wasm プラグインをチャネルとして加えられます（`plugin:<名前>`。[5. 配信方法を加える](#5-配信方法を加える)）。
+Notifies customers and operators by email of order receipt, payment confirmation, shipping, and cancellation, and notifies operators of audit events such as administrator logins and login lockouts (`[notifications]`). Email is sent from an external SMTP server (your own mail server, Amazon SES, SendGrid, Google Workspace, etc.).
 
-メールはプレーンテキストと HTML の両方を送ります（[3.1](#31-html-メール)）。送信待ちは DB に保存するので、サーバーを再起動しても失われません（[4](#4-配信と信頼性)）。テスト送信・テンプレートの編集・送れなかった通知の再送は Admin Studio の **Settings › Notifications** からできます（[6](#6-admin-studio-から管理する)）。
+Delivery methods are built to be swappable as "channels", and email (`email`) and the server log (`log`) are built in. For Slack, SMS, and the like, you can add a Wasm plugin as a channel (`plugin:<name>`; [5. Adding delivery methods](#5-adding-delivery-methods)).
+
+Email is sent as both plain text and HTML ([3.1](#31-html-email)). The outbox is stored in the DB, so it is not lost even if the server restarts ([4](#4-delivery-and-reliability)). Test sends, editing templates, and resending failed notifications can be done from Admin Studio's **Settings › Notifications** ([6](#6-managing-from-admin-studio)).
 
 ```text
- EC（注文の作成・状態の変化）          監査ログ（ルールに合うイベント。2.1）
-        │  NotificationEvent { 種類: "order.placed" / "audit.session.create", 宛先, 値 }
+ E-commerce (order creation, status changes)          Audit log (events matching rules; 2.1)
+        │  NotificationEvent { kind: "order.placed" / "audit.session.create", recipient, values }
         ▼
- NotificationService（aegis-notify）
-        │  宛先ごとにテンプレートから件名・本文（テキスト + HTML）を作る（<種類>.subject / .txt / .html）
+ NotificationService (aegis-notify)
+        │  Builds the subject and body (text + HTML) from templates per recipient (<kind>.subject / .txt / .html)
         ▼
- 送信待ち（DB の _aegis_notification_queue。宛先・チャネルごとに 1 件）
-        │  ワーカーが送る。一時的な失敗は時間を空けて再試行、送れなければ「送れなかった通知」として残す
-        ├──▶ email チャネル ── SMTP サーバー ──▶ 顧客 / staff_recipients
-        ├──▶ log チャネル   ── サーバーのログ（aegis::notify）
-        └──▶ plugin:<名前>  ── Wasm プラグインの send-notification フック ──▶ Slack / SMS など
+ Outbox (the DB's _aegis_notification_queue. One entry per recipient and channel)
+        │  A worker sends. Transient failures are retried at intervals; ones that cannot be sent remain as "failed notifications"
+        ├──▶ email channel ── SMTP server ──▶ customers / staff_recipients
+        ├──▶ log channel   ── the server log (aegis::notify)
+        └──▶ plugin:<name> ── a Wasm plugin's send-notification hook ──▶ Slack / SMS, etc.
         │
-        └── 結果を監査ログに記録（notification.send）
+        └── the result is recorded in the audit log (notification.send)
 ```
 
 ---
 
-## 1. 有効にする
+## 1. Enabling It
 
 ```toml
 [notifications]
 enabled = true
 channels = ["email"]
-locale = "ja"                    # 組み込みテンプレートの言語（en / ja）
+locale = "en"                    # language of the built-in templates (en / ja)
 
 [notifications.email]
 smtp_host = "smtp.example.com"
-smtp_port = 587                  # 省略（0）なら tls に応じて 587 / 465 / 25
+smtp_port = 587                  # if omitted (0), 587 / 465 / 25 depending on tls
 tls = "starttls"                 # starttls / tls / none
 username = "apikey"
-# password は設定ファイルに書かず、環境変数 AEGIS_SMTP_PASSWORD で渡せる
+# password is not written in the config file; it can be passed with the environment variable AEGIS_SMTP_PASSWORD
 from = "Aegis Shop <shop@example.com>"
 reply_to = "support@example.com"
-staff_recipients = ["orders@example.com"]   # 新しい注文・取り消しの知らせ先
+staff_recipients = ["orders@example.com"]   # where to send notices of new orders and cancellations
 ```
 
-設定したら、テスト通知で SMTP サーバーへの接続と認証を確かめます。
+After configuring, check the connection and authentication to the SMTP server with a test notification.
 
 ```bash
 aegis-server -c config/production.toml notify test --to you@example.com
-# email: sent "【Aegis Shop】テスト通知"
+# email: sent "[Aegis Shop] Test notification"
 ```
 
-失敗した場合は SMTP サーバーの応答（`535 Authentication failed` など）が表示されます。サーバーの起動後は Admin Studio の **Settings › Notifications** からもテスト送信できます（[6](#6-admin-studio-から管理する)）。
+On failure, the SMTP server's response (such as `535 Authentication failed`) is shown. After the server is running, you can also test-send from Admin Studio's **Settings › Notifications** ([6](#6-managing-from-admin-studio)).
 
-- 設定項目の一覧は [設定リファレンス](configuration.md#213-notifications--通知メール) を参照してください。
-- SMTP サーバーの無い開発環境では `channels = ["log"]` にすると、通知の件名と本文をサーバーのログに出します。
-- 本文中の URL（`site_url` / 運営者向けの管理画面の URL）は `[commerce].public_url` から作ります。注文確認ページの URL は注文したときのリクエストのホストから作ります。
-- 差出人のドメインの SPF / DKIM / DMARC は SMTP サーバー側で設定してください（設定が無いと迷惑メールに分類されやすくなります）。
+- For the list of settings, see the [Configuration reference](configuration.md#213-notifications--notifications-email).
+- In a development environment without an SMTP server, `channels = ["log"]` outputs the notification subject and body to the server log.
+- URLs in the body (`site_url` and the admin screen URL for operators) are built from `[commerce].public_url`. The URL of the order confirmation page is built from the request host at the time of ordering.
+- Set up SPF / DKIM / DMARC for the sender's domain on the SMTP server side (without them, mail is more likely to be classified as spam).
 
 ---
 
-## 2. 送る通知
+## 2. Notifications Sent
 
-| 種類 | いつ | 宛先 | 主な内容 |
+| Kind | When | Recipient | Main content |
 | --- | --- | --- | --- |
-| `order.placed` | 注文の受付。`manual`（銀行振込など）・0 円の注文は注文したとき、`stripe` は支払いが済んだとき | 顧客・運営者 | 注文内容、お届け先、支払い方法の案内（支払い待ちのとき）、注文確認ページの URL（注文したときのみ） |
-| `order.paid` | 管理者が入金を確認した（`manual`） | 顧客 | 入金の確認 |
-| `order.shipped` | 発送した | 顧客 | 発送の知らせ。状態を変えるときのメモ（配送業者・追跡番号など）を本文に入れる |
-| `order.cancelled` | 取り消した（管理者の操作・支払い期限切れ） | 顧客・運営者 | 取り消しの理由（`reason`）、支払い済みなら返金の案内 |
-| `stock.low` | 注文で商品・バリエーションの在庫が閾値に達した | 運営者 | 商品名・ID、残数、閾値、注文番号 |
-| `account.verify` | Admin Studio からアカウント登録を申し込んだ（[認証 7](authentication.md#7-アカウント登録)） | 申し込んだメールアドレス | 確認リンク（`verify_url`）、有効期限、ユーザー名 |
-| `member.password_reset` | 購入者が「パスワードを忘れた」から再設定を申し込んだ（[会員アカウント 5](members.md#5-パスワードの再設定とメールの確認)）。登録のないアドレス・停止中の顧客・同じ宛先へ 1 時間に 4 通目以降は送らない | 申し込んだメールアドレスの顧客 | 名前、再設定リンク（`reset_url`。`[commerce].public_url` から作る）、有効時間（`expires_hours`） |
-| `member.verify` | 購入者が会員登録した（`[members].require_email_verification = true` のとき。確認メールの再送を含む。[会員アカウント 5](members.md#5-パスワードの再設定とメールの確認)）。登録済みのアドレス・同じ宛先へ 1 時間に 4 通目以降は送らない | 登録したメールアドレスの顧客 | 名前、確認リンク（`verify_url`。`[commerce].public_url` から作る）、有効時間（`expires_hours`。48） |
-| `account.registered` | 確認リンクが開かれ、アカウントができた | 運営者 | ユーザー名・表示名・メールアドレス・ロール、承認が必要か（`pending_approval`） |
-| `content.published` | 予約公開（`status: "scheduled"`）のコンテンツを、公開日時になってサーバーが公開した（[予約公開](theme_and_publishing_guide.md#予約公開スケジュール公開)） | 著者 | タイトル・種類、公開ページの URL（`content_url`）、公開予定日時 |
-| `content.unpublished` | 公開中のコンテンツを、非公開日時（`unpublish_at`）になってサーバーが非公開にした（アーカイブ） | 著者 | タイトル・種類、非公開日時 |
-| `content.submitted` | コンテンツがレビュー待ち（`pending`）になった（[レビュー](theme_and_publishing_guide.md#レビュー寄稿者の下書きを承認して公開する)） | `editor` 以上の有効なユーザー（メールアドレスのある人。頼んだ本人を除く） | タイトル・種類、頼んだ人、メモ、Admin Studio のレビュー待ちの一覧を開く URL（`review_url`） |
-| `content.approved` | レビュー待ちを `editor` 以上が公開・予約公開した | 著者 | タイトル・種類、承認した人、メモ、公開ページの URL（公開したとき）、予約公開ならその日時 |
-| `content.returned` | レビュー待ちを著者以外が下書きに戻した（差し戻し） | 著者 | タイトル・種類、差し戻した人、メモ（理由）、Admin Studio を開く URL（`edit_url`） |
-| `comment.posted` | 承認済みのコメントが付いた（承認を待たずに公開されたとき。[コメント](comments.md)） | 著者（`[comments].notify_author`） | 投稿者の名前、本文、コメントの URL |
-| `comment.pending` | 承認待ちのコメントが来た | 著者（`notify_author`）・運営者（`notify_staff`） | 投稿者の名前・メールアドレス・IP アドレス、本文、Admin Studio の **Comments** を開く URL（`moderation_url`） |
-| `comment.replied` | 自分のコメントへの返信が公開された（読者の返信・Admin Studio からの返信。承認待ちの返信は承認したとき） | 返信先のコメントの投稿者（投稿時に「返信をメールで知らせる」を選んだ人だけ） | 返信した人の名前と本文、自分のコメント、返信の URL、通知を止めるリンク（`unsubscribe_url`） |
-| `comment.approved` | 自分のコメントが承認された（承認待ち・スパムから Admin Studio で承認したとき） | そのコメントの投稿者（投稿時に「返信・承認をメールで知らせる」を選んだ人だけ） | 自分のコメント、コメントの URL、通知を止めるリンク（`unsubscribe_url`） |
-| `forum.posted` | 掲示板に承認済みのスレッド・返信が投稿された | 運営者（`[forum].notify_staff`） | カテゴリ、スレッド名、投稿者の名前、本文、スレッドの URL（`thread_url`） |
-| `forum.pending` | 掲示板に承認待ちのスレッド・返信が投稿された | 運営者（`[forum].notify_staff`） | カテゴリ、スレッド名、投稿者の名前・IP アドレス、本文、Admin Studio の **Forum** を開く URL（`moderation_url`） |
-| `forum.reported` | 掲示板のスレッド・投稿が通報された | 運営者（`[forum].notify_staff`） | 通報の対象（`target_type` / `target_id`）、理由、通報元の IP アドレス、Admin Studio の **Forum** を開く URL（`moderation_url`） |
-| `contact.received` | 問い合わせフォームから届いた（スパムを除く） | 運営者（`[contact].notify_staff`） | フォーム、入力されたすべての項目、IP アドレス、受信箱を開く URL（`admin_url`）（[問い合わせフォーム](contact.md#4-通知)） |
-| `contact.auto_reply` | 同上 | 送信した人（フォームの `auto_reply`） | 受け付けたことと、入力した内容 |
-| `newsletter.confirm` | ニュースレターの購読を申し込んだ（[ニュースレター](newsletter.md)） | 申し込んだメールアドレス | 購読を確定するリンク（`confirm_url`）、有効期限 |
-| `newsletter.issue` | 管理者が公開中のコンテンツを購読者に送った | 購読者（1 人ずつ） | タイトル・要約・ページの URL（`url`）、配信を止めるリンク（`unsubscribe_url`） |
-| `test` | `aegis-server notify test` | 指定したアドレス | テスト |
-| `audit.<操作>` | 監査ログのイベントが `[[notifications.audit.rules]]` に合った（[2.1](#21-監査イベントの通知)） | 運営者（またはルールの `recipients`） | 操作・結果・ユーザー・IP アドレス・ブラウザ・詳細 |
+| `order.placed` | Order receipt. For `manual` (bank transfer, etc.) and zero-amount orders, when ordered; for `stripe`, when payment is complete | Customer, operators | Order contents, shipping address, payment instructions (when awaiting payment), the order confirmation page URL (only when ordered) |
+| `order.paid` | An administrator confirmed payment (`manual`) | Customer | Payment confirmation |
+| `order.shipped` | Shipped | Customer | Shipping notice. The note entered when changing the status (carrier, tracking number, etc.) goes into the body |
+| `order.cancelled` | Cancelled (administrator operation, payment expiry) | Customer, operators | The reason for cancellation (`reason`), and refund instructions if paid |
+| `stock.low` | An order brought a product's or variant's inventory to the threshold | Operators | Product name and ID, remaining count, threshold, order number |
+| `account.verify` | Applied for account registration from Admin Studio ([Authentication 7](authentication.md#7-account-registration)) | The applying email address | Confirmation link (`verify_url`), expiry, username |
+| `member.password_reset` | A purchaser applied for a reset from "Forgot password" ([Member accounts 5](members.md#5-password-reset-and-email-confirmation)). Not sent for unregistered addresses, suspended customers, or the 4th and later to the same recipient within an hour | The customer of the applying email address | Name, reset link (`reset_url`; built from `[commerce].public_url`), validity time (`expires_hours`) |
+| `member.verify` | A purchaser signed up as a member (when `[members].require_email_verification = true`; including resending the confirmation email; [Member accounts 5](members.md#5-password-reset-and-email-confirmation)). Not sent for registered addresses or the 4th and later to the same recipient within an hour | The customer of the registered email address | Name, confirmation link (`verify_url`; built from `[commerce].public_url`), validity time (`expires_hours`; 48) |
+| `account.registered` | The confirmation link was opened and an account was created | Operators | Username, display name, email address, role, whether approval is needed (`pending_approval`) |
+| `content.published` | The server published content scheduled for publication (`status: "scheduled"`) when the publication time arrived ([Scheduled publishing](theme_and_publishing_guide.md#scheduled-publishing)) | Author | Title and kind, the public page's URL (`content_url`), scheduled publication time |
+| `content.unpublished` | The server unpublished (archived) published content when the unpublish time (`unpublish_at`) arrived | Author | Title and kind, unpublish time |
+| `content.submitted` | Content became awaiting review (`pending`) ([Review](theme_and_publishing_guide.md#review-approving-and-publishing-a-contributors-draft)) | Active users of `editor` and above (those with an email address; excluding the requester) | Title and kind, the requester, note, the URL to open Admin Studio's list awaiting review (`review_url`) |
+| `content.approved` | `editor` or above published or scheduled an item awaiting review | Author | Title and kind, the approver, note, the public page's URL (when published), and the time if scheduled |
+| `content.returned` | Someone other than the author reverted an item awaiting review to draft (sent back) | Author | Title and kind, who sent it back, note (the reason), the URL to open Admin Studio (`edit_url`) |
+| `comment.posted` | An approved comment was posted (when published without waiting for approval; [Comments](comments.md)) | Author (`[comments].notify_author`) | The poster's name, body, the comment's URL |
+| `comment.pending` | A comment awaiting approval arrived | Author (`notify_author`), operators (`notify_staff`) | The poster's name, email address, and IP address, body, the URL to open Admin Studio's **Comments** (`moderation_url`) |
+| `comment.replied` | A reply to your own comment was published (a reader's reply or a reply from Admin Studio; for a reply awaiting approval, when approved) | The poster of the replied-to comment (only those who chose "notify me of replies by email" when posting) | The replier's name and body, your own comment, the reply's URL, the link to stop notifications (`unsubscribe_url`) |
+| `comment.approved` | Your own comment was approved (when approved in Admin Studio from awaiting approval or spam) | That comment's poster (only those who chose "notify me of replies and approval by email" when posting) | Your own comment, the comment's URL, the link to stop notifications (`unsubscribe_url`) |
+| `forum.posted` | An approved thread or reply was posted to the forum | Operators (`[forum].notify_staff`) | Category, thread name, poster's name, body, the thread's URL (`thread_url`) |
+| `forum.pending` | A thread or reply awaiting approval was posted to the forum | Operators (`[forum].notify_staff`) | Category, thread name, poster's name and IP address, body, the URL to open Admin Studio's **Forum** (`moderation_url`) |
+| `forum.reported` | A forum thread or post was reported | Operators (`[forum].notify_staff`) | The report's target (`target_type` / `target_id`), reason, the reporter's IP address, the URL to open Admin Studio's **Forum** (`moderation_url`) |
+| `contact.received` | One arrived from a contact form (excluding spam) | Operators (`[contact].notify_staff`) | The form, all entered fields, the IP address, the URL to open the inbox (`admin_url`) ([Contact form](contact.md#4-notifications)) |
+| `contact.auto_reply` | Same as above | The sender (the form's `auto_reply`) | That it was received, and what was entered |
+| `newsletter.confirm` | Applied for a newsletter subscription ([Newsletter](newsletter.md)) | The applying email address | The link to confirm the subscription (`confirm_url`), expiry |
+| `newsletter.issue` | An administrator sent published content to subscribers | Subscribers (one by one) | Title, summary, the page's URL (`url`), the link to stop delivery (`unsubscribe_url`) |
+| `test` | `aegis-server notify test` | The specified address | A test |
+| `audit.<operation>` | An audit log event matched `[[notifications.audit.rules]]` ([2.1](#21-notifying-audit-events)) | Operators (or the rule's `recipients`) | Operation, result, user, IP address, browser, details |
 
-- `stripe` で決済ページに進んだまま支払われなかった注文（期限切れ・失敗で取り消し）は、受付を知らせていないので取り消しも知らせません。
-- `completed`（完了）は知らせません。
-- `content.published` / `content.unpublished` の宛先は著者（コンテンツの `author_id` のユーザー）のメールアドレスです。著者がいない・メールアドレスが無い・無効なアカウントなら送りません。Admin Studio から手で公開した場合は送りません（公開した本人が知っているため）。
-- `content.approved` / `content.returned` の宛先の著者も `content.published` と同じ条件です（著者が自分で操作した場合も送りません）。`content.submitted` は `[notifications.email].staff_recipients`（運営者）ではなく、ユーザーアカウントのロールで宛先を決めます（承認できるのは `editor` 以上のため）。
-- 運営者にもすべての予約公開を知らせたい場合や、公開の失敗を知りたい場合は、監査イベントの通知（[2.1](#21-監査イベントの通知)）で `action = "content.publish"`（`outcomes = ["failure"]` で失敗だけ）を使います。
-- `comment.*` の宛先の著者はコンテンツの `author_id` のユーザーです（`content.published` と同じ条件）。スパムと判定したコメントは誰にも知らせません。`comment.replied` は返信した人と返信先が同じメールアドレスなら送りません。`comment.approved` は、投稿者が通知を止めた後・Admin Studio のユーザーが書いた返信には送りません（承認を待たずに公開されたコメントにも送りません。投稿した本人がその場で見ているため）。
-- `[notifications].disabled_events = ["order.shipped"]` のように、種類ごとに止められます。
-- 注文確認ページのトークンはサーバーに保存していない（ハッシュのみ）ため、URL を本文に入れられるのは注文したときの `order.placed` だけです。
+- For an order with `stripe` that went to the payment page but was never paid (cancelled by expiry or failure), receipt was never announced, so the cancellation is not announced either.
+- `completed` is not notified.
+- The recipient of `content.published` / `content.unpublished` is the email address of the author (the user of the content's `author_id`). It is not sent if there is no author, no email address, or the account is disabled. It is not sent when published by hand from Admin Studio (because the person who published knows).
+- The author who is the recipient of `content.approved` / `content.returned` has the same conditions as `content.published` (it is not sent when the author did the operation themselves). `content.submitted` decides recipients by user account role, not by `[notifications.email].staff_recipients` (operators) (because approval is for `editor` and above).
+- If you want to notify operators of all scheduled publications, or want to know about failures to publish, use an audit event notification ([2.1](#21-notifying-audit-events)) with `action = "content.publish"` (`outcomes = ["failure"]` for failures only).
+- The author who is the recipient of `comment.*` is the user of the content's `author_id` (same conditions as `content.published`). Comments judged to be spam notify no one. `comment.replied` is not sent if the replier and the replied-to party have the same email address. `comment.approved` is not sent after the poster stopped notifications or for replies written by Admin Studio users (nor for comments published without waiting for approval, because the poster saw it on the spot).
+- You can stop by kind, as in `[notifications].disabled_events = ["order.shipped"]`.
+- The order confirmation page's token is not stored on the server (hash only), so the only place a URL can be put in the body is `order.placed` at the time of ordering.
 
-### 2.1 監査イベントの通知
+### 2.1 Notifying Audit Events
 
-監査ログ（[docs/audit.md](audit.md)）に記録されるイベントのうち、`[[notifications.audit.rules]]` のどれかに合うものを運営者に知らせます。ルールは上から順に見て、最初に合ったもので送ります。`[audit].enabled = true` が必要です（出力先 `sinks` の設定は問いません）。
+Of the events recorded in the audit log ([docs/audit.md](audit.md)), those matching any of `[[notifications.audit.rules]]` are notified to operators. Rules are checked from the top, and the first match is used for sending. `[audit].enabled = true` is required (the `sinks` setting does not matter).
 
 ```toml
-# 管理者のログイン
+# Administrator login
 [[notifications.audit.rules]]
-title = "管理者がログインしました"   # 件名・本文の見出し（省略すると操作と結果から作る）
+title = "An administrator logged in"   # heading of the subject and body (if omitted, made from the operation and result)
 action = "session.create"
 outcomes = ["success"]
 roles = ["admin"]
 
-# ログインのロック（失敗が [auth.login_rate_limit] の上限に達した）
+# Login lockout (failures reached the [auth.login_rate_limit] limit)
 [[notifications.audit.rules]]
 action = "session.create"
 details = { locked = "*" }
 
-# 権限の無い操作。宛先を変え、1 時間に 5 通まで
+# Operations without permission. Change the recipient, up to 5 per hour
 [[notifications.audit.rules]]
 action = "access.denied"
 recipients = ["security@example.com"]
 max_per_hour = 5
 ```
 
-| キー | 説明 |
+| Key | Description |
 | --- | --- |
-| `action` | 監査ログの操作（`session.create`、`access.denied`、`user.update`、`theme.switch` など。必須） |
-| `outcomes` | 結果（`success` / `failure` / `denied`）。省略するとすべて |
-| `roles` | 操作者のロール（`admin` など）。操作者の分からないイベント（失敗したログインなど）は、指定すると合わない |
-| `details` | 監査ログの `details` の値。`"*"` はキーがあれば何でもよい |
-| `title` | 件名・本文の見出し |
-| `recipients` | 宛先のメールアドレス。省略すると `[notifications.email].staff_recipients` |
-| `max_per_hour` | 1 時間あたりの上限（既定 20、0 で無制限）。総当たり攻撃などで通知が殺到しないように、超えた分は送らずログに警告を出す |
+| `action` | The audit log operation (`session.create`, `access.denied`, `user.update`, `theme.switch`, etc.; required) |
+| `outcomes` | Results (`success` / `failure` / `denied`). If omitted, all |
+| `roles` | The actor's role (`admin`, etc.). Events whose actor is unknown (such as failed logins) do not match if this is specified |
+| `details` | Values of the audit log's `details`. `"*"` means anything as long as the key exists |
+| `title` | Heading of the subject and body |
+| `recipients` | Recipient email addresses. If omitted, `[notifications.email].staff_recipients` |
+| `max_per_hour` | Upper limit per hour (default 20, 0 is unlimited). So that notifications do not flood in during brute-force attacks and the like, the excess is not sent and a warning is logged |
 
-よく使う条件:
+Commonly used conditions:
 
-| 知りたいこと | 条件 |
+| What you want to know | Condition |
 | --- | --- |
-| 管理者のログイン | `action = "session.create"`, `outcomes = ["success"]`, `roles = ["admin"]` |
-| ログインのロック（ロックがかかった時点の 1 回） | `action = "session.create"`, `details = { locked = "*" }` |
-| ロック中のログイン試行（試行のたび） | `action = "session.create"`, `outcomes = ["denied"]`, `details = { error = "rate_limited" }` |
-| パスワードの誤り | `action = "session.create"`, `outcomes = ["failure"]`, `details = { error = "invalid_password" }` |
-| 権限の無い操作（401 / 403） | `action = "access.denied"` |
-| ユーザーの作成・変更・削除 | `action = "user.create"` / `"user.update"` / `"user.delete"` |
-| 予約公開・予約非公開（すべて） | `action = "content.publish"` / `"content.unpublish"` |
-| 予約公開の失敗 | `action = "content.publish"`, `outcomes = ["failure"]` |
-| 公開サイトのテーマの切り替え | `action = "theme.switch"` |
-| プラグインのエラー | `action = "plugin.error"` |
+| Administrator login | `action = "session.create"`, `outcomes = ["success"]`, `roles = ["admin"]` |
+| Login lockout (once, at the moment the lock is applied) | `action = "session.create"`, `details = { locked = "*" }` |
+| Login attempts during a lockout (on every attempt) | `action = "session.create"`, `outcomes = ["denied"]`, `details = { error = "rate_limited" }` |
+| Wrong password | `action = "session.create"`, `outcomes = ["failure"]`, `details = { error = "invalid_password" }` |
+| Operations without permission (401 / 403) | `action = "access.denied"` |
+| Creating, changing, deleting users | `action = "user.create"` / `"user.update"` / `"user.delete"` |
+| Scheduled publication and unpublication (all) | `action = "content.publish"` / `"content.unpublish"` |
+| Failed scheduled publication | `action = "content.publish"`, `outcomes = ["failure"]` |
+| Switching the public site's theme | `action = "theme.switch"` |
+| Plugin errors | `action = "plugin.error"` |
 
-- 通知の種類は `audit.<操作>`（`audit.session.create` など）です。`disabled_events` で止められ、テンプレートは `audit.session.create.subject` → `audit.session.subject` → `audit.subject` の順に探します（組み込みは `audit` のみ）。テンプレートには監査イベント（`audit.action` / `audit.outcome` / `audit.actor` / `audit.ip` / `audit.user_agent` / `audit.details` など）と `title` を渡します。
-- 通知の配信結果（`notification.send`）は通知しません（配信の失敗が通知を呼び続けないように）。
-- 上限の数はサーバーのメモリ上で数えます（再起動でリセット、サーバーごと）。
+- The notification kind is `audit.<operation>` (such as `audit.session.create`). It can be stopped with `disabled_events`, and templates are looked up in the order `audit.session.create.subject` → `audit.session.subject` → `audit.subject` (only `audit` is built in). The audit event (`audit.action` / `audit.outcome` / `audit.actor` / `audit.ip` / `audit.user_agent` / `audit.details`, etc.) and `title` are passed to the template.
+- Notification delivery results (`notification.send`) are not notified (so that delivery failures do not keep triggering notifications).
+- The count toward the limit is kept in the server's memory (reset on restart, per server).
 
 ---
 
-## 3. テンプレート
+## 3. Templates
 
-件名と本文は [MiniJinja](https://docs.rs/minijinja)（Jinja2 互換）のプレーンテキストのテンプレートです。組み込みのものは `crates/aegis-notify/src/templates/<言語>/` にあります。
+Subjects and bodies are plain-text templates of [MiniJinja](https://docs.rs/minijinja) (Jinja2-compatible). The built-in ones are in `crates/aegis-notify/src/templates/<language>/`.
 
-テンプレートは次の順に探します。
+Templates are looked up in the following order.
 
-1. Admin Studio の **Settings › Notifications** で編集したもの（DB の `_aegis_settings` に `notification_template:<名前>` として保存。[6](#6-admin-studio-から管理する)）
-2. `[notifications].templates_dir` のファイル
-3. 組み込み（`locale` の言語）
+1. Those edited in Admin Studio's **Settings › Notifications** (stored in the DB's `_aegis_settings` as `notification_template:<name>`; [6](#6-managing-from-admin-studio))
+2. Files in `[notifications].templates_dir`
+3. Built-in (in the `locale` language)
 
 ```text
 notifications/
-├── order.shipped.subject         # 件名（1 行。改行は空白にまとめる）
-├── order.shipped.txt             # 本文
-├── order.placed.staff.subject    # 運営者向け（無ければ顧客向けと同じものを使う）
+├── order.shipped.subject         # subject (one line. Line breaks are collapsed into spaces)
+├── order.shipped.txt             # body
+├── order.placed.staff.subject    # for operators (if absent, the same one as for customers is used)
 ├── order.placed.staff.txt
-└── _summary.txt                  # 注文内容の共通部分（{% include "_summary.txt" %}）
+└── _summary.txt                  # shared part of order contents ({% include "_summary.txt" %})
 ```
 
 ```jinja
 {# notifications/order.shipped.txt #}
-{{ order.customer_name }} 様
+Dear {{ order.customer_name }},
 
-ご注文 {{ order.number }} を発送しました。
+Your order {{ order.number }} has shipped.
 {% if order.note %}
 {{ order.note }}
 {% endif %}
@@ -189,92 +191,92 @@ notifications/
 {% include "_footer.txt" %}
 ```
 
-テンプレートで使える値:
+Values usable in templates:
 
-| 値 | 内容 |
+| Value | Description |
 | --- | --- |
-| `site_name` | サイト名（起動時の値。Admin Studio の **Settings › Site** で変えた名前があればそれ、無ければ `[theme].site_title`） |
-| `site_url` / `admin_url` | `[commerce].public_url` と、その `/admin/`（未設定なら空） |
-| `kind` | 通知の種類 |
-| `order.number` / `order.status` / `order.created_at` / `order.paid_at` / `order.note` | 注文番号・状態・日時・管理者のメモ |
+| `site_name` | The site name (the value at startup. If there is a name changed in Admin Studio's **Settings › Site**, that; otherwise `[theme].site_title`) |
+| `site_url` / `admin_url` | `[commerce].public_url` and its `/admin/` (empty if unset) |
+| `kind` | The notification kind |
+| `order.number` / `order.status` / `order.created_at` / `order.paid_at` / `order.note` | Order number, status, dates and times, the administrator's note |
 | `order.lines[]` | `title`, `sku`, `unit_price`, `quantity`, `line_total` |
-| `order.adjustments[]` | 送料・割引・税（`label`, `amount`, `kind`, `code`） |
-| `order.subtotal` / `order.total` / `order.currency` | 金額（通貨の最小単位の整数） |
-| `order.customer_name` / `order.customer_email` / `order.shipping_address` | 顧客とお届け先（`postal_code`, `region`, `city`, `line1`, `line2`, `phone` など） |
-| `order_url` | 注文確認ページ（`order.placed` を注文したときに送る場合のみ） |
-| `payment_instructions` / `payment_due` | 支払い方法の案内（`[commerce.manual].instructions`）と期限（支払い待ちのとき） |
-| `reason` / `was_paid` | 取り消しのきっかけ（`admin` / `expired` など）と、支払い済みだったか（`order.cancelled`） |
-| `username` / `display_name` / `verify_url` / `expires_hours` | アカウント登録の確認メール（`account.verify`）: ユーザー名・表示名（無ければ空）・確認リンク・有効期限（時間） |
-| `username` / `display_name` / `email` / `role` / `pending_approval` | 新しいアカウントの知らせ（`account.registered`） |
-| `content.title` / `content.label` / `content.content_type` / `content.slug` / `content.id` | 予約公開・非公開の知らせ（`content.published` / `content.unpublished`）: コンテンツとその種類の表示名（スキーマの `label`） |
-| `at` / `content_url` / `username` / `display_name` | 同上: 公開予定日時・非公開日時（RFC 3339、UTC）、公開ページの URL（`page` / `article` は `/{slug}`、商品は `/products/{slug}`。`[commerce].public_url` が無ければ空）、著者 |
-| `content.status` / `content.published_at` / `note` | レビューの知らせ（`content.submitted` / `content.approved` / `content.returned`）: 保存後の状態と公開（予定）日時、保存のときのメモ（`review_note`。無ければ空）。`content.title` などは予約公開の知らせと同じ |
-| `submitted_by` / `review_url` | 同上（`content.submitted`）: 頼んだ人（表示名、無ければユーザー名）、Admin Studio のレビュー待ちの一覧（`<Admin Studio の URL>#review`。無ければ空） |
-| `reviewed_by` / `content_url` / `edit_url` / `username` / `display_name` | 同上（`content.approved` / `content.returned`）: 承認・差し戻した人、公開ページの URL（公開したときだけ）、Admin Studio の URL、著者 |
-| `comment.author_name` / `comment.author_email` / `comment.ip` / `comment.body` / `comment.created_at` / `comment.is_reply` | コメントの知らせ（`comment.posted` / `comment.pending`）: 投稿者・本文・返信かどうか。`content`・`username`・`display_name` は予約公開の知らせと同じ |
-| `content_url` / `moderation_url` | 同上: コメントの位置（`…#comment-<id>`。`[commerce].public_url` が無ければ空）、Admin Studio の **Comments**（`<Admin Studio の URL>#comments`。無ければ空） |
-| `name` / `comment.body` / `reply.author_name` / `reply.body` / `reply.staff` / `unsubscribe_url` | 返信の知らせ（`comment.replied`）: 宛先の名前、自分のコメント、返信（`staff` は Admin Studio からの返信）、返信通知を止めるリンク（`[commerce].public_url` が無ければ空） |
-| `name` / `comment.body` / `content_url` / `unsubscribe_url` | 承認の知らせ（`comment.approved`）: 宛先の名前、自分のコメント、コメントの URL、通知を止めるリンク（返信の知らせと同じ。止めると返信・承認のどちらも届かなくなる） |
-| `{{ amount \| money(order.currency) }}` | 金額の表示（`¥1,200`、`$12.50`） |
+| `order.adjustments[]` | Shipping, discounts, tax (`label`, `amount`, `kind`, `code`) |
+| `order.subtotal` / `order.total` / `order.currency` | Amounts (integers in the currency's smallest unit) |
+| `order.customer_name` / `order.customer_email` / `order.shipping_address` | The customer and the shipping address (`postal_code`, `region`, `city`, `line1`, `line2`, `phone`, etc.) |
+| `order_url` | The order confirmation page (only when `order.placed` is sent at the time of ordering) |
+| `payment_instructions` / `payment_due` | Payment instructions (`[commerce.manual].instructions`) and the deadline (when awaiting payment) |
+| `reason` / `was_paid` | What triggered the cancellation (`admin` / `expired`, etc.) and whether it was already paid (`order.cancelled`) |
+| `username` / `display_name` / `verify_url` / `expires_hours` | The account registration confirmation email (`account.verify`): username, display name (empty if none), confirmation link, expiry (hours) |
+| `username` / `display_name` / `email` / `role` / `pending_approval` | The new account notice (`account.registered`) |
+| `content.title` / `content.label` / `content.content_type` / `content.slug` / `content.id` | Scheduled publication and unpublication notices (`content.published` / `content.unpublished`): the content and the display name of its kind (the schema's `label`) |
+| `at` / `content_url` / `username` / `display_name` | Same: the scheduled publication and unpublication times (RFC 3339, UTC), the public page's URL (`/{slug}` for `page` / `article`, `/products/{slug}` for products; empty if there is no `[commerce].public_url`), the author |
+| `content.status` / `content.published_at` / `note` | Review notices (`content.submitted` / `content.approved` / `content.returned`): the status after saving and the publication (scheduled) time, and the note at save time (`review_note`; empty if none). `content.title` and so on are the same as in the scheduled publication notices |
+| `submitted_by` / `review_url` | Same (`content.submitted`): the requester (display name, or username if none), Admin Studio's list awaiting review (`<Admin Studio's URL>#review`; empty if none) |
+| `reviewed_by` / `content_url` / `edit_url` / `username` / `display_name` | Same (`content.approved` / `content.returned`): who approved or sent back, the public page's URL (only when published), Admin Studio's URL, the author |
+| `comment.author_name` / `comment.author_email` / `comment.ip` / `comment.body` / `comment.created_at` / `comment.is_reply` | Comment notices (`comment.posted` / `comment.pending`): the poster, body, whether it is a reply. `content`, `username`, and `display_name` are the same as in the scheduled publication notices |
+| `content_url` / `moderation_url` | Same: the comment's location (`…#comment-<id>`; empty if there is no `[commerce].public_url`), Admin Studio's **Comments** (`<Admin Studio's URL>#comments`; empty if none) |
+| `name` / `comment.body` / `reply.author_name` / `reply.body` / `reply.staff` / `unsubscribe_url` | Reply notice (`comment.replied`): the recipient's name, your own comment, the reply (`staff` is a reply from Admin Studio), the link to stop reply notifications (empty if there is no `[commerce].public_url`) |
+| `name` / `comment.body` / `content_url` / `unsubscribe_url` | Approval notice (`comment.approved`): the recipient's name, your own comment, the comment's URL, the link to stop notifications (the same as for the reply notice; stopping it stops both replies and approvals) |
+| `{{ amount \| money(order.currency) }}` | Displaying an amount (`¥1,200`, `$12.50`) |
 
-- テンプレートが無ければ種類の最後の `.` 以降を外した名前を順に探します（`audit.session.create` → `audit.session` → `audit`）。
-- 本文（`.txt`）と件名はエスケープしません（プレーンテキスト）。
-- `{% if %}` などのタグだけの行は出力に空行を残しません（`trim_blocks`）。3 行以上続く空行は 1 行にまとめます。
+- If a template does not exist, names are tried in turn with the part after the kind's last `.` removed (`audit.session.create` → `audit.session` → `audit`).
+- The body (`.txt`) and subject are not escaped (plain text).
+- Lines containing only tags such as `{% if %}` leave no blank line in the output (`trim_blocks`). Three or more consecutive blank lines are collapsed into one.
 
-### 3.1 HTML メール
+### 3.1 HTML Email
 
-`[notifications].html = true`（既定）のとき、メールはプレーンテキストと HTML の両方（`multipart/alternative`）で送ります。HTML を表示できないメールソフトではプレーンテキストが表示されます。
+With `[notifications].html = true` (default), email is sent as both plain text and HTML (`multipart/alternative`). Mail clients that cannot display HTML show the plain text.
 
-HTML は、種類ごとにテンプレートを書かなくても作られます。
+HTML is produced even if you do not write a template per kind.
 
-- 件名・本文と同じ名前の `<種類>.html`（運営者向けは `<種類>.staff.html`）があればそれを使います。
-- 無ければ共通のレイアウト `_layout.html` を使います。レイアウトにはプレーンテキストの本文を HTML にしたもの（`body_html`）を渡します: 空行で区切った段落を `<p>`、段落の中の改行を `<br>`、`http(s)://` の URL をリンクにし、`--` だけの行（`_footer.txt` の区切り）から後はフッター（`footer_html`）にします。
-- サイトのロゴや色を変えるには `_layout.html` を、特定の通知だけデザインするには `<種類>.html` を書きます（Admin Studio か `templates_dir`）。
+- If there is a `<kind>.html` with the same name as the subject and body (`<kind>.staff.html` for operators), it is used.
+- Otherwise the shared layout `_layout.html` is used. The layout is given the plain-text body turned into HTML (`body_html`): paragraphs separated by blank lines become `<p>`, line breaks within a paragraph become `<br>`, `http(s)://` URLs become links, and everything after a line of only `--` (the `_footer.txt` separator) becomes the footer (`footer_html`).
+- To change the site's logo or colors, write `_layout.html`; to design only a specific notification, write `<kind>.html` (in Admin Studio or `templates_dir`).
 
 ```jinja
-{# order.shipped.html: レイアウトはそのままで、本文の前に見出しを足す #}
+{# order.shipped.html: keep the layout as is and add a heading before the body #}
 {% extends "_layout.html" %}
 {% block content %}
-<h1 style="font-size:20px;margin:0 0 16px">ご注文 {{ order.number }} を発送しました</h1>
+<h1 style="font-size:20px;margin:0 0 16px">Your order {{ order.number }} has shipped</h1>
 {{ body_html }}
 {% endblock %}
 ```
 
-| 値（`.html` のみ） | 内容 |
+| Value (`.html` only) | Description |
 | --- | --- |
-| `subject` / `body` | 作った件名とプレーンテキストの本文 |
-| `body_html` / `footer_html` | 本文・フッターを HTML にしたもの（エスケープ済み） |
-| `locale` | 組み込みテンプレートの言語（`<html lang>`） |
+| `subject` / `body` | The built subject and plain-text body |
+| `body_html` / `footer_html` | The body and footer turned into HTML (escaped) |
+| `locale` | The language of the built-in templates (`<html lang>`) |
 
-- `.html` のテンプレートは値を自動でエスケープします（`{{ comment.body }}` に `<script>` が入っていても文字として出ます）。エスケープ済みの値（`body_html` など）以外に `| safe` を使わないでください。
-- 運営者向けの本文（`<種類>.staff.txt`）があるとき、HTML は `<種類>.staff.html` か `_layout.html` を使い、顧客向けの `<種類>.html` は使いません（本文と HTML の内容が食い違わないように）。
-- スタイルはメールソフトで消されないよう、`style` 属性に書きます（`<style>` や外部の CSS は効かないメールソフトがあります）。
-- プラグインのチャネルにも HTML の本文（`html`）が渡ります（メール配信 API へ送るプラグイン向け）。
-- プレーンテキストだけにするには `html = false` にします。
-
----
-
-## 4. 配信と信頼性
-
-- 通知は注文の処理を待たせないよう、送信待ちに入れてから送ります。SMTP サーバーが落ちていても注文は成功します。
-- **送信待ちは DB に保存します**（`_aegis_notification_queue`。`[notifications.queue].persistent = true`、既定）。宛先・チャネルごとに 1 件で、件名・本文はこのときテンプレートから作っておきます。送れたものは消します。サーバーを再起動しても送信待ち・再試行の予定は失われず、起動したサーバーが続きを送ります。
-- 新しい通知はすぐに送ります。再試行の時刻は `poll_interval_secs`（既定 10 秒）ごとに確かめます。
-- 一時的な失敗（接続できない、`4xx` の応答）は `max_attempts` 回まで、2 秒・8 秒・32 秒…と間隔を空けて再試行します。宛先の不備や認証の拒否（`5xx`）は再試行しません。
-- 再試行しない失敗・試行回数の上限に達したものは「送れなかった通知」として残り、Admin Studio から再送・破棄できます（[6](#6-admin-studio-から管理する)）。`retention_days`（既定 7 日）を過ぎたものは自動で消します。
-- 結果はチャネルごとに監査ログ `notification.send` に残します（`success` / `failure`、試行回数、エラー）。宛先のアドレスは残しません（顧客か運営者か）。Admin Studio の **Settings › Audit Logs** で `notification.send` に絞り込めます。
-- **複数台のサーバー**: どのサーバーも送信待ちを見ますが、送る前に DB で送信の権利を取るので、1 件の通知を送るのは 1 台だけです。サーバー間の時計は NTP などで合わせてください。
-- **送信中にサーバーが止まった場合**: その通知は 5 分後にほかのサーバー（または再起動したサーバー）が送り直します。SMTP サーバーが受け取った直後に止まった場合は、同じメールが 2 通届くことがあります（届かないよりは重複を選ぶ）。
-- 送信待ちを DB に入れられなかったとき（DB の障害）は、その通知をメモリ上で送ります（再起動すると失われます）。`persistent = false` にすると常にメモリ上で送ります（以前の動作）。
-- 送信待ちには本文がそのまま入ります（パスワード再設定・注文確認ページなどのリンクを含む）。DB のバックアップの扱いに注意してください。送れたものはすぐに消え、送れなかったものも `retention_days` で消えます。
-- `aegis-server notify test` と Admin Studio のテスト送信は、送信待ちに入れずにその場で送ります（設定を確かめるため）。
+- `.html` templates escape values automatically (even if `{{ comment.body }}` contains `<script>`, it appears as text). Do not use `| safe` on anything other than already escaped values (such as `body_html`).
+- When there is an operator body (`<kind>.staff.txt`), the HTML uses `<kind>.staff.html` or `_layout.html`, and not the customer-facing `<kind>.html` (so that the body and HTML contents do not disagree).
+- Write styles in `style` attributes so mail clients do not strip them (some mail clients ignore `<style>` and external CSS).
+- The HTML body (`html`) is also passed to plugin channels (for plugins that send to email delivery APIs).
+- To use plain text only, set `html = false`.
 
 ---
 
-## 5. 配信方法を加える
+## 4. Delivery and Reliability
 
-### 5.1 Wasm プラグインで加える
+- Notifications are put into the outbox and then sent, so as not to make order processing wait. Orders succeed even if the SMTP server is down.
+- **The outbox is stored in the DB** (`_aegis_notification_queue`; `[notifications.queue].persistent = true`, the default). It is one entry per recipient and channel, and the subject and body are built from the template at this time. Ones that were sent are removed. Even if the server restarts, the outbox and retry schedule are not lost, and the server that starts continues sending.
+- New notifications are sent immediately. Retry times are checked every `poll_interval_secs` (default 10 seconds).
+- Transient failures (cannot connect, `4xx` responses) are retried up to `max_attempts` times at intervals of 2 seconds, 8 seconds, 32 seconds, and so on. Recipient defects and authentication refusals (`5xx`) are not retried.
+- Failures that are not retried and ones that reached the attempt limit remain as "failed notifications" and can be resent or discarded from Admin Studio ([6](#6-managing-from-admin-studio)). Ones past `retention_days` (default 7 days) are deleted automatically.
+- The result is recorded per channel in the audit log `notification.send` (`success` / `failure`, attempt count, error). The recipient's address is not kept (only whether it was a customer or an operator). You can filter to `notification.send` in Admin Studio's **Settings › Audit Logs**.
+- **Multiple servers**: every server looks at the outbox, but they acquire the right to send in the DB before sending, so only one server sends a given notification. Keep the clocks between servers in sync with NTP or the like.
+- **If the server stops while sending**: that notification is resent after 5 minutes by another server (or the restarted server). If it stops right after the SMTP server accepted it, the same email may arrive twice (choosing duplication over non-delivery).
+- When the outbox could not be written to the DB (a DB failure), that notification is sent from memory (lost if restarted). With `persistent = false`, it is always sent from memory (the earlier behavior).
+- The outbox contains the body as is (including links such as password reset and order confirmation pages). Be careful with how DB backups are handled. Ones that were sent disappear immediately, and ones that failed are removed by `retention_days`.
+- `aegis-server notify test` and Admin Studio's test send send on the spot without going into the outbox (to check the settings).
 
-`send-notification` フックを持つプラグインは、そのまま通知のチャネルになります。Rust の本体を変えずに、Slack・Teams・Discord・LINE・SMS 業者の API などへの配信を加えられます。
+---
+
+## 5. Adding Delivery Methods
+
+### 5.1 Adding with a Wasm Plugin
+
+A plugin that has the `send-notification` hook becomes a notification channel as is. Without changing the Rust core, you can add delivery to Slack, Teams, Discord, LINE, SMS vendor APIs, and so on.
 
 ```toml
 [notifications]
@@ -286,26 +288,26 @@ enabled = ["official-order-notifier"]
 
 [plugins.settings.official-order-notifier]
 webhook_url = "env:SLACK_WEBHOOK_URL"
-notify_on = "none"                # 注文の旧来の通知（on-order-status-changed）は止め、二重に届かないように
-channel_recipients = "staff"      # 運営者向けの通知だけ（all で顧客向けも）
-channel_kinds = "audit.,order.placed,order.cancelled"   # 種類の前方一致（空ならすべて）
+notify_on = "none"                # stop the old order notification (on-order-status-changed) so it does not arrive twice
+channel_recipients = "staff"      # only notifications for operators (all also includes customers)
+channel_kinds = "audit.,order.placed,order.cancelled"   # prefix match on kind (all if empty)
 ```
 
-- ホストはテンプレートから件名・本文を作って `send-notification` に渡します。テンプレート・再試行（`max_attempts`）・監査ログ `notification.send`（`channel: plugin:<名前>`）・監査イベントの上限（`max_per_hour`）はメールと同じです。
-- プラグインは扱わない通知（宛先・種類）に `Skipped` を返します。`Skipped` は失敗ではなく、監査ログにも残りません。
-- `channels` に書いたプラグインが `[plugins].enabled` に無い、またはマニフェストで `send-notification` を宣言していない場合、サーバーは起動しません。
-- 動作確認は `aegis-server notify test --staff`（運営者向け。`--to` で顧客向けも）。
-- プラグインの作り方は [プラグインフック 1.7](plugin_hooks.md#17-send-notification)、ABI は [ABI 仕様 4.7](plugin_abi_specification.md#47-send_notification) を参照してください。
+- The host builds the subject and body from templates and passes them to `send-notification`. Templates, retries (`max_attempts`), the audit log `notification.send` (`channel: plugin:<name>`), and the limit for audit events (`max_per_hour`) are the same as for email.
+- A plugin returns `Skipped` for notifications it does not handle (recipient, kind). `Skipped` is not a failure and is not left in the audit log.
+- If a plugin written in `channels` is not in `[plugins].enabled`, or has not declared `send-notification` in the manifest, the server does not start.
+- To check operation, use `aegis-server notify test --staff` (for operators; `--to` also for customers).
+- For how to build a plugin, see [Plugin hooks 1.7](plugin_hooks.md#17-send-notification), and for the ABI, [ABI specification 4.7](plugin_abi_specification.md#47-send_notification).
 
-### 5.2 Rust で加える
+### 5.2 Adding with Rust
 
-本体に組み込む場合は `aegis_notify::NotificationChannel` トレイトを実装します。
+To build it into the core, implement the `aegis_notify::NotificationChannel` trait.
 
 ```rust
 use aegis_notify::{Delivered, NotificationChannel, NotificationMessage, Recipient, SendError};
 use async_trait::async_trait;
 
-pub struct SmsChannel { /* API クライアントなど */ }
+pub struct SmsChannel { /* an API client, etc. */ }
 
 #[async_trait]
 impl NotificationChannel for SmsChannel {
@@ -313,49 +315,49 @@ impl NotificationChannel for SmsChannel {
         "sms"
     }
 
-    /// 送れる宛先か（送れないものは呼ばれない）
+    /// Whether it is a recipient it can send to (ones it cannot send to are not called)
     fn accepts(&self, recipient: &Recipient) -> bool {
         matches!(recipient, Recipient::Staff)
     }
 
     async fn send(&self, message: &NotificationMessage) -> Result<Delivered, SendError> {
-        // message.subject / message.body / message.data を使って送る
-        // 一時的な失敗は SendError::temporary、再試行しない失敗は SendError::permanent
+        // send using message.subject / message.body / message.data
+        // use SendError::temporary for transient failures and SendError::permanent for failures that are not retried
         Ok(Delivered::Sent)
     }
 }
 ```
 
-- 設定から選べるようにするには、`aegis_notify::ChannelKind` に種類を、`NotificationService::from_config_with_plugins` に作り方を加えます（設定項目は `NotificationsConfig` に）。
-- コードからは `NotificationService::with_channels` にチャネルを渡しても使えます。
-- テンプレート・再試行・監査ログはチャネルに関係なく `NotificationService` が行います。チャネルは届けることだけを担当します。
+- To make it selectable from the settings, add the kind to `aegis_notify::ChannelKind` and how to build it to `NotificationService::from_config_with_plugins` (the settings go in `NotificationsConfig`).
+- From code, you can also use it by passing the channel to `NotificationService::with_channels`.
+- Templates, retries, and the audit log are done by `NotificationService` regardless of the channel. A channel is responsible only for delivering.
 
-通知を出す側を増やす（会員登録の確認など）ときは、`aegis_core::Notifier` に `NotificationEvent`（種類・宛先・テンプレートに渡す値）を渡し、組み込みテンプレート（`crates/aegis-notify/src/templates/`）を加えます。テンプレートの無い種類は送りません。
+To add more sources of notifications (such as member sign-up confirmation), pass a `NotificationEvent` (kind, recipient, values for the template) to `aegis_core::Notifier` and add a built-in template (`crates/aegis-notify/src/templates/`). Kinds without a template are not sent.
 
-### Wasm プラグインとの関係
+### Relation to Wasm Plugins
 
-公式プラグイン [`official-order-notifier`](commerce.md#official-order-notifierslack--webhook-通知) は 2 つの使い方ができます。
+The official plugin [`official-order-notifier`](commerce.md#official-order-notifier-slack--webhook-notification) can be used in 2 ways.
 
-- `on-order-status-changed`: 注文の状態の変化を、ホストのテンプレートを通さずに Slack / Webhook に送る（従来の使い方）
-- `send-notification`: 通知のチャネル（5.1）。監査イベントも含むすべての通知を、ホストのテンプレートの件名・本文で送る
+- `on-order-status-changed`: sends order status changes to Slack / webhooks without going through the host's templates (the traditional use)
+- `send-notification`: a notification channel (5.1). Sends all notifications, including audit events, with the host's template subjects and bodies
 
-チャネルとして使う場合は、注文が二重に届かないよう `notify_on = "none"` にしてください。
+When using it as a channel, set `notify_on = "none"` so orders do not arrive twice.
 
 ---
 
-## 6. Admin Studio から管理する
+## 6. Managing from Admin Studio
 
-`admin` のユーザーは **Settings › Notifications** で次のことができます。通知が無効（`[notifications].enabled = false`）なら、有効にする方法だけを表示します。
+Users with `admin` can do the following in **Settings › Notifications**. If notifications are disabled (`[notifications].enabled = false`), only how to enable them is shown.
 
-![Admin Studio の通知の管理（Settings → Notifications）](images/notifications-admin.png)
+![Admin Studio notification management (Settings → Notifications)](images/notifications-admin.png)
 
-| 項目 | できること | API |
+| Item | What you can do | API |
 | --- | --- | --- |
-| 配信 | チャネル・形式（HTML / テキスト）・送信待ちの保存先と、送信待ち・送れなかった通知の一覧（エラー・試行回数・次の試行の日時）。送れなかった通知は **再送**（最初の試行から）・**破棄** | `GET /api/v1/notifications`、`GET /api/v1/notifications/queue?status=failed`、`POST /api/v1/notifications/queue/{id}/retry`、`DELETE /api/v1/notifications/queue/{id}` |
-| テスト送信 | 通知の種類と送り先（メールアドレス・運営者）を選び、見本の値（架空の注文・コメント・アカウント）でその場で送る。チャネルごとの結果（SMTP の応答など）を表示する。再試行はしない | `POST /api/v1/notifications/test` |
-| テンプレート | 種類と宛先（顧客・著者 / 運営者）ごとに件名・本文・HTML を編集し、見本の値でプレビューする（保存前の内容で HTML とテキストを表示）。共通の部品（`_footer.txt`・`_summary.txt`・`_layout.html` など）も編集できる。**元に戻す** で編集を捨てる（`templates_dir` のファイルか組み込みに戻る） | `GET /api/v1/notifications/templates`、`GET` / `PUT` / `DELETE /api/v1/notifications/templates/{名前}`、`POST /api/v1/notifications/preview` |
+| Delivery | The channels, format (HTML / text), where the outbox is stored, and the list of pending and failed notifications (error, attempt count, next attempt time). Failed notifications can be **resent** (from the first attempt) or **discarded** | `GET /api/v1/notifications`, `GET /api/v1/notifications/queue?status=failed`, `POST /api/v1/notifications/queue/{id}/retry`, `DELETE /api/v1/notifications/queue/{id}` |
+| Test send | Choose the notification kind and destination (an email address, or operators) and send on the spot with sample values (a fictional order, comment, or account). Shows the result per channel (such as the SMTP response). No retry | `POST /api/v1/notifications/test` |
+| Templates | Edit the subject, body, and HTML per kind and recipient (customer/author or operator), and preview with sample values (shows HTML and text of the unsaved content). Shared parts (`_footer.txt`, `_summary.txt`, `_layout.html`, etc.) can be edited too. **Reset** discards edits (returns to the `templates_dir` file or the built-in) | `GET /api/v1/notifications/templates`, `GET` / `PUT` / `DELETE /api/v1/notifications/templates/{name}`, `POST /api/v1/notifications/preview` |
 
-- 編集したテンプレートは DB に保存し、すべてのサーバーですぐに使われます（イベントバスで知らせる）。保存のときに文法を確かめ、誤りがあれば保存しません。1 つのテンプレートは 60,000 バイトまでです。
-- テンプレートを壊してしまった（未定義のフィルタなどでその種類の通知が作れない）場合は、プレビューにエラーが出ます。**元に戻す** で直せます。
-- 編集・元に戻すは監査ログ `notification.template_update`、再送・破棄は `notification.queue_update` に残ります（[監査ログ](audit.md)）。テスト送信の結果は `notification.send` に残ります。
-- 送信待ち（`pending`）のうち送っている最中のものは破棄できません。
+- Edited templates are stored in the DB and used immediately by all servers (notified over the event bus). The syntax is checked on save, and it is not saved if there is an error. One template can be up to 60,000 bytes.
+- If you broke a template (for example, an undefined filter prevents building that kind of notification), an error appears in the preview. **Reset** fixes it.
+- Edits and resets are recorded in the audit log `notification.template_update`, and resends and discards in `notification.queue_update` ([Audit log](audit.md)). The result of a test send is recorded in `notification.send`.
+- Pending (`pending`) items that are being sent cannot be discarded.

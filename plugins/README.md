@@ -15,10 +15,10 @@ plugins/
     └── plugin.wasm
 ```
 
-For how to build a plugin, see [docs/plugin_sdk_guide.md](../docs/plugin_sdk_guide.md) (in Japanese); templates and samples are in [`sdk/`](../sdk). To build a block that can be placed in the body, the quickest start is [Creating your first block plugin](../docs/plugin_block_tutorial.md) (template: [`sdk/templates/rust-block`](../sdk/templates/rust-block)).
+For how to build a plugin, see [docs/plugin_sdk_guide.md](../docs/plugin_sdk_guide.md); templates and samples are in [`sdk/`](../sdk). To build a block that can be placed in the body, the quickest start is [Creating your first block plugin](../docs/plugin_block_tutorial.md) (template: [`sdk/templates/rust-block`](../sdk/templates/rust-block)).
 
 > [!NOTE]
-> If you create a new Rust plugin inside this repository (`plugins/<name>/`), it is not part of the root `Cargo.toml` workspace, so `cargo build` fails with `current package believes it's in a workspace when it's not`. To bring it in as an official plugin, add it to the root `[workspace] members`. For a personal plugin, write an empty `[workspace]` at the end of the plugin's `Cargo.toml` to make it a standalone crate ([SDK guide 2.1](../docs/plugin_sdk_guide.md#21-テンプレートの準備)).
+> If you create a new Rust plugin inside this repository (`plugins/<name>/`), it is not part of the root `Cargo.toml` workspace, so `cargo build` fails with `current package believes it's in a workspace when it's not`. To bring it in as an official plugin, add it to the root `[workspace] members`. For a personal plugin, write an empty `[workspace]` at the end of the plugin's `Cargo.toml` to make it a standalone crate ([SDK guide 2.1](../docs/plugin_sdk_guide.md#21-preparing-the-template-and-generating-a-scaffold-task-pluginnew)).
 
 ## Official Plugins
 
@@ -27,9 +27,9 @@ For how to build a plugin, see [docs/plugin_sdk_guide.md](../docs/plugin_sdk_gui
 | [`official-code-enhancer`](official-code-enhancer/) | `transform-content-ast`, `on-render-page` | Syntax highlighting for code (Prism.js), external themes, a copy button, and inline code styling. Choose the theme in Admin Studio's Settings › Plugins. Adds nothing to pages without code |
 | [`official-mermaid`](official-mermaid/) | `on-render-page` | Turns ` ```mermaid ` code blocks into Mermaid diagrams. Loads Mermaid only on pages that have diagrams. The theme, security level, and script URL can be changed in Admin Studio's Settings › Plugins |
 | [`official-plantuml`](official-plantuml/) | `on-render-page` | Turns ` ```plantuml ` code blocks into images of diagrams drawn by a PlantUML server (no script is added to the page). The server URL and image format can be changed in Admin Studio's Settings › Plugins |
-| [`official-shop-rules`](official-shop-rules/) | `calculate-order`, `on-order-status-changed` | E-commerce shipping (free-shipping conditions), coupons (usage limits), and tax ([E-commerce](../docs/commerce.md#71-公式プラグイン)) |
+| [`official-shop-rules`](official-shop-rules/) | `calculate-order`, `on-order-status-changed` | E-commerce shipping (free-shipping conditions), coupons (usage limits), and tax ([E-commerce](../docs/commerce.md#71-official-plugins)) |
 | [`official-order-notifier`](official-order-notifier/) | `on-order-status-changed` | Notifies Slack / webhooks of order creation and status changes (`http::fetch`) |
-| [`official-blocks`](official-blocks/) | `render-blocks` | Button, link card, and video (YouTube, Vimeo) blocks that can be placed in the body ([Body blocks](../docs/blocks.md#4-プラグインのブロック)). A model example of custom blocks |
+| [`official-blocks`](official-blocks/) | `render-blocks` | Button, link card, and video (YouTube, Vimeo) blocks that can be placed in the body ([Body blocks](../docs/blocks.md#4-plugin-blocks)). A model example of custom blocks |
 | [`official-link-embed`](official-link-embed/) | `transform-content-ast`, `render-blocks` | Turns a URL-only paragraph into a link card built from that page's OGP / oEmbed (fetched inside the sandbox at save time and stored in the block; no network access at display time). Fetch destinations can be added with `extra_allowed_domains` ([Body blocks](../docs/blocks.md#5-ogp--oembed)) |
 | [`official-page-toc`](official-page-toc/) | `on-render-page` | Shows links to headings (a table of contents) and scroll progress beside articles and static pages. Position, color, depth, and more can be changed in `[plugins.settings.official-page-toc]` |
 | [`official-back-to-top`](official-back-to-top/) | `on-render-page` | Shows a "Back to top" button at the end of the body (or fixed on the screen). Shape, color, position, and more can be changed in `[plugins.settings.official-back-to-top]` |

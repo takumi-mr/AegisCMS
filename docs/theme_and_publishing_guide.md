@@ -1,121 +1,123 @@
-[← ドキュメント一覧に戻る](README.ja.md)
+[← Back to the documentation index](README.md)
 
-# AegisCMS コンテンツ公開 & テーマエンジン開発ガイド
+**English** | [日本語](theme_and_publishing_guide.ja.md)
 
-AegisCMS のコンテンツ公開エンジン（Public Publishing Engine）とテーマエンジン（MiniJinja）、およびプラグインによる動的テーマ書き換え仕様について解説します。
+# AegisCMS Content Publishing & Theme Engine Development Guide
 
-> テーマを作る手順（ディレクトリ構成・`theme.json`・テンプレートごとの変数・CSS とスマートフォン対応・確認方法）は [テーマ作成ガイド](./theme_authoring_guide.md) にまとめています。
+Explains AegisCMS's Public Publishing Engine, the theme engine (MiniJinja), and the specification for dynamic theme rewriting by plugins.
+
+> The steps for building a theme (directory layout, `theme.json`, variables per template, CSS and smartphone support, how to check) are collected in the [Theme authoring guide](./theme_authoring_guide.md).
 
 ---
 
-## 1. 公開ルーティングアーキテクチャ
+## 1. Public Routing Architecture
 
-AegisCMS は Headless API Gateway、管理画面 Admin Studio、および高速な公開フロントエンド Web サイトを 1 つのバイナリで安全にホストします。
+AegisCMS safely hosts the Headless API Gateway, the Admin Studio admin screen, and a fast public frontend website in a single binary.
 
-| パス / ルート | 配信内容 | 備考 |
+| Path / route | What is served | Notes |
 |---|---|---|
-| `GET /` | 公開トップページ | `[theme].front_page` で切り替え: `posts`（既定。記事一覧 `index.html`、`?page=N` でページ送り）、`template`（テーマの `front.html`）、`page:<slug>`（固定ページ） |
-| `GET /articles` | 記事一覧 | テンプレート `index.html` 描画。`[theme].posts_per_page` 件ずつ、`?page=N` でページ送り（範囲外は 404） |
-| `GET /category/{slug}` | カテゴリの記事一覧 | テンプレート `category.html` 描画。記事の `category` への関係フィールド（`category_id`）で絞り込む。ページ送りは同上 |
-| `GET /feed.xml` | 新しい記事の Atom フィード | 最新 20 件。各ページの `<head>` に自動検出用の `<link>` が入る |
-| `GET /category/{slug}/feed.xml` | カテゴリの記事の Atom フィード | 同上 |
-| `GET /articles/{slug}` | 記事詳細ページ | テンプレート `article.html` 描画 (`status == "published"` のみ公開) |
-| `GET /{slug}` | 固定ページまたは記事詳細 | テンプレート `page.html` または `article.html` 描画 |
-| `GET /theme/assets/*` | テーマ固有の静的アセット (CSS/JS/画像) | `themes/{active}/assets/` より高速配信 |
-| `GET /admin`, `/admin/*` | Admin Studio 管理画面 SPA | Vite + React 管理クライアント |
-| `GET /api/v1/*` | REST API Gateway | スキーマ・コンテンツ CRUD・ストレージ・認証 |
-| `GET /uploads/*` | ローカルストレージアセット | アップロード画像・メディア配信 |
+| `GET /` | The public top page | Switched with `[theme].front_page`: `posts` (default; the article list `index.html`, paged with `?page=N`), `template` (the theme's `front.html`), `page:<slug>` (a static page) |
+| `GET /articles` | The article list | Rendered with the template `index.html`. `[theme].posts_per_page` at a time, paged with `?page=N` (out of range is 404) |
+| `GET /category/{slug}` | A category's article list | Rendered with the template `category.html`. Filtered by the article's relation field to `category` (`category_id`). Paging as above |
+| `GET /feed.xml` | An Atom feed of new articles | The latest 20. A `<link>` for auto-discovery is put in each page's `<head>` |
+| `GET /category/{slug}/feed.xml` | An Atom feed of a category's articles | Same as above |
+| `GET /articles/{slug}` | An article detail page | Rendered with the template `article.html` (only `status == "published"` is public) |
+| `GET /{slug}` | A static page or article detail | Rendered with the template `page.html` or `article.html` |
+| `GET /theme/assets/*` | Theme-specific static assets (CSS/JS/images) | Served faster than `themes/{active}/assets/` |
+| `GET /admin`, `/admin/*` | The Admin Studio admin SPA | The Vite + React admin client |
+| `GET /api/v1/*` | REST API Gateway | Schemas, content CRUD, storage, authentication |
+| `GET /uploads/*` | Local storage assets | Serving uploaded images and media |
 
-### ゼロ・トラストな公開制御
-- 下書き状態（`status: "draft"`）・レビュー待ち（`status: "pending"`）・予約公開の待ち（`status: "scheduled"`）・アーカイブ状態（`status: "archived"`）のコンテンツは、一般公開エンドポイント（`/`, `/articles/{slug}`, `/{slug}`, `/category/{slug}`, `/feed.xml`, `/products`）では一切表示されず、安全に `404 Not Found` テンプレートが描画されます。
-- 記事本文は `HtmlRenderer` による決定論的 HTML 生成の後、Cloudflare 製 `lol-html` ストリーミングリライター（`StreamingHtmlRewriter`）を透過的に通過し、外部リンクの `rel="noopener noreferrer"` 自動付与や画像の `loading="lazy"` / `decoding="async"` 強制適用が担保されます。
+### Zero-Trust Publication Control
+- Content in the draft state (`status: "draft"`), awaiting review (`status: "pending"`), waiting for scheduled publication (`status: "scheduled"`), and archived (`status: "archived"`) is never shown at the public endpoints (`/`, `/articles/{slug}`, `/{slug}`, `/category/{slug}`, `/feed.xml`, `/products`), and the `404 Not Found` template is safely rendered.
+- After deterministic HTML generation by `HtmlRenderer`, the article body passes transparently through Cloudflare's `lol-html` streaming rewriter (`StreamingHtmlRewriter`), which guarantees automatic `rel="noopener noreferrer"` on external links and forced `loading="lazy"` / `decoding="async"` on images.
 
-### 予約公開（スケジュール公開）
+### Scheduled Publishing
 
-![Admin Studio のエディタ（スラッグ・状態・公開日時・タグ、プレビュー）](images/editor-article.png)
+![Admin Studio editor (slug, status, publication date and time, tags, preview)](images/editor-article.png)
 
-- `status: "scheduled"` と公開日時 `published_at`（RFC 3339、タイムゾーン付き）を指定して保存すると、その日時にサーバーが自動で `published` にします。Admin Studio ではエディタ・商品フォームの状態で「予約公開」を選び、公開日時を入力します。
+- If you save with `status: "scheduled"` and a publication date and time `published_at` (RFC 3339, with time zone), the server automatically makes it `published` at that time. In Admin Studio, choose "Scheduled" as the status in the editor or product form and enter the publication date and time.
 
   ```bash
   curl -X POST http://localhost:8080/api/v1/contents/article \
     -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
-    -d '{"title": "新製品のお知らせ", "slug": "new-product", "status": "scheduled",
+    -d '{"title": "New product announcement", "slug": "new-product", "status": "scheduled",
          "published_at": "2026-11-01T09:00:00+09:00", "blocks": []}'
   ```
-- 公開日時は UTC に揃えて保存され（例: `2026-11-01T00:00:00Z`）、公開後もそのまま記事の `published_at`（公開日）になります。
-- サーバーは 30 秒ごとに予約日時を確認するため、公開は指定した日時から最大 30 秒ほど遅れます。サーバーが止まっていた間に日時を迎えたコンテンツは、起動後の最初の確認で公開されます。
-- `published_at` が無い・読めない場合は `400 Bad Request`。過ぎた日時を指定するとその場で公開（`published`、公開日時は保存した時刻）します。`scheduled` 以外の状態では `published_at` は無視されます。
-- 公開前に日時を変えたり下書きに戻したりすると、その内容が優先されます（公開処理は「まだ同じ日時で予約されている」ときだけ行われるため、複数台のサーバーで動かしても二重には公開されません）。
-- 予約による公開は監査ログ `content.publish`（操作者なし）に記録されます（[監査ログ](audit.md)）。
-- 通知（`[notifications]`）が有効なら、公開したことを著者にメールで知らせます（`content.published`。[通知 2](notifications.md#2-送る通知)）。
+- The publication time is normalized and stored in UTC (e.g. `2026-11-01T00:00:00Z`), and after publication it stays as the article's `published_at` (publication date).
+- The server checks the scheduled times every 30 seconds, so publication is delayed by up to about 30 seconds from the specified time. Content whose time arrived while the server was stopped is published at the first check after startup.
+- If `published_at` is missing or unreadable, it is `400 Bad Request`. Specifying a past time publishes immediately (`published`, with the publication time being the time of saving). In statuses other than `scheduled`, `published_at` is ignored.
+- If you change the time or revert to draft before publication, that takes priority (publishing is done only "while it is still scheduled at the same time", so even with several servers it is not published twice).
+- Publication by schedule is recorded in the audit log `content.publish` (with no operator) ([Audit log](audit.md)).
+- If notifications (`[notifications]`) are enabled, the author is notified by email of the publication (`content.published`; [Notifications 2](notifications.md#2-notifications-sent)).
 
-### 予約での非公開化（期間限定公開）
-- 公開中（`status: "published"`）または予約公開（`status: "scheduled"`）のコンテンツに、非公開予定日時 `unpublish_at`（RFC 3339、タイムゾーン付き）を設定できます。キャンペーン情報や期間限定セール商品などに利用します。
-- `unpublish_at` は必ず公開日時（予約公開の `published_at` または現在時刻）より未来の日時を指定する必要があります（過去の日時や公開日時以前を指定した場合は `400 Bad Request`）。下書き（`draft`）に戻した場合は `unpublish_at` は自動クリアされます。
-- **リクエスト時の防御判定**: 公開エンドポイント（`/`, `/articles/{slug}`, `/products` 等）は、スケジューラの定期実行（30 秒間隔）を待たずに、リクエスト時点で `unpublish_at <= now` となったコンテンツを即座に 404 として非公開化します。
-- **スケジューラによるアーカイブ化**: サーバーは 30 秒ごとに期限を迎えた公開コンテンツを検出し、自動で `status = "archived"` に更新します。この非公開化は監査ログ `content.unpublish`（操作者なし）に記録され、通知が有効なら著者に知らせます（`content.unpublished`）。
+### Unpublishing on a Schedule (Time-Limited Publication)
+- For content that is published (`status: "published"`) or scheduled (`status: "scheduled"`), you can set an unpublish date and time `unpublish_at` (RFC 3339, with time zone). Use it for campaign information, time-limited sale products, and so on.
+- `unpublish_at` must always be later than the publication time (the scheduled `published_at` or the current time) (specifying a past time or one at or before the publication time gives `400 Bad Request`). When reverted to draft (`draft`), `unpublish_at` is cleared automatically.
+- **Defensive check at request time**: the public endpoints (`/`, `/articles/{slug}`, `/products`, etc.) immediately treat content as 404 once `unpublish_at <= now` at the time of the request, without waiting for the scheduler's periodic run (30-second interval).
+- **Archiving by the scheduler**: every 30 seconds the server detects published content whose time has come and updates it automatically to `status = "archived"`. This unpublishing is recorded in the audit log `content.unpublish` (with no operator), and if notifications are enabled the author is told (`content.unpublished`).
 
-### レビュー（寄稿者の下書きを承認して公開する）
+### Review (Approving and Publishing a Contributor's Draft)
 
-書く人と公開を決める人を分けたいときは、書く人のロールを `contributor`（寄稿者）にします（[ロール](authentication.md#ロールと-api-の権限)）。寄稿者は自分のコンテンツを下書き（`draft`）とレビュー待ち（`pending`）にしかできず、公開は `editor` 以上が行います。段階を自由に組めるワークフロー（法務 → 編集長 → 公開など）はありません。
+When you want to separate the person who writes from the person who decides on publication, make the writer's role `contributor` ([Roles](authentication.md#roles-and-api-permissions)). A contributor can only put their own content into draft (`draft`) and awaiting review (`pending`), and publication is done by `editor` and above. There is no workflow with freely composable stages (legal → editor-in-chief → publish, etc.).
 
-| 操作 | 誰が | 保存のしかた | 通知（[通知 2](notifications.md#2-送る通知)） |
+| Operation | Who | How to save | Notification ([Notifications 2](notifications.md#2-notifications-sent)) |
 | --- | --- | --- | --- |
-| レビューを頼む | 寄稿者（`editor` 以上も可） | 状態を **レビュー待ち**（`pending`）にして保存 | `editor` 以上の有効なユーザー全員に `content.submitted` |
-| 承認する | `editor` 以上 | レビュー待ちのものを **公開**（`published`）か **予約公開**（`scheduled`）にして保存 | 著者に `content.approved` |
-| 差し戻す | `editor` 以上 | レビュー待ちのものを **下書き**（`draft`）にして保存 | 著者に `content.returned` |
-| 取り下げる | 著者 | 自分のレビュー待ちを下書きにして保存 | なし |
+| Request a review | Contributor (`editor` and above can too) | Save with the status **awaiting review** (`pending`) | `content.submitted` to all active users of `editor` and above |
+| Approve | `editor` and above | Save the item awaiting review as **published** (`published`) or **scheduled** (`scheduled`) | `content.approved` to the author |
+| Send back | `editor` and above | Save the item awaiting review as **draft** (`draft`) | `content.returned` to the author |
+| Withdraw | The author | Save one's own item awaiting review as draft | None |
 
-- 状態を変える保存では、メモ（`review_note`。2,000 文字まで）を添えられます。メモはコンテンツには保存せず、版の履歴のメモ・監査ログ・通知に残します。Admin Studio では状態を変えるとメモの欄が出ます。
+- When saving with a status change, you can attach a note (`review_note`; up to 2,000 characters). The note is not stored in the content; it remains in the version history's note, the audit log, and notifications. In Admin Studio, a note field appears when you change the status.
 
   ```bash
-  # 編集者が差し戻す（本文は通常の更新と同じ）
+  # An editor sends it back (the body is the same as a normal update)
   curl -X PUT http://localhost:8080/api/v1/contents/article/spring-sale \
     -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
-    -d '{"title": "春のセール", "slug": "spring-sale", "status": "draft",
-         "review_note": "価格の表記を直してください", "blocks": []}'
+    -d '{"title": "Spring sale", "slug": "spring-sale", "status": "draft",
+         "review_note": "Please fix the price notation", "blocks": []}'
   ```
-- 寄稿者が変更・削除できるのは、自分が著者で、下書きかレビュー待ちのものだけです（版の復元・タグの付け外しも同じ）。公開・予約公開・アーカイブにしようとしたり、他人のものを変えようとすると `403` です。
-- **公開中のものの変更**: 寄稿者は自分の公開中のコンテンツを、状態を `pending` にして保存すると、変更をレビューに出せます（`draft` や `published` にすると `403`。削除・版の復元・タグの付け外しはできません）。公開版は残り、承認されるまで訪問者には変更が見えません（slug の変更も承認まで反映されません）。承認（`published` で保存）で新しい版が公開され、差し戻し（`draft` で保存）では公開版が残ります。公開日時は最初のまま保たれます。公開中のものを編集者が `pending` に保存したときも同じです。公開ページから外したいときは `draft`（レビュー待ちでないとき）か `archived` にします。
-- 公開中のものの変更をレビューに出している間も、`unpublish_at`（予約非公開）は公開版に効きません。期限で外したいときは承認前に編集者がアーカイブにします。
-- レビューの出来事は監査ログ `content.review`（`details.decision` が `submitted` / `approved` / `returned` / `withdrawn`）に残ります（[監査ログ](audit.md)）。
-- Admin Studio では、編集者の一覧の上にレビュー待ちの件数が出て、押すとレビュー待ちだけに絞り込みます。通知メールのリンク（`admin_url` + `#review`）も同じ一覧を開きます。
+- A contributor can change or delete only items where they are the author and that are draft or awaiting review (the same for restoring versions and attaching/detaching tags). Trying to publish, schedule, or archive, or to change someone else's, gives `403`.
+- **Changing something published**: a contributor can put changes to their own published content up for review by saving it with the status `pending` (`draft` or `published` gives `403`; deleting, restoring versions, and attaching/detaching tags are not possible). The published version remains, and visitors do not see the changes until approved (a slug change is also not reflected until approval). Approval (saving as `published`) publishes the new version, and sending back (saving as `draft`) leaves the published version. The publication time stays as the original. The same applies when an editor saves a published item as `pending`. To take it off public pages, use `draft` (when not awaiting review) or `archived`.
+- While changes to a published item are up for review, `unpublish_at` (scheduled unpublish) does not take effect on the published version. To take it off at a deadline, have an editor archive it before approval.
+- Review events are recorded in the audit log `content.review` (`details.decision` is `submitted` / `approved` / `returned` / `withdrawn`) ([Audit log](audit.md)).
+- In Admin Studio, the number awaiting review appears above the editor's list, and pressing it filters to only those awaiting review. The link in notification emails (`admin_url` + `#review`) opens the same list.
 
-### 公開スケジュール・カレンダー
-- Admin Studio 上部の「カレンダー」タブ（`GET /api/v1/schedule`）から、月間カレンダーグリッドおよびタイムラインアジェンダ形式で、予約公開予定・非公開予定・公開中コンテンツを確認できます。
-- 日付セルまたはアジェンダカードから詳細モーダルを開き、非公開日時を直接変更・解除（クイック編集）したり、エディタに直接遷移して本文を修正したりできます。
-- コンテンツタイプ（記事・商品など）や予定種別（予約公開・非公開予定あり・公開中）によるフィルタリングにも対応しています。
+### Publishing Schedule Calendar
+- From the "Calendar" tab at the top of Admin Studio (`GET /api/v1/schedule`), you can check scheduled publications, scheduled unpublications, and published content in a monthly calendar grid and a timeline agenda format.
+- Open the detail modal from a date cell or an agenda card to change or clear the unpublish time directly (quick edit), or jump straight to the editor to fix the body.
+- Filtering by content type (articles, products, etc.) and by schedule kind (scheduled publication, with an unpublish schedule, published) is also supported.
 
 ---
 
-## 2. テンプレートエンジン (MiniJinja)
+## 2. Template Engine (MiniJinja)
 
-AegisCMS では Jinja2 / Django 互換で高速・軽量・堅牢なテンプレートエンジン `MiniJinja` を採用しています。
+AegisCMS uses `MiniJinja`, a Jinja2 / Django-compatible template engine that is fast, lightweight, and robust.
 
-### テンプレート読み込みの 3 層フォールバック
-テンプレート解決時、以下の優先順位で探索されます：
+### Three-Layer Fallback for Loading Templates
+When resolving a template, it is searched in the following order of priority:
 
-1. **プラグイン / 動的登録テンプレート (最優先)**:
-   - Wasm プラグインや実行時コードが `ThemeEngine::register_template(name, content)` で登録したインメモリテンプレート。
-2. **ファイルシステムテーマ (`themes/{active}/templates/`)**:
-   - ディスク上のテーマディレクトリに配置された HTML テンプレート。
-3. **ビルトイン・デフォルトテンプレート (フォールバック)**:
-   - コアバイナリ内にコンパイル時に組み込まれた洗練されたモダンデザインテンプレート（`base.html`, `index.html`, `article.html`, `page.html`, `404.html`）。追加のファイルが一切存在しなくても単体で美しく動作します。
+1. **Plugin / dynamically registered templates (highest priority)**:
+   - In-memory templates that Wasm plugins or runtime code registered with `ThemeEngine::register_template(name, content)`.
+2. **File system theme (`themes/{active}/templates/`)**:
+   - HTML templates placed in the theme directory on disk.
+3. **Built-in default templates (fallback)**:
+   - Polished modern-design templates compiled into the core binary (`base.html`, `index.html`, `article.html`, `page.html`, `404.html`). They work beautifully on their own even if no additional files exist.
 
-### 標準テンプレート構成
-- `base.html`: HTML5 スケルトン、レスポンシブ、モダンタイポグラフィ、ナビゲーションバー、フッター、アンビエント背景グロー、プラグイン用 CSS/Head 注入スロット。
-- `index.html`: `base.html` を継承。ヒーローセクション、カードグリッド、カテゴリバッジ、公開日、抜粋。
-- `article.html`: `base.html` を継承。パンくずリスト、タイトル、メタ情報、Prose 本文スタイル、前後のナビゲーション。
-- `page.html`: 固定ページ用レイアウト。
-- `404.html`: 404 エラーページ。
+### Standard Template Layout
+- `base.html`: HTML5 skeleton, responsive, modern typography, navigation bar, footer, ambient background glow, and CSS/Head injection slots for plugins.
+- `index.html`: extends `base.html`. Hero section, card grid, category badges, publication date, excerpts.
+- `article.html`: extends `base.html`. Breadcrumbs, title, meta information, prose body styles, previous/next navigation.
+- `page.html`: layout for static pages.
+- `404.html`: the 404 error page.
 
-### テンプレートで使えるグローバル変数
-- `base_path`: サイトを公開しているパス（`[server].base_path`、例: `/cms`。ルートで公開している場合は空文字）。サイト内へのリンクやテーマアセットは `{{ base_path }}/articles/{{ item.slug }}`、`{{ base_path }}/theme/assets/style.css` のように先頭に付けてください。付けなくてもルート公開では動きますが、サブパス配下（[設定リファレンス](./configuration.md#42-サブパスで公開する)）ではリンク切れになります。
-- `admin_url`: Admin Studio へのリンクの URL（`base_path` と `[server].admin_path` 込み、例: `/cms/admin/`）。**出さない設定のときは空文字**なので、`{% if admin_url %}<a href="{{ admin_url }}">...</a>{% endif %}` のように囲んでください（`/admin/` を直接書くと、`admin_path` を変えたサイトでリンク切れになるうえ、隠したいパスを公開してしまいます）。出す条件は `[theme].show_admin_link`。
-- `locale`: 表示言語（`[theme].locale`、`en` / `ja`。`<html lang="{{ locale }}">` に使う）。
-- `t("キー", n=件数, 名前=値)`: 組み込みの文言を表示言語で返す関数（例: `{{ t("nav.home") }}` → `Home` / `ホーム`）。キーは `crates/aegis-theme/src/messages.rs` の表にある。`n` を渡すと単数・複数（`キー.one` / `キー.other`）を選び、`{名前}` の位置に値を（HTML エスケープして）差し込む。結果はエスケープ済みの文字列で、`<strong>` などを含むものがある。独自の文言はテーマの中に直接書く。
-- `show_powered_by`: フッターに「Powered by AegisCMS」などの表記を出すか（`[theme].show_powered_by`、既定は `true`）。独自テーマでも表記は `{% if show_powered_by %}...{% endif %}` で囲んでください。
-- `pagination`（`index.html` のみ）: `page`（1 始まり）、`per_page`、`total_items`、`total_pages`、`prev_url` / `next_url`（`base_path` 込み。無ければ空）。例:
+### Global Variables Available in Templates
+- `base_path`: the path where the site is published (`[server].base_path`, e.g. `/cms`; an empty string when published at the root). Prefix links within the site and theme assets with it, as in `{{ base_path }}/articles/{{ item.slug }}` and `{{ base_path }}/theme/assets/style.css`. Without it things work when published at the root, but links break under a subpath ([Configuration reference](./configuration.md#42-publishing-under-a-subpath)).
+- `admin_url`: the URL of the link to Admin Studio (including `base_path` and `[server].admin_path`, e.g. `/cms/admin/`). **It is an empty string when the setting is not to show it**, so wrap it like `{% if admin_url %}<a href="{{ admin_url }}">...</a>{% endif %}` (writing `/admin/` directly breaks the link on sites that changed `admin_path`, and also exposes a path you wanted to hide). The condition for showing it is `[theme].show_admin_link`.
+- `locale`: the display language (`[theme].locale`, `en` / `ja`; used for `<html lang="{{ locale }}">`).
+- `t("key", n=count, name=value)`: a function that returns built-in text in the display language (e.g. `{{ t("nav.home") }}` → `Home` / `ホーム`). The keys are in the table in `crates/aegis-theme/src/messages.rs`. Passing `n` selects singular or plural (`key.one` / `key.other`), and the value is inserted (HTML-escaped) at the position of `{name}`. The result is an escaped string, and some contain `<strong>` and so on. Write your own text directly in the theme.
+- `show_powered_by`: whether to show a notice such as "Powered by AegisCMS" in the footer (`[theme].show_powered_by`, default `true`). In your own themes, too, wrap the notice in `{% if show_powered_by %}...{% endif %}`.
+- `pagination` (`index.html` only): `page` (1-based), `per_page`, `total_items`, `total_pages`, `prev_url` / `next_url` (including `base_path`; empty if none). Example:
 
 ```jinja
 {% if pagination and pagination.total_pages > 1 %}
@@ -127,50 +129,50 @@ AegisCMS では Jinja2 / Django 互換で高速・軽量・堅牢なテンプレ
 {% endif %}
 ```
 
-### テンプレートのキャッシュ
-コンパイルしたテンプレートは再利用し、テーマの切り替え（`PUT /api/v1/themes/active`）とプラグインによるテンプレートの登録時に読み直します。テーマのファイルを編集しながら確認する場合は `[theme].reload_templates = true` にすると、描画のたびに読み直します（本番では `false` のままにしてください）。
+### Template Cache
+Compiled templates are reused and reloaded when the theme is switched (`PUT /api/v1/themes/active`) and when a plugin registers a template. When checking while editing theme files, set `[theme].reload_templates = true` to reload on every render (leave it `false` in production).
 
 ---
 
-## 3. Plugin によるテーマ書き換え機構
+## 3. Theme Rewriting Mechanism by Plugins
 
-AegisCMS では、プラグインが Web ページのテーマやコンテキストを動的・プログラマブルに書き換えることができます。
+In AegisCMS, plugins can rewrite a web page's theme and context dynamically and programmatically.
 
-### 3.1 `on-render-page` フックによるコンテキスト・スタイルの書き換え
+### 3.1 Rewriting Context and Styles with the `on-render-page` Hook
 
-ページ描画直前にプラグインの `on_render_page` フックが呼び出され、`PageRenderContext` を受け取って変更できます。
+Just before a page is rendered, the plugin's `on_render_page` hook is called, and it can receive and change a `PageRenderContext`.
 
-- 公開ページの表示に加え、Admin Studio のプレビュー（`POST /api/v1/preview` の `page_html`、「Themed Page」タブ）でも、編集のたび（入力が 300ms 止まるごと）に呼ばれます。プレビューでは `published_at` / `updated_at` が `null`、`author` がログインユーザーになります。**副作用（KVS への書き込み、外部通知など）を持たせないでください。**
-- プレビューのページは Admin Studio 内の `sandbox` 付き `iframe`（スクリプト無効）に表示します。`extra_head` などで注入したスクリプトはプレビューでは動きません（公開ページでは動きます）。
+- In addition to displaying public pages, it is also called for Admin Studio's preview (`page_html` of `POST /api/v1/preview`, the "Themed Page" tab) on every edit (each time input pauses for 300ms). In the preview, `published_at` / `updated_at` are `null` and `author` is the logged-in user. **Do not give it side effects (writing to the KVS, external notifications, etc.).**
+- The preview page is shown in a `sandbox`ed `iframe` (scripts disabled) inside Admin Studio. Scripts injected via `extra_head` and the like do not run in the preview (they run on public pages).
 
-#### `PageRenderContext` の主要プロパティ
+#### Main Properties of `PageRenderContext`
 ```rust
 pub struct PageRenderContext {
-    pub site_title: String,                  // サイトタイトル
-    pub site_description: String,            // サイト説明
-    pub template: String,                    // 使用するテンプレート名 (例: "article.html")
-    pub content_type: String,                // "article", "page", "index" 等
-    pub title: String,                       // 記事/ページタイトル
-    pub slug: String,                        // スラッグ
-    pub content_html: String,                // 本文 HTML
-    pub prepend_content: String,             // 本文の前に足す HTML (書き込み専用。ホストが最後に 1 回だけ結合)
-    pub append_content: String,              // 本文の後ろに足す HTML (同上)
-    pub content_length: usize,               // 本文のバイト数 (ホストが計算)
-    pub author: Option<String>,              // 著者名
-    pub published_at: Option<String>,        // 公開日時
-    pub fields: HashMap<String, Value>,      // カスタムフィールド
-    pub relations: HashMap<String, Value>,   // 解決されたリレーション
-    pub items: Vec<ContentSummary>,          // 一覧用記事リスト
-    pub extra_css: String,                   // 注入するカスタム CSS
-    pub extra_head: String,                  // <head> に注入する HTML タグ
-    pub theme_vars: HashMap<String, String>, // テーマカラーなどの動的変数
-    pub pagination: Option<Pagination>,      // トップページのページ送り（index.html のみ）
+    pub site_title: String,                  // site title
+    pub site_description: String,            // site description
+    pub template: String,                    // template name to use (e.g. "article.html")
+    pub content_type: String,                // "article", "page", "index", etc.
+    pub title: String,                       // article/page title
+    pub slug: String,                        // slug
+    pub content_html: String,                // body HTML
+    pub prepend_content: String,             // HTML to add before the body (write-only; the host joins it once at the end)
+    pub append_content: String,              // HTML to add after the body (same)
+    pub content_length: usize,               // body size in bytes (computed by the host)
+    pub author: Option<String>,              // author name
+    pub published_at: Option<String>,        // publication time
+    pub fields: HashMap<String, Value>,      // custom fields
+    pub relations: HashMap<String, Value>,   // resolved relations
+    pub items: Vec<ContentSummary>,          // article list for list pages
+    pub extra_css: String,                   // custom CSS to inject
+    pub extra_head: String,                  // HTML tags to inject into <head>
+    pub theme_vars: HashMap<String, String>, // dynamic variables such as theme colors
+    pub pagination: Option<Pagination>,      // paging for the top page (index.html only)
 }
 ```
 
-本文に HTML を足すだけなら、`content_html` を書き換えず `prepend_content` / `append_content` に足す HTML だけを返すと速くなります。本文を使わない（または一部のフィールドだけ使う）プラグインは、マニフェストの `capabilities.render_page.input` で渡すフィールドを絞れます。どちらも [プラグイン ABI 仕様 5.3.2 / 5.3.3](plugin_abi_specification.md#532-on_render_page-の本文の前後に足すprepend_content--append_content) にあります。
+If you only want to add HTML to the body, it is faster to not rewrite `content_html` and return only the HTML to add in `prepend_content` / `append_content`. A plugin that does not use the body (or uses only some fields) can narrow the fields passed with the manifest's `capabilities.render_page.input`. Both are in [Plugin ABI specification 5.3.2 / 5.3.3](plugin_abi_specification.md#532-adding-before-and-after-the-body-in-on_render_page-prepend_content--append_content).
 
-#### Rust プラグイン SDK での実装例
+#### Example with the Rust Plugin SDK
 ```rust
 use aegis_plugin_sdk::prelude::*;
 
@@ -180,10 +182,10 @@ pub struct CyberpunkThemePlugin;
 #[aegis_plugin]
 impl Plugin for CyberpunkThemePlugin {
     fn on_render_page(&mut self, mut ctx: PageRenderContext) -> Result<PageRenderContext> {
-        // 1. サイトタイトルの動的修飾
+        // 1. Dynamically decorate the site title
         ctx.site_title = format!("{} [Cyberpunk Neon]", ctx.site_title);
 
-        // 2. テーマ変数の注入 (CSS 変数や特定クラスの上書き)
+        // 2. Inject theme variables (override CSS variables and specific classes)
         ctx.extra_css.push_str(r#"
             :root {
                 --accent: #00ffcc;
@@ -193,10 +195,10 @@ impl Plugin for CyberpunkThemePlugin {
             .brand-logo { text-shadow: 0 0 10px #00ffcc; }
         "#);
 
-        // 3. メタタグやアナリティクススクリプトの注入
+        // 3. Inject meta tags and analytics scripts
         ctx.extra_head.push_str(r#"<meta name="theme-color" content="#00ffcc">"#);
 
-        // 4. 特定の記事タイプやスラッグの場合に別テンプレートへ切り替え
+        // 4. Switch to a different template for certain content types or slugs
         if ctx.slug.starts_with("special-") {
             ctx.template = "special_layout.html".to_string();
         }
@@ -206,45 +208,45 @@ impl Plugin for CyberpunkThemePlugin {
 }
 ```
 
-### 3.2 テンプレートの動的オーバーライド
+### 3.2 Dynamic Template Override
 
-プラグインは `ThemeEngine::register_template(name, content)` を呼び出すことで、特定のテンプレート（例えば `article.html` や `custom_header.html`）を文字列として動的登録できます。
-MiniJinja の動的ローダーがこれを最優先で認識するため、サーバーの再起動やファイル配置なしにテーマの見た目を完全に差し替えることが可能です。
+A plugin can dynamically register a specific template (such as `article.html` or `custom_header.html`) as a string by calling `ThemeEngine::register_template(name, content)`.
+MiniJinja's dynamic loader recognizes this with the highest priority, so the theme's look can be replaced completely without restarting the server or placing files.
 
 ---
 
-## 4. 設定ファイル (`config/default.toml`)
+## 4. Config File (`config/default.toml`)
 
 ```toml
 [theme]
 active = "default"
 site_title = "AegisCMS Official Site"
 site_description = "Next-Generation High-Performance Secure CMS with Sandboxed WebAssembly Extensibility"
-# favicon = "/uploads/favicon.png"  # オプション: favicon（/ から始まるパスか http(s) の URL）
-# custom_css = ":root { --accent: #10b981; }" # オプション: グローバルカスタム CSS
-posts_per_page = 10        # 記事一覧の 1 ページあたりの記事数（?page=N でページ送り）
-related_posts_limit = 4    # 記事詳細の関連記事の最大表示件数（既定: 4、0 で非表示）
-front_page = "posts"       # トップページ: "posts"（記事一覧）/ "template"（テーマの front.html）/ "page:<slug>"（固定ページ）
-reload_templates = false   # true でテンプレートを描画のたびに読み直す（テーマ開発用）
-locale = "en"              # 組み込みテンプレート・コメント欄・カートの言語（en / ja）
-show_powered_by = true     # false でフッターの「Powered by AegisCMS」を出さない
-# show_admin_link = false  # 公開ページに Admin Studio へのリンクを出すか（未指定: [server].admin_path が既定の /admin のときだけ出す）
+# favicon = "/uploads/favicon.png"  # optional: favicon (a path starting with / or an http(s) URL)
+# custom_css = ":root { --accent: #10b981; }" # optional: global custom CSS
+posts_per_page = 10        # articles per page of the article list (paged with ?page=N)
+related_posts_limit = 4    # maximum number of related articles on an article detail page (default: 4, 0 hides them)
+front_page = "posts"       # top page: "posts" (article list) / "template" (the theme's front.html) / "page:<slug>" (a static page)
+reload_templates = false   # true reloads templates on every render (for theme development)
+locale = "en"              # language of the built-in templates, comment section, and cart (en / ja)
+show_powered_by = true     # false hides "Powered by AegisCMS" in the footer
+# show_admin_link = false  # whether to show a link to Admin Studio on public pages (unspecified: shown only when [server].admin_path is the default /admin)
 
 [paths]
 themes_dir = "themes"
 ```
 
-### ZIP からのインストール
+### Installing from a ZIP
 
-Admin Studio のテーマ画面の「ZIP をアップロード」または `POST /api/v1/themes/install`（`admin`、multipart の `file` フィールド）で、テーマのパッケージをインストールできます。`theme.json` を ZIP の直下か 1 段下から探し、`ThemeEngine::validate_theme_package` で検証してから `themes/<id>/` に置きます（同じ ID のテーマは置き換え。有効化はしない。監査ログ `theme.install`）。展開の制限と署名（`signature.json`）はプラグインと同じで、`[theme].require_signatures` / `[theme].trusted_public_keys` で設定します（[プラグインのインストールと署名](./plugin_hooks.md#54-zip-パッケージからのインストールと署名)）。
+You can install a theme package from the "Upload ZIP" button on Admin Studio's themes screen or with `POST /api/v1/themes/install` (`admin`, the multipart `file` field). It looks for `theme.json` at the root of the ZIP or one level down, validates it with `ThemeEngine::validate_theme_package`, and then places it in `themes/<id>/` (a theme with the same ID is replaced; it is not enabled; audit log `theme.install`). The extraction limits and signatures (`signature.json`) are the same as for plugins, configured with `[theme].require_signatures` / `[theme].trusted_public_keys` ([Installing plugins and signatures](./plugin_hooks.md#74-installing-from-a-zip-package-and-signatures)).
 
-![Admin Studio のテーマ管理（Settings → Themes）](images/themes-admin.png)
+![Admin Studio theme management (Settings → Themes)](images/themes-admin.png)
 
-### サイト名と favicon（Admin Studio）
+### Site Name and Favicon (Admin Studio)
 
-`site_title` と `favicon` は Admin Studio の **Settings › Site**（`admin` のみ）からも変更できます。保存した値は DB（`_aegis_settings`）に入り、設定ファイルの値より優先されます。サーバーの再起動なしで公開サイトに反映され、欄を空にして保存すると設定ファイルの値に戻ります。
+`site_title` and `favicon` can also be changed from Admin Studio's **Settings › Site** (`admin` only). Saved values go into the DB (`_aegis_settings`) and take precedence over the config file's values. They are reflected on the public site without restarting the server, and saving a field empty returns it to the config file's value.
 
-- favicon は `<link rel="icon" href="...">` としてテンプレートの `extra_head` に入ります（すべてのテーマが出力する変数のため、テーマ側の対応は不要です）。`on-render-page` プラグインからも見え、書き換えられます。
-- favicon に使えるのは `/` から始まるパス（アップロードした画像の URL など）と http(s) の URL です。`javascript:` / `data:` / `//host` は受け付けません。
-- API: `GET /api/v1/site` は `{"title", "favicon", "defaults": {"title", "favicon"}}`（`title` / `favicon` は Admin Studio で設定した値、未設定なら `null`）を返します。`PUT /api/v1/site` に `{"title": "...", "favicon": "..."}` を送ると変更し、`null` か空文字の項目は設定ファイルの値に戻します（どちらも `admin` のみ。監査ログ `site.update`）。
-- 通知のテンプレートの `site_name` には起動時のサイト名を使います。Admin Studio で変えた名前は、サーバーの再起動後に通知へ反映されます。
+- The favicon goes into the template's `extra_head` as `<link rel="icon" href="...">` (a variable all themes output, so no theme-side work is needed). It is visible to and can be rewritten by `on-render-page` plugins too.
+- What can be used as a favicon is a path starting with `/` (such as the URL of an uploaded image) or an http(s) URL. `javascript:` / `data:` / `//host` are not accepted.
+- API: `GET /api/v1/site` returns `{"title", "favicon", "defaults": {"title", "favicon"}}` (`title` / `favicon` are the values set in Admin Studio, or `null` if unset). Sending `{"title": "...", "favicon": "..."}` to `PUT /api/v1/site` changes them, and items that are `null` or empty return to the config file's value (both `admin` only; audit log `site.update`).
+- For the notification templates' `site_name`, the site name at startup is used. A name changed in Admin Studio is reflected in notifications after the server restarts.

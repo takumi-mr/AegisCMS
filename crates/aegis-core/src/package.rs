@@ -350,7 +350,7 @@ pub fn extract_zip_safely(
 
         // 1. Enclosed name validation against ZipSlip
         let enclosed = match file.enclosed_name() {
-            Some(path) => path.to_owned(),
+            Some(path) => path,
             None => {
                 return Err(AegisError::Validation(format!(
                     "Malicious ZIP path detected: {:?}",

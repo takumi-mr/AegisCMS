@@ -1,41 +1,43 @@
-[← ドキュメント一覧に戻る](README.ja.md)
+[← Back to the documentation index](README.md)
 
-# AegisCMS プラグイン開発サーバー (`aegis-server plugin dev`) & Plugin Builder
+**English** | [日本語](plugin_dev_server.ja.md)
 
-`aegis-server plugin dev`（または `task dev:plugin -- <dir>`）は、AegisCMS の Wasm プラグインをデータベースやログイン不要で、単体で即時テスト・デバッグするための軽量開発サーバーです。
+# AegisCMS Plugin Dev Server (`aegis-server plugin dev`) & Plugin Builder
 
-`theme dev`（Theme Builder）と同様に、プラグインの変更を監視して自動リロードし、Wasm サンドボックス内でのフック実行結果、CPU 命令数（Fuel）、ミリ秒単位の実行時間、プラグインログ（`log_info!` 等）、KVS 変更、送信 HTTP リクエスト、HTML プレビューをリアルタイムに可視化・操作できる Web UI（Plugin Builder）および REST API を提供します。
+`aegis-server plugin dev` (or `task dev:plugin -- <dir>`) is a lightweight dev server for instantly testing and debugging an AegisCMS Wasm plugin on its own, without a database or login.
+
+Like `theme dev` (Theme Builder), it watches for plugin changes and reloads automatically, and provides a web UI (Plugin Builder) and a REST API that visualize and let you operate, in real time, the result of hook execution inside the Wasm sandbox, the CPU instruction count (fuel), execution time in milliseconds, plugin logs (`log_info!`, etc.), KVS changes, outgoing HTTP requests, and an HTML preview.
 
 ---
 
-## 1. クイックスタート
+## 1. Quick Start
 
 ```bash
-# 既存の公式プラグインで開発サーバーを起動 (既定: http://127.0.0.1:8091)
+# Start the dev server with an existing official plugin (default: http://127.0.0.1:8091)
 task dev:plugin -- plugins/official-code-enhancer
 
-# task を入れていないときは同じ意味のコマンド（独立クレート aegis-plugin-dev により初回でも数秒〜数十秒で起動）
+# If you do not have task, the equivalent command (thanks to the standalone crate aegis-plugin-dev it starts in seconds to tens of seconds even the first time)
 cargo run -p aegis-plugin-dev -- plugins/official-code-enhancer
 
-# フロントエンド開発 UI (Plugin Builder) を起動 (http://localhost:5175)
+# Start the frontend dev UI (Plugin Builder) (http://localhost:5175)
 task dev:plugin-builder
 ```
 
 ---
 
-## 2. API 仕様 (`/__dev/*`)
+## 2. API Specification (`/__dev/*`)
 
-開発サーバーは以下のエンドポイントを提供します。
+The dev server provides the following endpoints.
 
-### 2.1 プラグイン情報の取得 (`GET /__dev/api/plugin`)
+### 2.1 Getting Plugin Information (`GET /__dev/api/plugin`)
 
-マニフェスト（`plugin.manifest.json`）、エントリポイント、Wasm ファイルサイズ、モジュールがエクスポートしている関数名一覧を返します。
+Returns the manifest (`plugin.manifest.json`), the entrypoint, the Wasm file size, and the list of function names the module exports.
 
 ```bash
 curl http://127.0.0.1:8091/__dev/api/plugin
 ```
 
-**レスポンス例**:
+**Example response**:
 ```json
 {
   "manifest": {
@@ -59,33 +61,33 @@ curl http://127.0.0.1:8091/__dev/api/plugin
 }
 ```
 
-### 2.2 標準モックフィクスチャ一覧 (`GET /__dev/api/fixtures`)
+### 2.2 List of Standard Mock Fixtures (`GET /__dev/api/fixtures`)
 
-全フックの標準の入力を返します。値は、ホストが実際にフックへ渡す JSON そのものです（`{"post": {...}}` のような包みは付きません）。
+Returns the standard input for every hook. The values are exactly the JSON the host actually passes to the hook (no wrapper such as `{"post": {...}}`).
 
-| フック | 入力（Rust の型） |
+| Hook | Input (Rust type) |
 | --- | --- |
 | `on-before-save` | `PostContext` |
-| `transform-content-ast` | `BlockNode` の配列 |
-| `render-blocks` | `{"blocks": [BlockNode, ...]}`（結果は `{"html": ["<div>…</div>", null, ...]}`。`null` はそのプラグインが描かないブロック） |
+| `transform-content-ast` | An array of `BlockNode` |
+| `render-blocks` | `{"blocks": [BlockNode, ...]}` (the result is `{"html": ["<div>…</div>", null, ...]}`; `null` is a block this plugin does not render) |
 | `on-render-page` | `PageRenderContext` |
 | `calculate-order` | `OrderContext` |
 | `on-order-status-changed` | `OrderStatusChange` |
 | `on-content-published` | `PublishedContent` |
-| `check-comment` | `CommentSubmission`（結果は `CommentVerdict`） |
+| `check-comment` | `CommentSubmission` (the result is `CommentVerdict`) |
 | `send-notification` | `NotificationMessage` |
 | `on-user-authenticated` | `UserAuthContext` |
 
-型は `aegis-core` / `aegis-ast` にあり、各フィクスチャが型に読み込めることはテストで検査しています。
+The types are in `aegis-core` / `aegis-ast`, and tests check that each fixture can be loaded into its type.
 
 ```bash
 curl http://127.0.0.1:8091/__dev/api/fixtures
 ```
 
-### 2.3 フックの即時テスト実行 (`POST /__dev/api/invoke`)
+### 2.3 Instant Test Execution of a Hook (`POST /__dev/api/invoke`)
 
-フック名・入力データ・初期 KV・モック HTTP ルール・動的設定値を指定して、Wasmtime 上で安全に隔離実行します。
-※書き込み系エンドポイントのため、ヘッダー `x-aegis-dev: 1` が必要です。
+Specify the hook name, input data, initial KV, mock HTTP rules, and dynamic settings, and it is executed safely isolated on Wasmtime.
+Note: this is a write endpoint, so the header `x-aegis-dev: 1` is required.
 
 ```bash
 curl -X POST http://127.0.0.1:8091/__dev/api/invoke \
@@ -106,7 +108,7 @@ curl -X POST http://127.0.0.1:8091/__dev/api/invoke \
   }'
 ```
 
-**レスポンス例**:
+**Example response**:
 ```json
 {
   "success": true,
@@ -134,9 +136,9 @@ curl -X POST http://127.0.0.1:8091/__dev/api/invoke \
 }
 ```
 
-### 2.4 KVS / HTTP 通信のモックとキャプチャ
+### 2.4 Mocking and Capturing KVS / HTTP Communication
 
-外部 API 連携（Slack 通知など）や状態保存を行うプラグインも、実環境に影響を与えずに検証できます。
+Plugins that integrate with external APIs (such as Slack notifications) or save state can also be verified without affecting the real environment.
 
 ```json
 {
@@ -160,15 +162,15 @@ curl -X POST http://127.0.0.1:8091/__dev/api/invoke \
 }
 ```
 
-実行後、`kv_mutations` に書き換えられたキーと値、`http_requests` に送信された HTTP メソッド・URL・本文が記録されて返却されます。
+After execution, the rewritten keys and values are returned in `kv_mutations`, and the HTTP methods, URLs, and bodies that were sent are recorded in `http_requests`.
 
-### 2.5 ホットリロード用ロングポーリング (`GET /__dev/version?since=<version>`)
+### 2.5 Long Polling for Hot Reload (`GET /__dev/version?since=<version>`)
 
-プラグインフォルダー内のファイル更新（`plugin.wasm` の再コンパイルなど）を検知すると、即座に新しいタイムスタンプを返します。フロントエンド（Plugin Builder）の自動再実行に使用されます。
+When it detects a file update in the plugin folder (such as a recompile of `plugin.wasm`), it immediately returns a new timestamp. It is used for automatic re-execution in the frontend (Plugin Builder).
 
-### 2.6 HTML ライブプレビュー API (`POST /__dev/api/preview`)
+### 2.6 HTML Live Preview API (`POST /__dev/api/preview`)
 
-フロントエンド系フック（`on-render-page`, `render-blocks`, `transform-content-ast` など）の出力を受け取り、CSS・JS を埋め込んだ安全なスタンドアロン HTML ドキュメントを動的に合成して返却します。
+Takes the output of a frontend-type hook (`on-render-page`, `render-blocks`, `transform-content-ast`, etc.) and dynamically composes and returns a safe standalone HTML document with the CSS and JS embedded.
 
 ```bash
 curl -X POST http://127.0.0.1:8091/__dev/api/preview \
@@ -180,26 +182,26 @@ curl -X POST http://127.0.0.1:8091/__dev/api/preview \
   }'
 ```
 
-**レスポンス例**:
+**Example response**:
 ```json
 {
   "html": "<!DOCTYPE html><html lang=\"en\"><head><meta charset=\"utf-8\"><title>Plugin Preview</title><style>...</style></head><body><div class=\"preview-wrapper\"><div class=\"rendered-blocks\"><div class=\"block-item\"><div class=\"cta-banner\">Special Offer!</div></div></div></div></body></html>"
 }
 ```
 
-### 2.7 ビルドトリガー API (`POST /__dev/api/build`)
+### 2.7 Build Trigger API (`POST /__dev/api/build`)
 
-プラグインフォルダーのビルドコマンドを実行し、実行結果・出力ログ（stdout/stderr）・所要時間（ms）を返却します。
-ビルドコマンドは次の順に決まります。
+Runs the plugin folder's build command and returns the result, the output log (stdout/stderr), and the time taken (ms).
+The build command is decided in this order.
 
-| 優先 | 指定 | 動き |
+| Priority | Specification | Behavior |
 | --- | --- | --- |
-| 1 | `--build-command "<コマンド>"` | そのコマンドを実行。**成果物を `entrypoint`（`plugin.wasm`）に置くのはコマンドの役目**（例: `cargo build --target wasm32-unknown-unknown --release && cp ... plugin.wasm`） |
-| 2 | マニフェストの `"dev": { "build_command": "<コマンド>" }` | 同上（プラグインごとに固定したいとき） |
-| 3 | `Cargo.toml`（Rust） | `cargo build --target wasm32-unknown-unknown --release` を実行し、成功したら cdylib の成果物（`target/` の下）を `entrypoint` に**自動でコピー**する。ワークスペースのメンバーでも独立した crate でも動く（`cargo metadata` で成果物を探す）。Fuel を本番と同じ条件で測るため、リリースビルド |
-| 4 | `package.json`（AssemblyScript） | `npm run asbuild`、無ければ `npm run build` |
+| 1 | `--build-command "<command>"` | Runs that command. **It is the command's job to place the artifact at the `entrypoint` (`plugin.wasm`)** (e.g. `cargo build --target wasm32-unknown-unknown --release && cp ... plugin.wasm`) |
+| 2 | `"dev": { "build_command": "<command>" }` in the manifest | Same as above (when you want to fix it per plugin) |
+| 3 | `Cargo.toml` (Rust) | Runs `cargo build --target wasm32-unknown-unknown --release`, and on success **automatically copies** the cdylib artifact (under `target/`) to the `entrypoint`. Works for both workspace members and standalone crates (it finds the artifact with `cargo metadata`). A release build, so fuel is measured under the same conditions as production |
+| 4 | `package.json` (AssemblyScript) | `npm run asbuild`, or `npm run build` if absent |
 
-ソース（`.rs`・`.ts` など）を保存すると、このコマンドが自動で走り、成功するとページが読み込み直されます。開発サーバーが読むのは `entrypoint` のファイルだけなので、3 以外では上のとおり `entrypoint` が更新されるコマンドにしてください（更新されないと、ビルドは成功しても表示は変わりません）。
+When you save a source file (`.rs`, `.ts`, etc.), this command runs automatically, and on success the page is reloaded. The dev server reads only the `entrypoint` file, so for anything other than 3, make the command one that updates the `entrypoint` as above (if it is not updated, the build succeeds but the display does not change).
 
 ```bash
 curl -X POST http://127.0.0.1:8091/__dev/api/build \
@@ -208,30 +210,30 @@ curl -X POST http://127.0.0.1:8091/__dev/api/build \
 
 ---
 
-## 3. セキュリティ設計
+## 3. Security Design
 
-開発サーバーはローカル開発用途に特化していますが、ブラウザの別タブ・悪意ある外部スクリプトからの不正操作を防ぐため、以下の防御機構を備えています。
+The dev server is specialized for local development, but it has the following defenses to prevent unauthorized operation from other browser tabs and malicious external scripts.
 
-1. **DNS リバインディング防止**: ループバック接続時、`Host` ヘッダーが `localhost` / `127.0.0.1` / `::1` であることを検証。
-2. **CSRF / 不正 Fetch 防止**: `GET` / `HEAD` 以外のすべてのミューテーションリクエストで `x-aegis-dev` カスタムヘッダーを必須化。
-3. **パストラバーサル防止**: ファイル API はプラグインディレクトリ配下から脱出するパス（`..` やシンボリックリンク）を遮断。
-4. **プレビューサンドボックス**: Plugin Builder の HTML プレビュー iframe は `sandbox="allow-scripts allow-forms allow-popups allow-modals"` 属性で隔離され、親画面への同一オリジンアクセスを防止。
+1. **DNS rebinding prevention**: For loopback connections, it validates that the `Host` header is `localhost` / `127.0.0.1` / `::1`.
+2. **CSRF / unauthorized fetch prevention**: The `x-aegis-dev` custom header is required on all mutation requests other than `GET` / `HEAD`.
+3. **Path traversal prevention**: The file API blocks paths that escape from under the plugin directory (`..` and symbolic links).
+4. **Preview sandbox**: Plugin Builder's HTML preview iframe is isolated with the attribute `sandbox="allow-scripts allow-forms allow-popups allow-modals"`, preventing same-origin access to the parent screen.
 
 ---
 
 ## 4. Plugin Builder Web UI (`plugin-builder/`)
 
-React 19 + TypeScript + Vite + CodeMirror 6 で構築された開発用 SPA です。
-`task dev:plugin-builder` で起動します（既定ポート: `5175`）。
+A development SPA built with React 19 + TypeScript + Vite + CodeMirror 6.
+Start it with `task dev:plugin-builder` (default port: `5175`).
 
-![Plugin Builder: 左に入力（Payload）、右に実行結果の HTML プレビュー](images/plugin-builder.png)
+![Plugin Builder: input (Payload) on the left, the HTML preview of the execution result on the right](images/plugin-builder.png)
 
-左で入力（Payload・設定・初期 KV・HTTP モック）を編集して実行すると、右に結果・メトリクス・プレビューが出ます。結果のタブ（Output）には、フックが返した JSON がそのまま出ます。
+Edit the input on the left (payload, settings, initial KV, HTTP mocks) and run it, and the result, metrics, and preview appear on the right. The result tab (Output) shows the JSON the hook returned as is.
 
-![Plugin Builder: Output タブ（フックが返した JSON）](images/plugin-builder-output.png)
+![Plugin Builder: the Output tab (the JSON the hook returned)](images/plugin-builder-output.png)
 
-- **フック切り替え & プリセットフィクスチャ**: マニフェストに定義されたフックを選択すると、即座に対応する標準テストデータがセットされます。
-- **コードエディタ (CodeMirror 6)**: Payload (JSON)、Settings (Config)、Initial KV Store、Mock HTTP Rules をタブで切り替え編集可能。Ctrl+Enter で即時実行。
-- **メトリクスバー**: Fuel 消費量（最大リソース制限に対するパーセンテージ）と実行時間 (ms) をプログレスバーで可視化。
-- **HTML ライブプレビュー**: `on-render-page` などの実行結果を iframe 上で Desktop / Tablet / Mobile サイズに切り替えてリアルタイム描画。別タブ表示やリロードにも対応。
-- **ワンクリック Rebuild**: 画面上の「Rebuild」ボタンから Wasm 再ビルドを実行。ビルドエラー時はログを即座に確認可能。
+- **Hook switching & preset fixtures**: Choosing a hook defined in the manifest immediately sets the corresponding standard test data.
+- **Code editor (CodeMirror 6)**: Payload (JSON), Settings (Config), Initial KV Store, and Mock HTTP Rules can be switched between with tabs and edited. Ctrl+Enter runs immediately.
+- **Metrics bar**: Visualizes fuel consumption (as a percentage of the maximum resource limit) and execution time (ms) with progress bars.
+- **HTML live preview**: The result of `on-render-page` and others is rendered in real time in an iframe, switchable between Desktop / Tablet / Mobile sizes. It also supports showing in another tab and reloading.
+- **One-click Rebuild**: Run a Wasm rebuild from the "Rebuild" button on screen. On a build error, you can check the log immediately.

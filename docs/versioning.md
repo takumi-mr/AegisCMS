@@ -1,102 +1,104 @@
-# バージョニングとリリース
+# Versioning and Releases
 
-AegisCMS は [Semantic Versioning 2.0.0](https://semver.org/lang/ja/) に従います。バージョンの上げ方とタグ・CHANGELOG は [release-please](https://github.com/googleapis/release-please) が Conventional Commits から自動で行います。
+**English** | [日本語](versioning.ja.md)
 
-## 1. 何にバージョンを付けるか
+AegisCMS follows [Semantic Versioning 2.0.0](https://semver.org/). Raising versions and creating tags and the CHANGELOG are done automatically by [release-please](https://github.com/googleapis/release-please) from Conventional Commits.
 
-| 対象 | バージョン | 置き場所 | タグ |
+## 1. What Gets a Version
+
+| Target | Version | Where it lives | Tag |
 |---|---|---|---|
-| **コア**: 全 `aegis-*` crate・Rust SDK（`aegis-plugin-sdk`）・Admin Studio・Theme Builder・Plugin Builder | 一括（同じ番号） | ルートの `Cargo.toml` の `[workspace.package]`、各 `package.json` | `v0.2.0` |
-| **AssemblyScript SDK** `@takumi-mr/plugin-sdk` | 個別 | `sdk/assemblyscript/package.json` | `sdk-assemblyscript-v0.2.0` |
-| **TinyGo SDK** | 個別 | タグそのもの（Go モジュールの規約） | `sdk/tinygo/v0.2.0` |
-| **公式プラグイン** `plugins/official-*` | プラグインごとに個別 | `Cargo.toml` と `plugin.manifest.json` の `version` | `plugin-official-ads-v0.1.1` |
+| **Core**: all `aegis-*` crates, the Rust SDK (`aegis-plugin-sdk`), Admin Studio, Theme Builder, Plugin Builder | Together (the same number) | `[workspace.package]` in the root `Cargo.toml`, and each `package.json` | `v0.2.0` |
+| **AssemblyScript SDK** `@takumi-mr/plugin-sdk` | Individual | `sdk/assemblyscript/package.json` | `sdk-assemblyscript-v0.2.0` |
+| **TinyGo SDK** | Individual | The tag itself (Go module convention) | `sdk/tinygo/v0.2.0` |
+| **Official plugins** `plugins/official-*` | Individual per plugin | `version` in `Cargo.toml` and `plugin.manifest.json` | `plugin-official-ads-v0.1.1` |
 
-- コアの crate は `version.workspace = true` で 1 つの番号を共有します。個別に番号を持たせないでください。
-- `sdk/templates/` と `sdk/examples/` はコピー元のひな形で、単独ではリリースしません（バージョンは `0.1.0` のままで構いません）。ただし Rust テンプレートの `aegis-plugin-sdk` へのバージョン要求はコアに追従させます。
-- 1.0 になるまでは、機能追加（`feat`）も破壊的変更もマイナー（`0.x`）を上げ、修正（`fix`・`perf`）はパッチを上げます。
+- The core crates share one number with `version.workspace = true`. Do not give them individual numbers.
+- `sdk/templates/` and `sdk/examples/` are templates to copy from and are not released on their own (their version can stay `0.1.0`). However, the version requirement on `aegis-plugin-sdk` in the Rust template follows the core.
+- Until 1.0, both feature additions (`feat`) and breaking changes raise the minor (`0.x`), and fixes (`fix`, `perf`) raise the patch.
 
-## 2. プラグインの互換性
+## 2. Plugin Compatibility
 
-プラグインと本体の互換性は、2 つの項目で宣言します（`plugin.manifest.json`）。
+Compatibility between a plugin and the core is declared with two items (`plugin.manifest.json`).
 
-- **`min_aegis_version`**: 動かせる本体の最小バージョン（SemVer）。本体がこれより古いと読み込まない。
-- **`abi_version`**: プラグインが前提にする **プラグイン ABI のバージョン**（整数）。ホスト API・フックの入出力に互換性のない変更を入れたときだけ、`aegis_core::PLUGIN_ABI_VERSION` を上げます。ホストが対応する範囲（1 以上、`PLUGIN_ABI_VERSION` 以下）を超えると読み込まない。省略したプラグインは検査しない。
+- **`min_aegis_version`**: the minimum core version it can run on (SemVer). If the core is older, the plugin is not loaded.
+- **`abi_version`**: the **plugin ABI version** (an integer) the plugin assumes. `aegis_core::PLUGIN_ABI_VERSION` is raised only when an incompatible change is made to the host API or the hooks' input and output. If it exceeds the range the host supports (1 or more, up to `PLUGIN_ABI_VERSION`), the plugin is not loaded. Plugins that omit it are not checked.
 
-ABI の中身は [plugin_abi_specification.md](plugin_abi_specification.md) にあります。**ABI 2**: `on-render-page` のスクリプトを、HTML の文字列ではなく構造化した `scripts` でだけ足せるようにした（`extra_head`・`prepend_content`・`append_content` の中の `<script>` と `on*` 属性は、ホストが取り除く）。`scripts` を使うプラグインは `abi_version: 2` と書く。ABI 1 のプラグインも読み込めるが、`<script>` は動かなくなる。経緯は [csp.md](csp.md)。
+The contents of the ABI are in [plugin_abi_specification.md](plugin_abi_specification.md). **ABI 2**: scripts in `on-render-page` can only be added through structured `scripts`, not HTML strings (the host strips `<script>` and `on*` attributes inside `extra_head`, `prepend_content`, and `append_content`). Plugins that use `scripts` write `abi_version: 2`. ABI 1 plugins can still be loaded, but their `<script>` no longer runs. For the background, see [csp.md](csp.md).
 
-互換性を壊さない追加（新しいフック・ホスト API の追加）では ABI のバージョンを上げません。その追加を使うプラグインは `min_aegis_version` を上げて宣言します。
+Additions that do not break compatibility (adding a new hook or host API) do not raise the ABI version. Plugins that use such an addition declare it by raising `min_aegis_version`.
 
-サーバーは、管理者のセッションの `GET /api/v1/health` に `version`（本体）と `plugin_abi_version` を返します（公開側には返しません）。Admin Studio のヘッダーのゲートウェイ表示に出るツールチップで本体のバージョンを確認できます。
+The server returns `version` (the core) and `plugin_abi_version` in `GET /api/v1/health` for an administrator's session (not on the public side). You can check the core version in the tooltip shown on the gateway indicator in Admin Studio's header.
 
-## 3. コミットメッセージとバージョンの上がり方
+## 3. Commit Messages and How Versions Go Up
 
-[CLAUDE.md の 4](../CLAUDE.md) の Conventional Commits がそのままバージョンに反映されます。
+The Conventional Commits in [CLAUDE.md 4](../CLAUDE.md) are reflected in the version as they are.
 
-| コミット | 上がるバージョン |
+| Commit | Version raised |
 |---|---|
-| `fix:` / `perf:` | パッチ |
-| `feat:` | マイナー（1.0 前も同じ） |
-| `feat!:` や本文の `BREAKING CHANGE:` | 1.0 前はマイナー、1.0 以降はメジャー |
-| `docs` / `style` / `test` / `chore` | 上がらない（CHANGELOG にも出ない） |
+| `fix:` / `perf:` | Patch |
+| `feat:` | Minor (the same before 1.0) |
+| `feat!:` or `BREAKING CHANGE:` in the body | Minor before 1.0, major from 1.0 |
+| `docs` / `style` / `test` / `chore` | Not raised (and does not appear in the CHANGELOG) |
 
 > [!WARNING]
-> **コミットメッセージ・PR のタイトルと本文に、生の HTML（特に `<script>` と `<style>`）を書かないでください。** リリース PR の本文はコミットメッセージから作られ、release-please はそれを HTML として読みます。`<script>` が 2 つ以上あるなどで読み取りが崩れると、リリース PR をマージしても**タグも GitHub Release も作られず**、`autorelease: pending` のまま残ります。以降のリリース PR も「untagged, merged release PRs outstanding」で作られなくなります（ワークフローは success と表示されるので気づきにくい）。バッククォートで囲んでも防げません。「script 要素」のように言葉で書いてください。`破壊的変更`の説明（`BREAKING CHANGE:`）で特に起きやすいです。PR では `scripts/check-release-notes-html.mjs`（`commit-lint.yml`）が検査します。
+> **Do not write raw HTML (especially `<script>` and `<style>`) in commit messages or in PR titles and bodies.** The release PR body is built from the commit messages, and release-please reads it as HTML. If parsing breaks, for example when there are two or more `<script>`, then even if you merge the release PR, **neither a tag nor a GitHub Release is created** and it stays `autorelease: pending`. Later release PRs also stop being created with "untagged, merged release PRs outstanding" (the workflow shows success, so it is hard to notice). Wrapping it in backticks does not prevent it. Write it in words, like "script element". It happens especially often in the explanation of a breaking change (`BREAKING CHANGE:`). For PRs, `scripts/check-release-notes-html.mjs` (`commit-lint.yml`) checks it.
 >
-> すでにリリース PR をマージして止まった場合は、そのリリース PR の本文の `<` を `&amp;lt;` に直して（`<script` → `&amp;lt;script`）、main 上の Release Please のワークフローを再実行します（`&lt;` では、release-please が本文を読み直すときに元に戻ってしまい直りません）。
+> If you already merged a release PR and it stalled, fix the `<` in that release PR's body to `&amp;lt;` (`<script` → `&amp;lt;script`) and rerun the Release Please workflow on main (with `&lt;`, release-please reverts it when rereading the body, so it does not get fixed).
 
-コミットがどの対象に数えられるかは、**変更したファイルのパス**で決まります（スコープではありません）。`plugins/official-ads/` の変更はそのプラグインだけを、`sdk/assemblyscript/` の変更はその SDK だけを、それ以外（`plugins/`・`sdk/` の外）はコアを上げます。
+Which target a commit counts toward is decided by the **path of the changed files** (not the scope). Changes in `plugins/official-ads/` raise only that plugin, changes in `sdk/assemblyscript/` raise only that SDK, and everything else (outside `plugins/` and `sdk/`) raises the core.
 
-## 4. リリースの流れ
+## 4. The Release Flow
 
-1. `main` に変更をマージすると、`Release Please` ワークフローがリリース PR（バージョン更新 + 各 `CHANGELOG.md`）を作る、または更新する。
-2. リリース PR のバージョンと CHANGELOG を確かめてマージする。`Cargo.lock` はワークフローが同じ PR に追従させる。
-3. マージするとタグと GitHub Release が作られる。さらに `release-please.yml` の `paths_released` 出力に基づき、リリースされた対象パスの公開ワークフローが自動発火する：
-   - **AssemblyScript SDK** (`sdk/assemblyscript`): GitHub Packages (`@takumi-mr/plugin-sdk`) へ npm パッケージが自動公開される (`release-sdk.yml`)。
-   - **コア** (`.`): GitHub Container Registry (`ghcr.io/takumi-mr/aegiscms`) へ公式 Docker イメージが自動でビルド＆プッシュされる (`release-docker.yml`)。
-   - **TinyGo SDK** (`sdk/tinygo`): 作成されたタグ (`sdk/tinygo/vX.Y.Z`) 自体が Go モジュールとしての配布となる。
+1. When changes are merged to `main`, the `Release Please` workflow creates or updates a release PR (version updates + each `CHANGELOG.md`).
+2. Check the release PR's versions and CHANGELOG and merge it. The workflow makes `Cargo.lock` follow in the same PR.
+3. Merging creates tags and GitHub Releases. In addition, based on the `paths_released` output of `release-please.yml`, the publishing workflows for the released target paths are triggered automatically:
+   - **AssemblyScript SDK** (`sdk/assemblyscript`): the npm package is published automatically to GitHub Packages (`@takumi-mr/plugin-sdk`) (`release-sdk.yml`).
+   - **Core** (`.`): the official Docker image is built and pushed automatically to the GitHub Container Registry (`ghcr.io/takumi-mr/aegiscms`) (`release-docker.yml`).
+   - **TinyGo SDK** (`sdk/tinygo`): the created tag (`sdk/tinygo/vX.Y.Z`) itself is the distribution as a Go module.
 
-リリース PR にも CI を走らせるため（`GITHUB_TOKEN` で作った PR では CI が動かない）、リポジトリの secret に `RELEASE_PLEASE_TOKEN`（PAT）を登録しています。Fine-grained PAT なら、対象リポジトリに **Contents** と **Pull requests** の Read and write が要ります（足りないと PR のブランチ作成で失敗する）。未登録でも `GITHUB_TOKEN` で動きますが、リリース PR の CI は動きません。
+So that CI also runs on release PRs (CI does not run on PRs created with `GITHUB_TOKEN`), `RELEASE_PLEASE_TOKEN` (a PAT) is registered in the repository secrets. A fine-grained PAT needs Read and write for **Contents** and **Pull requests** on the target repository (without them, creating the PR's branch fails). It also works with `GITHUB_TOKEN` if unregistered, but CI does not run on release PRs.
 
-初めてリリース PR を作るときは、それまでに変更したパスすべてが対象になります。新しく仕組みを入れた直後は、全プラグインと TinyGo SDK が同時に上がるのはこのためです（次回からは変更したパスだけ）。
+When the first release PR is created, all paths changed up to then are targets. Right after introducing the mechanism, all plugins and the TinyGo SDK go up at the same time for this reason (from next time, only the changed paths).
 
-## 5. 整合性の検査
+## 5. Consistency Checks
 
-`task version:check`（`node scripts/check-versions.mjs`）が、次を確かめます。`task check` と CI でも実行します。
+`task version:check` (`node scripts/check-versions.mjs`) checks the following. It also runs in `task check` and CI.
 
-- `release-please-config.json` と `.release-please-manifest.json` と、ディスク上の `plugins/official-*` が一致している（プラグインを足したら両方に登録する）
-- ルートの `Cargo.toml`、各 crate の `version.workspace = true`、3 つのフロントエンドの `package.json` / `package-lock.json`、SDK のバージョン要求が、コアのバージョンと一致している
-- 各公式プラグインの `Cargo.toml` と `plugin.manifest.json` の `version` が一致している
-- すべての `plugin.manifest.json` に `abi_version` があり、ホストが扱える範囲に収まっている。`min_aegis_version` がコアより新しくない
+- `release-please-config.json`, `.release-please-manifest.json`, and `plugins/official-*` on disk agree (when you add a plugin, register it in both)
+- The root `Cargo.toml`, each crate's `version.workspace = true`, the `package.json` / `package-lock.json` of the three frontends, and the SDK version requirements agree with the core version
+- Each official plugin's `Cargo.toml` and `plugin.manifest.json` `version` agree
+- Every `plugin.manifest.json` has an `abi_version` within the range the host handles. `min_aegis_version` is not newer than the core
 
-バージョンを手で上げることは基本的にありません（リリース PR に任せる）。手で直すときも、このコマンドで抜けを確かめてください。
+You basically never raise versions by hand (leave it to release PRs). Even when fixing by hand, use this command to check for omissions.
 
-## 6. テーブル定義の更新方針
+## 6. Policy for Updating Table Definitions
 
-システムテーブル（`_aegis_*`）の定義は、sqlx の migrate（番号つきの SQL ファイル）で作り、変えます。**手順は前向きに足していくだけ**で、メジャーバージョンでも整理し直しません。どのバージョンの DB からでも、新しい版を起動すれば、まだ適用していない手順が順に流れます。
+The definitions of the system tables (`_aegis_*`) are created and changed with sqlx migrate (numbered SQL files). **The steps only move forward**, and are not reorganized even at a major version. From a DB of any version, starting a newer version runs the steps not yet applied, in order.
 
-- **置き場所**: [`crates/aegis-db/migrations/`](../crates/aegis-db/migrations) の `sqlite/`・`postgres/`・`mysql/`。方言ごとに SQL を手で書く（型や索引の書き方が違うため）。ファイル名は `NNNN_説明.sql`（4 桁の連番）で、**3 つの方言で同じ番号・同じ名前**にそろえる（そろっていないとテストが落ちる）。
-- **`0001_baseline`**: v0.4 のシステムテーブルの定義。すべて `IF NOT EXISTS` なので、v0.4 が作った DB は何も変えずに「適用済み」として採用される（バックアップ → 復元は要らない）。
-- **記録と検査**: 適用済みの手順は DB の `_sqlx_migrations` に、チェックサムつきで残る。次の 2 つは起動を止める。
-  - **公開した手順のファイルを書き換えた**（チェックサムが違う）。直したいときは、新しい手順を足す。
-  - **DB が、今のバイナリの知らない手順まで適用済み**（新しい版で更新した DB を古い版で開いた）。古い版では動かさない。戻すときは、更新前に取ったバックアップから復元する。
-- **起動時に自動で流す**（`init`・`run`・`task migrate`）。同時に複数台が起動しても、PostgreSQL・MySQL は sqlx が排他する。
-- **巻き戻し（down）は作らない**。戻すときは、更新前のバックアップ（`task dump`）から復元する。
+- **Where they are**: `sqlite/`, `postgres/`, and `mysql/` under [`crates/aegis-db/migrations/`](../crates/aegis-db/migrations). SQL is written by hand per dialect (because type and index syntax differ). File names are `NNNN_description.sql` (a 4-digit sequence number), and the **same number and the same name across the 3 dialects** (tests fail if they do not match).
+- **`0001_baseline`**: the definition of v0.4's system tables. Everything is `IF NOT EXISTS`, so a DB created by v0.4 is adopted as "already applied" without changing anything (no backup → restore needed).
+- **Records and checks**: applied steps remain in the DB's `_sqlx_migrations` with checksums. The following two stop startup.
+  - **A published step's file was rewritten** (the checksum differs). If you want to fix it, add a new step.
+  - **The DB has applied steps the current binary does not know** (a DB updated by a newer version was opened by an older one). Do not run it with the older version. To go back, restore from the backup taken before the update.
+- **Run automatically at startup** (`init`, `run`, `task migrate`). Even when several instances start at the same time, sqlx takes an exclusive lock on PostgreSQL and MySQL.
+- **No rollback (down) is created.** To go back, restore from the backup taken before the update (`task dump`).
 
-### 6.1 手順の書き方
+### 6.1 How to Write Steps
 
-- **列・表・索引の追加を基本にする**。NULL 可か、デフォルト値つきの列を足す。複数台を順番に更新するとき、更新前の台が新しい列に当たっても動くようにするため。
-- **名前や型の変更、列の削除は、段階に分ける**。新しい列を足してコピーし、アプリが新しい列だけを使うようになった版の**次の手順**で古い列を消す（SQLite の `DROP COLUMN` は 3.35 以降）。
-- **1 つのファイルに 1 つの変更**を書き、何度流しても同じ結果になる書き方（`IF NOT EXISTS` など）にする。**MySQL は DDL を 1 文ずつコミットして戻せない**。途中で失敗した手順は、sqlx が「失敗」と記録して起動を止める。原因を直し、`_sqlx_migrations` のその行を消してから、起動し直す。
-- 手順の中でデータを書き換えるとき（`UPDATE`）は、3 つの DB で同じ結果になるようにする。
+- **Basically add columns, tables, and indexes.** Add columns that are nullable or have a default value, so that when updating several instances one by one, an instance that has not been updated yet still works if it hits the new column.
+- **Split renames, type changes, and column drops into stages.** Add the new column and copy, and drop the old column in the **next step** after the version in which the app uses only the new column (SQLite's `DROP COLUMN` is 3.35 and later).
+- **Write one change per file**, in a form that gives the same result however many times it is run (such as `IF NOT EXISTS`). **MySQL commits DDL one statement at a time and cannot roll back.** A step that fails partway is recorded as "failed" by sqlx and stops startup. Fix the cause, delete that row in `_sqlx_migrations`, and start again.
+- When rewriting data inside a step (`UPDATE`), make it give the same result on all 3 DBs.
 
-### 6.2 YAML のスキーマで宣言するコンテンツの表
+### 6.2 Content Tables Declared in YAML Schemas
 
-`content_*`（YAML のスキーマで宣言する表）は、この仕組みの対象ではありません。起動時に、既存の表に無い列だけを `ALTER TABLE ... ADD COLUMN` で足す、これまでの仕組みのままです（[architecture.md の「スキーマ進化」](architecture.md)）。
+`content_*` (tables declared in YAML schemas) is not covered by this mechanism. At startup, it is still the existing mechanism that adds only columns missing from the existing table with `ALTER TABLE ... ADD COLUMN` ([architecture.md "Schema evolution"](architecture.md)).
 
-### 6.3 バックアップ・復元との関係
+### 6.3 Relation to Backup and Restore
 
-手順を前向きに足すので、バージョンをまたぐ更新に、バックアップ → 復元は要りません。バックアップは、更新前の保険（戻すとき）と、別の DB・サーバーへの引っ越しに使います。復元は、今のスキーマに合わないカスタムフィールドを、警告を出して落とします（[architecture.md の 17](architecture.md#17-バックアップとリストア-aegis-backup)）。
+Since the steps only move forward, no backup → restore is needed for updates across versions. Backups are used as insurance before an update (for going back) and for moving to another DB or server. Restore drops custom fields that do not fit the current schema, with a warning ([architecture.md 17](architecture.md#17-backup-and-restore-aegis-backup)).
 
-### 6.4 v0.4 より前の DB
+### 6.4 DBs Older Than v0.4
 
-0.3.x までの DB は、`0001_baseline` が「作成済み」として何もしないので、足りない列を足せません。`init` が、v0.4 で足した列（`REQUIRED_COLUMNS`）の有無を確かめ、無ければ、0.3.x でバックアップを取って新しい版に復元する手順を示して起動を止めます。
+For a DB up to 0.3.x, `0001_baseline` does nothing, treating the tables as "already created", so it cannot add the missing columns. `init` checks for the columns added in v0.4 (`REQUIRED_COLUMNS`), and if they are absent it stops startup and shows the procedure of taking a backup on 0.3.x and restoring it into the new version.

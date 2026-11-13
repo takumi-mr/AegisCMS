@@ -1,49 +1,51 @@
-[← ドキュメント一覧に戻る](README.ja.md)
+[← Back to the documentation index](README.md)
 
-# ローカル・ペネトレーションテスト環境
+**English** | [日本語](penetration-testing.ja.md)
 
-この手順は AegisCMS を対象とする、所有者が管理するローカル環境専用です。外部ホストや本番環境へスキャンを向けないでください。
+# Local Penetration Testing Environment
 
-## 構成
+This procedure is only for a local environment you own and control, targeting AegisCMS. Do not point scans at external hosts or production environments.
 
-- 防御側: `docker-compose.pentest.yml` で起動する AegisCMS コンテナ
-- 攻撃側: Kali Linux などの WSL ディストリビューション
-- 接続先: `http://127.0.0.1:18080`
-- 設定: `docker/pentest/pentest.toml`（`config/docker.toml` に重ねる）。会員・ショップ・フォーラム・問い合わせ・メルマガ・コメント・解析と公式プラグイン 6 つを有効にし、ZAP がそれらに届くようにしてある（外部通信なし）
-- ZAP のプラン（`zap-active.yaml` / `zap-authenticated.yaml`）は、`requestor` ジョブで、公開ページと API のシード URL へ先に GET を送ってからクロールする。ルートを足したら、シードも足すこと（404 のままだと検査されない）。認証済みのプランの `Authorization` は、実行のたびに取り直したセッション ID に置き換える（リポジトリの値は無効）
-- DB とアップロード領域: 512 MiB の tmpfs。停止時に消去
-- Docker ネットワーク: AegisCMS は内部ネットワークのみ。loopback ポートを公開する nginx ingress が内部ネットワークと標準 bridge の両方に接続し、対象自体には外向き経路を与えない
-- コンテナ: 非 root、read-only root filesystem、全 Linux capabilities を削除、CPU/メモリ/PID 上限あり
+## Layout
 
-## 起動
+- Defender: the AegisCMS container started by `docker-compose.pentest.yml`
+- Attacker: a WSL distribution such as Kali Linux
+- Target: `http://127.0.0.1:18080`
+- Settings: `docker/pentest/pentest.toml` (layered on `config/docker.toml`). It enables members, shop, forum, contact, newsletter, comments, analytics, and six official plugins so that ZAP can reach them (no outbound traffic)
+- The ZAP plans (`zap-active.yaml` / `zap-authenticated.yaml`) use a `requestor` job to send GETs to the seed URLs of public pages and the API first, and then crawl. When you add a route, add a seed too (it is not scanned if it stays a 404). The `Authorization` of the authenticated plan is replaced with a session ID obtained anew on each run (the value in the repository is invalid)
+- DB and upload area: a 512 MiB tmpfs. Erased on stop
+- Docker network: AegisCMS is on an internal network only. The nginx ingress that publishes a loopback port connects to both the internal network and a standard bridge, and the target itself is given no outbound route
+- Containers: non-root, read-only root filesystem, all Linux capabilities dropped, with CPU/memory/PID limits
 
-Windows の PowerShell でプロジェクトルートから実行:
+## Starting
+
+Run from the project root in Windows PowerShell:
 
 ```powershell
 docker compose -f docker-compose.pentest.yml up --build -d --wait
 curl.exe -i http://127.0.0.1:18080/api/v1/health
 ```
 
-WSL の Kali から疎通を確認:
+Check connectivity from Kali on WSL:
 
 ```bash
 curl -i http://127.0.0.1:18080/api/v1/health
 ```
 
-WSL から `127.0.0.1` に接続できない環境では、WSL の localhost forwarding を有効にしてください。ポート公開範囲を LAN に広げないでください。
+In environments where WSL cannot connect to `127.0.0.1`, enable WSL's localhost forwarding. Do not widen the port exposure to the LAN.
 
-## 初期確認
+## Initial Checks
 
-Kali 側で対象を上記 URL に固定して実施します。まず軽い列挙を行い、出力を `artifacts/` などに保存します。
+From the Kali side, work with the target fixed to the URL above. First do light enumeration and save the output under a place such as `artifacts/`.
 
 ```bash
 nmap -Pn -sT -sV -p 18080 --script http-title,http-headers 127.0.0.1
 whatweb http://127.0.0.1:18080
 ```
 
-続けて OWASP ZAP の passive scan、手動の認証・認可テスト、入力検証テストを行います。能動スキャンや負荷試験はこの使い捨て環境だけに限定し、開始前に同時実行数とリクエスト速度を低く設定してください。認証ロックアウト、入力サイズ制限、アクセス制御を記録し、発見ごとに再現手順・期待結果・実際の結果・影響度を記録します。
+Then perform an OWASP ZAP passive scan, manual authentication and authorization tests, and input validation tests. Limit active scans and load tests to this disposable environment only, and set the concurrency and request rate low before starting. Record authentication lockout, input size limits, and access control, and for each finding record the reproduction steps, expected result, actual result, and severity.
 
-ZAPのBaseline Scanは、対象を内部ネットワークに置いたまま実行できます。これはspiderとpassive scanのみです。
+ZAP's Baseline Scan can be run with the target left on the internal network. It is spider and passive scan only.
 
 ```powershell
 docker compose -f docker-compose.pentest.yml up -d --wait target
@@ -51,12 +53,12 @@ docker run --rm --network aegiscms_lab --memory 1g --cpus 2 --pids-limit 256 `
   ghcr.io/zaproxy/zaproxy:stable zap-baseline.py -t http://target:8080 -m 1
 ```
 
-## Active Scan の実行
+## Running an Active Scan
 
-Active scan も使い捨て環境に限定して実行できます。未認証スキャンとログイン済み認証スキャンの 2 つのプロファイルが用意されています。
+Active scans can also be run, limited to the disposable environment. Two profiles are provided: an unauthenticated scan and a logged-in authenticated scan.
 
-### 1. 未認証スキャン（Web + API）
-リポジトリ内のプラン（`docker/pentest/zap-active.yaml`）は公開 Web ページおよび主要 API エンドポイント（OpenAPI 定義 `docker/pentest/openapi.json` 含む）を対象とし、Low 強度でスキャンを実施します。結果 HTML は `docs/security-reports/zap-active-report.html` に保存されます。
+### 1. Unauthenticated Scan (Web + API)
+The plan in the repository (`docker/pentest/zap-active.yaml`) targets public web pages and the main API endpoints (including the OpenAPI definition `docker/pentest/openapi.json`) and scans at Low intensity. The result HTML is saved to `docs/security-reports/zap-active-report.html`.
 
 ```powershell
 docker compose -f docker-compose.pentest.yml up -d --wait target
@@ -68,42 +70,42 @@ docker run --rm --network aegiscms_lab --memory 1g --cpus 1 --pids-limit 256 `
 docker compose -f docker-compose.pentest.yml down
 ```
 
-### 2. ログイン済み認証スキャン（Medium 強度）
-別プロファイル（`docker/pentest/zap-authenticated.yaml`）は、管理者セッション（Bearer トークン / X-Session-Id）を ZAP Replacer で全リクエストに注入し、保護 API や Admin Studio に対して Medium 強度での能動的検査を実施します。結果は `docs/security-reports/zap-authenticated-report.html` に保存されます。
+### 2. Logged-In Authenticated Scan (Medium Intensity)
+A separate profile (`docker/pentest/zap-authenticated.yaml`) injects an administrator session (Bearer token / X-Session-Id) into every request with the ZAP Replacer, and runs an active scan at Medium intensity against protected APIs and Admin Studio. The result is saved to `docs/security-reports/zap-authenticated-report.html`.
 
 ```powershell
-# 1. ターゲットと ingress を起動
+# 1. Start the target and the ingress
 docker compose -f docker-compose.pentest.yml up -d --wait target
 docker compose -f docker-compose.pentest.yml up -d ingress
 
-# 2. 初期セットアップを行い管理者セッションを取得
+# 2. Do the initial setup and obtain an administrator session
 Invoke-RestMethod -Uri "http://127.0.0.1:18080/api/v1/setup" -Method Post -ContentType "application/json" -Body '{"admin_username":"admin","admin_password":"AdminPassword123!"}'
 $login = Invoke-RestMethod -Uri "http://127.0.0.1:18080/api/v1/auth/session" -Method Post -ContentType "application/json" -Body '{"username":"admin","password":"AdminPassword123!"}'
 
-# 3. 認証済みスキャンを実行
+# 3. Run the authenticated scan
 New-Item -ItemType Directory -Force -Path docs/security-reports | Out-Null
 docker run --rm --network aegiscms_lab --memory 1g --cpus 1 --pids-limit 256 `
   -v "${PWD}/docker/pentest:/zap/wrk:ro" `
   -v "${PWD}/docs/security-reports:/zap/out:rw" `
   ghcr.io/zaproxy/zaproxy:stable zap.sh -cmd -autorun /zap/wrk/zap-authenticated.yaml
 
-# 4. 破棄
+# 4. Tear down
 docker compose -f docker-compose.pentest.yml down
 ```
 
-重点確認項目:
+Key items to check:
 
-- 未認証 API と公開ページに意図しない管理データが含まれない
-- `viewer` / `editor` / `admin` 間の権限境界、IDOR、下書き・履歴・プレビューへのアクセス
-- ログイン失敗時の IP/ユーザー単位レート制限とセッション無効化
-- HTML ブロック、アップロード、ファイル名、リダイレクト、Host / forwarded headers の入力処理
-- CSRF/CORS、セキュリティヘッダー、エラー応答・OpenAPI/metrics の情報露出
-- プラグイン/テーマ署名設定と管理者限定操作
+- Unauthenticated APIs and public pages do not contain unintended admin data
+- Permission boundaries between `viewer` / `editor` / `admin`, IDOR, and access to drafts, history, and previews
+- Per-IP/per-user rate limiting on login failures and session invalidation
+- Input handling of HTML blocks, uploads, file names, redirects, and Host / forwarded headers
+- CSRF/CORS, security headers, and information exposure in error responses and OpenAPI/metrics
+- Plugin/theme signature settings and admin-only operations
 
-## 停止・破棄
+## Stopping and Discarding
 
 ```powershell
 docker compose -f docker-compose.pentest.yml down
 ```
 
-データは tmpfs なのでコンテナ削除時に破棄されます。別途ボリュームを追加しないでください。
+The data is on tmpfs, so it is discarded when the container is removed. Do not add separate volumes.

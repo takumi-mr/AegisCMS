@@ -1,20 +1,22 @@
-[← ドキュメント一覧に戻る](README.ja.md)
+[← Back to the documentation index](README.md)
 
-# 記事・コンテンツ投稿 API (Content Management API)
+**English** | [日本語](content-api.ja.md)
 
-外部ツール、CI/CD パイプライン、静的サイト連携、CLI スクリプトなどから AegisCMS に記事や固定ページなどのコンテンツを自動投稿・編集・公開するための REST API ガイドです。
+# Content Posting API (Content Management API)
 
-認証なしで公開データのみを取得する[ヘッドレス配信 API](headless.md)（読み取り専用）とは異なり、認証トークン（Bearer トークン）を用いてコンテンツの作成・下書き保存・更新・即時公開・予約公開・タグ付け・削除を行います。
+A REST API guide for automatically posting, editing, and publishing content such as articles and static pages to AegisCMS from external tools, CI/CD pipelines, static-site integrations, and CLI scripts.
+
+Unlike the [headless delivery API](headless.md) (read-only), which fetches only public data without authentication, this one uses an authentication token (Bearer token) to create, save as draft, update, publish immediately, schedule, tag, and delete content.
 
 ---
 
-## 1. 認証と権限 (Authentication & Roles)
+## 1. Authentication & Roles
 
-コンテンツの作成・更新 API には、すべて `Authorization: Bearer <token>` ヘッダーが必要です。
+All content creation and update APIs need the `Authorization: Bearer <token>` header.
 
-### 1.1 ログインとトークンの取得
+### 1.1 Logging In and Getting a Token
 
-まず、登録済みアカウントでセッションを発行します。
+First, issue a session with a registered account.
 
 ```bash
 curl -X POST "http://localhost:8080/api/v1/auth/session" \
@@ -25,7 +27,7 @@ curl -X POST "http://localhost:8080/api/v1/auth/session" \
   }'
 ```
 
-**成功レスポンス (200 OK):**
+**Success response (200 OK):**
 ```json
 {
   "token": "sess_01HZX...",
@@ -37,131 +39,131 @@ curl -X POST "http://localhost:8080/api/v1/auth/session" \
 }
 ```
 
-以降のリクエストでは、取得したトークンをヘッダーに指定します：
+In later requests, put the obtained token in the header:
 ```http
 Authorization: Bearer sess_01HZX...
 ```
 
-### 1.2 ロールと実行可能操作
+### 1.2 Roles and Permitted Operations
 
-操作に必要なロールは以下のとおりです（詳細は [認証 & ユーザー管理](authentication.md) を参照）。
+The roles required for each operation are as follows (for details see [Authentication & user management](authentication.md)).
 
-| 操作 | 必要なロール | 備考 |
+| Operation | Required role | Notes |
 |---|---|---|
-| 下書き (`draft`) / レビュー待ち (`pending`) の作成 | `contributor` | 自身が著者となるコンテンツのみ（※`reviewer` は新規作成不可） |
-| 公開 (`published`) / 予約公開 (`scheduled`) での新規作成 | `editor` 以上 | 即時公開または日時指定公開 |
-| レビュー待ち (`pending`) 記事の校正・承認・差し戻し | `reviewer` 以上 | `reviewer` は `pending` の手直し、承認 (`published`/`scheduled`)、差し戻し (`draft`) のみ可能 |
-| 既存コンテンツの自由な変更・直接公開 | `editor` 以上 | `contributor` は自身の `draft` / `pending` のみ編集可能 |
-| 他のユーザーを著者 (`author_id`) に指定 | `admin` のみ | 省略時はログインユーザーが著者になる |
-| コンテンツの削除 | `editor` 以上 | `reviewer` および `contributor` は削除不可 |
-| タグの紐付け (`PUT .../tags`) | `contributor` 以上 | `reviewer` は `pending` 記事のタグ付けを調整可能 |
+| Creating a draft (`draft`) / awaiting review (`pending`) | `contributor` | Only content the user is the author of (note: `reviewer` cannot create new content) |
+| Creating new as published (`published`) / scheduled (`scheduled`) | `editor` and above | Immediate publication or publication at a specified time |
+| Proofreading, approving, and sending back articles awaiting review (`pending`) | `reviewer` and above | `reviewer` can only touch up `pending`, approve (`published`/`scheduled`), and send back (`draft`) |
+| Freely changing existing content and publishing directly | `editor` and above | `contributor` can edit only their own `draft` / `pending` |
+| Specifying another user as the author (`author_id`) | `admin` only | If omitted, the logged-in user is the author |
+| Deleting content | `editor` and above | `reviewer` and `contributor` cannot delete |
+| Attaching tags (`PUT .../tags`) | `contributor` and above | `reviewer` can adjust the tags of `pending` articles |
 
 > [!TIP]
-> **LLMマルチエージェント自動投稿のベストプラクティス**
-> - **執筆エージェント**: `contributor` ロールのアカウントを使用し、`status: "pending"` で記事を提出します（勝手に公開されない安全なサンドボックス）。
-> - **校閲・監査エージェント**: `reviewer` ロールのアカウントを使用し、提出された `pending` 記事の内容を検査・校正し、問題なければ `status: "published"` で承認、修正が必要なら `status: "draft"` に `review_note` を添えて差し戻します。`reviewer` には新規作成権限や削除権限がないため、万が一の誤動作やプロンプトインジェクションでも既存サイトが破壊されません。
+> **Best practices for LLM multi-agent automatic posting**
+> - **Writing agent**: use an account with the `contributor` role and submit articles with `status: "pending"` (a safe sandbox where nothing gets published on its own).
+> - **Proofreading/auditing agent**: use an account with the `reviewer` role, inspect and proofread the submitted `pending` articles, approve with `status: "published"` if there is no problem, or send back to `status: "draft"` with a `review_note` if corrections are needed. `reviewer` has no permission to create or delete, so even in case of malfunction or prompt injection, the existing site is not destroyed.
 
 ---
 
-## 2. 記事の新規作成 (`POST /api/v1/contents/{content_type}`)
+## 2. Creating an Article (`POST /api/v1/contents/{content_type}`)
 
-指定したコンテンツタイプ（`article` や `page` など）の記事を作成します。
+Creates an article of the specified content type (such as `article` or `page`).
 
-- **メソッド**: `POST`
-- **パス**: `/api/v1/contents/{content_type}` (例: `/api/v1/contents/article`)
-- **ヘッダー**:
+- **Method**: `POST`
+- **Path**: `/api/v1/contents/{content_type}` (e.g. `/api/v1/contents/article`)
+- **Headers**:
   - `Authorization: Bearer <token>`
   - `Content-Type: application/json`
 
-### 2.1 リクエストボディ (JSON)
+### 2.1 Request Body (JSON)
 
 ```json
 {
-  "title": "AegisCMS API 経由での記事投稿ガイド",
+  "title": "A Guide to Posting Articles via the AegisCMS API",
   "slug": "posting-via-api-guide",
   "status": "published",
   "blocks": [
     {
       "name": "core/paragraph",
       "attributes": {},
-      "text": "この記事は API を経由して自動投稿された記事です。",
+      "text": "This article was posted automatically via the API.",
       "children": []
     }
   ],
   "published_at": "2026-11-10T15:00:00Z",
   "fields": {
-    "excerpt": "API を使って記事を作成・公開する手順の解説です。",
+    "excerpt": "An explanation of the steps to create and publish articles with the API.",
     "category_id": "cat-tech"
   }
 }
 ```
 
-### 2.2 パラメータ仕様
+### 2.2 Parameter Specification
 
-| フィールド | 型 | 必須 | 既定値 | 説明 |
+| Field | Type | Required | Default | Description |
 |---|---|---|---|---|
-| `title` | string | **必須** | - | 記事のタイトル。 |
-| `slug` | string | **必須** | - | URL スラッグ（英数字・ハイフンなど）。同一 `content_type` 内で一意。 |
-| `status` | string | 任意 | `"draft"` | 公開ステータス。`"draft"`, `"pending"`, `"published"`, `"scheduled"`, `"archived"` のいずれか。 |
-| `blocks` | array | 任意 | `[]` | 本文ブロックの配列（後述の [3. 本文ブロックの仕様](#3-本文ブロックの仕様-blocks) 参照）。 |
-| `author_id` | string | 任意 | (ログインユーザー) | 著者のユーザー ID。ログインユーザー以外を指定できるのは `admin` のみ。 |
-| `published_at` | string | 条件付 | `null` | RFC 3339 形式の公開日時（例: `2026-11-10T12:00:00Z`）。`status: "scheduled"` の場合は必須。 |
-| `unpublish_at` | string | 任意 | `null` | RFC 3339 形式の予約非公開（アーカイブ）日時。`published` または `scheduled` のみ指定可能（公開日時より未来であること）。 |
-| `publish` | boolean | 任意 | `false` | 明示的に公開版ポインターを最新の作業版へ切り替えるフラグ。 |
-| `review_note` | string | 任意 | `null` | レビュー依頼・承認・差し戻しのメモ。監査ログや版の履歴に記録されます。 |
-| `fields` | object | 任意 | `{}` | スキーマ（`schemas/*.yaml`）で定義されたカスタムフィールド（要約、カテゴリ、会員アクセス権など）。 |
+| `title` | string | **Required** | - | The article's title. |
+| `slug` | string | **Required** | - | URL slug (alphanumerics, hyphens, etc.). Unique within the same `content_type`. |
+| `status` | string | Optional | `"draft"` | Publication status. One of `"draft"`, `"pending"`, `"published"`, `"scheduled"`, `"archived"`. |
+| `blocks` | array | Optional | `[]` | An array of body blocks (see [3. Body block specification](#3-body-block-specification-blocks) below). |
+| `author_id` | string | Optional | (logged-in user) | The author's user ID. Only `admin` can specify someone other than the logged-in user. |
+| `published_at` | string | Conditional | `null` | Publication date and time in RFC 3339 format (e.g. `2026-11-10T12:00:00Z`). Required when `status: "scheduled"`. |
+| `unpublish_at` | string | Optional | `null` | Scheduled unpublish (archive) date and time in RFC 3339 format. Can be specified only with `published` or `scheduled` (must be later than the publication time). |
+| `publish` | boolean | Optional | `false` | A flag that explicitly switches the published version pointer to the latest working version. |
+| `review_note` | string | Optional | `null` | A note for review requests, approvals, and send-backs. Recorded in the audit log and the version history. |
+| `fields` | object | Optional | `{}` | Custom fields defined in the schema (`schemas/*.yaml`) (summary, category, member access rights, etc.). |
 
 > [!IMPORTANT]
-> **カスタムフィールドの記述位置に関する注意**  
-> スキーマで定義したカスタムフィールド（`excerpt` や `category_id` など）は、必ず `"fields": { ... }` の下にネストして記述してください。トップレベルに直接未知のキーを書くと、`400 Bad Request`（`unknown field`）が返されます。
+> **Note on where to write custom fields**  
+> Always nest the custom fields defined in the schema (such as `excerpt` and `category_id`) under `"fields": { ... }`. Writing an unknown key directly at the top level returns `400 Bad Request` (`unknown field`).
 
-### 2.3 ステータスの種類
+### 2.3 Status Kinds
 
-- `"draft"`: 下書き。公開サイトには表示されず、管理画面や編集用 API からのみ閲覧可能。
-- `"pending"`: レビュー待ち。`contributor` が執筆を完了し、編集者に承認・公開を依頼した状態。
-- `"published"`: 公開。公開サイトおよびヘッドレス配信 API に即時反映されます。
-- `"scheduled"`: 予約公開。`published_at` に指定した日時になると、バックグラウンドスケジューラによって自動的に `published` に切り替わります。
-- `"archived"`: アーカイブ（非公開）。過去に公開されていたが現在は取り下げられた状態。
+- `"draft"`: a draft. Not shown on the public site, and viewable only in the admin screen and the editing API.
+- `"pending"`: awaiting review. The state where a `contributor` has finished writing and asked an editor for approval and publication.
+- `"published"`: published. Reflected immediately on the public site and the headless delivery API.
+- `"scheduled"`: scheduled publication. At the time specified in `published_at`, the background scheduler switches it to `published` automatically.
+- `"archived"`: archived (unpublished). The state where it was published in the past but has now been withdrawn.
 
 ---
 
-## 3. 本文ブロックの仕様 (`blocks`)
+## 3. Body Block Specification (`blocks`)
 
-AegisCMS では記事本文を HTML 直書きではなく、構造化された AST ブロック（`BlockNode`）の配列として管理します（詳細は [本文ブロック & Markdown リファレンス](blocks.md)）。
+AegisCMS manages the article body not as inline HTML but as an array of structured AST blocks (`BlockNode`) (for details see the [Body blocks & Markdown reference](blocks.md)).
 
 ```json
 {
   "name": "core/paragraph",
   "attributes": {},
-  "text": "段落のテキスト",
+  "text": "Paragraph text",
   "children": []
 }
 ```
 
-### 代表的なブロック一覧
+### Representative Blocks
 
-#### 段落 (`core/paragraph`)
+#### Paragraph (`core/paragraph`)
 ```json
 {
   "name": "core/paragraph",
   "attributes": {},
-  "text": "これは段落です。**太字**や *斜体*、[リンク](https://example.com) のインライン書式が使えます。",
+  "text": "This is a paragraph. Inline formatting such as **bold**, *italic*, and [links](https://example.com) can be used.",
   "children": []
 }
 ```
 
-#### 見出し (`core/heading`)
-`attributes.level` で 1〜6 を指定します（既定値は 2）。見出しの `id` は保存時に自動付与されます。
+#### Heading (`core/heading`)
+Specify 1–6 with `attributes.level` (default 2). The heading's `id` is assigned automatically on save.
 ```json
 {
   "name": "core/heading",
   "attributes": { "level": 2 },
-  "text": "大見出しのタイトル",
+  "text": "Title of a major heading",
   "children": []
 }
 ```
 
-#### コードブロック (`core/code`)
+#### Code Block (`core/code`)
 ```json
 {
   "name": "core/code",
@@ -174,46 +176,46 @@ AegisCMS では記事本文を HTML 直書きではなく、構造化された A
 }
 ```
 
-#### 順不同リスト (`core/list`)
-子は `core/list-item` を並べます。
+#### Unordered List (`core/list`)
+The children are `core/list-item`s in a row.
 ```json
 {
   "name": "core/list",
   "attributes": { "ordered": false },
   "children": [
-    { "name": "core/list-item", "attributes": {}, "text": "第1項目", "children": [] },
-    { "name": "core/list-item", "attributes": {}, "text": "第2項目", "children": [] }
+    { "name": "core/list-item", "attributes": {}, "text": "First item", "children": [] },
+    { "name": "core/list-item", "attributes": {}, "text": "Second item", "children": [] }
   ]
 }
 ```
 
-#### 画像 (`core/image`)
+#### Image (`core/image`)
 ```json
 {
   "name": "core/image",
   "attributes": {
     "src": "/uploads/media/2026/11/architecture.png",
-    "alt": "アーキテクチャ図"
+    "alt": "Architecture diagram"
   },
   "children": []
 }
 ```
 
-#### 注記 / コールアウト (`core/callout`)
-`variant` は `"note"`, `"tip"`, `"important"`, `"warning"`, `"caution"` から選択します。
+#### Note / Callout (`core/callout`)
+Choose `variant` from `"note"`, `"tip"`, `"important"`, `"warning"`, and `"caution"`.
 ```json
 {
   "name": "core/callout",
   "attributes": {
     "variant": "tip",
-    "title": "ヒント"
+    "title": "Tip"
   },
-  "text": "API 投稿時はトークンの有効期限にご注意ください。",
+  "text": "When posting through the API, mind the token's expiry.",
   "children": []
 }
 ```
 
-#### 表 (`core/table`)
+#### Table (`core/table`)
 ```json
 {
   "name": "core/table",
@@ -221,17 +223,17 @@ AegisCMS では記事本文を HTML 直書きではなく、構造化された A
     "header": true,
     "align": ["left", "center", "right"],
     "rows": [
-      ["機能", "状態", "備考"],
-      ["API 投稿", "安定版", "RESTful"],
-      ["下書き保存", "安定版", "自動バージョン管理"]
+      ["Feature", "Status", "Notes"],
+      ["API posting", "Stable", "RESTful"],
+      ["Saving drafts", "Stable", "Automatic version management"]
     ]
   },
   "children": []
 }
 ```
 
-#### 会員限定区切り (`core/paywall`)
-これ以降のブロックは、権限を持つ会員にのみ表示されます（[会員アカウント](members.md)）。
+#### Members-Only Divider (`core/paywall`)
+Blocks after this are shown only to members with the permission ([Member accounts](members.md)).
 ```json
 {
   "name": "core/paywall",
@@ -242,13 +244,13 @@ AegisCMS では記事本文を HTML 直書きではなく、構造化された A
 
 ---
 
-## 4. カスタムフィールドとメタデータ (`fields`)
+## 4. Custom Fields and Metadata (`fields`)
 
-`fields` オブジェクトには、対象のスキーマ（`schemas/{content_type}.yaml`）で定義されたフィールドを設定します。
+In the `fields` object, set the fields defined in the target schema (`schemas/{content_type}.yaml`).
 
 ```json
 "fields": {
-  "excerpt": "記事の一覧や SNS シェア用に使用される抜粋文です。",
+  "excerpt": "An excerpt used for article lists and SNS sharing.",
   "category_id": "cat-tech",
   "access": "public",
   "custom_meta": {
@@ -259,22 +261,22 @@ AegisCMS では記事本文を HTML 直書きではなく、構造化された A
 }
 ```
 
-- **`excerpt`**: 記事の要約（一覧画面や RSS/Atom フィード、SEO メタタグで使用）。
-- **`category_id`**: 所属するカテゴリの ID（カテゴリとのリレーションが定義されている場合）。
-- **`access`**: 会員限定設定（`"public"`（全員公開）, `"free"`（無料会員以上）, `"paid"`（有料会員限定））。設定にない値を入れると `400 Bad Request` になります。
-- **`custom_meta`**: 任意の構造化 JSONB メタデータ。
+- **`excerpt`**: the article's summary (used in list screens, RSS/Atom feeds, and SEO meta tags).
+- **`category_id`**: the ID of the category it belongs to (when a relation to categories is defined).
+- **`access`**: the members-only setting (`"public"` (everyone), `"free"` (free members and above), `"paid"` (paid members only)). A value not in the settings gives `400 Bad Request`.
+- **`custom_meta`**: arbitrary structured JSONB metadata.
 
 ---
 
-## 5. 画像・メディアのアップロード
+## 5. Uploading Images and Media
 
-記事内に画像を挿入する場合は、先にメディアアップロード API を呼び出してストレージキーや URL を取得します（詳細は [メディア管理](media.md) を参照）。
+To insert an image into an article, first call the media upload API to get the storage key and URL (for details see [Media management](media.md)).
 
-### アップロード API
-- **メソッド**: `POST`
-- **パス**: `/api/v1/storage/upload`
-- **形式**: `multipart/form-data`
-- **フィールド名**: `file`
+### Upload API
+- **Method**: `POST`
+- **Path**: `/api/v1/storage/upload`
+- **Format**: `multipart/form-data`
+- **Field name**: `file`
 
 ```bash
 curl -X POST "http://localhost:8080/api/v1/storage/upload" \
@@ -282,7 +284,7 @@ curl -X POST "http://localhost:8080/api/v1/storage/upload" \
   -F "file=@./screenshot.png"
 ```
 
-**成功レスポンス (201 Created):**
+**Success response (201 Created):**
 ```json
 {
   "key": "media/2026/11/screenshot.png",
@@ -292,17 +294,17 @@ curl -X POST "http://localhost:8080/api/v1/storage/upload" \
 }
 ```
 
-取得した `url` を `core/image` ブロックの `attributes.src` に設定します。
+Set the obtained `url` in the `core/image` block's `attributes.src`.
 
 ---
 
-## 6. タグの紐付け (`PUT /api/v1/contents/{content_type}/{slug}/tags`)
+## 6. Attaching Tags (`PUT /api/v1/contents/{content_type}/{slug}/tags`)
 
-投稿した記事にタグを紐付けるには、タグ更新 API を呼び出します（詳細は [タグ機能](tags.md) を参照）。
+To attach tags to a posted article, call the tag update API (for details see [Tags](tags.md)).
 
-- **メソッド**: `PUT`
-- **パス**: `/api/v1/contents/{content_type}/{slug_or_id}/tags`
-- **リクエストボディ**:
+- **Method**: `PUT`
+- **Path**: `/api/v1/contents/{content_type}/{slug_or_id}/tags`
+- **Request body**:
   ```json
   {
     "tag_ids": [
@@ -312,85 +314,85 @@ curl -X POST "http://localhost:8080/api/v1/storage/upload" \
   }
   ```
 
-※既存のタグ一覧は `GET /api/v1/tags` で取得できます。タグを新規登録する場合は `POST /api/v1/tags` を実行します。
+Note: the list of existing tags can be fetched with `GET /api/v1/tags`. To register a new tag, run `POST /api/v1/tags`.
 
 ---
 
-## 7. 記事の更新・削除
+## 7. Updating and Deleting Articles
 
-### 7.1 記事の更新 (`PUT /api/v1/contents/{content_type}/{slug_or_id}`)
+### 7.1 Updating an Article (`PUT /api/v1/contents/{content_type}/{slug_or_id}`)
 
-記事の内容を上書き更新します。本文やフィールドは全体が新しい値に置き換わります（送信しなかったカスタムフィールドは削除されます）。
+Overwrites the article's contents. The body and fields are replaced entirely with the new values (custom fields you did not send are deleted).
 
-- **メソッド**: `PUT`
-- **パス**: `/api/v1/contents/{content_type}/{slug_or_id}`
-- **リクエストボディ**: 作成時と同様の JSON ペイロード。
+- **Method**: `PUT`
+- **Path**: `/api/v1/contents/{content_type}/{slug_or_id}`
+- **Request body**: the same JSON payload as for creation.
 
 > [!NOTE]
-> 記事を更新するたびに新しいリビジョン（バージョン）が自動的に保存されます。管理画面から過去のリビジョンへの復元が可能です。
+> Every time you update an article, a new revision (version) is saved automatically. You can restore to a past revision from the admin screen.
 
-### 7.1a 版の内容の取得 (`GET /api/v1/contents/{content_type}/{slug_or_id}/versions/{revision}`)
+### 7.1a Getting the Content of a Version (`GET /api/v1/contents/{content_type}/{slug_or_id}/versions/{revision}`)
 
-保存済みの 1 つの版の内容（`title`・`slug`・`blocks`・`fields`、版の `revision`・`created_at`・`created_by`・`change_note`）を返します。何も変更しません。版の一覧（`.../versions`）と同じく、ログインしていれば取得できます。`status`・公開日時・著者は、復元しても戻らない（現在の値のまま）ので返しません。存在しない版は 404 です。
+Returns the content of one saved version (`title`, `slug`, `blocks`, `fields`, and the version's `revision`, `created_at`, `created_by`, `change_note`). It changes nothing. As with the version list (`.../versions`), it can be fetched when logged in. `status`, the publication time, and the author are not returned, because they are not brought back by a restore either (they stay at their current values). A version that does not exist is 404.
 
-管理画面は、版履歴の「確認」でこれを呼び、その版のプレビューと、いまエディターにある内容との差分（タイトル・スラッグ・カスタムフィールド・本文の Markdown の行単位）を表示します。
+The admin screen calls this from "Review" in the version history and shows a preview of that version and a diff against what is in the editor now (title, slug, custom fields, and the body's Markdown line by line).
 
-### 7.2 記事の削除 (`DELETE /api/v1/contents/{content_type}/{slug_or_id}`)
+### 7.2 Deleting an Article (`DELETE /api/v1/contents/{content_type}/{slug_or_id}`)
 
-指定した記事を削除します（`editor` 以上の権限が必要です）。
+Deletes the specified article (`editor` or higher permission is required).
 
-- **メソッド**: `DELETE`
-- **パス**: `/api/v1/contents/{content_type}/{slug_or_id}`
-- **成功時**: `204 No Content` または `200 OK`
+- **Method**: `DELETE`
+- **Path**: `/api/v1/contents/{content_type}/{slug_or_id}`
+- **On success**: `204 No Content` or `200 OK`
 
 ---
 
-## 8. 実装コード例
+## 8. Implementation Code Examples
 
-### 8.1 cURL による投稿手順
+### 8.1 Posting Steps with cURL
 
 ```bash
-# 1. ログインしてトークンを取得
+# 1. Log in and get a token
 TOKEN=$(curl -s -X POST "http://localhost:8080/api/v1/auth/session" \
   -H "Content-Type: application/json" \
   -d '{"username": "admin", "password": "your-password"}' | jq -r .token)
 
-# 2. 記事の新規投稿
+# 2. Post a new article
 curl -i -X POST "http://localhost:8080/api/v1/contents/article" \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
-    "title": "API 投稿のテスト",
+    "title": "API posting test",
     "slug": "api-post-test",
     "status": "published",
     "blocks": [
       {
         "name": "core/heading",
         "attributes": { "level": 2 },
-        "text": "自動投稿の概要",
+        "text": "Overview of automatic posting",
         "children": []
       },
       {
         "name": "core/paragraph",
         "attributes": {},
-        "text": "cURL スクリプトから自動投稿された記事です。",
+        "text": "This article was posted automatically from a cURL script.",
         "children": []
       }
     ],
     "fields": {
-      "excerpt": "API 経由での投稿テストです。"
+      "excerpt": "A test of posting via the API."
     }
   }'
 ```
 
-### 8.2 Python スクリプト例
+### 8.2 Python Script Example
 
 ```python
 import requests
 
 BASE_URL = "http://localhost:8080/api/v1"
 
-# 1. ログインしてセッショントークンを取得
+# 1. Log in and get a session token
 login_res = requests.post(f"{BASE_URL}/auth/session", json={
     "username": "editor_user",
     "password": "your-password"
@@ -403,22 +405,22 @@ headers = {
     "Content-Type": "application/json"
 }
 
-# 2. 記事作成リクエスト
+# 2. Article creation request
 article_payload = {
-    "title": "Python から投稿した記事",
+    "title": "An article posted from Python",
     "slug": "python-auto-post",
     "status": "published",
     "blocks": [
         {
             "name": "core/heading",
             "attributes": {"level": 2},
-            "text": "はじめに",
+            "text": "Introduction",
             "children": []
         },
         {
             "name": "core/paragraph",
             "attributes": {},
-            "text": "Python の requests ライブラリを使用して投稿されました。",
+            "text": "This was posted using Python's requests library.",
             "children": []
         },
         {
@@ -429,19 +431,19 @@ article_payload = {
         }
     ],
     "fields": {
-        "excerpt": "Python スクリプトによる自動投稿のサンプルです。"
+        "excerpt": "A sample of automatic posting with a Python script."
     }
 }
 
 res = requests.post(f"{BASE_URL}/contents/article", headers=headers, json=article_payload)
 if res.status_code == 201:
     article = res.json()
-    print(f"記事が作成されました: ID={article['id']}, URL=/{article['slug']}")
+    print(f"Article created: ID={article['id']}, URL=/{article['slug']}")
 else:
-    print(f"作成失敗 ({res.status_code}): {res.text}")
+    print(f"Creation failed ({res.status_code}): {res.text}")
 ```
 
-### 8.3 TypeScript / Node.js スクリプト例
+### 8.3 TypeScript / Node.js Script Example
 
 ```typescript
 interface BlockNode {
@@ -454,7 +456,7 @@ interface BlockNode {
 async function publishArticle() {
   const BASE_URL = 'http://localhost:8080/api/v1';
 
-  // 1. ログイン
+  // 1. Log in
   const sessionRes = await fetch(`${BASE_URL}/auth/session`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -469,27 +471,27 @@ async function publishArticle() {
   }
   const { token } = await sessionRes.json();
 
-  // 2. 記事作成
+  // 2. Create the article
   const payload = {
-    title: 'TypeScript による自動投稿記事',
+    title: 'An article auto-posted with TypeScript',
     slug: 'typescript-auto-post',
     status: 'published',
     blocks: [
       {
         name: 'core/heading',
         attributes: { level: 2 },
-        text: 'TypeScript 連携',
+        text: 'TypeScript integration',
         children: [],
       },
       {
         name: 'core/paragraph',
         attributes: {},
-        text: 'Node.js / Bun から直接記事を作成できます。',
+        text: 'You can create articles directly from Node.js / Bun.',
         children: [],
       },
     ] as BlockNode[],
     fields: {
-      excerpt: 'TypeScript による投稿スクリプトのサンプル。',
+      excerpt: 'A sample posting script in TypeScript.',
     },
   };
 
@@ -504,10 +506,10 @@ async function publishArticle() {
 
   if (createRes.status === 201) {
     const data = await createRes.json();
-    console.log('投稿成功:', data.id, data.slug);
+    console.log('Posted:', data.id, data.slug);
   } else {
     const error = await createRes.json();
-    console.error('投稿エラー:', createRes.status, error);
+    console.error('Post error:', createRes.status, error);
   }
 }
 
@@ -516,9 +518,9 @@ publishArticle();
 
 ---
 
-## 9. エラーハンドリング (Error Handling)
+## 9. Error Handling
 
-AegisCMS の REST API は、エラー時に標準的な HTTP ステータスコードと英語のエラーメッセージ（JSON）を返します。
+AegisCMS's REST API returns standard HTTP status codes and English error messages (JSON) on errors.
 
 ```json
 {
@@ -526,30 +528,29 @@ AegisCMS の REST API は、エラー時に標準的な HTTP ステータスコ�
 }
 ```
 
-### 主なステータスコード一覧
+### Main Status Codes
 
-| ステータスコード | 意味 | 主な原因と対策 |
+| Status code | Meaning | Main causes and fixes |
 |---|---|---|
-| `400 Bad Request` | リクエスト形式不正 | ・必須フィールド（`title`, `slug`）が欠落している<br>・トップレベルに未知のキーが含まれている（カスタムフィールドは `fields` 内に配置すること）<br>・`published_at` や `unpublish_at` の日時フォーマット（RFC 3339）が不正<br>・`access` に未定義の会員レベルを指定した |
-| `401 Unauthorized` | 認証エラー | ・`Authorization` ヘッダーがない、またはトークンが無効・期限切れ |
-| `403 Forbidden` | 権限不足 | ・`contributor` が直接 `published` で作成しようとした（`draft` または `pending` のみ可）<br>・`admin` 以外のユーザーが他人の `author_id` を指定した<br>・他人のコンテンツを編集しようとした |
-| `404 Not Found` | リソース未存在 | ・指定した `content_type` のスキーマが登録されていない<br>・更新対象の記事が存在しない |
-| `409 Conflict` | 衝突・競合 | ・指定した `slug` が同じ `content_type` 内ですでに使用されている |
-| `422 Unprocessable Entity` | バリデーション / フック拒否 | ・登録された Wasm プラグインの `on-before-save` フックによって保存が拒否された |
-| `500 Internal Server Error` | サーバー内部エラー | ・データベースエラーや予期せぬ障害 |
+| `400 Bad Request` | Malformed request | - A required field (`title`, `slug`) is missing<br>- An unknown key is at the top level (put custom fields inside `fields`)<br>- The `published_at` or `unpublish_at` date format (RFC 3339) is invalid<br>- An undefined membership level was specified in `access` |
+| `401 Unauthorized` | Authentication error | - No `Authorization` header, or the token is invalid or expired |
+| `403 Forbidden` | Insufficient permission | - A `contributor` tried to create directly as `published` (only `draft` or `pending` allowed)<br>- A user other than `admin` specified someone else's `author_id`<br>- Tried to edit someone else's content |
+| `404 Not Found` | Resource does not exist | - No schema is registered for the specified `content_type`<br>- The article to update does not exist |
+| `409 Conflict` | Conflict | - The specified `slug` is already used within the same `content_type` |
+| `422 Unprocessable Entity` | Validation / hook refusal | - Saving was refused by the `on-before-save` hook of a registered Wasm plugin |
+| `500 Internal Server Error` | Internal server error | - A database error or unexpected failure |
 
 ---
 
-## 10. 公開後の自動処理 (Side Effects)
+## 10. Automatic Processing After Publication (Side Effects)
 
-記事が `published` ステータスで作成・更新された場合、サーバー内部で以下の処理が自動的に実行されます。
+When an article is created or updated with the `published` status, the following is run automatically inside the server.
 
-1. **キャッシュのパージ (Cache Invalidation)**:
-   - 公開サイトの該当記事ページ、一覧ページ、フィード（`/feed.atom`）の CDN / 内部キャッシュが自動的に破棄されます。
-2. **全文検索インデックスの更新 (`aegis-search`)**:
-   - tantivy 検索エンジンのインデックスキューに通知され、即座に検索結果へ反映されます（[サイト内検索](search.md)）。
-3. **プラグインフックの呼び出し**:
-   - プラグインが登録している `on-content-published` などの Wasm フックが自動的に発火します（[プラグインフック仕様](plugin_hooks.md)）。
-4. **操作監査ログの記録 (`aegis-audit`)**:
-   - `content.create` または `content.update` イベントが実行ユーザー・IP アドレスとともに監査ログに記録されます（[監査ログ](audit.md)）。
-
+1. **Cache invalidation**:
+   - The CDN / internal cache of the article's page on the public site, list pages, and feeds (`/feed.atom`) is discarded automatically.
+2. **Updating the full-text search index (`aegis-search`)**:
+   - The tantivy search engine's index queue is notified, and it is reflected in search results immediately ([Site search](search.md)).
+3. **Calling plugin hooks**:
+   - Wasm hooks such as `on-content-published` that plugins have registered fire automatically ([Plugin hook specification](plugin_hooks.md)).
+4. **Recording the operation audit log (`aegis-audit`)**:
+   - A `content.create` or `content.update` event is recorded in the audit log with the executing user and IP address ([Audit log](audit.md)).

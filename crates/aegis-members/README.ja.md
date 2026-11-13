@@ -19,4 +19,4 @@ CMS の管理アカウント（`_aegis_users`）とは、テーブルもセッ�
 2. 機能ごとの後始末（ショップ: `aegis_commerce::member_data::release_member`）
 3. `delete_account`
 
-仕様は [docs/members.md](../../docs/members.md)。
+仕様は [docs/members.ja.md](../../docs/members.ja.md)。

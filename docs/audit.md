@@ -1,19 +1,21 @@
-[← ドキュメント一覧に戻る](README.ja.md)
+[← Back to the documentation index](README.md)
 
-# AegisCMS 監査ログリファレンス (Audit Log)
+**English** | [日本語](audit.ja.md)
 
-AegisCMS は、コンテンツ作成・セッション操作・ファイルアップロード・プラグインのエラーを監査イベントとして記録します。
-出力先は `AuditSink` トレイトで抽象化されており、設定で複数の出力先を同時に有効にできます。
+# AegisCMS Audit Log Reference
 
-関連ソース:
+AegisCMS records content creation, session operations, file uploads, and plugin errors as audit events.
+The destinations are abstracted by the `AuditSink` trait, and several destinations can be enabled at the same time in the settings.
 
-- イベント型 / `AuditSink` トレイト: [`crates/aegis-core/src/audit.rs`](../crates/aegis-core/src/audit.rs)
-- 出力先の実装と配送: [`crates/aegis-audit/`](../crates/aegis-audit)
-- 参照 API / メトリクス: [`crates/aegis-server/src/handlers/audit.rs`](../crates/aegis-server/src/handlers/audit.rs)
+Related sources:
+
+- Event types / the `AuditSink` trait: [`crates/aegis-core/src/audit.rs`](../crates/aegis-core/src/audit.rs)
+- Destination implementations and delivery: [`crates/aegis-audit/`](../crates/aegis-audit)
+- Query API / metrics: [`crates/aegis-server/src/handlers/audit.rs`](../crates/aegis-server/src/handlers/audit.rs)
 
 ---
 
-## 1. 設定
+## 1. Settings
 
 ```toml
 [audit]
@@ -24,110 +26,110 @@ retention_days = 90
 purge_interval_secs = 3600
 ```
 
-各項目の説明は [設定リファレンス](./configuration.md#28-audit--監査ログ) を参照してください。
+For the description of each item, see the [Configuration reference](./configuration.md#28-audit--audit-log).
 
-| 出力先 (`sinks`) | 内容 | 主な連携先 |
+| Destination (`sinks`) | Description | Main integrations |
 | --- | --- | --- |
-| `database` | `_aegis_audit_logs` テーブルへ永続化し、`GET /api/v1/audit-logs` で検索可能にする（既定） | SQLite / PostgreSQL / MySQL |
-| `log` | `aegis::audit` ターゲットへ 1 行 1 JSON の構造化ログを出力 | CloudWatch Logs, Loki, Datadog など（標準出力の転送経由） |
-| `prometheus` | `aegis_audit_events_total` カウンタを `GET /metrics` で公開 | Prometheus, CloudWatch Agent (Prometheus 収集) |
+| `database` | Persists to the `_aegis_audit_logs` table and makes it searchable with `GET /api/v1/audit-logs` (default) | SQLite / PostgreSQL / MySQL |
+| `log` | Outputs structured logs, one JSON per line, to the `aegis::audit` target | CloudWatch Logs, Loki, Datadog, etc. (via forwarding of standard output) |
+| `prometheus` | Exposes the `aegis_audit_events_total` counter at `GET /metrics` | Prometheus, CloudWatch Agent (Prometheus collection) |
 
-- 出力先への書き込みに失敗しても**リクエストは失敗しません**（`ERROR` ログを出して処理を続行）。
-- `database` シンクの使いどころと注意点は [出力先の選び方](#11-出力先の選び方) を参照してください。
-- `enabled = false` または `sinks = []` の場合は記録を行いません。
-- 管理者のログインやログインのロックなど、特定のイベントをメールで知らせるには `[[notifications.audit.rules]]` を設定します（[通知ドキュメント 2.1](notifications.md#21-監査イベントの通知)）。
+- Even if writing to a destination fails, **the request does not fail** (an `ERROR` log is written and processing continues).
+- For when to use the `database` sink and its caveats, see [Choosing a destination](#11-choosing-a-destination).
+- With `enabled = false` or `sinks = []`, nothing is recorded.
+- To notify specific events, such as administrator logins and login lockouts, by email, configure `[[notifications.audit.rules]]` ([Notifications document 2.1](notifications.md#21-notifying-audit-events)).
 
-### 1.1 出力先の選び方
+### 1.1 Choosing a Destination
 
-`database` シンクは、リクエストを処理する中で同期的に `_aegis_audit_logs` へ INSERT します（非同期キューやバッチ書き込みは行いません）。監査ログの書き込みが遅くなると、そのままリクエストの応答時間に影響します。
+The `database` sink INSERTs into `_aegis_audit_logs` synchronously while processing the request (there is no asynchronous queue or batch writing). If writing the audit log gets slow, it directly affects the request's response time.
 
-| 運用 | 推奨する出力先 |
+| Operation | Recommended destination |
 | --- | --- |
-| SQLite の単体運用、または管理者の操作が中心の小〜中規模サイト | `database`（Admin Studio での閲覧・検索と、`retention_days` による自動削除が使える） |
-| PostgreSQL / MySQL を使う、アクセスの多いサイト | `log`（標準出力）+ 転送先での保管・検索。`database` は外す、または併用しても件数を抑える |
-| 件数の集計やアラートだけが目的 | `prometheus` |
+| Standalone SQLite operation, or a small to medium site centered on administrator operations | `database` (usable for viewing and searching in Admin Studio and automatic deletion by `retention_days`) |
+| A high-traffic site using PostgreSQL / MySQL | `log` (standard output) + storage and search at the forwarding destination. Drop `database`, or if used together, keep the count down |
+| Only aggregating counts or alerting | `prometheus` |
 
-**`database` を使うときの注意**
+**Cautions when using `database`**
 
-- **スループット**: 未認証 401 の記録だけを並行 50 で測ったときの目安は、SQLite (WAL) 約 2,000 req/s、PostgreSQL 約 990 req/s、MySQL 約 230 req/s です（Docker 上、[計測の詳細](development.md#63-データベース別パフォーマンス比較-task-benchdbs--scriptscompare-dbsmjs)）。外部 RDBMS ではネットワークの往復とコミットの待ちが乗るため、サイト全体の書き込み量が増えるほど影響が出ます。一方、監査ログ DB 書き込みを除いた純粋な 401 応答は 3 エンジンとも約 1,600〜1,960 req/s に達し、コンテンツ一覧 API も外部 DB で約 820〜860 req/s を維持できます。
-- **容量とバックアップ**: アクセスのたびに記録されるイベント（`access.denied` など）が多いと、テーブルが大きくなり、DB のバックアップも肥大化します。`retention_days` を必ず設定してください（既定の `0` は無期限です。[保持期間](#5-保持期間と自動削除)）。
-- **本体データとの競合**: 監査ログの書き込みは、コンテンツなど本体データと同じ DB・同じコネクションプールを使います。
-- **欠損**: 書き込みに失敗したイベントは `ERROR` ログに残るだけで、再送されません。取りこぼしが許されない用途では、`log` を併用して別系統にも残してください。
+- **Throughput**: when measuring only the recording of unauthenticated 401s at 50 concurrent, the guide figures are about 2,000 req/s for SQLite (WAL), about 990 req/s for PostgreSQL, and about 230 req/s for MySQL (on Docker; [measurement details](development.md#63-per-database-performance-comparison-task-benchdbs--scriptscompare-dbsmjs)). With an external RDBMS, network round trips and commit waits add on, so the impact grows as the site's overall write volume grows. On the other hand, pure 401 responses excluding the audit log DB write reach about 1,600–1,960 req/s on all 3 engines, and the content list API also maintains about 820–860 req/s on external DBs.
+- **Capacity and backups**: if there are many events recorded on every access (such as `access.denied`), the table grows large and DB backups bloat too. Be sure to set `retention_days` (the default `0` is unlimited; [Retention period](#5-retention-period-and-automatic-deletion)).
+- **Contention with main data**: audit log writes use the same DB and the same connection pool as main data such as content.
+- **Loss**: events whose write failed remain only in the `ERROR` log and are not retried. For uses where no loss is acceptable, use `log` together to keep them in a separate path too.
 
-大量のログを DB に溜めて検索する用途には向きません。その場合は `log` の出力を Loki / CloudWatch Logs などに集約してください（[構造化ログ](#7-構造化ログ-log)）。
+It is not suited to accumulating a large volume of logs in the DB and searching them. In that case, aggregate the `log` output into Loki / CloudWatch Logs or the like ([Structured logs](#7-structured-logs-log)).
 
 ---
 
-## 2. 記録されるイベント
+## 2. Recorded Events
 
-| `action` | 記録タイミング | `outcome` | `resource_type` / `resource_id` | 主な `details` |
+| `action` | When recorded | `outcome` | `resource_type` / `resource_id` | Main `details` |
 | --- | --- | --- | --- | --- |
-| `content.create` | `POST /api/v1/contents/{content_type}` | `success` / `denied`（`on-before-save` フックが拒否・失敗）/ `failure`（DB エラー） | `content` / コンテンツ ID | `content_type`, `slug`, `title`, `status`, `reason` / `error` |
-| `content.update` | `PUT /api/v1/contents/{content_type}/{slug}` | `content.create` と同じ | `content` / コンテンツ ID | `content.create` と同じ |
-| `content.delete` | `DELETE /api/v1/contents/{content_type}/{slug}` | `success` / `failure`（DB エラー） | `content` / コンテンツ ID | `content_type`, `slug`, `title`, `error` |
-| `content.publish` | 予約公開（`status: "scheduled"`）のコンテンツを、`published_at` の日時になったときにサーバーが公開した（[コンテンツの予約公開](theme_and_publishing_guide.md)） | `success` / `failure`（DB エラー） | `content` / コンテンツ ID | `content_type`, `slug`, `title`, `published_at`, `error`（操作者 `actor` は無し） |
-| `content.unpublish` | 期限付き公開コンテンツを、`unpublish_at` の日時になったときにサーバーが非公開化（`status: "archived"`）した（[コンテンツの予約非公開化](theme_and_publishing_guide.md)） | `success` / `failure`（DB エラー） | `content` / コンテンツ ID | `content_type`, `slug`, `title`, `unpublish_at`, `error`（操作者 `actor` は無し） |
-| `content.review` | コンテンツのレビューの状態が変わった（[レビュー](theme_and_publishing_guide.md#レビュー寄稿者の下書きを承認して公開する)）: レビュー待ち（`pending`）にした、レビュー待ちを公開・予約公開した、著者以外が下書きに戻した、著者が下書きに戻した | `success` | `content` / コンテンツ ID | `decision`（`submitted` / `approved` / `returned` / `withdrawn`）, `content_type`, `slug`, `title`, `status`, `note`（保存のときの `review_note`） |
-| `session.create` | `POST /api/v1/auth/session`（ログイン） | `success` / `failure`（認証失敗を含む）/ `denied`（ログイン試行のレート制限でロック中、`on-user-authenticated` プラグインが拒否） | `session` / セッション指紋 | `expires_at`, `provider`, `username`（失敗・拒否時）, `error`（失敗理由: `unknown_user` / `invalid_password` / `account_disabled` / `rate_limited` / `plugin_rejected` / `plugin_failed`、SSO の理由（[認証 6.4](authentication.md#64-失敗時の理由login_error監査ログ-sessioncreate-の-error)）など）, `reason`（プラグインの拒否・失敗の内容）, `role_mapped`（プラグインがロールを変えた場合の `from` / `to`）, `locked`（その失敗でロックがかかった単位: `username` / `ip`）, `lock_scope` / `retry_after_secs`（`denied` 時） |
-| `session.delete` | `DELETE /api/v1/auth/session` | `success` / `failure` | `session` / セッション指紋 | `error` |
-| `storage.upload` | `POST /api/v1/storage/upload` | `success` / `failure`（ストレージエラー） | `asset` / ストレージキー | `original_name`, `content_type`, `size`, `url`, `error` |
-| `storage.delete` | `DELETE /api/v1/storage/objects/{key}`（[メディア](media.md#ファイルの削除--delete-apiv1storageobjectskey)） | `success` / `failure`（ストレージエラー） | `asset` / ストレージキー | `url`, `force`, `references`（参照元の件数）, `error` |
-| `plugin.error` | Wasm プラグインフックの実行失敗（トラップ、タイムアウト、Fuel 枯渇など） | `failure` | `content` / コンテンツ ID（`on-user-authenticated` では `session` / なし、`on-order-status-changed` では `order` / 注文 ID） | `hook`, `content_type` / `username` / `plugin`, `error` |
-| `plugin.enable` / `plugin.disable` | `PUT /api/v1/plugins/{name}/enabled`（[プラグインの有効・無効の切り替え](plugin_hooks.md#51-admin-studio-からの有効無効の切り替え)） | `success` / `failure`（読み込めない、DB エラー） | `plugin` / プラグイン名 | `from` / `to`（有効化リスト）, `error` |
-| `plugin.reorder` | `PUT /api/v1/plugins/order`（[実行順の並べ替え](plugin_hooks.md#52-フックの実行順の並べ替えと設定ファイルの値に戻す)） | `success` / `failure` | `plugin` / なし | `from` / `to`, `error` |
-| `plugin.reset` | `DELETE /api/v1/plugins/order`（設定ファイルの `[plugins].enabled` に戻す） | `success` / `failure`（読み込めない、DB エラー） | `plugin` / なし | `from` / `to`, `error` |
-| `audit.purge` | 保持期間切れの監査ログを 1 件以上削除したとき（[5. 保持期間](#5-保持期間と自動削除)） | `success` | `audit_log` / なし | `deleted`, `cutoff`, `retention_days` |
-| `access.denied` | セッションとロールが必要な API（[必要なロール](authentication.md#ロールと-api-の権限)）を、セッション無し・無効（401）またはロール不足（403）で拒否したとき | `denied` | `endpoint` / `メソッド パス`（例: `POST /api/v1/contents/article`。クエリ文字列は含めない） | `reason`（`missing_session` / `invalid_session` / `insufficient_role` / `not_own_account`（他のユーザーのプロフィール・アバターへのアクセス。`resource_type` は `user`）/ `invalid_webhook_signature`（決済の Webhook の署名が不正））, `required_role`, `session`（無効なトークンの指紋。`invalid_session` のみ） |
-| `theme.switch` | `PUT /api/v1/themes/active` | `success` | なし | `from_theme`, `to_theme` |
-| `site.update` | `PUT /api/v1/site`（公開サイトの名前と favicon。[テーマと公開](theme_and_publishing_guide.md#サイト名と-faviconadmin-studio)） | `success` / `failure`（DB エラー） | なし | `title` / `favicon`（それぞれ `from` / `to`。`null` は設定ファイルの値）, `error` |
-| `user.create` | `POST /api/v1/users`（[ユーザー管理 API](authentication.md#3-ユーザー管理-api)） | `success` / `failure`（DB エラー） | `user` / ユーザー名 | `role`, `error` |
-| `user.update` | `PATCH /api/v1/users/{username}`、`PUT` / `DELETE /api/v1/users/{username}/avatar` | `success` / `failure` | `user` / ユーザー名 | `changed`（実際に変わった項目: `email` / `display_name` / `role` / `disabled` / `password` / `avatar`。パスワードの値は残さない）, `role`（`from` / `to`）, `disabled`, `avatar_key`, `size`, `error` |
-| `user.delete` | `DELETE /api/v1/users/{username}` | `success` / `failure` | `user` / ユーザー名 | `role`, `error` |
-| `user.register` | `POST /api/v1/auth/registration`（申し込み）、`POST /api/v1/auth/registration/verify`（確認。[アカウント登録](authentication.md#7-アカウント登録)） | `success` / `denied`（入力の不備・ユーザー名の重複・登録済みのメールアドレス・許可されていないドメイン・申し込み数の制限・無効な確認リンク）/ `failure`（サーバーのエラー） | `user` / ユーザー名（確認の成功時のみ） | `stage`（`requested` / `confirmed`）, `username`, `role`, `pending_approval`, `error`（`email_in_use` / `rate_limited` / `username_taken` / `invalid_token` など）。メールアドレスとトークンは残さない |
-| `order.create` | `POST /api/v1/shop/checkout`（[EC](commerce.md)） | `success` | `order` / 注文 ID | `number`, `total`, `currency`, `items`, `provider` |
-| `order.update` | 注文の状態の変化（管理者の操作、決済の Webhook、期限切れ）、決済の問題 | `success` / `failure`（金額の不一致 `amount_mismatch`、取り消し後の入金 `paid_after_cancel`） | `order` / 注文 ID | `number`, `from`, `to`, `source`（`admin` / `payment_webhook` / `payment_expired` / `payment_failed` / `expired` / `payment_start_failed`）, `restocked`, `note`, `problem`, `event_id` |
-| `purchase.create` | `POST /api/v1/members/purchases`・`GET /account/purchase`（記事の購入）、管理者の無料の付与、サブスクの開始（Webhook）。[会員 16](members.md#16-購入記事の単独購入サブスク) | `success` | `purchase` / 購入 ID、サブスクは `subscription` / 契約 ID | `content_type`, `content_id`, `amount`, `currency`、付与は `manual`・`granted_by`、サブスクは `plan_id`・`level`・`status` |
-| `purchase.update` | 購入・契約の状態の変化（入金・返金・期限切れ・失敗・更新・解約の Webhook、管理者の取り消し・返金・解約、退会による解約）、決済の問題 | `success` / `failure`（金額の不一致 `amount_mismatch`） | `purchase` / 購入 ID | `from`, `to`, `source`（`payment_webhook`）, `problem`（`amount_mismatch` / `duplicate_payment` / `unknown_plan` / `unknown_member`）, `event_id` |
-| `notification.send` | 通知の配信（チャネルごと。一時的な失敗は再試行した後の結果。Admin Studio・CLI のテスト送信を含む） | `success` / `failure` | `notification` / 通知の種類（`order.placed` など） | `channel`, `recipient`（`person` / `staff`。アドレスは残さない）, `subject`, `attempts`, `error`, `order_number` |
-| `member.password_reset` | 会員のパスワードの再設定の完了（メールのリンクから。完了すると、その会員のセッションはすべて終わる） | `success` | `member` / 会員 ID | — |
-| `member.verify` | 会員のメールアドレスの確認の完了（メールのリンクから。確認が済むとログインできる） | `success` | `member` / 会員 ID | — |
-| `member.delete` | 会員の退会（自分のアカウントの削除。パスワードで本人を確かめる）。注文は会員との紐づきを外して、レビューは匿名にして残す | `success` | `member` / 会員 ID | —（メールアドレスは記録しない） |
-| `comment.create` | Admin Studio からのコメントへの返信（`POST /api/v1/comments/{id}/replies`。[コメント](comments.md)） | `success` / `failure` | `comment` / 返信のコメント ID | `parent_id`, `content_type`, `content_id`, `error` |
-| `comment.moderate` | コメントの状態の変更（承認・承認待ち・スパム・ゴミ箱。1 件・まとめて） | `success` / `failure` | `comment` / コメント ID（1 件のとき） | `ids`, `status`, `count`（変えた件数）, `error` |
-| `comment.update` | コメントの本文の編集（`PATCH /api/v1/comments/{id}` の `body`） | `success` / `failure` | `comment` / コメント ID | `content_type`, `content_id`, `length`（`from` / `to`。文字数。本文は残さない）, `error` |
-| `comment.delete` | コメントの削除（1 件・まとめて） | `success` / `failure` | `comment` / コメント ID（1 件のとき） | `ids`, `count`, `error` |
-| `comment.settings_update` | コメントの承認の設定の変更（`PUT /api/v1/comments/settings`）、コンテンツごとの受付の切り替え（`PUT /api/v1/contents/{type}/{id}/comments/state`） | `success` / `failure` | 承認の設定は なし、受付の切り替えは コンテンツの種類 / コンテンツ ID | 承認の設定は `require_approval` / `auto_approve_known`（`from` / `to`。`null` は設定ファイルの値）、受付の切り替えは `content_type` / `content_id` / `comments_open`。どちらも `error` |
-| `notification.template_update` | 通知のテンプレートの保存・元に戻す（`PUT` / `DELETE /api/v1/notifications/templates/{名前}`。[通知 6](notifications.md#6-admin-studio-から管理する)） | `success` / `failure`（DB エラー） | `notification_template` / テンプレートの名前 | `operation`（`save` / `reset`）, `previous_source`（`custom` / `file` / `builtin`）, `bytes`, `error` |
-| `notification.queue_update` | 送れなかった通知の再送・送信待ちの破棄（`POST /api/v1/notifications/queue/{id}/retry`、`DELETE /api/v1/notifications/queue/{id}`） | `success` | `notification` / 通知の種類 | `operation`（`retry` / `discard`）, `id`, `channel`, `attempts` |
+| `content.create` | `POST /api/v1/contents/{content_type}` | `success` / `denied` (the `on-before-save` hook refused or failed) / `failure` (DB error) | `content` / content ID | `content_type`, `slug`, `title`, `status`, `reason` / `error` |
+| `content.update` | `PUT /api/v1/contents/{content_type}/{slug}` | Same as `content.create` | `content` / content ID | Same as `content.create` |
+| `content.delete` | `DELETE /api/v1/contents/{content_type}/{slug}` | `success` / `failure` (DB error) | `content` / content ID | `content_type`, `slug`, `title`, `error` |
+| `content.publish` | The server published content scheduled for publication (`status: "scheduled"`) when the `published_at` time arrived ([Scheduled publishing of content](theme_and_publishing_guide.md)) | `success` / `failure` (DB error) | `content` / content ID | `content_type`, `slug`, `title`, `published_at`, `error` (no operator `actor`) |
+| `content.unpublish` | The server unpublished (`status: "archived"`) time-limited content when the `unpublish_at` time arrived ([Scheduled unpublishing of content](theme_and_publishing_guide.md)) | `success` / `failure` (DB error) | `content` / content ID | `content_type`, `slug`, `title`, `unpublish_at`, `error` (no operator `actor`) |
+| `content.review` | A content item's review status changed ([Review](theme_and_publishing_guide.md#review-approving-and-publishing-a-contributors-draft)): made awaiting review (`pending`), an item awaiting review was published or scheduled, someone other than the author reverted it to draft, or the author reverted it to draft | `success` | `content` / content ID | `decision` (`submitted` / `approved` / `returned` / `withdrawn`), `content_type`, `slug`, `title`, `status`, `note` (the `review_note` at save time) |
+| `session.create` | `POST /api/v1/auth/session` (login) | `success` / `failure` (including authentication failure) / `denied` (locked by login attempt rate limiting, refused by an `on-user-authenticated` plugin) | `session` / session fingerprint | `expires_at`, `provider`, `username` (on failure or refusal), `error` (failure reason: `unknown_user` / `invalid_password` / `account_disabled` / `rate_limited` / `plugin_rejected` / `plugin_failed`, SSO reasons ([Authentication 6.4](authentication.md#64-reasons-for-failure-login_error-error-in-the-audit-log-sessioncreate)), etc.), `reason` (the content of a plugin's refusal or failure), `role_mapped` (`from` / `to` when a plugin changed the role), `locked` (the unit locked by that failure: `username` / `ip`), `lock_scope` / `retry_after_secs` (on `denied`) |
+| `session.delete` | `DELETE /api/v1/auth/session` | `success` / `failure` | `session` / session fingerprint | `error` |
+| `storage.upload` | `POST /api/v1/storage/upload` | `success` / `failure` (storage error) | `asset` / storage key | `original_name`, `content_type`, `size`, `url`, `error` |
+| `storage.delete` | `DELETE /api/v1/storage/objects/{key}` ([Media](media.md#deleting-a-file--delete-apiv1storageobjectskey)) | `success` / `failure` (storage error) | `asset` / storage key | `url`, `force`, `references` (the number of referrers), `error` |
+| `plugin.error` | A Wasm plugin hook failed to run (trap, timeout, fuel exhaustion, etc.) | `failure` | `content` / content ID (`session` / none for `on-user-authenticated`, `order` / order ID for `on-order-status-changed`) | `hook`, `content_type` / `username` / `plugin`, `error` |
+| `plugin.enable` / `plugin.disable` | `PUT /api/v1/plugins/{name}/enabled` ([Toggling plugins on and off](plugin_hooks.md#71-toggling-on-and-off-from-admin-studio)) | `success` / `failure` (cannot load, DB error) | `plugin` / plugin name | `from` / `to` (the enabled list), `error` |
+| `plugin.reorder` | `PUT /api/v1/plugins/order` ([Reordering execution order](plugin_hooks.md#72-reordering-hook-execution-and-returning-to-the-config-files-values)) | `success` / `failure` | `plugin` / none | `from` / `to`, `error` |
+| `plugin.reset` | `DELETE /api/v1/plugins/order` (return to `[plugins].enabled` in the config file) | `success` / `failure` (cannot load, DB error) | `plugin` / none | `from` / `to`, `error` |
+| `audit.purge` | When one or more audit logs past the retention period were deleted ([5. Retention period](#5-retention-period-and-automatic-deletion)) | `success` | `audit_log` / none | `deleted`, `cutoff`, `retention_days` |
+| `access.denied` | An API that needs a session and role ([required roles](authentication.md#roles-and-api-permissions)) was refused for no or an invalid session (401) or an insufficient role (403) | `denied` | `endpoint` / `method path` (e.g. `POST /api/v1/contents/article`; the query string is not included) | `reason` (`missing_session` / `invalid_session` / `insufficient_role` / `not_own_account` (access to another user's profile or avatar; `resource_type` is `user`) / `invalid_webhook_signature` (the payment webhook's signature is invalid)), `required_role`, `session` (the fingerprint of an invalid token; `invalid_session` only) |
+| `theme.switch` | `PUT /api/v1/themes/active` | `success` | none | `from_theme`, `to_theme` |
+| `site.update` | `PUT /api/v1/site` (the public site's name and favicon; [Themes and publishing](theme_and_publishing_guide.md#site-name-and-favicon-admin-studio)) | `success` / `failure` (DB error) | none | `title` / `favicon` (each `from` / `to`; `null` is the config file's value), `error` |
+| `user.create` | `POST /api/v1/users` ([User management API](authentication.md#3-user-management-api)) | `success` / `failure` (DB error) | `user` / username | `role`, `error` |
+| `user.update` | `PATCH /api/v1/users/{username}`, `PUT` / `DELETE /api/v1/users/{username}/avatar` | `success` / `failure` | `user` / username | `changed` (the items that actually changed: `email` / `display_name` / `role` / `disabled` / `password` / `avatar`; password values are not kept), `role` (`from` / `to`), `disabled`, `avatar_key`, `size`, `error` |
+| `user.delete` | `DELETE /api/v1/users/{username}` | `success` / `failure` | `user` / username | `role`, `error` |
+| `user.register` | `POST /api/v1/auth/registration` (application), `POST /api/v1/auth/registration/verify` (confirmation; [Account registration](authentication.md#7-account-registration)) | `success` / `denied` (invalid input, duplicate username, already registered email address, disallowed domain, application count limit, invalid confirmation link) / `failure` (server error) | `user` / username (only on successful confirmation) | `stage` (`requested` / `confirmed`), `username`, `role`, `pending_approval`, `error` (`email_in_use` / `rate_limited` / `username_taken` / `invalid_token`, etc.). Email addresses and tokens are not kept |
+| `order.create` | `POST /api/v1/shop/checkout` ([E-commerce](commerce.md)) | `success` | `order` / order ID | `number`, `total`, `currency`, `items`, `provider` |
+| `order.update` | An order's status changed (administrator operation, payment webhook, expiry), or a payment problem | `success` / `failure` (amount mismatch `amount_mismatch`, payment after cancellation `paid_after_cancel`) | `order` / order ID | `number`, `from`, `to`, `source` (`admin` / `payment_webhook` / `payment_expired` / `payment_failed` / `expired` / `payment_start_failed`), `restocked`, `note`, `problem`, `event_id` |
+| `purchase.create` | `POST /api/v1/members/purchases`, `GET /account/purchase` (purchasing an article), an administrator's free grant, the start of a subscription (webhook). [Members 16](members.md#16-purchases-single-article-purchases-and-subscriptions) | `success` | `purchase` / purchase ID; for subscriptions `subscription` / contract ID | `content_type`, `content_id`, `amount`, `currency`; for grants `manual`, `granted_by`; for subscriptions `plan_id`, `level`, `status` |
+| `purchase.update` | A purchase's or contract's status changed (webhooks for payment, refund, expiry, failure, renewal, cancellation; an administrator's cancel, refund, or termination; termination by withdrawal), or a payment problem | `success` / `failure` (amount mismatch `amount_mismatch`) | `purchase` / purchase ID | `from`, `to`, `source` (`payment_webhook`), `problem` (`amount_mismatch` / `duplicate_payment` / `unknown_plan` / `unknown_member`), `event_id` |
+| `notification.send` | Delivery of a notification (per channel; for transient failures, the result after retries; including test sends from Admin Studio and the CLI) | `success` / `failure` | `notification` / notification kind (such as `order.placed`) | `channel`, `recipient` (`person` / `staff`; the address is not kept), `subject`, `attempts`, `error`, `order_number` |
+| `member.password_reset` | A member's password reset was completed (from the link in the email; on completion, all of that member's sessions end) | `success` | `member` / member ID | — |
+| `member.verify` | A member's email address confirmation was completed (from the link in the email; after confirmation they can log in) | `success` | `member` / member ID | — |
+| `member.delete` | A member's withdrawal (deleting their own account; identity is confirmed by password). Orders are detached from the member and reviews are anonymized and kept | `success` | `member` / member ID | — (the email address is not recorded) |
+| `comment.create` | A reply to a comment from Admin Studio (`POST /api/v1/comments/{id}/replies`; [Comments](comments.md)) | `success` / `failure` | `comment` / the reply's comment ID | `parent_id`, `content_type`, `content_id`, `error` |
+| `comment.moderate` | A change of comment status (approved, awaiting approval, spam, trash; one or in bulk) | `success` / `failure` | `comment` / comment ID (when one) | `ids`, `status`, `count` (number changed), `error` |
+| `comment.update` | Editing a comment's body (`body` of `PATCH /api/v1/comments/{id}`) | `success` / `failure` | `comment` / comment ID | `content_type`, `content_id`, `length` (`from` / `to`; character count; the body is not kept), `error` |
+| `comment.delete` | Deleting comments (one or in bulk) | `success` / `failure` | `comment` / comment ID (when one) | `ids`, `count`, `error` |
+| `comment.settings_update` | A change of comment approval settings (`PUT /api/v1/comments/settings`), or the per-content acceptance switch (`PUT /api/v1/contents/{type}/{id}/comments/state`) | `success` / `failure` | None for approval settings; content kind / content ID for the acceptance switch | For approval settings `require_approval` / `auto_approve_known` (`from` / `to`; `null` is the config file's value); for the acceptance switch `content_type` / `content_id` / `comments_open`. Both have `error` |
+| `notification.template_update` | Saving or resetting a notification template (`PUT` / `DELETE /api/v1/notifications/templates/{name}`; [Notifications 6](notifications.md#6-managing-from-admin-studio)) | `success` / `failure` (DB error) | `notification_template` / template name | `operation` (`save` / `reset`), `previous_source` (`custom` / `file` / `builtin`), `bytes`, `error` |
+| `notification.queue_update` | Resending a failed notification, or discarding one in the outbox (`POST /api/v1/notifications/queue/{id}/retry`, `DELETE /api/v1/notifications/queue/{id}`) | `success` | `notification` / notification kind | `operation` (`retry` / `discard`), `id`, `channel`, `attempts` |
 
-- 入力不備（必須フィールド欠落、存在しないスキーマなど）で処理に入る前に弾かれたリクエストは記録しません。
-- `on-before-save` フックが失敗した場合（トラップ、タイムアウトなど）は、`plugin.error` と `content.create`（`denied`）の 2 件が記録されます。プラグインが `Err` を返して保存を拒否した場合はプラグインの失敗ではないため、`content.create`（`denied`。`reason` に拒否理由）の 1 件だけです。
-- `access.denied` の `actor` は、ロール不足（403）ならそのセッションのユーザー、401 なら空です。ログイン失敗（`POST /api/v1/auth/session` の 401）は `access.denied` ではなく `session.create`（`failure`）として記録します。
-- `access.denied` はセッションを持たないリクエストでも記録されるため、インターネットに公開した API への機械的なアクセスで件数が増えます。`retention_days` による定期削除や、リバースプロキシでのアクセス元制限・レート制限と組み合わせてください。
+- Requests rejected before processing begins because of invalid input (missing required fields, a nonexistent schema, etc.) are not recorded.
+- When the `on-before-save` hook fails (trap, timeout, etc.), two events are recorded: `plugin.error` and `content.create` (`denied`). When a plugin returns `Err` and refuses the save, it is not a plugin failure, so there is only one: `content.create` (`denied`, with the refusal reason in `reason`).
+- The `actor` of `access.denied` is the session's user for an insufficient role (403), and empty for 401. A login failure (a 401 of `POST /api/v1/auth/session`) is recorded not as `access.denied` but as `session.create` (`failure`).
+- `access.denied` is also recorded for requests with no session, so the count rises with mechanical access to an API exposed to the internet. Combine it with periodic deletion by `retention_days` and source restrictions and rate limiting at the reverse proxy.
 
-### 2.1 操作主体 (`actor`)
+### 2.1 The Actor (`actor`)
 
-リクエストの `Authorization: Bearer <token>` / `X-Session-Id` ヘッダーからセッションを解決し、`user_id` と `role` を記録します。セッションが無い・無効な場合は `null` です。
-`session.create` では、作成されたセッションのユーザーが `actor` になります。
+The session is resolved from the request's `Authorization: Bearer <token>` / `X-Session-Id` header, and the `user_id` and `role` are recorded. If there is no session or it is invalid, it is `null`.
+For `session.create`, the user of the created session is the `actor`.
 
-### 2.2 セッション指紋
+### 2.2 Session Fingerprint
 
-セッショントークンは認証情報そのものであるため、監査ログには**記録しません**。
-代わりに SHA-256 ハッシュの先頭 16 桁（セッション指紋）を `resource_id` に記録し、`session.create` と `session.delete` を突き合わせられるようにしています。
+A session token is itself a credential, so it is **not recorded** in the audit log.
+Instead, the first 16 digits of its SHA-256 hash (the session fingerprint) are recorded in `resource_id` so that `session.create` and `session.delete` can be matched up.
 
-### 2.3 クライアント情報
+### 2.3 Client Information
 
-| フィールド | 内容 |
+| Field | Description |
 | --- | --- |
-| `ip` | 接続元 IP。`trust_forwarded_for = true` の場合は `X-Forwarded-For` を右端から `forwarded_for_hops` 段（既定 1）除いたアドレスを優先 |
-| `user_agent` | `User-Agent` ヘッダー（最大 512 文字） |
+| `ip` | The connecting IP. When `trust_forwarded_for = true`, the address from `X-Forwarded-For` with `forwarded_for_hops` entries (default 1) removed from the right end is preferred |
+| `user_agent` | The `User-Agent` header (up to 512 characters) |
 
 > [!WARNING]
-> `X-Forwarded-For` の左側（先頭）はクライアントが自由に書けるため使いません。プロキシが右に追記したアドレスを、右端から `forwarded_for_hops` 段目（既定 1 = 右端）として採用します。CDN → ロードバランサーのように 2 段で追記するなら `forwarded_for_hops = 2` にしてください。ヘッダーが段数より短い、またはアドレスとして読めないときは接続元アドレスを使います。`trust_forwarded_for` は信頼できるリバースプロキシ配下でのみ有効にしてください。
+> The left (first) side of `X-Forwarded-For` is not used because clients can write it freely. The address a proxy appended on the right is adopted as the `forwarded_for_hops`-th from the right end (default 1 = the rightmost). If you append in 2 stages, such as CDN → load balancer, set `forwarded_for_hops = 2`. If the header is shorter than the number of stages or cannot be read as an address, the connecting address is used. Enable `trust_forwarded_for` only behind a trusted reverse proxy.
 
 ---
 
-## 3. イベントの形式
+## 3. Event Format
 
 ```json
 {
@@ -144,24 +146,24 @@ purge_interval_secs = 3600
 }
 ```
 
-`occurred_at` は常に UTC・マイクロ秒精度・`Z` 終端の RFC 3339 形式です（文字列の辞書順と時系列順が一致します）。
+`occurred_at` is always UTC, microsecond precision, and RFC 3339 ending in `Z` (so lexicographic order and chronological order of the strings match).
 
 ---
 
-## 4. 参照 API: `GET /api/v1/audit-logs`
+## 4. Query API: `GET /api/v1/audit-logs`
 
-`database` 出力先が有効な場合に利用できます。**`admin` ロールのセッションが必要です。**
+Available when the `database` destination is enabled. **An `admin` role session is required.**
 
-| クエリパラメータ | 説明 |
+| Query parameter | Description |
 | --- | --- |
-| `action` | `content.create` などのアクション名 |
+| `action` | An action name such as `content.create` |
 | `outcome` | `success` / `failure` / `denied` |
-| `actor_id` | 操作主体のユーザー ID |
-| `resource_type`, `resource_id` | 対象リソース |
-| `since` | この時刻以降（含む）。RFC 3339 (例: `2026-10-21T00:00:00+09:00`) |
-| `until` | この時刻より前（含まない）。RFC 3339 |
-| `limit` | 取得件数（既定 50、最大 500） |
-| `offset` | 読み飛ばす件数（既定 0） |
+| `actor_id` | The actor's user ID |
+| `resource_type`, `resource_id` | The target resource |
+| `since` | From this time (inclusive). RFC 3339 (e.g. `2026-10-21T00:00:00+09:00`) |
+| `until` | Before this time (exclusive). RFC 3339 |
+| `limit` | Number to fetch (default 50, max 500) |
+| `offset` | Number to skip (default 0) |
 
 ```bash
 curl -H "Authorization: Bearer $ADMIN_TOKEN" \
@@ -172,66 +174,66 @@ curl -H "Authorization: Bearer $ADMIN_TOKEN" \
 { "items": [ { "id": "...", "action": "content.create", "...": "..." } ], "limit": 20, "offset": 0, "retention_days": 90 }
 ```
 
-結果は `occurred_at` の新しい順です。`retention_days` は保持期間の日数で、無期限の場合は `null` です。
+Results are newest first by `occurred_at`. `retention_days` is the retention period in days, and `null` when unlimited.
 
-| ステータス | 条件 |
+| Status | Condition |
 | --- | --- |
-| `401` | セッションヘッダーが無い、またはセッションが無効 |
-| `403` | セッションのロールが `admin` ではない（API ごとの必要ロールは [認証 & ユーザー管理](authentication.md#ロールと-api-の権限)） |
-| `400` | 不正な `action` / `outcome` / 日時 |
-| `404` | `database` 出力先が無効 |
+| `401` | No session header, or the session is invalid |
+| `403` | The session's role is not `admin` (for the role required by each API, see [Authentication & user management](authentication.md#roles-and-api-permissions)) |
+| `400` | An invalid `action` / `outcome` / date and time |
+| `404` | The `database` destination is disabled |
 
 > [!NOTE]
-> セッションのロールは、ログイン（`POST /api/v1/auth/session`）時にユーザーアカウントから決まります。`admin` ユーザーの作成方法は [認証 & ユーザー管理](authentication.md) を参照してください。
+> The session's role is decided from the user account at login (`POST /api/v1/auth/session`). For how to create an `admin` user, see [Authentication & user management](authentication.md).
 
 ---
 
-## 5. 保持期間と自動削除
+## 5. Retention Period and Automatic Deletion
 
-`retention_days` に 1 以上を設定すると、`database` 出力先に保存した監査ログのうち、保持日数より古いものを定期的に削除します。
+Setting `retention_days` to 1 or more periodically deletes audit logs stored in the `database` destination that are older than the retention days.
 
-| 設定 | 既定値 | 説明 |
+| Setting | Default | Description |
 | --- | --- | --- |
-| `retention_days` | `0` | 保持日数。`0` は無期限（削除しない） |
-| `purge_interval_secs` | `3600` | 削除を実行する間隔（秒、最小 60）。サーバー起動直後にも 1 回実行 |
+| `retention_days` | `0` | Days to keep. `0` is unlimited (nothing is deleted) |
+| `purge_interval_secs` | `3600` | Interval for running deletion (seconds, minimum 60). Also runs once right after server startup |
 
-- 削除の基準時刻は「実行時刻 − `retention_days` 日」で、`occurred_at` がこれより前のイベントを削除します。
-- 1 件以上削除した場合は、削除したこと自体を `audit.purge` イベント（`deleted`: 削除件数、`cutoff`: 基準時刻）として記録します。監査ログが消えた事実を後から追跡できるようにするためです。
-- 対象は `database` 出力先のみです。`log` 出力先の保存期間は転送先（CloudWatch Logs のロググループ設定など）で、`prometheus` は再起動でリセットされるため対象外です。`database` 出力先が無効なまま `retention_days` を設定すると、起動時に警告ログを出します。
-- 複数インスタンス構成では各インスタンスが削除を実行しますが、同じ条件の `DELETE` なので結果は変わりません。
-
----
-
-## 6. Admin Studio の閲覧画面
-
-Admin Studio（`/admin`）に `admin` ロールのユーザーでログインすると、ヘッダーの **Settings** に **Audit Logs** が表示され、監査ログを閲覧できます（`editor` / `viewer` には表示されません）。ユーザーの作成は [認証 & ユーザー管理](authentication.md) を参照してください。
-
-![Admin Studio の監査ログ（Settings → Audit Logs）](images/audit-log.png)
-
-- **絞り込み**: action / outcome / actor / resource（種別・ID）/ 期間（since・until。ブラウザのローカル時刻で入力し、UTC に変換して送信）
-- **一覧**: 新しい順に 50 件ずつ表示し、**Newer** / **Older** でページ送り。行をクリックすると、イベント ID・User-Agent・`details` の JSON を展開表示
-- 右上に、サーバーに設定された保持期間を表示（無期限なら `unlimited`）
-- 403 / 404 の場合は、原因（ロール不足、`database` 出力先が無効）を画面に表示。セッションが切れた（401）場合はログイン画面に戻る
+- The reference time for deletion is "run time − `retention_days` days", and events with an `occurred_at` earlier than this are deleted.
+- When one or more were deleted, the fact of deletion itself is recorded as an `audit.purge` event (`deleted`: the number deleted, `cutoff`: the reference time). This is so the fact that audit logs disappeared can be traced later.
+- Only the `database` destination is covered. The retention period of the `log` destination is at the forwarding destination (such as CloudWatch Logs log group settings), and `prometheus` is out of scope because it resets on restart. If you set `retention_days` while the `database` destination is disabled, a warning log is written at startup.
+- In a multi-instance setup, each instance runs deletion, but since it is a `DELETE` with the same condition, the result does not change.
 
 ---
 
-## 7. 構造化ログ (`log`)
+## 6. The Admin Studio Viewer
 
-`aegis::audit` ターゲットへ `INFO` レベルで、イベント JSON をメッセージとして 1 行ずつ出力します。
+When you log in to Admin Studio (`/admin`) as a user with the `admin` role, **Audit Logs** appears under **Settings** in the header, and you can browse audit logs (it is not shown to `editor` / `viewer`). For creating users, see [Authentication & user management](authentication.md).
+
+![Admin Studio audit log (Settings → Audit Logs)](images/audit-log.png)
+
+- **Filtering**: action / outcome / actor / resource (kind, ID) / period (since, until; entered in the browser's local time and sent converted to UTC)
+- **List**: shown 50 at a time, newest first, with **Newer** / **Older** for paging. Clicking a row expands the event ID, User-Agent, and `details` JSON
+- At the top right, it shows the retention period configured on the server (`unlimited` if unlimited)
+- For 403 / 404, the cause (insufficient role, `database` destination disabled) is shown on screen. If the session expired (401), it returns to the login screen
+
+---
+
+## 7. Structured Logs (`log`)
+
+Outputs the event JSON as the message, one line at a time, at `INFO` level to the `aegis::audit` target.
 
 ```text
 2026-10-21T18:22:53.520299Z  INFO aegis::audit: {"id":"ade1ec8b-...","occurred_at":"2026-10-21T18:22:53.513401Z","action":"session.create",...}
 ```
 
-- `RUST_LOG` で出力を制御できます（例: `RUST_LOG=warn,aegis::audit=info` で監査ログ以外を抑制）。
-- **CloudWatch Logs**: コンテナの標準出力を `awslogs` ログドライバ（ECS）や CloudWatch Agent / Fluent Bit で転送し、`aegis::audit:` 以降を JSON としてパースします。
-- **Loki など**: Promtail / Fluent Bit の regex / json パーサーで同様に取り込めます。
+- The output can be controlled with `RUST_LOG` (for example, `RUST_LOG=warn,aegis::audit=info` suppresses everything other than audit logs).
+- **CloudWatch Logs**: forward the container's standard output with the `awslogs` log driver (ECS) or CloudWatch Agent / Fluent Bit, and parse what follows `aegis::audit:` as JSON.
+- **Loki and others**: it can be ingested the same way with the regex / json parsers of Promtail / Fluent Bit.
 
 ---
 
-## 8. メトリクス (`prometheus`)
+## 8. Metrics (`prometheus`)
 
-`GET /metrics` で Prometheus テキスト形式のカウンタを公開します。全 `action` × `outcome` の組み合わせを 0 から公開するため、イベント発生前からアラートルールを書けます。
+`GET /metrics` exposes counters in Prometheus text format. It exposes all `action` × `outcome` combinations from 0, so alert rules can be written before any events occur.
 
 ```text
 # HELP aegis_audit_events_total Total number of audit events recorded since startup.
@@ -241,13 +243,13 @@ aegis_audit_events_total{action="plugin.error",outcome="failure"} 0
 ...
 ```
 
-- Wasm プラグインが有効なら、`on-render-page` の結果のキャッシュ（[architecture.md 10.8](architecture.md#108-on-render-page-の結果のキャッシュ-aegis-runtimesrcwasmresult_cachers)）のカウンタ `aegis_render_cache_{hits,misses,stale,stores}_total` も同じ出力に含まれます。ヒット率は `hits / (hits + misses)`（`stale` は設定変更で使えなかった回数で `misses` にも数えます）。低いまま（記事ごとに 1 回しか見られない長い裾野のサイトなど）なら、サーバー内のキャッシュより CDN に任せるほうが合います。
-- カウンタはプロセス内メモリに保持され、再起動で 0 に戻ります（Prometheus の `rate()` / `increase()` はこれを考慮します）。
-- 複数インスタンス構成では、各インスタンスをスクレイプして集約してください。
-- `/metrics` は認証なしで公開されます。必要に応じてネットワーク / リバースプロキシで公開範囲を制限してください。
-- CloudWatch では CloudWatch Agent の Prometheus メトリクス収集で取り込めます。
+- If Wasm plugins are enabled, the counters of the `on-render-page` result cache ([architecture.md 10.8](architecture.md#108-caching-the-result-of-on-render-page-aegis-runtimesrcwasmresult_cachers)), `aegis_render_cache_{hits,misses,stale,stores}_total`, are included in the same output. The hit rate is `hits / (hits + misses)` (`stale` is the number of times it could not be used due to a settings change, and is also counted in `misses`). If it stays low (such as on sites with a long tail where each article is viewed only once), leaving it to a CDN suits better than the in-server cache.
+- Counters are held in the process's memory and return to 0 on restart (Prometheus's `rate()` / `increase()` take this into account).
+- In a multi-instance setup, scrape each instance and aggregate.
+- `/metrics` is exposed without authentication. Limit its exposure with the network / reverse proxy as needed.
+- In CloudWatch it can be ingested with CloudWatch Agent's Prometheus metrics collection.
 
-アラート例:
+Alert example:
 
 ```yaml
 - alert: AegisPluginErrors
@@ -256,9 +258,9 @@ aegis_audit_events_total{action="plugin.error",outcome="failure"} 0
 
 ---
 
-## 9. 出力先の追加
+## 9. Adding a Destination
 
-`aegis_core::AuditSink` を実装し、`AuditService::from_config`（`crates/aegis-audit/src/lib.rs`）に登録します。
+Implement `aegis_core::AuditSink` and register it in `AuditService::from_config` (`crates/aegis-audit/src/lib.rs`).
 
 ```rust
 #[async_trait]
@@ -268,10 +270,10 @@ impl AuditSink for MySink {
     }
 
     async fn record(&self, event: &AuditEvent) -> Result<()> {
-        // event を外部へ送信する
+        // send the event to the outside
         Ok(())
     }
 }
 ```
 
-`record` はリクエスト処理の中で順番に `await` されます。外部サービスへの送信など時間のかかる処理は、内部でキューイングするなどしてリクエストの遅延を避けてください。
+`record` is `await`ed in order within request processing. For time-consuming processing such as sending to an external service, queue internally or otherwise avoid delaying requests.

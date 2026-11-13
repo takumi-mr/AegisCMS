@@ -1,94 +1,96 @@
-[← ドキュメント一覧に戻る](README.ja.md)
+[← Back to the documentation index](README.md)
 
-# サイト内検索
+**English** | [日本語](search.ja.md)
 
-公開中の記事・固定ページを全文検索できるようにします（`[search]`）。検索ページ `/search` と、テーマや外部から使う API `GET /api/v1/search` があります。索引は [tantivy](https://github.com/quickwit-oss/tantivy) で作り、日本語は辞書を使わず 2 文字ずつに分けて索引します（N-gram）。
+# Site Search
 
-機能はクレート `aegis-search` にあり、サーバーの Cargo の feature `search`（既定で有効）で組み込みます。
+Makes published articles and static pages full-text searchable (`[search]`). There is a search page `/search` and an API `GET /api/v1/search` for themes and external use. The index is built with [tantivy](https://github.com/quickwit-oss/tantivy), and Japanese is indexed two characters at a time without a dictionary (N-gram).
+
+The feature lives in the `aegis-search` crate and is built in with the server's Cargo feature `search` (enabled by default).
 
 ```text
- Admin Studio で公開・更新・非公開・削除 ／ 予約公開・予約非公開
-        │  イベントバス（[cache] と同じ。Redis なら全サーバー）に「このコンテンツが変わった」
+ Publish / update / unpublish / delete in Admin Studio, or scheduled publish / unpublish
+        │  Event bus (same as [cache]; all servers with Redis): "this content changed"
         ▼
- 各サーバーが DB から公開中の版を読み直し、自分の索引に反映（公開中でなければ索引から除く）
+ Each server rereads the published version from the DB and reflects it in its own index (removed from the index if not published)
 
- 起動時: 公開中のコンテンツをすべて読み直して索引を作り直す（裏で行い、起動は待たせない）
+ At startup: reread all published content and rebuild the index (done in the background; startup is not blocked)
 ```
 
 ---
 
-## 1. 有効にする
+## 1. Enabling It
 
-既定で有効です。止めるときや、対象の種類を変えるときに書きます。
+It is enabled by default. Write this when you want to turn it off or change the target kinds.
 
 ```toml
 [search]
 enabled = true
-index_dir = "data/search"            # 索引を置くディレクトリ（空ならメモリの中だけ）
-content_types = ["article", "page"]  # 検索の対象にするコンテンツの種類
+index_dir = "data/search"            # directory for the index (in memory only if empty)
+content_types = ["article", "page"]  # content kinds to search
 ```
 
-- 索引は DB から作り直せるもので、消しても起動時に作り直します。Docker のイメージでは `/app/data/search`（ボリュームの中）に置きます。
-- 複数台で動かすときは、索引はサーバーごとに持ちます（同じディレクトリを共有しないでください。使えないときはメモリの索引になります）。変更はイベントバスで全サーバーに届き、Redis に再接続したときは索引を作り直します。
-- テーマに固定ページ `search` があっても、`/search` は検索ページになります。
+- The index can be rebuilt from the DB, and if you delete it, it is rebuilt at startup. In the Docker image it is placed at `/app/data/search` (inside the volume).
+- When running multiple servers, each server has its own index (do not share the same directory; if it cannot be used, an in-memory index is used). Changes reach all servers over the event bus, and when reconnecting to Redis the index is rebuilt.
+- Even if the theme has a static page `search`, `/search` is the search page.
 
-## 2. 検索の仕方
+## 2. How Searching Works
 
-- 空白で区切った語を**すべて**含むものを探します（AND）。`Docker 日本語` は「Docker」と「日本語」の両方を含むもの。
-- 語の中は、語順どおりに続いているものだけが一致します。「東京都」は「京都」だけを含む文書には一致しません。
-- 英字の大文字・小文字、全角・半角の英数字は区別しません（`ＡＥＧＩＳ` と `aegis` は同じ）。英字は単語単位なので、`cms` は `AegisCMS` に一致しません。
-- 1 文字の漢字・かなでも探せます。
-- 並びは既定で一致の良い順で、タイトルの一致は本文の一致より上に並びます。`sort=newest` を付けると公開日時の新しい順になります（[§3](#3-検索ページsearch)・[§4](#4-api)）。
-- `category` にカテゴリの ID を付けると、そのカテゴリのコンテンツだけを探します（スキーマに `category_id` フィールドがある種類。無い種類は絞り込むと出てきません）。
-- `tag` にタグの slug（または ID）を付けると、そのタグが付いたコンテンツだけを探します（[タグ](tags.md)）。
-- 本文として探すのは、段落・見出し・リスト・表のセル・引用・注記・折りたたみ・コードの文字と画像の代替テキスト、抜粋（`excerpt`）です。カスタム HTML・プラグインのブロックの中は対象にしません。
-- 検索語は 200 文字まで、語は 10 個までです。
+- It finds documents that contain **all** the words separated by spaces (AND). `Docker 日本語` finds those containing both "Docker" and "日本語" (Japanese).
+- Within a word, only text that continues in the same order matches. "東京都" does not match a document containing only "京都".
+- Case of Latin letters and full-width vs half-width alphanumerics are not distinguished (`ＡＥＧＩＳ` and `aegis` are the same). Latin letters are word-based, so `cms` does not match `AegisCMS`.
+- Single kanji or kana characters can be searched too.
+- The order is by relevance by default, and title matches rank above body matches. Adding `sort=newest` orders by publication date, newest first ([§3](#3-the-search-page-search), [§4](#4-api)).
+- Adding a category ID as `category` searches only that category's content (for kinds whose schema has a `category_id` field; kinds without one return nothing when filtered).
+- Adding a tag slug (or ID) as `tag` searches only content with that tag ([Tags](tags.md)).
+- What is searched as body text is the characters of paragraphs, headings, lists, table cells, quotes, notes, collapsibles, and code, the alt text of images, and the excerpt (`excerpt`). The inside of custom HTML and plugin blocks is not searched.
+- Search terms are up to 200 characters, and up to 10 words.
 
-## 3. 検索ページ（`/search`）
+## 3. The Search Page (`/search`)
 
-`/search?q=検索語&page=2` で（`&category=カテゴリID`、`&tag=タグslug`、`&sort=newest` も使えます）、テーマの `search.html`（無ければ組み込みのテンプレート）で表示します。1 ページの件数は `[theme].posts_per_page` です。検索エンジンには載せません（`X-Robots-Tag: noindex`）。
+`/search?q=search+terms&page=2` (you can also use `&category=category-ID`, `&tag=tag-slug`, and `&sort=newest`) is displayed with the theme's `search.html` (or the built-in template if absent). The number of items per page is `[theme].posts_per_page`. It is kept out of search engines (`X-Robots-Tag: noindex`).
 
-![検索ページ（`/search`）の結果](images/search-results.png)
+![Results on the search page (`/search`)](images/search-results.png)
 
-テンプレートに渡す値:
+Values passed to the template:
 
-| 値 | 内容 |
+| Value | Description |
 | --- | --- |
-| `fields.query` | 検索語 |
-| `fields.category` | 絞り込み中のカテゴリの ID（無ければ空） |
-| `fields.tag` | 絞り込み中のタグ（無ければ空） |
-| `fields.sort` | 並び（`relevance` または `newest`。知らない値は `relevance`） |
-| `items` | 一致したコンテンツ（一致の良い順）。`item.title`、`item.content_type`、`item.published_at`、`item.fields.url`（公開ページの URL、`base_path` 込み）、`item.fields.snippet_html`（本文の抜粋。検索語を `<mark>` で囲んだエスケープ済みの HTML なので `{{ item.fields.snippet_html \| safe }}` で出す） |
-| `pagination` | `total_items`（一致した件数）、`total_pages`、`prev_url` / `next_url` |
+| `fields.query` | The search terms |
+| `fields.category` | The ID of the category being filtered on (empty if none) |
+| `fields.tag` | The tag being filtered on (empty if none) |
+| `fields.sort` | The order (`relevance` or `newest`; unknown values become `relevance`) |
+| `items` | The matching content (best match first). `item.title`, `item.content_type`, `item.published_at`, `item.fields.url` (the public page URL, including `base_path`), `item.fields.snippet_html` (an excerpt of the body; escaped HTML with the search terms wrapped in `<mark>`, so output it as `{{ item.fields.snippet_html \| safe }}`) |
+| `pagination` | `total_items` (number of matches), `total_pages`, `prev_url` / `next_url` |
 
 ```html
 <form role="search" action="{{ base_path }}/search">
   <input type="search" name="q" value="{{ fields.query }}">
   <select name="sort">
-    <option value="relevance">一致の良い順</option>
-    <option value="newest"{% if fields.sort == "newest" %} selected{% endif %}>新しい順</option>
+    <option value="relevance">Best match</option>
+    <option value="newest"{% if fields.sort == "newest" %} selected{% endif %}>Newest</option>
   </select>
 </form>
 ```
 
-テーマのヘッダーなどに置く検索欄は、このフォームを `/search` に送るだけで使えます。
+A search box placed in the theme's header or elsewhere works by simply submitting this form to `/search`.
 
-### アクセス解析との連携
-アクセス解析（`[analytics]`）が有効な場合、検索ページ（`/search?q=...`）で検索されたキーワードは個人を特定しない形で自動集計されます（1 ページ目のアクセス時のみカウント）。検索結果が 0 件だったキーワードは「該当なし検索」として別枠で記録され、Admin Studio の Analytics ダッシュボードや CSV エクスポートでユーザーのコンテンツ需要分析に活用できます（検索 API `GET /api/v1/search` の呼び出しは集計対象外です）。
+### Integration with Analytics
+When analytics (`[analytics]`) is enabled, the keywords searched on the search page (`/search?q=...`) are aggregated automatically in a form that does not identify individuals (counted only on access to the first page). Keywords whose search returned 0 results are recorded separately as "searches with no results", and can be used in Admin Studio's Analytics dashboard and CSV export to analyze demand for content (calls to the search API `GET /api/v1/search` are not aggregated).
 
 ## 4. API
 
-`GET /api/v1/search?q=検索語&type=article,page&category=カテゴリID&tag=タグslug&sort=newest&limit=10&offset=0`（ログイン不要）
+`GET /api/v1/search?q=search+terms&type=article,page&category=category-ID&tag=tag-slug&sort=newest&limit=10&offset=0` (no login required)
 
-| パラメータ | 内容 |
+| Parameter | Description |
 | --- | --- |
-| `q` | 検索語（200 文字まで。超えると `400`） |
-| `type` | 絞り込むコンテンツの種類（カンマ区切り。`[search].content_types` にあるものだけ） |
-| `category` | 絞り込むカテゴリの ID（空なら絞り込まない） |
-| `tag` | 絞り込むタグの slug または ID（空なら絞り込まない） |
-| `sort` | 並び。`relevance`（一致の良い順。既定）か `newest`（公開日時の新しい順）。知らない値は `400` |
-| `limit` | 件数（既定 10、最大 50） |
-| `offset` | 飛ばす件数 |
+| `q` | The search terms (up to 200 characters; exceeding it returns `400`) |
+| `type` | Content kinds to filter on (comma-separated; only those in `[search].content_types`) |
+| `category` | The ID of the category to filter on (no filtering if empty) |
+| `tag` | The slug or ID of the tag to filter on (no filtering if empty) |
+| `sort` | The order. `relevance` (best match first; default) or `newest` (newest publication date first). An unknown value returns `400` |
+| `limit` | Number of items (default 10, max 50) |
+| `offset` | Number of items to skip |
 
 ```json
 {
@@ -109,6 +111,6 @@ content_types = ["article", "page"]  # 検索の対象にするコンテンツ�
 }
 ```
 
-`sort=newest` のとき `score` は 0 です。
+With `sort=newest`, `score` is 0.
 
-`[search].enabled = false`（または feature `search` なしでビルド）のときは `404` です。
+When `[search].enabled = false` (or built without the `search` feature), it returns `404`.

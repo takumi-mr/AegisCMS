@@ -1,34 +1,36 @@
-# 宣言的クエリ（集計・条件つき一覧）
+# Declarative Queries (Aggregations and Conditional Lists)
+
+**English** | [日本語](queries.ja.md)
 
 > [!NOTE]
-> 実装済み（`aegis-schema` の `query`、`aegis-db` の `published_columns`、`aegis-server` の `queries`）。残りの作業は [TODO.md](../TODO.md) を参照。
+> Implemented (`query` in `aegis-schema`, `published_columns` in `aegis-db`, `queries` in `aegis-server`). For the remaining work, see [TODO.md](../TODO.md).
 
-スキーマ（`schemas/*.yaml`）で増やしたカスタム項目を、**条件つきで集計・抽出して、テーマやプラグインに渡す**ための仕組みです。クエリは YAML で宣言し、実行はサーバー（ホスト）だけが行います。Rust のソースを変える必要はありません。
+A mechanism for **aggregating and extracting, with conditions, the custom fields you added in a schema (`schemas/*.yaml`) and passing the results to themes and plugins**. Queries are declared in YAML, and only the server (host) runs them. No Rust source needs to change.
 
-## 1. 目的と、しないこと
+## 1. Purpose and What It Does Not Do
 
-目的:
+Purpose:
 
-- 項目を足したら、その項目で「件数」「合計」「上位 N 件」などを出したい、を宣言だけで満たす。
-- プラグインに DB を触らせない。プラグインが受け取るのは結果の JSON だけ。
+- Satisfy, by declaration alone, the wish "once I add a field, I want counts, sums, top N, and so on by that field".
+- Do not let plugins touch the DB. What a plugin receives is only the result JSON.
 
-しないこと（穴を空けないための決定）:
+What it does not do (decisions to avoid opening holes):
 
-- **閲覧者・ページに依存する条件**（`$page.*`、`$user.*` など）。条件の値は固定値だけ。結果は閲覧者にもページにも依存しないので、サーバーがクエリ名ごとに 1 つの結果を持てば足りる。
-- **生の SQL**。列や型はスキーマの宣言から選ぶ。独自の DSL を SQL のサブセットに育てない（`OR`・`HAVING`・サブクエリ・**型をまたぐ結合**は対応しない。代わりの方法は 10）。
-- **プラグイン専用の DB やキャッシュ**。
-- **`access`（会員レベル）が付いたコンテンツの集計**。`access` が空（公開）のものだけを対象にする。
-- 「最近見たページ」「お気に入り」のような閲覧者ごとの結果。別の仕組み（ブラウザ側の保存、会員機能）で扱う。
+- **Conditions that depend on the viewer or the page** (`$page.*`, `$user.*`, etc.). Condition values are fixed values only. The result depends on neither the viewer nor the page, so it is enough for the server to hold one result per query name.
+- **Raw SQL**. Columns and types are chosen from the schema declaration. We do not grow a custom DSL into a subset of SQL (`OR`, `HAVING`, subqueries, and **joins across types** are not supported. For alternatives, see 10).
+- **A plugin-specific DB or cache.**
+- **Aggregating content with `access` (membership level) set.** Only content with an empty `access` (public) is targeted.
+- Per-viewer results such as "recently viewed pages" or "favorites". These are handled by other mechanisms (browser-side storage, member features).
 
-## 2. 定義の書き方
+## 2. How to Write a Definition
 
-`queries/<name>.yaml`（`schemas/` と同じ階層。場所は `[paths].queries_dir`）に 1 ファイル 1 クエリ。
+One query per file in `queries/<name>.yaml` (at the same level as `schemas/`; the location is `[paths].queries_dir`).
 
 ```yaml
-name: monthly_sales          # ファイル名と一致させる。英小文字・数字・_ のみ
-from: product                # schemas/product.yaml の型
+name: monthly_sales          # match the file name. Lowercase letters, digits, and _ only
+from: product                # a type in schemas/product.yaml
 where:
-  price: { gte: 1000 }       # 固定値のみ
+  price: { gte: 1000 }       # fixed values only
 group_by:
   - { field: published_at, bucket: month }
 select:
@@ -39,115 +41,115 @@ order_by:
 limit: 12
 ```
 
-| キー | 内容 |
+| Key | Description |
 | --- | --- |
-| `from` | コンテンツ型（必須） |
-| `where` | 列名 → `{ 演算子: 値 }`。演算子は `eq` `ne` `gt` `gte` `lt` `lte` `in` `is_null`。複数の列は AND。`null` の扱いは 2.3 |
-| `group_by` | 列のリスト。日付の列は `bucket: day \| month \| year` を指定できる |
-| `select` | 集計のリスト。`fn` は `count` `sum` `avg` `min` `max`。`as` は結果のキー名。**省略するとレコードの一覧を返す**（2.2） |
-| `order_by` | `field` は列名か `select` の `as`。`dir` は `asc` / `desc` |
-| `limit` | 行数の上限。サーバーの最大値（既定 100）を超えられない。省略時は最大値。**上限は行数だけで見る**（バイト数は見ない。1 行が大きくなる設計は、クエリを書く側の責務） |
+| `from` | The content type (required) |
+| `where` | Column name → `{ operator: value }`. Operators are `eq` `ne` `gt` `gte` `lt` `lte` `in` `is_null`. Multiple columns are ANDed. For how `null` is handled, see 2.3 |
+| `group_by` | A list of columns. Date columns can specify `bucket: day \| month \| year` |
+| `select` | A list of aggregations. `fn` is `count` `sum` `avg` `min` `max`. `as` is the key name in the result. **If omitted, a list of records is returned** (2.2) |
+| `order_by` | `field` is a column name or a `select` `as`. `dir` is `asc` / `desc` |
+| `limit` | The upper limit on the number of rows. It cannot exceed the server's maximum (default 100). If omitted, the maximum. **The limit looks at row count only** (not bytes; designs where one row gets large are the query author's responsibility) |
 
-### 2.1 リレーション列での `group_by`
+### 2.1 `group_by` on a Relation Column
 
-`type: relation` の列（`category_id` など）で `group_by` したとき、結果の行にはキーの値に加えて**参照先の `title` と `slug`** を入れる。
+When you `group_by` a `type: relation` column (such as `category_id`), the result rows include the **target's `title` and `slug`** in addition to the key value.
 
 ```json
 { "category_id": { "id": "…", "title": "Shoes", "slug": "shoes" }, "n": 12 }
 ```
 
-解決は `resolve_relations_for_records` と同じく、行ごとではなく `IN (...)` で 1 回にまとめる（[architecture.md 2.3](architecture.md#23-スキーマからのコード生成とシステム標準カラム)）。
+Resolution is done in one go with `IN (...)` rather than per row, like `resolve_relations_for_records` ([architecture.md 2.3](architecture.md#23-code-generation-from-schemas-and-the-system-standard-columns)).
 
-### 2.2 `select` を省略したとき（一覧）
+### 2.2 When `select` Is Omitted (a List)
 
-集計せず、条件に合うレコードを `order_by` / `limit` で絞って返す。各要素の形は、テーマの一覧（`items`）と同じ（`title` `slug` `excerpt` `published_at` `fields` `relations`）。**本文（`blocks`・`content_html`）は含めない**（行数が少なくても重くなり、行数だけの上限では守れないため）。「セール中の商品の上位 4 件」「最新のお知らせ 3 件」のような使い方を想定する。`group_by` と同時には使えない。
+It does not aggregate; it returns the records matching the conditions, narrowed by `order_by` / `limit`. The shape of each element is the same as the theme's list (`items`) (`title` `slug` `excerpt` `published_at` `fields` `relations`). **The body (`blocks`, `content_html`) is not included** (it would be heavy even with few rows, and a row-count-only limit cannot protect against that). Intended uses include "the top 4 products on sale" and "the latest 3 notices". It cannot be used together with `group_by`.
 
-### 2.3 `null` の扱い
+### 2.3 How `null` Is Handled
 
-値がないことは、比較ではなく専用の `is_null` で書く。
+Having no value is written with the dedicated `is_null`, not with a comparison.
 
 ```yaml
 where:
-  discount_price: { is_null: false }   # 値がある
-  archived_at: { is_null: true }       # 値がない
+  discount_price: { is_null: false }   # has a value
+  archived_at: { is_null: true }       # has no value
 ```
 
-- `is_null` の値は真偽値だけ。
-- `eq` `ne` `gt` `gte` `lt` `lte` に `null` を渡すのは**検証エラー**。`in` のリストに `null` が混ざるのも同じ。SQL では `col = NULL` が常に一致せず、YAML では値の書き忘れ（`{ gte: }`）が `null` になるため、黙って通さない。
-- `nullable` でない列への `is_null` は検証エラー（条件が常に同じ結果になるため）。
-- 集計は SQL の標準に従い、`sum` `avg` `min` `max` と、`field` を指定した `count` は `null` を除く。`field` を省略した `count` は行数。
+- The value of `is_null` is a boolean only.
+- Passing `null` to `eq` `ne` `gt` `gte` `lt` `lte` is a **validation error**. So is a `null` mixed into an `in` list. In SQL, `col = NULL` never matches, and in YAML, forgetting to write a value (`{ gte: }`) becomes `null`, so it is not let through silently.
+- `is_null` on a non-`nullable` column is a validation error (because the condition would always have the same result).
+- Aggregation follows the SQL standard: `sum` `avg` `min` `max`, and `count` with `field` specified, exclude `null`. `count` without `field` is the row count.
 
-## 3. 検証
+## 3. Validation
 
-起動時（と `task migrate` 時）に、すべての定義をスキーマと突き合わせる。**1 つでも誤りがあれば起動を止める**（プラグインの読み込みと同じ fail-closed）。
+At startup (and at `task migrate`), all definitions are checked against the schemas. **If even one has an error, startup stops** (fail-closed, the same as loading plugins).
 
-- 存在しない `from` / 列 / `as`
-- 列の型と比較する値の型が合わない（数値の列に文字列など）
-- `sum` / `avg` を数値でない列に使う
-- `group_by` と `select` の組み合わせが成り立たない（集計を使うのに、`group_by` にない列を出力するなど）
-- `name` の重複、ファイル名との不一致
-- `limit` が最大値を超える
-- 比較演算子や `in` に `null` を渡す、`nullable` でない列に `is_null` を使う（2.3）
-- `from` がスキーマで宣言したコンテンツ型でない（タグ・コメント・注文などの組み込みの表は対象外）
+- A nonexistent `from` / column / `as`
+- The column's type does not match the compared value's type (a string for a numeric column, etc.)
+- Using `sum` / `avg` on a non-numeric column
+- An impossible combination of `group_by` and `select` (using aggregation but outputting a column not in `group_by`, etc.)
+- A duplicate `name`, or a mismatch with the file name
+- `limit` exceeds the maximum
+- Passing `null` to a comparison operator or `in`, or using `is_null` on a non-`nullable` column (2.3)
+- `from` is not a content type declared in a schema (built-in tables such as tags, comments, and orders are out of scope)
 
-## 4. 実行
+## 4. Execution
 
-- ホストが定義から SQL を組み立て、値は `sqlx` のバインド変数で渡す。列名は検証済みの宣言から取り、入力から取らない。
-- ホストが**必ず**足す条件（宣言では外せない）:
-  - 公開中（公開版の値を読む。4.1）
-  - `access` が空
-- SQLite / PostgreSQL / MySQL の各アダプタで同じ結果になること。
+- The host builds SQL from the definition and passes values as `sqlx` bind variables. Column names come from the validated declaration and never from input.
+- Conditions the host **always** adds (they cannot be removed by the declaration):
+  - Published (reads the published version's values; 4.1)
+  - `access` is empty
+- The result must be the same on the SQLite / PostgreSQL / MySQL adapters.
 
-### 4.1 読む版: 公開側の列に写す
+### 4.1 The Version Read: Mirrored to Public-Side Columns
 
-公開ページは公開ポインターのスナップショットを読むため、作業版の列を読むと、公開後に編集中の値（未公開の価格変更など）が集計に出てしまう。かといってスナップショットの JSON を SQL で展開すると、DB ごとに手段と索引が違う。そこで、**公開操作（初回公開・「公開版を更新」）のときに、クエリが使う列だけを公開側の列へ写す**。
+Public pages read the snapshot of the publication pointer, so if the working version's columns were read, values being edited after publication (such as an unpublished price change) would appear in aggregates. And expanding the snapshot's JSON in SQL differs in method and indexes per DB. So, **at a publish operation (first publication or "update the published version"), only the columns the queries use are copied to the public-side columns.**
 
-- 写す対象は、クエリの `where` / `group_by` / `select` / `order_by` に現れる列の和集合。起動時に全クエリから求める。
-- 写す先は、コンテンツの種類ごとの副表 `_aegis_published_<type>`（`content_<type>` と同じ命名）。公開の記録 `_aegis_content_publications` は全種類で共有する固定の列なので、種類ごとの列は持てない。列の型は `content_<type>` と同じ。公開ポインターの更新と**同じトランザクション**で書く（公開・更新・予約公開は書き換え、取り下げ・削除は消す）。
-- 副表に入るのは公開中で `access` が空のコンテンツだけ。
-- 副表には、起動時に求めた「使う列の定義」の控え（`signature`。`_aegis_published_meta`）を持つ。使う列・型・索引・タイムゾーンのどれかが変わると、**副表を作り直して**公開中のスナップショットから埋め直す（`ADD COLUMN` はしない）。クエリを消しても副表は残す。
-- 日時は設定のタイムゾーンの現地時刻 `YYYY-MM-DDTHH:MM:SS` で持つ。`bucket` は文字列の `SUBSTR`、日時の条件の値も同じ変換をして比べるので、SQL は DB に依らない。`min` / `max` の日時もこの形（オフセットなし）で返る。
-- 作業版の編集は、公開版を更新するまで集計に出ない。
-- **`task migrate`**: スキーマのマイグレーションのあと、副表を用意する（定義が同じなら何もしない）。クエリの定義に誤りがあれば、何も変えずにエラーにする。
-- **`task restore`**: DB を復元するとき（`--no-database` でないとき）は、復元の**前**にクエリの定義を検証し（誤りがあれば何も変えずに止める）、復元の**後**に副表を**すべて作り直す**。副表は公開の記録から導ける派生データで、バックアップには含めない。復元は同じキーを上書きするだけなので、復元先にもとからあったコンテンツは残り、副表は復元後の公開の記録（残ったものも含む）と一致する。
+- The columns copied are the union of the columns appearing in the queries' `where` / `group_by` / `select` / `order_by`. It is computed from all queries at startup.
+- The destination is a side table per content kind, `_aegis_published_<type>` (named like `content_<type>`). The publication record `_aegis_content_publications` has fixed columns shared by all kinds, so it cannot hold per-kind columns. The column types are the same as `content_<type>`. It is written in **the same transaction** as updating the publication pointer (publish, update, and scheduled publish rewrite it; unpublish and delete remove it).
+- Only content that is published and has an empty `access` goes into the side table.
+- The side table keeps a note of the "definition of the columns in use" computed at startup (`signature`; `_aegis_published_meta`). When any of the columns, types, indexes, or time zone used changes, **the side table is recreated** and refilled from the published snapshots (no `ADD COLUMN`). Even if you delete a query, the side table remains.
+- Datetimes are kept as local time in the configured time zone, `YYYY-MM-DDTHH:MM:SS`. `bucket` is a string `SUBSTR`, and datetime condition values are compared after the same conversion, so the SQL does not depend on the DB. `min` / `max` of datetimes are also returned in this form (with no offset).
+- Edits to the working version do not appear in aggregates until the published version is updated.
+- **`task migrate`**: after the schema migration, the side tables are prepared (nothing happens if the definition is the same). If a query definition has an error, it fails without changing anything.
+- **`task restore`**: when restoring the DB (unless `--no-database`), the query definitions are validated **before** the restore (if there is an error, it stops without changing anything), and **after** the restore the side tables are **all recreated**. The side tables are derived data that can be derived from the publication records and are not included in backups. A restore only overwrites the same keys, so content that was originally in the restore destination remains, and the side tables match the publication records after the restore (including the ones that remained).
 
-### 4.2 設定
+### 4.2 Settings
 
-`[queries]`（[configuration.md の 2.26](configuration.md#226-queries--宣言的クエリ)）。
+`[queries]` ([configuration.md 2.26](configuration.md#226-queries--declarative-queries)).
 
-| キー | 既定 | 内容 |
+| Key | Default | Description |
 | --- | --- | --- |
-| `max_limit` | 100 | `limit` の最大値（行数） |
-| `timeout_ms` | 2000 | 1 回の実行のタイムアウト |
-| `max_concurrency` | 8 | 同時に実行できる数 |
-| `max_in_items` | 100 | `in` のリストの最大の長さ |
-| `timezone` | `UTC` | 日付の `bucket` と日時の条件で使うタイムゾーン（IANA 名。誤りは起動時エラー。変えると副表を作り直す） |
+| `max_limit` | 100 | The maximum value of `limit` (rows) |
+| `timeout_ms` | 2000 | Timeout for one execution |
+| `max_concurrency` | 8 | Number that can run at the same time |
+| `max_in_items` | 100 | Maximum length of an `in` list |
+| `timezone` | `UTC` | The time zone used for date `bucket`s and datetime conditions (IANA name; an error is a startup error; changing it recreates the side tables) |
 
-### 4.3 索引
+### 4.3 Indexes
 
-クエリの宣言から索引は**自動では作らない**。必要な索引は `schemas/*.yaml` の宣言に書く。書き忘れによる遅さは、実行時間のタイムアウトで止まる。
+Indexes are **not created automatically** from query declarations. Write the indexes you need in the declaration in `schemas/*.yaml`. Slowness from forgetting to write them is stopped by the execution timeout.
 
-## 5. 結果の渡し方
+## 5. How Results Are Passed
 
-- **テーマ**: テンプレートのグローバル変数 `queries` から `queries.<name>` で読む。結果はページに依存しないので `PageRenderContext` には載せず、サーバーが持つ最新の一式を読む（環境の作り直しは要らない）。名前の無いクエリは未定義になり、未定義への添字アクセス（`queries.x[0]`）は描画のエラーになる。
-- **プラグイン**: `on_render_page` の入力の `queries` に入る。マニフェストの `capabilities.render_page.queries` に書いた名前の結果だけが渡り（書かなければ空）、読み取り専用（返した値は反映されず、次のプラグインにも見えない）。プラグインは結果の JSON を読むだけで、DB にもクエリ定義にも触れない。`render_page.input` とは独立。全言語の SDK（Rust / AssemblyScript / TinyGo）の `PageRenderContext` に `queries` がある。
-- **`theme dev` / Theme Builder**: クエリは実行せず（DB を使わないため）、テーマの `samples/queries.json`（クエリ名 → 結果の配列）を `queries` に入れる。`--init-queries` で、サイトの定義とスキーマから雛形を作れる（[theme_authoring_guide.md](theme_authoring_guide.md#theme-devdb-なしで素早く確かめる)）。実際のクエリを発行する方式（サイトの DB やサーバーへの接続）は採らない: 本番に近いデータが手元の画面に出ること、設定が増えること、空・0 件・長い文字列などの確認を作れないことのため。
-- 結果の形: 集計は行の配列（キーは `group_by` の出力名と `select` の `as`）。`select` を省略した一覧は、テーマの一覧（`items`）の要素と同じ形（本文は含めない）。
-- 結果の中の文字列は、利用者が入力した値である。テンプレートでは `safe` を付けない（[theme_authoring_guide.md 3.3](theme_authoring_guide.md)）。
+- **Themes**: read as `queries.<name>` from the template global variable `queries`. The result does not depend on the page, so it is not put in `PageRenderContext`; the latest set held by the server is read (no need to rebuild the environment). A query with no such name is undefined, and subscript access on undefined (`queries.x[0]`) is a rendering error.
+- **Plugins**: it goes into `queries` in the input of `on_render_page`. Only the results of names written in the manifest's `capabilities.render_page.queries` are passed (empty if not written), and they are read-only (returned values are not reflected and are not visible to the next plugin). Plugins only read the result JSON and cannot touch the DB or query definitions. It is independent of `render_page.input`. `PageRenderContext` in the SDKs of all languages (Rust / AssemblyScript / TinyGo) has `queries`.
+- **`theme dev` / Theme Builder**: queries are not run (because no DB is used); the theme's `samples/queries.json` (query name → array of results) is put into `queries`. `--init-queries` can make a scaffold from the site's definitions and schemas ([theme_authoring_guide.md](theme_authoring_guide.md#theme-dev-check-quickly-without-a-db)). We do not take the approach of issuing real queries (connecting to the site's DB or server): data close to production would appear on the local screen, settings would increase, and checks for empty, zero-result, or long-string cases could not be made.
+- Result shape: aggregations are an array of rows (keys are the `group_by` output names and the `select` `as`). A list with `select` omitted has the same shape as the elements of the theme's list (`items`) (without the body).
+- Strings in results are values that users entered. Do not add `safe` in templates ([theme_authoring_guide.md 3.3](theme_authoring_guide.md)).
 
-## 6. キャッシュ
+## 6. Caching
 
-- 結果は `[cache]` ではなく、**サーバーのメモリ上の「クエリ名 → 結果」の一式**として持つ。閲覧者にもページにも依存しないので、ページの表示ごとの DB アクセスは無い。
-- 起動時に全クエリを計算してから配信する。コンテンツの作成・更新・公開・取り下げ・削除・復元・予約公開（`cdn::purge_content` を通る変更すべて）で、`from` がその種類のクエリだけを計算し直して差し替える。変更の知らせはイベントバス（`[cache]` と同じバックエンド）で全サーバーに届くので、複数台でも各サーバーが自分の一式を更新する（メモリのバックエンドは 1 台だけ）。
-- 計算に失敗したクエリは前の結果を残して警告を出す。遅れて終わった古い計算は、新しい結果を上書きしない。タイムアウト（`timeout_ms`）と同時実行数（`max_concurrency`）で守る。
-- 副表の定義が変わった（クエリの追加・列の変更・タイムゾーンの変更）あとは、再起動で作り直される。
+- Results are held not in `[cache]` but as **a set of "query name → result" in the server's memory**. They depend on neither the viewer nor the page, so there is no DB access per page display.
+- All queries are computed at startup before serving. On content creation, update, publish, unpublish, delete, restore, and scheduled publish (all changes that go through `cdn::purge_content`), only the queries whose `from` is that kind are recomputed and swapped in. The change notice reaches all servers over the event bus (the same backend as `[cache]`), so even with multiple servers each one updates its own set (with the in-memory backend, only one server).
+- A query whose computation fails keeps its previous result and logs a warning. An old computation that finishes late does not overwrite a newer result. They are protected by the timeout (`timeout_ms`) and the concurrency limit (`max_concurrency`).
+- After the side table definition changes (adding a query, changing a column, changing the time zone), it is recreated by a restart.
 
-## 7. 使用例
+## 7. Examples
 
-商品サイト:
+A product site:
 
 ```yaml
-# カテゴリ別の商品数（サイドバー）
+# Number of products per category (sidebar)
 name: product_count_by_category
 from: product
 group_by: [{ field: category_id }]
@@ -156,7 +158,7 @@ order_by: [{ field: n, dir: desc }]
 ```
 
 ```yaml
-# セール中の商品の上位 4 件（select を省略 = 一覧）
+# The top 4 products on sale (select omitted = a list)
 name: sale_products
 from: product
 where: { on_sale: { eq: true } }
@@ -165,7 +167,7 @@ limit: 4
 ```
 
 ```yaml
-# 価格帯フィルタの範囲
+# Range for a price filter
 name: price_range
 from: product
 select:
@@ -173,17 +175,17 @@ select:
   - { fn: max, field: price, as: highest }
 ```
 
-プロダクトの LP:
+A product landing page:
 
 ```yaml
-# 導入事例の数（ヒーローの数字）
+# Number of case studies (the number in the hero)
 name: case_count
 from: case_study
 select: [{ fn: count, as: n }]
 ```
 
 ```yaml
-# 料金プランの最安・最高
+# Cheapest and most expensive pricing plans
 name: plan_range
 from: plan
 select:
@@ -191,46 +193,46 @@ select:
   - { fn: max, field: monthly_price, as: to_price }
 ```
 
-テーマ側:
+On the theme side:
 
 ```jinja
-導入事例 {{ queries.case_count[0].n }} 社
+{{ queries.case_count[0].n }} case studies
 {% for c in queries.product_count_by_category %}
   {{ c.category_id.title }} ({{ c.n }})
 {% endfor %}
 ```
 
-## 8. 未解決の設計判断
+## 8. Open Design Decisions
 
-- Admin Studio にクエリの一覧と、結果のプレビューを出すか。
+- Whether to show the query list and a result preview in Admin Studio.
 
-## 9. 使うときの注意
+## 9. Notes on Use
 
-- `ne`（`<>`）は SQL どおり、値が NULL の行を含まない。NULL も含めたいときは `is_null` と使い分ける（OR は書けない）。
-- 公開後の編集は、公開版を更新するまで結果に出ない。会員限定（`access` が空でない）のコンテンツは出ない。
-- 件数が増えたら、`where` / `group_by` / `order_by` に使う列に `schemas/*.yaml` の `index: true` を付ける（副表にも同じ索引ができる）。
+- `ne` (`<>`) does not include rows whose value is NULL, as in SQL. When you want NULL included, use it together with `is_null` as appropriate (OR cannot be written).
+- Edits after publication do not appear in results until the published version is updated. Members-only (non-empty `access`) content does not appear.
+- As the number of items grows, add `index: true` in `schemas/*.yaml` to the columns used in `where` / `group_by` / `order_by` (the same index is created on the side table).
 
-## 10. 型をまたぐ結合をしない方針と、代わりの方法
+## 10. The Policy of Not Joining Across Types, and Alternatives
 
-`from` は 1 つのコンテンツ型だけで、結合は対応しない。DSL が SQL のサブセットに育っていくのを避けるため（結合を入れると、`OR`・`HAVING`・サブクエリの要望が続き、検証・副表・結果の形のすべてが複雑になる）。
+`from` is a single content type only, and joins are not supported. This is to avoid the DSL growing into a subset of SQL (once joins are in, requests for `OR`, `HAVING`, and subqueries follow, and validation, side tables, and the result shape all become complex).
 
-**できること**（結合ではなく、結果の引き直し）:
+**What you can do** (not joins, but re-fetching the result):
 
-- `group_by` したリレーション列は、参照先の `{id, title, slug}` に展開される（2.1）。一覧（`select` 省略）は `relations` が付く（2.2）。
-- 多側の型で集計する。たとえばレビューの型が `product_id` を持てば、`group_by: [{ field: product_id }]` で商品ごとの件数・平均が出る。
+- A relation column you `group_by` is expanded into the target's `{id, title, slug}` (2.1). A list (with `select` omitted) gets `relations` (2.2).
+- Aggregate on the "many" side type. For example, if a review type has `product_id`, `group_by: [{ field: product_id }]` gives counts and averages per product.
 
-**できないこと**:
+**What you cannot do**:
 
-| 場面 | 例 |
+| Situation | Example |
 | --- | --- |
-| 参照先の属性で絞る | 「カテゴリ名が Shoes の商品」。`category_id: { eq: "<id>" }` のように id の固定値で絞るしかない |
-| 別の型の集計で並べる | 「レビューの平均が高い商品」を商品の一覧として出す |
-| システムの表を読む | 注文数順の商品、コメント数順の記事、タグ別の件数。`from` はスキーマで宣言したコンテンツ型だけで、タグ・コメント・注文・レビューは対象外 |
+| Filter by an attribute of the target | "Products whose category name is Shoes". You can only filter by a fixed id value such as `category_id: { eq: "<id>" }` |
+| Order by another type's aggregate | Show "products with a high average review" as a product list |
+| Read system tables | Products by order count, articles by comment count, counts per tag. `from` is only content types declared in schemas; tags, comments, orders, and reviews are out of scope |
 
-**代わりの方法**:
+**Alternatives**:
 
-- **複数のクエリを組み合わせる**: 集計を 2 つ宣言して、テンプレートのループか、プラグインで突き合わせる。プラグインは複数のクエリの結果を読み取り専用で受け取れる（5）ので、比率や順位も計算できる。1 クエリの上限（`max_limit`）が行数なので、突き合わせは数百行までが現実的。クエリごとに計算のタイミングが違うため、更新の直後にごく短い間だけ食い違うことがある。
-- **非正規化する**: 「平均評価」のような値を、並べ替えたい側の型の項目として持つ（プラグインなどで更新する）。項目にすれば、`where` / `order_by` にそのまま使える。
-- **システムの表は専用の機能で出す**: タグ別の件数やコメント数などが要るときは、汎用のクエリに足さず、それぞれの機能（タグ、コメント）が結果を出す形で別に設計する。
+- **Combine multiple queries**: declare two aggregations and match them up with a template loop or a plugin. Plugins can receive the results of multiple queries read-only (5), so ratios and ranks can be computed too. The limit for one query (`max_limit`) is a row count, so matching up is realistic up to a few hundred rows. Since each query is computed at a different time, they may briefly disagree right after an update.
+- **Denormalize**: keep a value such as "average rating" as a field on the type you want to sort (updated by a plugin or the like). Once it is a field, it can be used in `where` / `order_by` as is.
+- **Expose system tables with dedicated features**: when you need things like counts per tag or comment counts, do not add them to the general query; design separately so that each feature (tags, comments) produces the result.
 
-**例外として検討できるもの**: 参照先の **slug で絞る**（`category: { eq: shoes }`）は、結合ではなく、読み込み時に id へ置き換える変換として足せる。要望が出てから決める。
+**What could be considered as an exception**: **filtering by the target's slug** (`category: { eq: shoes }`) could be added not as a join but as a transformation that replaces it with an id at load time. To be decided when requested.

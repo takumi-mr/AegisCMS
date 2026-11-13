@@ -1,85 +1,87 @@
-[← ドキュメント一覧に戻る](README.ja.md)
+[← Back to the documentation index](README.md)
 
-# アクセス解析
+**English** | [日本語](analytics.ja.md)
 
-公開サイトのページビューと訪問者数を、Cookie を使わずに数えます（`[analytics]`）。Admin Studio の **Analytics** タブで、日ごとの推移・よく見られたページ・参照元・端末の種類を見られます。Google Analytics のような外部サービスに閲覧者のデータを渡さず、Cookie の同意バナーも要りません。
+# Analytics
 
-機能はクレート `aegis-analytics` にあり、サーバーの Cargo の feature `analytics`（既定で組み込み。動かすのは `enabled = true` のときだけ）で組み込みます。
+Counts page views and visitors on the public site without using cookies (`[analytics]`). In Admin Studio's **Analytics** tab you can see day-by-day trends, the most viewed pages, referrers, and device types. It does not hand visitors' data to an external service like Google Analytics, and no cookie consent banner is needed.
+
+The feature lives in the `aegis-analytics` crate and is built in with the server's Cargo feature `analytics` (built in by default; it runs only when `enabled = true`).
 
 ```text
- 公開ページ（<head> の小さなスクリプト）
+ Public page (a small script in <head>)
         │  POST /api/v1/analytics/event  {"p": "/articles/hello", "r": "https://www.google.com/"}
-        │  （Do Not Track・Global Privacy Control が有効なブラウザは送らない）
+        │  (browsers with Do Not Track or Global Privacy Control enabled do not send it)
         ▼
- クローラーを除く → その日の訪問者を見分ける（ハッシュ。キャッシュにだけ置き、2 日で消える）
+ Exclude crawlers → identify the day's visitor (a hash, held only in the cache and gone in 2 days)
         │
         ▼
- メモリで日ごとに集計 ──(30 秒ごと・終了時)──▶ _aegis_analytics（日 × ページ・参照元・端末ごとの数だけ）
+ Aggregate per day in memory ──(every 30 s and at shutdown)──▶ _aegis_analytics (only counts per day × page, referrer, and device)
 ```
 
 ---
 
-## 1. 有効にする
+## 1. Enabling It
 
 ```toml
 [analytics]
 enabled = true
-retention_days = 400        # 集計を残す日数（0 で消さない）
-flush_interval_secs = 30    # 集計を DB に書く間隔（秒）
-exclude_paths = []          # 数えないパス（前方一致。例: ["/preview"]）
+retention_days = 400        # days to keep the aggregates (0 never deletes)
+flush_interval_secs = 30    # interval for writing aggregates to the DB (seconds)
+exclude_paths = []          # paths not to count (prefix match, e.g. ["/preview"])
 ```
 
-有効にすると、テーマで描くすべての公開ページの `<head>`（`extra_head`）にビーコンが入ります。テーマ側の作業はありません。ビーコンは、インラインのスクリプトではなく外部ファイル（`/_aegis/analytics.js`。受け口の URL は `<script>` の `data-endpoint`）なので、CSP の `script-src` に `'unsafe-inline'` が要りません。
+When enabled, the beacon goes into the `<head>` (`extra_head`) of every public page rendered by the theme. There is no work on the theme side. The beacon is an external file (`/_aegis/analytics.js`; the endpoint URL is the `<script>`'s `data-endpoint`) rather than an inline script, so the CSP `script-src` does not need `'unsafe-inline'`.
 
-## 2. 何を数えるか
+## 2. What Is Counted
 
-| 項目 | 内容 |
+| Item | Description |
 | --- | --- |
-| ページビュー | ページが表示された回数 |
-| 訪問者 | その日のユニークな訪問者。日をまたいだ同じ人は別に数えます（期間の訪問者数は日ごとの合計） |
-| よく見られたページ | パスごとのページビューと訪問者（クエリ文字列・`#` 以降は除く） |
-| 参照元 | ほかのサイトから来たページ表示の、参照元のホスト名（`www.` は除く）。「直接・参照元なし」はブックマーク・アプリ・参照元を送らないサイトから。サイトの中での移動は数えません |
-| 端末 | User-Agent から判定した `desktop` / `mobile` / `tablet` |
-| 検索キーワード | 公開検索ページ（`/search?q=...`）で検索されたキーワード（1 ページ目のみカウント） |
-| 該当なし検索 | 検索結果が 0 件だったキーワード（ユーザーが求めているコンテンツの需要分析） |
+| Page views | The number of times a page was displayed |
+| Visitors | Unique visitors for the day. The same person on different days is counted separately (a period's visitor count is the sum of the days) |
+| Most viewed pages | Page views and visitors per path (excluding the query string and anything after `#`) |
+| Referrers | The referrer host name (without `www.`) of page views that came from other sites. "Direct / no referrer" is from bookmarks, apps, and sites that do not send a referrer. Navigation within the site is not counted |
+| Devices | `desktop` / `mobile` / `tablet`, determined from the User-Agent |
+| Search keywords | Keywords searched on the public search page (`/search?q=...`) (counted only for the first page) |
+| Searches with no results | Keywords whose search returned 0 results (for analyzing demand for content users want) |
 
-数えないもの:
+Not counted:
 
-- クローラー・監視サービス・コマンドラインのツール（User-Agent で判定）と、自動操作のブラウザ（`navigator.webdriver`）
-- Do Not Track（`DNT: 1`）・Global Privacy Control（`Sec-GPC: 1`）を有効にしたブラウザ
-- JavaScript を動かさないアクセス
-- `exclude_paths` のパス
+- Crawlers, monitoring services, and command-line tools (determined by User-Agent), and automated browsers (`navigator.webdriver`)
+- Browsers with Do Not Track (`DNT: 1`) or Global Privacy Control (`Sec-GPC: 1`) enabled
+- Access that does not run JavaScript
+- Paths in `exclude_paths`
 
-## 3. プライバシー
+## 3. Privacy
 
-- Cookie・localStorage は使いません。閲覧者のブラウザに何も残しません。
-- 訪問者は「その日だけの秘密の値 ＋ IP アドレス ＋ User-Agent ＋ ホスト名」の SHA-256 で見分けます。秘密の値は毎日作り直してキャッシュ（`[cache]`。Redis なら全サーバーで共有）にだけ置くので、日をまたぐと同じ人とは分かりません。
-- IP アドレス・User-Agent・ハッシュは DB に保存しません。DB にあるのは日ごとの集計の数だけです。
-- 閲覧者の情報を外部のサービスに送りません。
+- It uses no cookies or localStorage. Nothing is left in the visitor's browser.
+- Visitors are distinguished by a SHA-256 of "a secret value for that day only + IP address + User-Agent + host name". The secret value is recreated every day and held only in the cache (`[cache]`; shared by all servers with Redis), so across days it cannot be known to be the same person.
+- IP addresses, User-Agents, and hashes are not stored in the DB. Only the daily aggregate counts are in the DB.
+- No visitor information is sent to external services.
 
-プライバシーポリシーには、たとえば「Cookie を使わないアクセス解析で、ページの表示回数を集計しています。個人を特定する情報は保存していません」と書けます。
+In your privacy policy you can write, for example, "We aggregate page view counts with cookie-less analytics. No personally identifiable information is stored."
 
 ## 4. Admin Studio
 
-![Admin Studio のアクセス解析（ページビュー・訪問者の推移、よく見られたページ、参照元、端末）](images/analytics-dashboard.png)
+![Admin Studio analytics (page view and visitor trends, most viewed pages, referrers, devices)](images/analytics-dashboard.png)
 
-**Analytics** タブ（`[analytics].enabled = true` のときだけ表示。viewer 以上）で、過去 7 / 30 / 90 日の集計を見られます。
+In the **Analytics** tab (shown only when `[analytics].enabled = true`; viewer and above), you can see aggregates for the past 7 / 30 / 90 days.
 
-- **ページビューと訪問者の合計と前期間比**: 選択した期間と同じ長さの直前期間（前週・前月など）との比較（％変化率および前期間数値）を表示します。
-- **日ごとの推移**: グラフ表示（矢印キーで日ごとの値を読めます）および表形式の切り替えが可能です。
-- **内訳ランキング**: よく見られたページ・参照元（リファラー）・端末・UTM 流入元（`utm_source`）・UTM キャンペーン（`utm_campaign`）・検索キーワード（上位クエリ）・該当なし検索（0件ヒットクエリ）の上位を表示します。
-- **CSV 出力**: 右上の「CSV出力」ボタンから、表示中期間の日別推移および各ランキングを含むレポート CSV（Excel で文字化けしない UTF-8 BOM 付き）をダウンロードできます。
+- **Totals of page views and visitors, and comparison with the previous period**: shows the comparison (percentage change and the previous period's figures) with the immediately preceding period of the same length as the selected one (the previous week, previous month, etc.).
+- **Day-by-day trend**: switchable between a graph (daily values can be read with the arrow keys) and a table.
+- **Breakdown rankings**: shows the top of the most viewed pages, referrers, devices, UTM sources (`utm_source`), UTM campaigns (`utm_campaign`), search keywords (top queries), and searches with no results (queries with 0 hits).
+- **CSV export**: from the "CSV export" button at the top right, you can download a report CSV (with a UTF-8 BOM so Excel does not garble it) containing the day-by-day trend of the displayed period and each ranking.
 
-日付は UTC で区切ります。
+Dates are split in UTC.
 
 ## 5. API
 
-`GET /api/v1/analytics/summary?from=2026-10-01&to=2026-10-31&limit=10`（viewer 以上）
+`GET /api/v1/analytics/summary?from=2026-10-01&to=2026-10-31&limit=10` (viewer and above)
 
-| パラメータ | 内容 |
+| Parameter | Description |
 | --- | --- |
-| `from` / `to` | 期間（`YYYY-MM-DD`、UTC、両端を含む。最大 366 日）。省略時は今日までの 30 日 |
-| `limit` | ページ・参照元・端末の上位の件数（既定 10、最大 100） |
+| `from` / `to` | The period (`YYYY-MM-DD`, UTC, both ends inclusive; up to 366 days). If omitted, the 30 days up to today |
+| `limit` | Number of top pages, referrers, and devices (default 10, max 100) |
 
 ```json
 {
@@ -106,5 +108,5 @@ exclude_paths = []          # 数えないパス（前方一致。例: ["/previe
 }
 ```
 
-- `GET /api/v1/analytics/export?from=2026-10-01&to=2026-10-31`（viewer 以上）: 期間集計（概要、前期間比、日別推移、人気ページ、参照元、端末、UTM）を UTF-8 BOM 付き CSV ファイルとしてダウンロードします。
-- ビーコンの受け口 `POST /api/v1/analytics/event` は、本文 `{"p": パス, "q": クエリ文字列, "r": 参照元}`（4KB まで）を受け取り、数えたかどうかにかかわらず `204` を返します。
+- `GET /api/v1/analytics/export?from=2026-10-01&to=2026-10-31` (viewer and above): downloads the period's aggregates (overview, comparison with the previous period, day-by-day trend, popular pages, referrers, devices, UTM) as a CSV file with a UTF-8 BOM.
+- The beacon endpoint `POST /api/v1/analytics/event` accepts a body `{"p": path, "q": query string, "r": referrer}` (up to 4KB) and returns `204` whether or not it was counted.

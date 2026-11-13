@@ -1,45 +1,47 @@
-[← ドキュメント一覧に戻る](README.ja.md)
+[← Back to the documentation index](README.md)
 
-# 最初のブロックプラグインを作る（15 分）
+**English** | [日本語](plugin_block_tutorial.ja.md)
 
-本文に置ける**カスタムブロック**を足す Rust のプラグインを、テンプレートから作って、実サーバーの記事に表示するところまで進めます。ここでは「ノート」（補足や注意を目立たせる囲み）を `my-note` というプラグインとして作ります。
+# Creating Your First Block Plugin (15 Minutes)
 
-仕組みだけ先に: ブロックの**定義**（名前と入力欄）は `plugin.manifest.json`、**HTML** を作るのは Wasm の `render_blocks` です。記事に保存されるのはブロック名と属性（`attributes`）だけで、HTML は表示のたびにプラグインが作ります（[本文のブロック 4](blocks.md#4-プラグインのブロック)・[フック 1.10](plugin_hooks.md#110-render-blocks)）。
+You will create a Rust plugin that adds a **custom block** that can be placed in the body, from the template, and take it as far as showing it in an article on a real server. Here we build a "note" (a callout that makes supplementary information or warnings stand out) as a plugin called `my-note`.
 
-| 手順 | 所要 | 使うもの |
+The mechanism first: the block's **definition** (name and input fields) is in `plugin.manifest.json`, and it is Wasm's `render_blocks` that **builds the HTML**. What is saved in the article is only the block name and attributes (`attributes`), and the plugin builds the HTML on each display ([Body blocks 4](blocks.md#4-plugin-blocks), [Hooks 1.10](plugin_hooks.md#110-render-blocks)).
+
+| Step | Time | What you use |
 | --- | --- | --- |
-| 1. 準備とひな形の生成 | 1 分 | Rust・`wasm32-unknown-unknown` |
-| 2. ブロックを書く | 5 分 | エディター |
-| 3. テストして、ビルドする | 初回 1 分 | `cargo` |
-| 4. 開発サーバーで確かめる | 数秒〜1 分 | `aegis-server plugin dev` |
-| 5. 実サーバーの記事に置く | 3 分 | `aegis-server`・`curl` |
+| 1. Preparation and generating the scaffold | 1 min | Rust, `wasm32-unknown-unknown` |
+| 2. Write the block | 5 min | An editor |
+| 3. Test and build | 1 min the first time | `cargo` |
+| 4. Check with the dev server | A few seconds to 1 min | `aegis-server plugin dev` |
+| 5. Place it in an article on a real server | 3 min | `aegis-server`, `curl` |
 
 > [!NOTE]
-> 開発サーバーは独立クレート `aegis-plugin-dev` に分離されているため、初回でも数秒〜数十秒で高速に起動します。
+> The dev server is split into the standalone crate `aegis-plugin-dev`, so it starts quickly, in seconds to tens of seconds, even the first time.
 
 ---
 
-## 1. 準備と、テンプレートのコピー
+## 1. Preparation and Copying the Template
 
 ```bash
 rustup target add wasm32-unknown-unknown
 ```
 
-リポジトリのルートで、`task plugin:new` コマンドを実行してブロック用のひな形を生成します。名前置換、相対パス調整、独立クレート化（`[workspace]`）が自動で行われます。
+At the repository root, run the `task plugin:new` command to generate a scaffold for a block. Renaming, relative path adjustment, and making it a standalone crate (`[workspace]`) are done automatically.
 
 ```bash
 task plugin:new -- my-note --type block
 ```
 
-（手動でコピーする場合は、`cp -r sdk/templates/rust-block plugins/my-note` の後、`Cargo.toml` の名前とパス、末尾の `[workspace]`、および `plugin.manifest.json` の `name` を修正します。）
+(If you copy by hand, after `cp -r sdk/templates/rust-block plugins/my-note`, fix the name and paths in `Cargo.toml`, the `[workspace]` at the end, and the `name` in `plugin.manifest.json`.)
 
-コピーしたものに 3 か所、手を入れます。
+Touch up 3 places in the copy.
 
 **`plugins/my-note/Cargo.toml`**
 
 ```toml
 [package]
-name = "my-note"                 # ← 名前を変える（成果物は my_note.wasm になる）
+name = "my-note"                 # ← change the name (the artifact becomes my_note.wasm)
 version = "0.1.0"
 edition = "2021"
 
@@ -47,25 +49,25 @@ edition = "2021"
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-# テンプレートのままだと 1 つ深い場所を指しているので、1 段浅くする
+# As in the template it points one level too deep, so make it one level shallower
 aegis-plugin-sdk = { path = "../../crates/aegis-plugin-sdk", version = "0.2.0" }
 
-[workspace]                      # ← 末尾に空の [workspace] を足す（理由は下）
+[workspace]                      # ← add an empty [workspace] at the end (reason below)
 ```
 
-- **空の `[workspace]` が要る理由**: ルートの `Cargo.toml` は公式のプラグインだけをワークスペースのメンバーにしています。`plugins/my-note/` はメンバーではないので、書かないと `error: current package believes it's in a workspace when it's not` で `cargo` が止まります。公式プラグインとして取り込むときは、これを書かずに、ルートの `[workspace] members` に `"plugins/my-note"` を足します。
-- リポジトリの外に置くなら、`aegis-plugin-sdk` は `{ git = "https://github.com/takumi-mr/AegisCMS", tag = "v0.2.0" }` にします（`tag` は [Releases](https://github.com/takumi-mr/AegisCMS/releases) の版）。
-- `serde_json` は書きません（SDK が再エクスポートしています。コードでは `aegis_plugin_sdk::serde_json`）。
+- **Why the empty `[workspace]` is needed**: the root `Cargo.toml` makes only the official plugins members of the workspace. `plugins/my-note/` is not a member, so without it `cargo` stops with `error: current package believes it's in a workspace when it's not`. When bringing it in as an official plugin, do not write this; add `"plugins/my-note"` to the root `[workspace] members` instead.
+- If you place it outside the repository, make `aegis-plugin-sdk` `{ git = "https://github.com/takumi-mr/AegisCMS", tag = "v0.2.0" }` (`tag` is a version from [Releases](https://github.com/takumi-mr/AegisCMS/releases)).
+- Do not write `serde_json` (the SDK re-exports it. In code, `aegis_plugin_sdk::serde_json`).
 
-**`plugins/my-note/plugin.manifest.json`**: `"name"` を `"my-note"` にします。ほかの項目はそのままで動きます。
+**`plugins/my-note/plugin.manifest.json`**: make `"name"` `"my-note"`. The other items work as they are.
 
 ---
 
-## 2. ブロックを書く
+## 2. Writing the Block
 
-### 2.1 定義: `plugin.manifest.json` の `blocks`
+### 2.1 The Definition: `blocks` in `plugin.manifest.json`
 
-テンプレートには `note` というブロックがあり、入力欄は本文（`text`）と種類（`tone`）です。
+The template has a block called `note`, whose input fields are the text (`text`) and the tone (`tone`).
 
 ```json
 "blocks": [
@@ -84,75 +86,75 @@ aegis-plugin-sdk = { path = "../../crates/aegis-plugin-sdk", version = "0.2.0" }
 ]
 ```
 
-- 本文に保存される名前は `<プラグイン名>/<name>`、つまり `my-note/note` です。
-- `capabilities.hooks` に `"render-blocks"` が必要です（テンプレートに入っています）。
-- 入力欄の `type` と、`attributes` に入る値の型は [プラグインフック 3.1](plugin_hooks.md#31-カスタムブロック-blocks) の表のとおりです。**`select` は数字の選択肢でも文字列で届きます**（`"3"`）。
+- The name saved in the body is `<plugin name>/<name>`, that is, `my-note/note`.
+- `capabilities.hooks` needs `"render-blocks"` (it is in the template).
+- The input field `type` and the types of values that go in `attributes` are as in the table of [Plugin hooks 3.1](plugin_hooks.md#31-custom-blocks-blocks). **`select` arrives as a string even for numeric choices** (`"3"`).
 
-### 2.2 描画: `src/lib.rs`
+### 2.2 Rendering: `src/lib.rs`
 
-`render_blocks` は、このプラグインのブロックが**まとめて**渡されます。入力と同じ数・同じ順の HTML を返し、描かないブロックは `None` にします。
+`render_blocks` is given this plugin's blocks **all together**. Return HTML in the same number and order as the input, and make blocks you do not render `None`.
 
 ```rust
 fn render_note(block: &BlockNode) -> Option<String> {
-    let text = attr(block, "text");          // 前後の空白を除いた文字列（無ければ ""）
+    let text = attr(block, "text");          // a string with surrounding whitespace removed ("" if absent)
     if text.is_empty() {
-        return None;                         // 入力が足りないブロックは何も表示しない
+        return None;                         // show nothing for a block with insufficient input
     }
     let tone = match attr(block, "tone") {
         "warning" => "warning",
-        _ => "info",                         // 知らない値は既定にする
+        _ => "info",                         // unknown values fall back to the default
     };
     Some(format!(
         "<aside class=\"nb-note nb-note--{}\"><p>{}</p></aside>",
         tone,
-        escape(text)                         // 利用者の入力は必ずエスケープする
+        escape(text)                         // always escape user input
     ))
 }
 ```
 
-守ること:
+Rules to follow:
 
-- **利用者の入力は必ず `escape` する。** 返した HTML は表示前にサニタイズされますが、それは `<script>` や `on*` 属性などを取り除くだけです。レイアウトを壊すタグは残ります。
-- **属性の型を決めつけない。** API や Markdown から保存されたブロックは任意の JSON を持てます。テンプレートの `attr` は、文字列でなければ空として扱います。
-- **CSS は最初のブロックにだけ付ける。** まとめて渡されるので、`<style>` を 1 回だけ出せます。`:where()` で詳細度を 0 にすると、テーマの CSS で上書きできます。
-- 外部の `<iframe>` を出すなら、マニフェストの `capabilities.embed.frame_domains` で宣言します（[プラグインフック 3.2](plugin_hooks.md#32-外部のページの埋め込み-capabilitiesembed)）。
+- **Always `escape` user input.** The HTML you return is sanitized before display, but that only removes things like `<script>` and `on*` attributes. Tags that break the layout remain.
+- **Do not assume attribute types.** Blocks saved from the API or Markdown can hold arbitrary JSON. The template's `attr` treats anything that is not a string as empty.
+- **Attach CSS only to the first block.** They are passed together, so you can output `<style>` just once. Making the specificity 0 with `:where()` lets the theme's CSS override it.
+- To output an external `<iframe>`, declare it in the manifest's `capabilities.embed.frame_domains` ([Plugin hooks 3.2](plugin_hooks.md#32-embedding-external-pages-capabilitiesembed)).
 
 ---
 
-## 3. テストして、ビルドする
+## 3. Test and Build
 
-### 3.1 テスト（Wasm なしでネイティブ実行）
+### 3.1 Testing (Native Execution Without Wasm)
 
-SDK にモックが入っているので、`cargo test` だけでロジックを確かめられます。ブロックは `BlockNode::new(名前)` に `set_attribute` で属性を足して作ります。
+The SDK includes mocks, so `cargo test` alone lets you verify the logic. Build a block with `BlockNode::new(name)` and add attributes with `set_attribute`.
 
 ```bash
 cd plugins/my-note
 cargo test
 ```
 
-テンプレートのテストを見て、同じ形で足してください（`json!({...})` をそのまま `attributes` に入れるとコンパイルエラーになります。SDK の `attributes` は `HashMap` です）。
+Look at the template's tests and add yours in the same shape (putting `json!({...})` straight into `attributes` is a compile error. The SDK's `attributes` is a `HashMap`).
 
-### 3.2 Wasm にビルドして、`plugin.wasm` に置く
+### 3.2 Build to Wasm and Place It as `plugin.wasm`
 
 ```bash
 cargo build --target wasm32-unknown-unknown --release
 cp target/wasm32-unknown-unknown/release/my_note.wasm plugin.wasm
 ```
 
-`target/` は、独立した crate（空の `[workspace]` を書いたもの）ではそのフォルダーの中、ワークスペースのメンバーならリポジトリのルートにできます。`cargo metadata --format-version 1 --no-deps | grep -o '"target_directory":"[^"]*"'` で場所が分かります。
+`target/` is inside that folder for a standalone crate (one with an empty `[workspace]`), and at the repository root for a workspace member. `cargo metadata --format-version 1 --no-deps | grep -o '"target_directory":"[^"]*"'` shows the location.
 
 ---
 
-## 4. 開発サーバーで確かめる
+## 4. Check with the Dev Server
 
-DB やログインなしで、フックの入出力・Fuel（命令数）・実行時間を確かめられます（[開発サーバー](plugin_dev_server.md)）。
+Without a DB or login, you can check the hook's input and output, fuel (instruction count), and execution time ([Dev server](plugin_dev_server.md)).
 
 ```bash
-# リポジトリのルートで（task があれば: task dev:plugin -- plugins/my-note）
+# At the repository root (with task: task dev:plugin -- plugins/my-note)
 cargo run -p aegis-server -- plugin dev plugins/my-note
 ```
 
-別のターミナルで、`render-blocks` を呼びます。入力は `{"blocks": [...]}` です。
+In another terminal, call `render-blocks`. The input is `{"blocks": [...]}`.
 
 ```bash
 curl -s -X POST http://127.0.0.1:8091/__dev/api/invoke \
@@ -164,40 +166,40 @@ curl -s -X POST http://127.0.0.1:8091/__dev/api/invoke \
        ]}}'
 ```
 
-`output.html` に、1 つ目の HTML（`<style>` が付く）と、2 つ目の `null` が返れば成功です。`text` に入れた `<` や `&` がエスケープされていることも確かめてください。
+If `output.html` returns the first HTML (with the `<style>` attached) and `null` for the second, it succeeded. Also check that the `<` and `&` you put in `text` are escaped.
 
-- **ソースを保存すると自動で再ビルド**されます。Rust の `Cargo.toml` があるフォルダーでは、`cargo build --target wasm32-unknown-unknown --release` を走らせて、`plugin.wasm` に自動でコピーします（手順 3.2 のコピーは、開発サーバーを使わないときだけ要ります）。コマンドを変えたいときは、マニフェストの `"dev": { "build_command": "..." }` か `--build-command` です（[2.7](plugin_dev_server.md#27-ビルドトリガー-api-post-__devapibuild)）。
-- 開発サーバーのプレビュー（`/__dev/api/preview`）は、**サニタイズも `aegis-plugin-block` の包みも通らない簡易表示**です。本当の出力は、次の手順の実サーバーで確かめます。
+- **Saving the source rebuilds automatically.** In a folder with a Rust `Cargo.toml`, it runs `cargo build --target wasm32-unknown-unknown --release` and copies the result to `plugin.wasm` automatically (the copy in step 3.2 is needed only when not using the dev server). To change the command, use the manifest's `"dev": { "build_command": "..." }` or `--build-command` ([2.7](plugin_dev_server.md#27-build-trigger-api-post-__devapibuild)).
+- The dev server's preview (`/__dev/api/preview`) is a **simple display that goes through neither sanitization nor the `aegis-plugin-block` wrapper**. Check the real output on a real server in the next step.
 
 ---
 
-## 5. 実サーバーの記事に置く
+## 5. Place It in an Article on a Real Server
 
-### 5.1 サーバーを用意する
+### 5.1 Prepare the Server
 
-作業用の設定ファイル（データベースもその中に作る）を用意して、プラグインを有効にします。
+Prepare a working config file (the database is also created inside it) and enable the plugin.
 
 ```bash
 mkdir -p /tmp/aegis-try && cp config/default.toml /tmp/aegis-try/config.toml
-# /tmp/aegis-try/config.toml を編集:
+# Edit /tmp/aegis-try/config.toml:
 #   [database] url = "sqlite:///tmp/aegis-try/aegis.db?mode=rwc"
 #   [plugins]  enabled = ["my-note"]
 export AEGIS_CONFIG=/tmp/aegis-try/config.toml
 ```
 
 ```bash
-cargo run -p aegis-server -- plugin list     # my-note 0.1.0 enabled render-blocks と出る
+cargo run -p aegis-server -- plugin list     # shows my-note 0.1.0 enabled render-blocks
 cargo run -p aegis-server -- init --non-interactive --admin-user admin \
   --admin-password 'change-me-please' --sample-data false
 cargo run -p aegis-server -- run             # http://localhost:8080
 ```
 
 > [!NOTE]
-> コマンドの `aegis-server` は、ビルド済みなら `target/debug/aegis-server` を直接呼んでも同じです（`cargo run -p aegis-server --` は、その分の確認で少し待ちます）。有効にしたプラグインが読み込めないと、サーバーは起動しません（原因は起動ログと `plugin list` に出ます）。
+> For the `aegis-server` command, if already built, calling `target/debug/aegis-server` directly is the same (`cargo run -p aegis-server --` waits a bit for its checks). If an enabled plugin cannot be loaded, the server does not start (the cause appears in the startup log and `plugin list`).
 
-### 5.2 記事にブロックを置く
+### 5.2 Place the Block in an Article
 
-ログインして、`blocks` に `name` と `attributes` を書いた記事を作ります（HTML は書きません）。
+Log in and create an article with `blocks` that have `name` and `attributes` (you do not write HTML).
 
 ```bash
 TOKEN=$(curl -s -X POST http://localhost:8080/api/v1/auth/session \
@@ -206,45 +208,45 @@ TOKEN=$(curl -s -X POST http://localhost:8080/api/v1/auth/session \
 
 curl -s -X POST http://localhost:8080/api/v1/contents/article \
   -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
-  -d '{"title": "ノートのテスト", "slug": "note-test", "status": "published",
+  -d '{"title": "Note test", "slug": "note-test", "status": "published",
        "blocks": [
-         {"name": "core/paragraph", "text": "本文です。"},
-         {"name": "my-note/note", "attributes": {"text": "ここに注意 <b>", "tone": "warning"}}
+         {"name": "core/paragraph", "text": "This is the body."},
+         {"name": "my-note/note", "attributes": {"text": "Careful here <b>", "tone": "warning"}}
        ]}' > /dev/null
 
 curl -s http://localhost:8080/note-test | grep -o '<div class="cms-plugin-block".*</div>'
 ```
 
-公開ページに `<div class="cms-plugin-block" data-block="my-note/note"><style>…</style><aside class="nb-note nb-note--warning"><p>ここに注意 &lt;b&gt;</p></aside></div>` が出れば完成です（`text` の `<b>` はエスケープされています）。
+If the public page shows `<div class="cms-plugin-block" data-block="my-note/note"><style>…</style><aside class="nb-note nb-note--warning"><p>Careful here &lt;b&gt;</p></aside></div>`, you are done (the `<b>` in `text` is escaped).
 
 > [!NOTE]
-> 包みのクラスは、公開ページでは `cms-plugin-block` です。`aegis-` で始まる識別子は、公開ページでは `[server].namespace`（既定 `cms`）に置き換わります（[設定](configuration.md)）。コンテンツ API の `rendered_html` では `aegis-plugin-block` のままです。プラグイン自身が出す `nb-note` のようなクラスは、そのまま出ます。
+> The wrapper's class on public pages is `cms-plugin-block`. Identifiers starting with `aegis-` are replaced on public pages with `[server].namespace` (default `cms`) ([Configuration](configuration.md)). In the content API's `rendered_html` it remains `aegis-plugin-block`. Classes the plugin itself outputs, such as `nb-note`, appear as they are.
 
-Admin Studio（`http://localhost:8080/admin/`）では、ブロックの追加ボタンに「ノート」が並び、`label` と `fields` で宣言した入力欄のフォームで編集できます。Markdown では 1 行で書けます。
+In Admin Studio (`http://localhost:8080/admin/`), "Note" lines up in the add-block button and can be edited in a form with the input fields you declared with `label` and `fields`. In Markdown it can be written on one line.
 
 ```markdown
-::: my-note/note {"text": "ここに注意", "tone": "warning"}
+::: my-note/note {"text": "Careful here", "tone": "warning"}
 ```
 
-プラグインのコードを直したら、`plugin.wasm` を作り直して置き換えるだけです。**記事を保存し直さなくても**、次の表示から変わります（Admin Studio のプラグイン画面で、いったん無効 → 有効にすると、すぐに読み直します）。
+When you fix the plugin's code, just rebuild and replace `plugin.wasm`. **Without re-saving the article**, it changes from the next display (in Admin Studio's plugins screen, disabling and then enabling it makes it reload immediately).
 
 ---
 
-## つまずいたとき
+## When You Get Stuck
 
-| 症状 | 原因と直し方 |
+| Symptom | Cause and fix |
 | --- | --- |
-| `current package believes it's in a workspace when it's not` | `plugins/<name>/` がルートのワークスペースのメンバーではない。`Cargo.toml` の末尾に空の `[workspace]` を足す（手順 1） |
-| `failed to load manifest` / パスが見つからない | コピーしたあと、`aegis-plugin-sdk` の `path` が 1 段深いまま。`../../crates/aegis-plugin-sdk` にする |
-| `mismatched types: expected HashMap<String, Value>, found Value`（テスト） | SDK の `BlockNode.attributes` は `HashMap`。`BlockNode::new` と `set_attribute` を使う |
-| 再ビルドしても表示が変わらない（開発サーバー） | 自動ビルドは `Cargo.toml` のあるフォルダーで `plugin.wasm` へ自動コピーする。`--build-command` や `dev.build_command` を使っているなら、そのコマンド自身が `plugin.wasm` を更新すること |
-| サーバーが起動しない | 有効にしたプラグインが読み込めない（`name` とフォルダー名の違い、`blocks` の不備、`entrypoint` が無い）。起動ログと `plugin list` を見る |
-| 公開ページに何も出ない | `render_blocks` が `None` を返している（入力不足・名前の不一致）。または、プラグインが無効。`GET /api/v1/blocks` に出ているか確かめる |
-| 表示が崩れる | 利用者の入力を `escape` していない。サニタイズは `<script>` などを取り除くだけ |
-| `all fuel consumed` | 1 回の描画の命令数が `resource_limits.max_fuel_units` を超えた。ブロックの数が多いときは上限を上げるか、処理を軽くする |
+| `current package believes it's in a workspace when it's not` | `plugins/<name>/` is not a member of the root workspace. Add an empty `[workspace]` at the end of `Cargo.toml` (step 1) |
+| `failed to load manifest` / path not found | After copying, the `path` of `aegis-plugin-sdk` is still one level too deep. Make it `../../crates/aegis-plugin-sdk` |
+| `mismatched types: expected HashMap<String, Value>, found Value` (tests) | The SDK's `BlockNode.attributes` is a `HashMap`. Use `BlockNode::new` and `set_attribute` |
+| The display does not change after a rebuild (dev server) | The automatic build copies to `plugin.wasm` in a folder with `Cargo.toml`. If you use `--build-command` or `dev.build_command`, that command itself must update `plugin.wasm` |
+| The server does not start | An enabled plugin cannot be loaded (a `name` vs folder name mismatch, a faulty `blocks`, or a missing `entrypoint`). Look at the startup log and `plugin list` |
+| Nothing appears on the public page | `render_blocks` returns `None` (insufficient input or a name mismatch), or the plugin is disabled. Check that it appears in `GET /api/v1/blocks` |
+| The display is broken | User input is not `escape`d. Sanitization only removes things like `<script>` |
+| `all fuel consumed` | One rendering exceeded `resource_limits.max_fuel_units`. When there are many blocks, raise the limit or make the processing lighter |
 
-## 次に読むもの
+## What to Read Next
 
-- [プラグインフック `render-blocks`（1.10）](plugin_hooks.md#110-render-blocks)・[`blocks` の宣言（3.1）](plugin_hooks.md#31-カスタムブロック-blocks)
-- お手本: [`plugins/official-blocks`](../plugins/official-blocks)（ボタン・リンクカード・動画。外部サイトの埋め込みと、入力の検証が入った実例）
-- [プラグイン開発サーバー](plugin_dev_server.md)・[Wasm プラグイン開発ガイド](plugin_sdk_guide.md)
+- [Plugin hooks `render-blocks` (1.10)](plugin_hooks.md#110-render-blocks), [the `blocks` declaration (3.1)](plugin_hooks.md#31-custom-blocks-blocks)
+- A model: [`plugins/official-blocks`](../plugins/official-blocks) (buttons, link cards, video. A real example with external site embeds and input validation)
+- [Plugin dev server](plugin_dev_server.md), [Wasm plugin development guide](plugin_sdk_guide.md)

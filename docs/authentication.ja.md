@@ -1,0 +1,662 @@
+[← ドキュメント一覧に戻る](README.ja.md)
+
+[English](authentication.ja.md) | **日本語**
+
+# 認証 & ユーザー管理 (Authentication)
+
+AegisCMS のログインは、ユーザー名とパスワードを `AuthProvider` が検証したときだけセッション（Bearer トークン）を発行します。ロールはリクエストではなく、サーバーに登録されたユーザーアカウントで決まります。
+
+プロバイダはローカル認証（`LocalAuthProvider`、`_aegis_users` テーブル）と、外部 IdP の OpenID Connect（[6. シングルサインオン](#6-シングルサインオン-openid-connect)、`[auth.oidc]`）です。SAML は未対応です。
+
+---
+
+## 1. ユーザーアカウント
+
+アカウントは DB のシステムテーブル `_aegis_users` に保存します（SQLite / PostgreSQL / MySQL 共通。サーバー起動時・CLI 実行時に自動作成）。
+
+![Admin Studio のユーザー管理（Settings → Users）](images/users-admin.png)
+
+| カラム | 内容 |
+| --- | --- |
+| `id` | UUID |
+| `username` | ログイン名（一意。英数字と `.` `_` `-` `@`、1〜64 文字）。セッションの `user_id`・監査ログの actor になる |
+| `email` / `display_name` | 任意。セッションの `metadata` に入る |
+| `role` | `admin` / `editor` / `reviewer` / `contributor` / `viewer` |
+| `password_hash` | Argon2id（既定パラメータ）の PHC 文字列。平文は保存しない |
+| `disabled` | `1` ならログイン不可 |
+| `avatar_key` | アバター画像のストレージキー（`avatars/...`）。未設定なら NULL。既存の DB には起動時に列を追加 |
+| `pending_approval` | `1` なら自己登録後の管理者承認待ち状態。管理者が有効化すると自動的に `0` に更新される |
+| `totp_secret` | Base32 でエンコードされた TOTP シークレット（未設定なら NULL） |
+| `totp_enabled` | `1` なら二段階認証が有効化されている |
+| `backup_codes` | 使い捨てバックアップコードの SHA-256 ハッシュ配列（JSON 文字列） |
+| `created_at` / `updated_at` | RFC 3339 (UTC) |
+
+### ロールと API の権限
+
+ロールの基本強度は `admin` ⊃ `editor` ⊃ `reviewer` ⊃ `contributor` ⊃ `viewer` です（上位ロールは下位ロールの操作をカバーしますが、`reviewer` はレビュー業務に特化した最小権限ロールとして新規作成や削除が制限されています）。
+
+| ロール | できること |
+| --- | --- |
+| `admin` | すべて（ユーザー・テーマ・設定・監査ログを含む） |
+| `editor` | コンテンツの公開・予約公開・アーカイブ、他人のコンテンツの変更、レビューの承認・差し戻し、カテゴリ・タグ・ショップ・コメントなどの管理 |
+| `reviewer`（校閲者） | レビュー待ち（`pending`）コンテンツの校正（本文・タイトルの手直し）・承認（`published` / `scheduled`）・差し戻し（`draft`）、校正用メディアのアップロード。自発的な新規作成（POST）や削除（DELETE）、公開済みコンテンツの直接変更は不可（LLMマルチエージェント校正や外部校閲者向け最小権限） |
+| `contributor`（寄稿者） | 自分のコンテンツの下書き（`draft`）とレビューの依頼（`pending`）、メディアのアップロード。公開は `editor` / `reviewer` が行う（[レビュー](theme_and_publishing_guide.ja.md#レビュー寄稿者の下書きを承認して公開する)） |
+| `viewer` | 閲覧（下書きを含む） |
+
+| API | 必要なロール |
+| --- | --- |
+| `GET /api/v1/health`（製品名とバージョンは `admin` のセッションにだけ返す）, `/metrics` | 不要（公開） |
+| `GET /setup`（Web インストーラ画面）, `GET /api/v1/setup/status`, `POST /api/v1/setup`（初期セットアップ） | 不要（未初期化時のみ受付。セットアップ完了後は 403 またはリダイレクト） |
+| 公開サイト（`/`, `/articles/*`, `/{slug}`, `/theme/assets/*`, `/uploads/*`）, Admin Studio の静的ファイル | 不要（公開） |
+| `POST /api/v1/auth/session`（ログイン）, `POST /api/v1/auth/session/verify-2fa`（[二段階認証](#12-二段階認証-2fa--totp)）, `GET` / `DELETE /api/v1/auth/session` | 不要（資格情報・セッション・2FA 検証で判定） |
+| `GET /api/v1/auth/providers`, `GET /api/v1/auth/oidc/login`, `GET /api/v1/auth/oidc/callback`（[シングルサインオン](#6-シングルサインオン-openid-connect)） | 不要 |
+| `POST /api/v1/auth/password-reset`, `POST /api/v1/auth/password-reset/confirm`（[パスワード再設定](#9-パスワードの再設定)） | 不要（メール確認・トークン検証） |
+| `GET /api/v1/auth/invitations/info`, `POST /api/v1/auth/invitations/accept`（[招待リンク](#10-ユーザー招待リンク)） | 不要（招待トークン検証） |
+| ショップ（`/products`, `/cart`, `/orders/{id}`, `/shop/cart.js`, `/api/v1/shop/*`。[EC](commerce.ja.md#61-公開ログイン不要)） | 不要（注文確認はトークン、Webhook は署名で確認） |
+| `GET /api/v1/schemas`, `GET /api/v1/schemas/{type}`, `GET /api/v1/openapi.json` | `viewer` |
+| `GET /api/v1/contents/{type}`, `GET /api/v1/contents/{type}/{slug}`（下書きを含む） | `viewer` |
+| `GET /api/v1/storage/objects` | `viewer` |
+| `POST /api/v1/preview`（エディタのプレビュー。保存しない。読者の種類 `viewer` を選んで見られるが、本物の会員のセッションは使わない） | `viewer` |
+| `POST /api/v1/contents/{type}`, `PUT` / `DELETE /api/v1/contents/{type}/{slug または id}`, `POST .../versions/{revision}/restore`, `PUT .../tags`（[記事・コンテンツ投稿 API](content-api.ja.md)） | `contributor`（自分の `draft` / `pending`。公開中のものは変更を `pending` として出すだけで、削除・版の復元・タグの付け外しはできない。状態は `draft` / `pending` にしかできない）。`reviewer` は `pending` の校正・承認（`published`/`scheduled`）・差し戻し（`draft`）・タグ調整のみ可能（新規作成・削除・復元は不可）。他人のコンテンツの自由な変更や直接公開・削除は `editor` |
+| `GET /api/v1/orders`, `GET /api/v1/orders/{id}`, `POST /api/v1/orders/{id}/status`（[EC](commerce.ja.md#62-管理editor-以上)） | `editor` |
+| `POST /api/v1/storage/upload`（[メディア](media.ja.md)） | `contributor`（`reviewer` 以上も含む） |
+| `DELETE /api/v1/storage/objects/{key}`（[メディア](media.ja.md)） | `editor` |
+| `GET /api/v1/users/{username}`, `PATCH /api/v1/users/{username}`, `PUT` / `DELETE /api/v1/users/{username}/avatar`, `POST /api/v1/users/me/2fa/*`（[ユーザー管理 API](#3-ユーザー管理-api)・[二段階認証](#12-二段階認証-2fa--totp)） | 本人（`viewer` 以上）か `admin` |
+| `GET` / `POST /api/v1/users/me/tokens`, `DELETE /api/v1/users/me/tokens/{id}`（[API トークン](#13-api-トークン)） | 本人（`viewer` 以上）。API トークンでは呼べない |
+| `POST /api/v1/users/{username}/2fa/reset`（[二段階認証のリセット](#123-管理者による解除--復旧)） | `admin` |
+| `GET /api/v1/users`, `POST /api/v1/users`, `DELETE /api/v1/users/{username}` | `admin` |
+| `POST /api/v1/auth/invitations`（[招待リンク](#10-ユーザー招待リンク)） | `admin` |
+| `GET /api/v1/audit-logs` | `admin` |
+
+- セッションが無い・無効・期限切れなら `401`、ロールが足りなければ `403` を返し、監査ログに `access.denied`（理由・必要なロール・エンドポイント）を記録します（[監査ログ](audit.ja.md#2-記録されるイベント)）。
+- コンテンツ作成時の `author_id` は省略するとログインユーザー（`user_id`）になります。他のユーザーを `author_id` に指定できるのは `admin` だけです（それ以外は `403`）。
+- `/metrics`（Prometheus）は監視系からの取得を想定して公開のままです。外部に公開する場合はリバースプロキシなどでアクセス元を制限してください。
+
+### プラグインによるロールマッピング・ログイン制限
+
+資格情報の確認後・セッション発行前に `on-user-authenticated` フック（[プラグインフック](plugin_hooks.ja.md#14-on-user-authenticated)）が呼ばれます。プラグインはセッションのロール・表示名・`metadata` を変えたり、ログインを拒否（`403`）したりできます。ロールを変えた場合は監査ログ `session.create` の `details.role_mapped` に記録されます。
+
+---
+
+## 2. CLI でのユーザー管理 (`aegis-server user`)
+
+```bash
+# 最初の管理者を作成（パスワードは対話入力。端末では非表示・確認つき）
+aegis-server user add admin --role admin --email admin@example.com --display-name "Site Admin"
+
+# 非対話（CI / Docker）: 環境変数か標準入力の 1 行からパスワードを読む
+AEGIS_USER_PASSWORD='change-me-please' aegis-server user add editor1 --role editor
+echo 'change-me-please' | aegis-server user add viewer1 --role viewer
+
+aegis-server user passwd editor1        # パスワード変更（既存セッションは即時失効）
+aegis-server user role editor1 admin    # ロール変更（既存セッションは即時失効）
+aegis-server user disable editor1       # ログイン不可にする（既存セッションは即時失効）
+aegis-server user enable editor1
+aegis-server user disable-2fa editor1   # 二段階認証を緊急解除（セッションは即時失効）
+aegis-server user list
+aegis-server user unlock editor1         # ログインのロック（失敗の連続）を解除。要 [cache].backend = "redis"
+aegis-server user unlock-ip 203.0.113.7  # IP 単位のロックを解除
+aegis-server user link-oidc alice 248289761001   # 既存ユーザーを IdP のアカウント（sub）に紐付ける
+```
+
+- 開発時は `cargo run -p aegis-server -- user add ...`、Docker では `docker exec -it <container> aegis-server user add ...` で実行します。設定ファイル（`-c` / `AEGIS_CONFIG`）の `[database]` に接続します。
+- パスワードは 8 文字以上です。
+- ユーザーが 1 人もいない状態でサーバーを起動すると、作成方法を示す警告ログを出します。
+
+> [!NOTE]
+> ロール変更・無効化・パスワード変更は、発行済みのセッションを即座に失効（キャッシュ上の失効マーカーによるブラックリスト判定）させます。対象ユーザーの既存セッションは次回アクセス時に `401 Unauthorized` となり、再ログインが必要になります（無効化されたユーザーは再ログインも不可）。キャッシュ（Redis）利用時は CLI からの変更も即座に共有されます。
+
+---
+
+## 3. ユーザー管理 API
+
+Admin Studio の「Users」画面（`admin`）と、ヘッダーのアバターから開く「My profile」（全ロール）はこの API を使います。応答のユーザーは次の形で、パスワードハッシュは返しません。
+
+```json
+{
+  "id": "8a9e4ef1-4039-4b0f-b1fb-ea684ae66697",
+  "username": "carol",
+  "email": "carol@example.com",
+  "display_name": "Carol Writer",
+  "role": "editor",
+  "disabled": false,
+  "avatar_url": "/uploads/avatars/8a9e4ef1-4039-4b0f-b1fb-ea684ae66697-6665ae18.png",
+  "created_at": "2026-10-22T23:23:26Z",
+  "updated_at": "2026-10-22T23:23:30Z"
+}
+```
+
+| API | 内容 |
+| --- | --- |
+| `GET /api/v1/users` | 全ユーザー（`{"users": [...]}`、username 順） |
+| `POST /api/v1/users` | 作成。本文は `username` / `password` / `role`（必須）、`email` / `display_name`（任意）。`201` |
+| `GET /api/v1/users/{username}` | 1 人分（本人か `admin`） |
+| `PATCH /api/v1/users/{username}` | 変更。省略した項目はそのまま、`email` / `display_name` は空文字で削除 |
+| `DELETE /api/v1/users/{username}` | 削除（ID 連携・アバター画像も削除。コンテンツの `author_id` は残る）。`204` |
+| `PUT /api/v1/users/{username}/avatar` | アバター画像を設定（multipart の `file`） |
+| `DELETE /api/v1/users/{username}/avatar` | アバター画像を外す |
+
+`PATCH` の項目と権限:
+
+| 項目 | 本人 | `admin`（他のユーザー） |
+| --- | --- | --- |
+| `email`, `display_name` | ✓ | ✓ |
+| `password` | ✓（`current_password` が必要。違えば `403`） | ✓（現在のパスワード不要＝リセット） |
+| `role`, `disabled` | ✗（`admin` でも自分自身は `400`、それ以外は `403`） | ✓ |
+
+- 本人以外のユーザーへの `viewer` / `editor` のアクセスは `403` で拒否し、`access.denied`（`reason: not_own_account`、`resource_type: user`）を記録します。
+- 最後の有効な `admin` は降格・無効化・削除できません（`400`。全員が締め出されるのを防ぐ）。自分自身も削除できません。CLI（`aegis-server user role` など）は復旧用のため確かめません。
+- **アバター画像**: PNG / JPEG / GIF / WebP、2 MB まで。形式はファイルの先頭バイトで判定し（クライアントの Content-Type は使わない）、スクリプトを含められる SVG は受け付けません（`415`）。2 MB を超えると `413`。`[storage]` のバックエンドに `avatars/{ユーザー ID}-{ランダム 8 桁}.{拡張子}` として保存し、差し替えるたびにキーを変えて（キャッシュ対策）以前の画像を削除します。
+- 作成・変更・削除は監査ログの `user.create` / `user.update` / `user.delete` に記録します（[監査ログ](audit.ja.md#2-記録されるイベント)）。パスワードは記録しません。
+- シングルサインオンで作成したユーザーはパスワードを知らないため、Admin Studio の「My profile」ではパスワード変更を表示しません。
+
+> [!NOTE]
+> ロール変更・無効化・削除・パスワード変更は、発行済みのセッションに即時反映されます（キャッシュ上のユーザー単位の失効マーカーにより既存セッションは即座に無効化され `401` となります）。降格や無効化されたユーザーが直前のセッションで不正に操作を継続することはできません。
+
+---
+
+## 4. セッション API
+
+### `POST /api/v1/auth/session` — ログイン
+
+```bash
+curl -s -X POST http://127.0.0.1:8080/api/v1/auth/session \
+  -H 'Content-Type: application/json' \
+  -d '{"username":"admin","password":"change-me-please"}'
+```
+
+| フィールド | 必須 | 内容 |
+| --- | --- | --- |
+| `username` | ✓ | ログイン名（前後の空白は無視） |
+| `password` | ✓ | パスワード |
+| `ttl_secs` | | 有効期限（秒）。`[cache].default_ttl_secs`（既定 3600）を超える値は既定値に切り詰める |
+
+成功時は `201` で次を返します。以降のリクエストでは `Authorization: Bearer <id>`（または `X-Session-Id: <id>`）を付けます。
+
+```json
+{
+  "id": "ses_0ce22abac5cc409298d05447e7a002b1",
+  "user_id": "admin",
+  "role": "admin",
+  "created_at": "2026-10-22T04:44:14.066870871+00:00",
+  "expires_at": "2026-10-22T05:44:14.066870871+00:00",
+  "metadata": { "provider": "local", "display_name": "Site Admin", "email": "admin@example.com" }
+}
+```
+
+| ステータス | 条件 |
+| --- | --- |
+| `401` | ユーザーが存在しない・パスワード不一致・アカウント無効（応答はすべて `Invalid username or password` で区別しない） |
+| `403` | 資格情報は正しいが、`on-user-authenticated` プラグインがログインを拒否した（本文はプラグインのメッセージ） |
+| `422` | `username` / `password` が無い（以前の `{"user_id", "role"}` 形式は受け付けない） |
+| `429` | ログイン失敗が続いたためロック中（`Retry-After` ヘッダーと本文の `retry_after_secs` に解除までの秒数。正しいパスワードでも拒否） |
+| `500` | DB・キャッシュのエラー、`on-user-authenticated` プラグインの失敗 |
+
+### `GET /api/v1/auth/session` / `DELETE /api/v1/auth/session`
+
+現在のセッションの取得とログアウトです（変更なし）。
+
+### Admin Studio
+
+Admin Studio（`/admin`）はログイン画面からこの API でログインし、トークンを `sessionStorage` に保持してすべての API 呼び出しに付与します。API が `401` を返すとログイン画面に戻ります。ロールが足りない操作（`viewer` の保存・アップロードなど）は画面上でも無効化します。
+
+![Admin Studio のログイン画面](images/login.png)
+
+---
+
+## 5. セキュリティ上の挙動
+
+- **ユーザー名の推測対策**: 存在しないユーザーでもダミーハッシュで同じ Argon2 検証を行い、応答時間と応答内容を揃えます。アカウントが無効かどうかは、正しいパスワードを送った場合にしか判定しません。
+- **監査ログ**: ログインの成否を `session.create` として記録します。失敗時は `details` に `username`・`provider`・`error`（`unknown_user` / `invalid_password` / `account_disabled` / `unsupported_credentials`）を残します。パスワードは記録しません。
+- **CPU 負荷**: Argon2 の検証は `spawn_blocking` で実行し、非同期ランタイムのワーカーを塞ぎません。
+- **ログイン試行のレート制限**（`[auth.login_rate_limit]`）: 認証失敗（ユーザー不在・パスワード不一致・アカウント無効）をユーザー名とクライアント IP ごとに数え、`window_secs`（既定 15 分）内に上限（既定: ユーザー名 5 回 / IP 20 回）に達すると、`lockout_secs`（既定 15 分）の間 `429` で拒否します。
+  - ロック中は資格情報を検証しません（正しいパスワードでも拒否し、Argon2 の負荷もかからない）。応答ではユーザー名と IP のどちらでロックされたかを区別しません。
+  - ユーザー名は大文字・小文字を区別せずに数え、存在しないユーザー名も同じように数えます（ロックの有無からユーザーの存在を推測させないため）。
+  - ログインに成功するとそのユーザー名の失敗回数はリセットされます。IP の失敗回数は、有効なアカウントを 1 つ持つ攻撃者が計数を消せないようリセットしません。
+  - 失敗回数は `[cache]` のバックエンドに保存します（キー `login:fail:*` / `login:lock:*`）。`memory` ではプロセスごと・再起動で消えるため、複数インスタンスで運用する場合は `redis` を使ってください。
+  - リバースプロキシ配下では全リクエストがプロキシの IP になるため、`[audit].trust_forwarded_for = true` にしてください（有効にすると `X-Forwarded-For` を偽装できるため、信頼できるプロキシ配下でのみ）。
+  - ユーザー名単位のロックは、第三者がわざと失敗してそのユーザーを一時的にログインできなくすることにも使えます。運用で問題になる場合は `max_failures_per_user` を大きくし、IP 単位の制限を主に使ってください。ロックの解除は CLI だけです（`aegis-server user unlock <ユーザー名>` / `user unlock-ip <IP>`。失敗回数も 0 に戻ります）。API や Admin Studio からは解除できません。ロックはサーバーのキャッシュにあるため、CLI からは `redis` のときだけ解除できます（`memory` ではサーバーの再起動）。
+
+---
+
+## 6. シングルサインオン (OpenID Connect)
+
+`[auth.oidc]`（[設定リファレンス](configuration.ja.md#210-authoidc--シングルサインオン-openid-connect)）を有効にすると、Admin Studio のログイン画面に **Sign in with {display_name}** ボタンが表示され、外部 IdP（Microsoft Entra ID、Google、Okta、Keycloak など OpenID Connect 対応のもの）でログインできます。パスワードによるローカルログインもそのまま使えます。
+
+### 6.1 IdP 側の設定
+
+1. IdP に「Web アプリケーション」（コンフィデンシャルクライアント）を登録し、クライアント ID とシークレットを発行します。
+2. リダイレクト URI に `https://<AegisCMS のホスト>/api/v1/auth/oidc/callback` を登録し、同じ値を `redirect_url` に設定します。
+3. ロールをグループで分けたい場合は、ID トークンに `groups` などのクレームが入るよう IdP を設定します。
+
+```toml
+[auth.oidc]
+enabled = true
+display_name = "Company SSO"
+issuer_url = "https://login.example.com/realms/staff"
+client_id = "aegis-cms"
+client_secret = "..."
+redirect_url = "https://cms.example.com/api/v1/auth/oidc/callback"
+role_claim = "groups"
+post_login_redirect = "https://cms.example.com/admin/"
+
+[auth.oidc.role_mapping]
+cms-admins = "admin"
+cms-editors = "editor"
+```
+
+### 6.2 ログインの流れ
+
+1. ボタン（`GET /api/v1/auth/oidc/login`）が IdP の認可エンドポイントへリダイレクトします。`state`・`nonce`・PKCE（`S256`）の検証値は 10 分間キャッシュ（`[cache]`）に保存します。
+2. IdP でのログイン後、`GET /api/v1/auth/oidc/callback` が認可コードをトークンに交換し、ID トークンを検証します（JWKS による署名、`iss`、`aud`、`exp`、`nonce`、`azp`。署名アルゴリズムは RS / PS / ES 系のみ）。`state` は 1 回限りです。
+3. ユーザーを決め（5.3）、`on-user-authenticated` フック（[プラグインフック](plugin_hooks.ja.md#14-on-user-authenticated)）を通してセッションを発行します。
+4. `post_login_redirect` に `#session=<トークン>` を付けてリダイレクトし、Admin Studio がトークンを保存してアドレスバーから消します。失敗時は `#login_error=<理由>` で戻り、ログイン画面に表示します。
+
+フラグメント（`#` 以降）はサーバーのログや `Referer` に残らないため、トークンの受け渡しに使っています。
+
+### 6.3 ユーザーとロール
+
+- IdP のアカウント（Issuer + `sub`）と AegisCMS のユーザーの対応は `_aegis_user_identities` テーブルに保存します。
+- **初回ログイン**: `auto_create_users = true`（既定）なら、`username_claim`（既定 `preferred_username`、無ければ `email`）をユーザー名にしてユーザーを作成し、紐付けます。パスワードは誰も知らないランダム値なので、そのユーザーはパスワードではログインできません。
+- **同名のユーザーが既にいる場合は紐付けません**（`username_taken`）。IdP 側で同じ名前を名乗るだけで既存のアカウント（ローカルの管理者など）に入れてしまうのを防ぐためです。そのアカウントで SSO を使うには、管理者が `aegis-server user link-oidc <username> <sub>` で紐付けます。
+- `auto_create_users = false` なら、紐付け済みのユーザーだけがログインできます（それ以外は `not_provisioned`）。
+- **ロール**: `role_claim` を設定すると、ログインのたびにそのクレームの値を `role_mapping` で変換し（複数一致なら最も強いロール、一致しなければ `default_role`）、ユーザーアカウントのロールも更新します。`role_claim` が空なら、ロールはユーザーアカウントのもの（`aegis-server user role` で変更）で、新規ユーザーは `default_role` です。どちらの場合も `on-user-authenticated` プラグインで上書きできます。
+- メールアドレス・表示名（`email` / `name` クレーム）はログインのたびにユーザーアカウントへ反映します。
+- 無効化したユーザー（`aegis-server user disable`）は SSO でもログインできません（`account_disabled`）。
+- セッションの `metadata` には `provider: "oidc"`、`issuer`、`sub`、`claims`（ID トークンのクレーム）が入ります。
+- ユーザーの決め方は SAML（8.3）と共通です。
+
+### 6.4 失敗時の理由（`login_error`・監査ログ `session.create` の `error`）
+
+| 理由 | 内容 |
+| --- | --- |
+| `idp_error` | IdP がエラーを返した（ユーザーがキャンセルしたなど） |
+| `invalid_state` | `state` が無い・期限切れ・使用済み |
+| `invalid_token` | トークン交換の失敗、ID トークンの検証失敗（詳細はサーバーの警告ログ） |
+| `missing_username` | ユーザー名にするクレームが無い・使えない文字を含む |
+| `username_taken` | 同名の（紐付けられていない）ユーザーが既にいる |
+| `not_provisioned` | `auto_create_users = false` で、紐付けられたユーザーがいない |
+| `account_disabled` | ユーザーが無効化されている |
+| `server_error` | IdP に接続できない・DB エラーなど（詳細はサーバーのエラーログ） |
+
+`on-user-authenticated` プラグインが拒否した場合は、プラグインのメッセージが `login_error` になります。
+
+> [!NOTE]
+> SSO のログインは IdP 側で保護されるため、`[auth.login_rate_limit]` の対象外です。ディスカバリー文書（`/.well-known/openid-configuration`）は初回ログイン時に取得してプロセス内にキャッシュし、JWKS は未知の `kid` が来たとき（最短 60 秒間隔）に再取得します。IdP の Issuer を変更した場合はサーバーを再起動してください。
+
+
+## 7. アカウント登録
+
+`[auth.registration]`（[設定リファレンス](configuration.ja.md#211-authregistration--アカウント登録)）を有効にすると、Admin Studio のログイン画面に **アカウントを作成** が表示され、管理者がユーザーを作らなくても自分でアカウントを申し込めます。メールアドレスの確認が必須で、確認メールは [通知](notifications.ja.md) で送ります。
+
+```toml
+[auth.registration]
+enabled = true
+admin_url = "https://cms.example.com/admin/"   # 確認リンクの開き先
+default_role = "viewer"
+require_approval = true                         # 確認後も admin が有効にするまでログインできない
+# allowed_email_domains = ["example.com"]       # 社内のアドレスだけに限る
+
+[notifications]
+enabled = true
+channels = ["email"]   # 開発中は ["log"] でサーバーのログに出せる
+```
+
+通知（`[notifications].enabled`）が無効、`disabled_events` に `account.verify` がある、確認リンクの開き先（`admin_url`、無ければ `[commerce].public_url` + `/admin/`）が決まらない、`default_role` が `admin` または不明なロール、のいずれかの場合はサーバーが起動しません。
+
+### 7.1 登録の流れ
+
+1. ログイン画面の **アカウントを作成** から、ユーザー名・メールアドレス・表示名（任意）・パスワードを送ります（`POST /api/v1/auth/registration`）。
+2. サーバーは入力を検証し、申し込みを確認リンクの有効期間（`token_ttl_secs`、既定 24 時間）だけキャッシュ（`[cache]`）に置いて、メールアドレスに確認リンク（`{admin_url}#verify-email=<トークン>`）を送ります（通知 `account.verify`）。**この時点ではユーザーは作られません。**
+3. リンクを開くと Admin Studio が `POST /api/v1/auth/registration/verify` を呼び、ユーザーを作ります。運営者（`staff_recipients`）には `account.registered` を送ります。
+4. `require_approval = true`（既定）なら、アカウントは **無効** の状態で作られます。admin が **設定 → ユーザー** で有効にすると、ログインできるようになります。`false` なら確認した時点でログインできます。
+
+確認されない申し込みでユーザー名がふさがることはありません。同じユーザー名の申し込みが複数あれば、先に確認したほうが作られます。
+
+### 7.2 API
+
+#### `POST /api/v1/auth/registration` — 申し込み
+
+```json
+{ "username": "hanako", "email": "hanako@example.com", "password": "...", "display_name": "花子" }
+```
+
+- `202 Accepted`: `{ "status": "pending_verification", "expires_in_secs": 86400 }`
+- 失敗時は `{ "error": "<文言>", "code": "<理由>" }` を返します。`code` は `invalid_username` / `invalid_email` / `password_too_short`（`400`）、`username_taken`（`409`）、`email_domain_not_allowed`（`403`）、`rate_limited`（`429`。`Retry-After` 付き）です。
+- 登録が無効なら `404` を返します。
+
+#### `POST /api/v1/auth/registration/verify` — 確認
+
+```json
+{ "token": "<確認リンクのトークン>" }
+```
+
+- `201 Created`: `{ "status": "active" | "pending_approval", "username": "hanako" }`
+- 失敗時: `invalid_token`（`400`。無効・期限切れ・使用済み）、`username_taken` / `email_taken`（`409`。申し込みの後に同じユーザー名・メールアドレスのユーザーができていた）。
+
+`GET /api/v1/auth/providers` の `registration`（`true` / `false`）で、ログイン画面に **アカウントを作成** を出すかを決めます。
+
+### 7.3 セキュリティ上の挙動
+
+- **メールアドレスの確認**: アカウントは確認リンクを開いたときに初めて作られるので、他人のメールアドレスでは作れません。
+- **登録済みのメールアドレスを伏せる**: 既存のユーザーのメールアドレスで申し込まれても、応答は通常と同じ `202` にし、メールは送りません（監査ログには `email_in_use` として残ります）。パスワードのハッシュ計算も通常と同じように行うので、応答時間でも区別できません。ユーザー名は申し込み画面で重複を知らせる必要があるため、`username_taken` を返します。
+- **確認リンク**: トークンは 256 ビットの乱数で、1 回しか使えません。キャッシュにはトークンの SHA-256 をキーにして保存し、トークン自体は残しません。URL のフラグメント（`#`）で渡すので、サーバーのログや `Referer` に残りません。Admin Studio は読み取った後にアドレスバーから消します。
+- **リンクの URL はリクエストから作らない**: 確認リンクの開き先は設定（`admin_url`）だけから作ります。`Host` ヘッダーを偽装して、攻撃者のサイトへのリンクを本人に送らせることはできません。
+- **申し込みの数の制限**: 同じクライアント IP からの申し込みは 1 時間に `max_per_ip_per_hour` 件（既定 5）までです。超えると `429` を返します。クライアント IP の扱いは `[audit].trust_forwarded_for` に従います。
+- **パスワード**: 申し込みの時点で Argon2id でハッシュし、平文は保存しません。8 文字以上が必要です。
+- **監査ログ**: 申し込み（`stage: requested`）と確認（`stage: confirmed`）を `user.register` に記録します。メールアドレスとトークンは記録しません（[監査ログ](audit.ja.md)）。
+- **ログチャネル**: `channels = ["log"]` では確認メールの本文（確認リンクを含む）がサーバーのログに出ます。本番ではメールを使ってください。プラグインの通知チャネル（`plugin:<名前>`）にも確認メールが渡るので、Slack などに送るプラグインでは `account.verify` を送らないよう設定してください（`official-order-notifier` なら `channel_kinds`）。
+
+---
+
+## 8. シングルサインオン (SAML 2.0)
+
+`[auth.saml]`（[設定リファレンス](configuration.ja.md#214-authsaml--シングルサインオン-saml-20)）を有効にすると、ログイン画面に **Sign in with {display_name}** ボタンが表示され、SAML 2.0 の IdP（Microsoft Entra ID、Okta、AD FS、Keycloak、Google Workspace など）でログインできます。OpenID Connect（6）・パスワードと併用できます。
+
+対応するのは **SP-initiated の Web Browser SSO** です（AegisCMS のボタンから始めるログイン）。AuthnRequest は HTTP-Redirect バインディングで送り、応答は HTTP-POST バインディングで受け取ります。IdP のポータルから始めるログイン（IdP-initiated）、暗号化したアサーション（`EncryptedAssertion`）、シングルログアウトには対応していません。
+
+### 8.1 IdP 側の設定
+
+1. AegisCMS の SP メタデータ `https://<ホスト>/api/v1/auth/saml/metadata`（`enabled = true` で起動した後に取得できます）を IdP に読み込ませるか、次の値を手で登録します。
+   - **Entity ID（識別子）**: `entity_id` と同じ値
+   - **ACS（応答 URL / Reply URL）**: `https://<ホスト>/api/v1/auth/saml/acs`（`acs_url` と同じ値）。バインディングは HTTP-POST
+2. **署名**: アサーション（推奨）または応答全体に署名するよう設定します（どちらか一方で十分です）。署名方式は RSA-SHA256 以上です（SHA-1 は拒否します）。
+3. **NameID**: `persistent`（変わらない ID）か `emailAddress` を使います。ログインのたびに変わる `transient` はユーザーを識別できないため拒否します。
+4. メールアドレス・表示名・グループを属性として送るよう設定し、その属性名を `email_attribute` などに書きます。
+5. IdP のメタデータから **Entity ID**、**SSO の URL**（HTTP-Redirect）、**署名用証明書** を取り出して設定します。
+
+```toml
+[auth.saml]
+enabled = true
+display_name = "Company SSO"
+entity_id = "https://cms.example.com/api/v1/auth/saml/metadata"
+acs_url = "https://cms.example.com/api/v1/auth/saml/acs"
+idp_entity_id = "https://sts.windows.net/<テナント ID>/"
+idp_sso_url = "https://login.microsoftonline.com/<テナント ID>/saml2"
+idp_certificates = ["""
+-----BEGIN CERTIFICATE-----
+MIIC8DCCAdigAwIBAgIQ...
+-----END CERTIFICATE-----
+"""]
+email_attribute = "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress"
+display_name_attribute = "http://schemas.microsoft.com/identity/claims/displayname"
+role_attribute = "http://schemas.microsoft.com/ws/2008/06/identity/claims/groups"
+post_login_redirect = "https://cms.example.com/admin/"
+
+[auth.saml.role_mapping]
+"<管理者グループの ID>" = "admin"
+"<編集者グループの ID>" = "editor"
+```
+
+IdP の署名鍵を切り替えるときは、新旧の証明書を `idp_certificates` に並べてから IdP 側を切り替え、終わったら古いほうを消します。
+
+### 8.2 ログインの流れ
+
+1. ボタン（`GET /api/v1/auth/saml/login`）が AuthnRequest を付けて IdP の SSO の URL へリダイレクトします。AuthnRequest の `ID` は 10 分間キャッシュ（`[cache]`）に保存します。
+2. IdP でのログイン後、ブラウザが `SAMLResponse` を `POST /api/v1/auth/saml/acs` に送ります。AegisCMS は署名と内容（8.4）を検証します。応答が答えている AuthnRequest の `ID` は 1 回限りで、同じ応答をもう一度送っても使えません。
+3. ユーザーを決め（8.3）、`on-user-authenticated` フック（[プラグインフック](plugin_hooks.ja.md#14-on-user-authenticated)）を通してセッションを発行します。
+4. OpenID Connect と同じく、`post_login_redirect` に `#session=<トークン>`（失敗時は `#login_error=<理由>`）を付けて Admin Studio に戻ります。
+
+### 8.3 ユーザーとロール
+
+OpenID Connect（6.3）と同じ規則です。
+
+- IdP のアカウント（IdP の Entity ID + NameID）と AegisCMS のユーザーの対応は `_aegis_user_identities` テーブルに保存します（プロバイダ名 `saml`）。
+- **初回ログイン**: `auto_create_users = true`（既定）なら、`username_attribute`（空なら NameID）をユーザー名にしてユーザーを作成し、紐付けます。2 回目以降は NameID で同じユーザーを見つけるので、ユーザー名の属性が変わってもアカウントは変わりません。
+- **同名のユーザーが既にいる場合は紐付けません**（`username_taken`）。既存のアカウントで SAML を使うには、管理者が `aegis-server user link-saml <username> <NameID>` で紐付けます。
+- `auto_create_users = false` なら、紐付け済みのユーザーだけがログインできます（`not_provisioned`）。
+- **ロール**: `role_attribute` を設定すると、ログインのたびにその属性の値を `role_mapping` で変換し（複数一致なら最も強いロール、一致しなければ `default_role`）、ユーザーアカウントのロールも更新します。空なら、ロールはユーザーアカウントのものです。
+- メールアドレス・表示名はログインのたびにユーザーアカウントへ反映します。無効化したユーザーはログインできません（`account_disabled`）。
+- セッションの `metadata` には `provider: "saml"`、`issuer`（IdP の Entity ID）、`name_id`、`name_id_format`、`session_index`、`attributes`（属性名 → 値の配列）が入ります。
+
+### 8.4 検証の内容
+
+| 対象 | 検証 |
+| --- | --- |
+| XML | DTD・処理命令・未宣言の名前空間接頭辞・重複した属性を含む文書と、256 KiB を超える応答は拒否 |
+| 署名 | 応答全体かアサーションの少なくとも一方に、`idp_certificates` の鍵による署名が必要。応答の `KeyInfo` の証明書は使わない。Exclusive C14N・enveloped-signature のみ、RSA-SHA256 / 384 / 512。署名が参照する `ID` は文書内で一意 |
+| 応答 | `StatusCode` が `Success`（それ以外は `idp_error`）、`Destination` が `acs_url`、`Issuer` が `idp_entity_id`、アサーションがちょうど 1 つ |
+| アサーション | `Issuer` が `idp_entity_id`、`Conditions` の有効期間内、`AudienceRestriction` に `entity_id`、`AuthnStatement` がある |
+| Subject | NameID がある（`transient` 以外）。bearer の `SubjectConfirmationData` の `Recipient` が `acs_url`、`NotOnOrAfter` が未来、`InResponseTo` が発行済みで未使用の AuthnRequest の `ID` |
+
+時刻の検証には 60 秒の誤差を認めます。
+
+**XML Signature Wrapping への対策**: 署名を検証した後は、受け取った文書からは何も読みません。署名の対象（応答またはアサーション）を、ダイジェストを計算したバイト列そのもの（正規化した XML）から改めて解析し、ユーザー名・属性・条件はすべてそこから読みます。署名済みのアサーションを別の場所に隠して偽のアサーションを置く、同じ `ID` の要素を足す、といった改変は、署名の検証に失敗するか、読む対象に入りません。NameID の途中にコメントを挟まれても、値は署名されたとおりの全体として読みます。
+
+### 8.5 失敗時の理由
+
+OpenID Connect（6.4）と同じ理由コードを使います。`invalid_token` は応答の検証に失敗した場合（署名・条件・形式。詳細はサーバーの警告ログ）、`invalid_state` は応答が答えている AuthnRequest が無い・期限切れ・使用済みの場合、`idp_error` は IdP が失敗の `StatusCode` を返した場合です。
+
+> [!NOTE]
+> SAML のログインも `[auth.login_rate_limit]` の対象外です。AuthnRequest には署名しません（メタデータは `AuthnRequestsSigned="false"`）。IdP 側で署名付きの AuthnRequest を必須にしている場合は外してください。
+
+### 8.6 今後の拡張方針・未対応機能
+
+AegisCMS では、標準的な SP-initiated Web Browser SSO（AuthnRequest、ACS、RSA-SHA256 署名検証、属性・ロールマッピング）を実装しており、Microsoft Entra ID や Okta 等の主要 IdP との基本的な連携が可能です。
+
+現代の企業・組織におけるシングルサインオンは、JSON/REST ベースで構成がシンプルな **OpenID Connect (OIDC, [6. シングルサインオン](#6-シングルサインオン-openid-connect))** が第一推奨となっており、95% 以上のケースで OIDC で必要十分です。
+
+SAML における以下の高度な拡張機能は、XML 暗号化やプロトコル複雑性に伴う脆弱性リスクおよび保守コストを避けるため現時点では未対応（保留）としています。学術認証フェデレーション（学認・Shibboleth）や特定のレガシー社内規程など、将来的に実運用上の強い要望が寄せられた段階で再検討します：
+- **IdP メタデータ URL からの自動読み込み**: 現状は Entity ID・SSO URL・署名用証明書を設定ファイル（`aegis.toml`）に明示的に設定。
+- **暗号化アサーション (`EncryptedAssertion`)**: 暗号化されたアサーションの復号には未対応（平文アサーションの署名検証のみ対応）。
+- **AuthnRequest への署名付与**: `AuthnRequestsSigned="false"`（署名付きリクエストを強制する IdP には未対応）。
+- **シングルログアウト (SLO)**: AegisCMS 側のログアウトは AegisCMS のセッション失効のみ行い、IdP 側のセッションは破棄しません。
+- **ECDSA 署名対応**: 署名アルゴリズムは RSA-SHA256 / RSA-SHA384 / RSA-SHA512 に対応（ECDSA は未対応）。
+
+---
+
+## 9. パスワードの再設定
+
+`[auth.password_reset]`（[設定リファレンス](configuration.ja.md)）を有効にすると、ログイン画面に **パスワードをお忘れですか？** のリンクが表示され、メールアドレス宛に再設定リンクを送信して安全にパスワードを変更できます。メール送信には [通知](notifications.ja.md)（`[notifications].enabled = true`）が必要です。
+
+```toml
+[auth.password_reset]
+enabled = true
+admin_url = "https://cms.example.com/admin/"   # 再設定リンクの開き先（省略時は [auth.registration].admin_url または [commerce].public_url + /admin/）
+token_ttl_secs = 3600                          # 再設定リンクの有効期限（1時間）
+max_per_ip_per_hour = 5                        # 同一 IP からのリクエスト上限（ブルートフォース防止）
+```
+
+### 9.1 再設定の流れ
+
+1. ログイン画面の **パスワードをお忘れですか？** から、登録済みメールアドレスを入力して送信します（`POST /api/v1/auth/password-reset`）。
+2. メールアドレスが存在し、かつユーザーが有効（`disabled = false`）な場合、暗号論的乱数トークン（256ビット）を発行し、その SHA-256 ハッシュをキーにしてキャッシュ（`password_reset:<hash>`）にユーザー名とともに保存します（有効期間: `token_ttl_secs`）。
+3. ユーザー宛に再設定リンク（`{admin_url}#reset-password=<トークン>`）を含む通知メール（`account.password_reset`）が送信されます。
+4. ユーザーがリンクを開くと、Admin Studio が URL フラグメントからトークンを読み取って直ちにアドレスバーの履歴から除去し、新しいパスワードの入力フォームを表示します。
+5. ユーザーが新しいパスワード（8文字以上）を入力して送信すると（`POST /api/v1/auth/password-reset/confirm`）、サーバーがトークンを検証・消費（単一使用）し、Argon2id でハッシュ化してパスワードを更新します。
+6. パスワード再設定が成功すると、監査ログ `user.password_reset` が記録され、ログイン画面に戻ります。
+
+### 9.2 API
+
+#### `POST /api/v1/auth/password-reset` — 再設定リンクの発行
+
+```json
+{ "email": "user@example.com" }
+```
+
+- `202 Accepted`: `{ "status": "accepted" }`
+- **アカウント列挙対策**: 入力されたメールアドレスがシステムに存在しない場合や無効化されている場合でも、**常に同じ `202 Accepted` を返します**。また、ハッシュ計算ダミー処理を行うため応答時間からのメールアドレス有無の推測も防止します。
+- クライアント IP ごとのレート制限（`max_per_ip_per_hour`）を超えた場合は `429 Too Many Requests` を返します。
+
+#### `POST /api/v1/auth/password-reset/confirm` — 新パスワードの確定
+
+```json
+{ "token": "<トークン>", "new_password": "NewSecurePassword123" }
+```
+
+- `200 OK`: `{ "status": "success", "username": "hanako" }`
+- 失敗時は `400 Bad Request`（`invalid_token`、`password_too_short` など）。トークンは一度利用されるとキャッシュから即時削除されます。
+
+---
+
+## 10. ユーザー招待リンク
+
+`[auth.invitation]`（[設定リファレンス](configuration.ja.md)）を有効にすると、`admin` ロールの管理者がメールアドレスと付与ロールを指定して新規ユーザーをシステムに招待できます。管理者が事前承認した形でアカウントが作成されるため、自己登録（`[auth.registration]`）の管理者承認フロー（`require_approval`）をバイパスして即時有効なアカウントを発行できます。
+
+```toml
+[auth.invitation]
+enabled = true
+admin_url = "https://cms.example.com/admin/"   # 招待リンクの開き先
+token_ttl_secs = 604800                        # 招待リンクの有効期限（7日間）
+```
+
+### 10.1 招待の流れ
+
+1. `admin` ユーザーが Admin Studio の **設定 → ユーザー** の **ユーザーを招待** ボタンから、招待対象のメールアドレスと割り当てロール（`admin` / `editor` / `viewer`）を入力して送信します（`POST /api/v1/auth/invitations`）。
+2. サーバーは 256 ビットの招待トークンを生成し、SHA-256 ハッシュをキーとしてキャッシュ（`invitation:<hash>`）にメールアドレスとロールを保存します。
+3. 招待対象者へ招待リンク（`{admin_url}#invite=<トークン>`）を含む通知メール（`account.invite`）が送信され、監査ログ `user.invite` が記録されます。
+4. 招待されたユーザーがリンクを開くと、Admin Studio がフラグメントからトークンを抽出しアドレスバーから消去した上で、`GET /api/v1/auth/invitations/info?token=<token>` を呼び出して招待されたメールアドレスとロールを確認表示します。
+5. ユーザーが希望するユーザー名・パスワード・表示名（任意）を入力して承諾を送信します（`POST /api/v1/auth/invitations/accept`）。
+6. サーバーはトークンを検証・消費し、即時有効なアカウント（`disabled = false, pending_approval = false`）を作成します。登録完了後はそのままログインして作業を開始できます。
+
+### 10.2 API
+
+#### `POST /api/v1/auth/invitations` — 招待の作成（要 `admin` ロール）
+
+```json
+{ "email": "newcomer@example.com", "role": "editor" }
+```
+
+- `201 Created`: `{ "email": "newcomer@example.com", "role": "editor", "expires_in_secs": 604800 }`
+- すでに同じメールアドレスのアカウントが存在する場合は `409 Conflict`（`email_taken`）を返します。
+
+#### `GET /api/v1/auth/invitations/info?token=<token>` — 招待情報の取得（公開）
+
+- `200 OK`: `{ "email": "newcomer@example.com", "role": "editor" }`
+- トークンが無効または有効期限切れの場合は `400 Bad Request`（`invalid_token`）を返します。
+
+#### `POST /api/v1/auth/invitations/accept` — 招待の承諾とアカウント作成（公開）
+
+```json
+{
+  "token": "<トークン>",
+  "username": "taro",
+  "password": "SecurePassword123",
+  "display_name": "山田太郎"
+}
+```
+
+- `201 Created`: `{ "status": "success", "username": "taro" }`
+- 失敗時は `400 Bad Request`（`invalid_token`、`invalid_username`、`password_too_short`）または `409 Conflict`（`username_taken`、`email_taken`）。
+
+---
+
+## 11. 承認通知 (`account.approved`)
+
+自己登録（`[auth.registration]`）で `require_approval = true`（既定）の場合、メールアドレス確認が完了したユーザーは `disabled = true` かつ `pending_approval = true` の承認待ち状態で作成されます。
+
+1. 管理者が Admin Studio の **設定 → ユーザー**（`UserManager.tsx`）を開くと、承認待ちアカウントには **承認待ち (Pending approval)** バッジが表示されます。
+2. 管理者がユーザーの編集画面を開くと、上部に承認待ちの案内バーが表示され、**承認して有効化** ボタンまたは「アカウントを有効化」の切り替えを行って保存します（`PATCH /api/v1/users/{username}` で `disabled: false`）。
+3. サーバーはユーザーを有効化（`disabled = false`）すると同時に `pending_approval = false` にクリアし、該当ユーザーのメールアドレス宛にアカウント承認通知メール（`account.approved`）を自動送信します。
+4. ユーザーは届いたメールを確認後、直ちにログインできるようになります。単なる無効化アカウントの一時的な解除など `pending_approval` が `false` のユーザーを更新した際にはこの通知は送信されません。
+
+
+---
+
+## 12. 二段階認証 (2FA / TOTP)
+
+AegisCMS では、パスワード認証に加えて **TOTP (Time-based One-Time Password / RFC 6238)** による二段階認証（2FA）をサポートしています。
+
+- **対応アプリ**: Google Authenticator、1Password、Authy、Apple パスワードキーチェーンなど標準的な TOTP アプリ
+- **バックアップコード**: 有効化時に **6 枚** の使い捨て復旧コードを発行。コードは SHA-256 ハッシュ化してデータベースに保存され、使用ごとに消費されます。
+- **緊急解除**: 認証端末の紛失やバックアップコード紛失時は、`admin` ロールの管理者による Web 画面からのリセット、またはサーバー端末での CLI コマンド（`aegis-server user disable-2fa <username>`）で即時解除できます。
+
+### 12.1 二段階認証の設定手順 (ユーザー)
+
+![プロフィールの二段階認証の設定（QR コードを認証アプリで読み取る）](images/profile-2fa.png)
+
+1. Admin Studio のヘッダー右上のアバターから **プロフィール (My profile)** を開きます。
+2. **二段階認証 (TOTP)** セクションの **二段階認証を設定する** をクリックします。
+3. 表示された QR コードをお手元の認証アプリでスキャンします（手動入力用の Base32 シークレットも表示されます）。
+4. 認証アプリに表示された 6 桁のコードを入力し、**有効化する** をクリックします。
+5. 有効化に成功すると、画面上に **6 枚の使い捨てバックアップコード**（例: `A1B2-C3D4`）が表示されます。**すべてコピー** をクリックして安全な場所に保存し、**保存しました（閉じる）** をクリックして完了します。
+
+### 12.2 二段階認証ログインフロー
+
+1. 通常のログイン画面（`LoginView.tsx`）でユーザー名とパスワードを入力します。
+2. サーバー（`POST /api/v1/auth/session`）はパスワードを検証後、対象ユーザーの 2FA が有効な場合はセッションを発行せず、5 分間有効な一時トークン（`challenge_token`）と `{ "mfa_required": true }` を返します。
+3. 画面が自動的に二段階認証コード入力フォームへ切り替わります。
+4. ユーザーが 6 桁の認証コード（または「バックアップコードを使用する」から 8 桁のバックアップコード）を入力して送信します（`POST /api/v1/auth/session/verify-2fa`）。
+5. サーバーがコードを検証し、正規の Bearer セッションを発行します。バックアップコードが使われた場合は該当コードが DB から自動的に消費・削除されます。
+
+### 12.3 管理者による解除・復旧
+
+端末紛失等でログインできなくなったユーザーが存在する場合、管理者は以下のいずれかの方法で 2FA を解除できます。
+
+1. **Admin Studio からの解除**:
+   - **設定 → ユーザー**（`UserManager.tsx`）を開き、一覧で該当ユーザーの「2FA」列（有効バッジ）を確認します。
+   - ユーザー編集モーダルを開き、**2FA を強制解除** ボタンをクリックして確認ダイアログを承認します（`POST /api/v1/users/{username}/2fa/reset`）。
+2. **CLI からの緊急解除**:
+   ```bash
+   aegis-server user disable-2fa <username>
+   ```
+   解除と同時に対象ユーザーの既存セッションは即時失効され、次回からパスワードのみでログイン可能になります。
+
+---
+
+## 13. API トークン
+
+AI エージェント（LLM）・スクリプト・CI に、ユーザー名とパスワードの代わりに渡す長命の Bearer トークンです。パスワードを平文で渡さずに済み、漏れても失効すれば済みます。
+
+```bash
+curl -s http://127.0.0.1:8080/api/v1/contents/article \
+  -H 'Authorization: Bearer aegis_pat_...'
+```
+
+`aegis_pat_` で始まる値は、通常のセッション（`ses_...`）と同じヘッダー（`Authorization: Bearer` または `X-Session-Id`）に付けるだけで使えます。API ごとの必要なロールは [1](#ロールと-api-の権限) の表のとおりです。
+
+### 13.1 権限
+
+- **ロールの上限**: 発行時に `viewer` / `contributor` / `reviewer` / `editor` から選びます。持ち主のロールより高いロールは選べません。**`admin` は選べません**（ユーザー管理・設定・監査ログなど `admin` の API は、トークンでは使えません）。
+- **持ち主のいまのロールとの低いほう**: 発行後に持ち主が降格されると、トークンの権限もすぐ下がります。持ち主を無効化・削除するとトークンは使えなくなります（削除ではトークンも消えます）。
+- **人間のセッションに限る操作**: トークンでは、トークンの発行・一覧・失効（`/api/v1/users/me/tokens`）、パスワードの変更、二段階認証の設定・解除ができません（`403`）。漏れたトークンで別のトークンを増やしたり、アカウントを乗っ取ったりできないようにするためです。
+- **有効期限**: 発行時に日数（1〜3650）で決めます（既定 90 日）。無期限にもできます。期限切れは `401` です。
+- 1 ユーザーにつき 20 本まで。
+
+### 13.2 保存と記録
+
+- トークンは 244 ビットの乱数で、**平文は発行時の応答に 1 度だけ**入ります。DB（`_aegis_api_tokens`）には SHA-256 のハッシュと、一覧で見分けるための先頭部分（`aegis_pat_` + 4 文字）だけを保存します。サーバーのログ・監査ログ・バックアップにも平文は残りません。
+- **バックアップに含めません**。復元した環境では、トークンを発行し直してください。
+- 最終使用日時は、1 分に 1 回までの間隔で記録します。
+- 発行と失効は監査ログの `user.update`（`details.action` が `api_token.create` / `api_token.revoke`）に記録します。トークンの値は記録しません。
+- 検証に失敗したトークンは、他のセッションと同じく `access.denied`（`invalid_session`）に指紋だけを記録します。
+- `GET /api/v1/auth/session` では、トークンで認証したセッションは `metadata.provider = "api_token"` で見分けられます（`id` は `pat_<トークン ID>` で、トークン自体は返しません）。
+
+### 13.3 API（ログイン中のユーザー自身。トークンでは呼べない）
+
+| API | 内容 |
+| --- | --- |
+| `GET /api/v1/users/me/tokens` | 自分のトークンの一覧（`{"tokens": [...]}`、新しい順）。ハッシュ・トークン本体は含まない |
+| `POST /api/v1/users/me/tokens` | 発行。本文は `name`（必須、64 文字まで）、`role`（`viewer` / `contributor` / `reviewer` / `editor`。既定 `viewer`）、`expires_in_days`（既定 90、`null` は無期限）。`201` で、一覧の項目に `token`（本体）を加えて返す |
+| `DELETE /api/v1/users/me/tokens/{id}` | 失効（他人のトークンは `404`）。`204`。直ちに使えなくなる |
+
+```json
+{
+  "id": "5b0f6a62-...",
+  "name": "claude-code",
+  "prefix": "aegis_pat_3f9a",
+  "role": "editor",
+  "created_at": "2026-11-12T00:00:00Z",
+  "expires_at": "2027-02-10T00:00:00Z",
+  "last_used_at": null,
+  "token": "aegis_pat_3f9a..."
+}
+```
+
+### 13.4 Admin Studio と CLI
+
+- **Admin Studio**: ヘッダーのアバターから **My profile** を開くと、**API トークン** 欄で発行・一覧・失効できます。発行直後に 1 度だけ本体を表示します。
+- **CLI**（サーバー端末での発行。ログインせずに渡したいとき）:
+
+```bash
+aegis-server user token-create alice --name claude-code --role editor --days 90
+aegis-server user token-create alice --name ci --role viewer --no-expiry
+aegis-server user token-list alice
+aegis-server user token-revoke alice <トークン ID>
+```
+
+### 13.5 LLM に渡すときの注意
+
+- 渡すロールは必要最小限にします（読むだけなら `viewer`）。コンテンツを書かせる場合は `contributor`（下書きとレビュー依頼まで）、校正・承認させる場合は `reviewer` が安全です。
+- 用途ごとに別のトークンを発行し、名前に用途を書いておくと、漏れたときに該当のものだけ失効できます。
+- トークンはプロンプトや会話ログに残る前提で扱います。有効期限を短めにし、使い終わったら失効してください。

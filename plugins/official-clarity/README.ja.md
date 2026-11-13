@@ -7,7 +7,7 @@
 ## 何をするか
 
 - **`on-render-page`** で、`<head>` に Clarity の標準の起動コードを入れる。
-- **Cookie の同意を待つ**: 既定では `type="text/plain"` と `data-aegis-consent="analytics"` の形で出し、同意バナー（`[consent]`）のスクリプトが、訪問者の同意のあとに実行します（[consent.md](../../docs/consent.md)）。**`[consent].enabled = true` にしていないと、Clarity は動きません**。同意が要らないサイトだけ、`require_consent = false` にしてください。
+- **Cookie の同意を待つ**: 既定では `type="text/plain"` と `data-aegis-consent="analytics"` の形で出し、同意バナー（`[consent]`）のスクリプトが、訪問者の同意のあとに実行します（[consent.md](../../docs/consent.ja.md)）。**`[consent].enabled = true` にしていないと、Clarity は動きません**。同意が要らないサイトだけ、`require_consent = false` にしてください。
 - **CSP を自動で足す**: プラグインを有効にすると、Clarity の公式の案内（[Clarity Content Security Policy](https://learn.microsoft.com/en-us/clarity/clarity-csp)）にある次のホストが、CSP に加わります。サイト全体の CSP を書き換える必要はありません。
   - `script-src`: `www.clarity.ms`、`scripts.clarity.ms`
   - `connect-src`: `www.clarity.ms`、`scripts.clarity.ms`、`a.clarity.ms` 〜 `z.clarity.ms`、`c.bing.com`

@@ -4,7 +4,7 @@
 
 本文に置ける**カスタムブロック**を足すプラグインのひな形です（`render-blocks` フック）。ノート（補足・注意の囲み）を 1 つ足す最小の例で、入力欄の宣言（`plugin.manifest.json` の `blocks`）、HTML の作成（`src/lib.rs` の `render_blocks`）、ネイティブの単体テストが入っています。
 
-**手順は [最初のブロックプラグインを作る](../../../docs/plugin_block_tutorial.md) にまとめています**（コピー → 編集 → テスト → ビルド → 開発サーバー → 実サーバーの記事）。
+**手順は [最初のブロックプラグインを作る](../../../docs/plugin_block_tutorial.ja.md) にまとめています**（コピー → 編集 → テスト → ビルド → 開発サーバー → 実サーバーの記事）。
 
 ```bash
 cargo test                                                    # Wasm なしでテスト

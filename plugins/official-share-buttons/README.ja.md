@@ -2,7 +2,7 @@
 
 [English](README.md) | **日本語**
 
-記事・固定ページに **SNS 共有ボタン**（X、LINE、URL コピー、Facebook、はてなブックマーク、Bluesky、Threads、Pocket、LinkedIn、およびカスタム共有先）を足す公式プラグインです（[`on-render-page` フック](../../docs/plugin_hooks.md)）。
+記事・固定ページに **SNS 共有ボタン**（X、LINE、URL コピー、Facebook、はてなブックマーク、Bluesky、Threads、Pocket、LinkedIn、およびカスタム共有先）を足す公式プラグインです（[`on-render-page` フック](../../docs/plugin_hooks.ja.md)）。
 
 - **標準対応プラットフォーム**: X (Twitter)、LINE、URL コピー、Facebook、はてなブックマーク、Bluesky、Threads、Pocket、LinkedIn
 - **カスタム共有先**: `custom_services` 設定に URL テンプレートを指定することで、任意の Web サービス・SNS をボタンとして追加可能

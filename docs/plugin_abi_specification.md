@@ -1,70 +1,72 @@
-[← ドキュメント一覧に戻る](README.ja.md)
+[← Back to the documentation index](README.md)
 
-# AegisCMS WebAssembly プラグイン 共通 ABI 仕様書 (ABI Specification)
+**English** | [日本語](plugin_abi_specification.ja.md)
 
-本ドキュメントは、AegisCMS のゼロ・トラスト WebAssembly プラグインとホストランタイム (`aegis-runtime`) 間で取り交わされる低レイヤー ABI (Application Binary Interface)、メモリモデル、ホスト API、ライフサイクルフック、およびデータ交換規約を定義する言語非依存の標準仕様書です。
+# AegisCMS WebAssembly Plugin Common ABI Specification
 
-Rust のみならず、**AssemblyScript**、**TinyGo**、**C/C++**、**Zig** などの任意の WebAssembly 対応言語でプラグインや SDK を実装する際の準拠標準となります。
+This document is the language-independent standard specification that defines the low-level ABI (Application Binary Interface), memory model, host API, lifecycle hooks, and data exchange conventions exchanged between AegisCMS's zero-trust WebAssembly plugins and the host runtime (`aegis-runtime`).
 
----
-
-## 1. アーキテクチャと実行モデル
-
-AegisCMS のプラグインシステムは、Bytecode Alliance 製 WebAssembly ランタイム `Wasmtime` をホストエンジンとして採用しています。
-
-- **サンドボックス隔離**: プラグインはゲストの 32bit リニアメモリ空間内に完全に隔離され、ホストの物理メモリや OS リソースへの直接アクセスは不可能です。
-- **インスタンス完全分離**: フック呼び出しごとに独立した `Store` および `Instance` が生成され、状態の汚染やプラグイン間メモリ共有を防ぎます（永続状態はホスト提供の KVS を使用）。
-- **ゼロ・トラスト実行制御**:
-  - **Fuel（CPU クォータ）**: 各フック呼び出しで使用可能な命令数を厳格に制限（無限ループや DoS 対策）。
-  - **非同期タイムアウト**: 指定ミリ秒（例: 250ms）を超過したフック呼び出しはホストによって強制終了。
-  - **ケイパビリティガード**: `plugin.manifest.json` で宣言されていないネットワークやストレージアクセスは、ホスト API 呼び出し時に即座に遮断。
+It is the standard to follow when implementing plugins and SDKs not only in Rust but also in any WebAssembly-capable language such as **AssemblyScript**, **TinyGo**, **C/C++**, and **Zig**.
 
 ---
 
-## 2. メモリ管理 & パスバイバリュー規約
+## 1. Architecture and Execution Model
 
-### 2.1 WebAssembly メモリエクスポート
+AegisCMS's plugin system uses the Bytecode Alliance's WebAssembly runtime `Wasmtime` as the host engine.
 
-プラグインモジュールは、自身のリニアメモリを `"memory"` という名前で必ずエクスポートする必要があります。
+- **Sandbox isolation**: a plugin is completely isolated inside the guest's 32-bit linear memory space and cannot directly access the host's physical memory or OS resources.
+- **Complete instance separation**: an independent `Store` and `Instance` are created for each hook call, preventing state contamination and memory sharing between plugins (use the host-provided KVS for persistent state).
+- **Zero-trust execution control**:
+  - **Fuel (CPU quota)**: strictly limits the number of instructions usable in each hook call (against infinite loops and DoS).
+  - **Asynchronous timeout**: a hook call exceeding the specified milliseconds (e.g. 250 ms) is forcibly terminated by the host.
+  - **Capability guard**: network and storage access not declared in `plugin.manifest.json` is blocked immediately when the host API is called.
+
+---
+
+## 2. Memory Management & Pass-by-Value Conventions
+
+### 2.1 WebAssembly Memory Export
+
+A plugin module must always export its own linear memory under the name `"memory"`.
 
 ```wat
 (export "memory" (memory 0))
 ```
 
-### 2.2 メモリアロケータエクスポート (`allocate`)
+### 2.2 Memory Allocator Export (`allocate`)
 
-ホストがプラグインへ文字列や JSON データを書き込む領域を確保するため、プラグインは以下のシグネチャを持つアロケーション関数を必ずエクスポートしなければなりません。
+So the host can secure a region to write strings and JSON data into the plugin, the plugin must always export an allocation function with the following signature.
 
 ```text
 allocate(len: i32) -> i32
 ```
 
-- **引数**:
-  - `len` (i32): 確保したいバイトサイズ。
-- **戻り値**:
-  - 確保されたゲストリニアメモリ上の先頭オフセットアドレス (`ptr`: i32)。
-  - メモリ枯渇等で確保に失敗した場合は `0` を返します。
+- **Argument**:
+  - `len` (i32): the byte size to allocate.
+- **Return value**:
+  - The starting offset address on the guest linear memory of the allocated region (`ptr`: i32).
+  - Returns `0` if allocation fails, such as from memory exhaustion.
 
-### 2.3 ホストからゲストへのデータ渡し手順
+### 2.3 Steps for Passing Data from Host to Guest
 
-1. ホストはプラグインのエクスポート関数 `allocate(len)` を呼び出し、必要なバイト長 `len` 分のバッファをゲストメモリ内に確保させます。
-2. ホストは返却された先頭アドレス `ptr` を起点として、UTF-8 エンコードされた JSON バイト列をゲストメモリに直接書き込みます。
-3. ホストは対象のライフサイクルフック関数（例: `on_before_save(ptr, len)`）を呼び出します。
-4. ゲスト側は `ptr` から `len` バイトを読み取り、JSON をデシリアライズします。使用後の入力バッファはゲスト側の責任でメモリ解放または GC に委ねます。
+1. The host calls the plugin's exported function `allocate(len)` and has it secure a buffer of the required byte length `len` in guest memory.
+2. Starting from the returned starting address `ptr`, the host writes the UTF-8-encoded JSON bytes directly into guest memory.
+3. The host calls the target lifecycle hook function (e.g. `on_before_save(ptr, len)`).
+4. The guest reads `len` bytes from `ptr` and deserializes the JSON. Releasing the input buffer after use, or leaving it to GC, is the guest's responsibility.
 
-### 2.4 ゲストからホストへの結果返却 (Fat Pointer パッキング)
+### 2.4 Returning Results from Guest to Host (Fat Pointer Packing)
 
-ライフサイクルフック関数は、変換後のデータや実行結果を単一の **64bit 符号付き整数 (`i64`)** にパックしてホストへ返却します。
+Lifecycle hook functions pack the transformed data or execution result into a single **64-bit signed integer (`i64`)** and return it to the host.
 
-#### パッキング規則
-- **上位 32bit**: 結果データが格納されたゲストメモリの先頭ポインタ (`ptr` as i32)
-- **下位 32bit**: 結果データのバイト長 (`len` as u32)
+#### Packing Rule
+- **Upper 32 bits**: the starting pointer of the guest memory holding the result data (`ptr` as i32)
+- **Lower 32 bits**: the byte length of the result data (`len` as u32)
 
 ```text
 packed_result (i64) = ((ptr as i64) << 32) | ((len as u32) as i64)
 ```
 
-#### 各言語でのパッキング実装例
+#### Packing Implementation Examples by Language
 - **Rust**:
   ```rust
   ((ptr as i64) << 32) | ((len as u32) as i64)
@@ -78,76 +80,76 @@ packed_result (i64) = ((ptr as i64) << 32) | ((len as u32) as i64)
   (int64(ptr) << 32) | (int64(uint32(length)) & 0xFFFFFFFF)
   ```
 
-#### ホスト側のアンパック処理
-ホストは受け取った `i64` から `(packed >> 32) as i32` でポインタを、`packed as u32` でバイト長を復元し、ゲストメモリから結果バイト列を読み取ります。
+#### The Host's Unpacking
+From the received `i64`, the host restores the pointer with `(packed >> 32) as i32` and the byte length with `packed as u32`, and reads the result bytes from guest memory.
 
 ---
 
-## 3. ホスト API インポート仕様 (`host` モジュール)
+## 3. Host API Import Specification (the `host` Module)
 
-プラグインは、ホスト環境から提供される機能を以下のインポートシグネチャを通じて利用できます。モジュール名はすべて `"host"` です。
+A plugin can use the functionality the host environment provides through the following import signatures. The module name is `"host"` for all of them.
 
-**インポートできるのは以下の `host` モジュールの関数だけです。** それ以外（`env.abort`、`wasi_snapshot_preview1.*` など）をインポートするモジュールは読み込み時に拒否されます。
+**The only things that can be imported are the following functions of the `host` module.** A module that imports anything else (`env.abort`, `wasi_snapshot_preview1.*`, etc.) is rejected at load time.
 
-- AssemblyScript: 既定の `env.abort` を `asconfig.json` の `"use": ["abort=assembly/sdk/host/abort"]` で SDK の実装に差し替える。
-- TinyGo: `-target=wasm-unknown` でビルドする（`wasi` ターゲットは WASI をインポートする）。
+- AssemblyScript: replace the default `env.abort` with the SDK's implementation using `"use": ["abort=assembly/sdk/host/abort"]` in `asconfig.json`.
+- TinyGo: build with `-target=wasm-unknown` (the `wasi` target imports WASI).
 
-モジュールが `_initialize`（引数・戻り値なし）をエクスポートしている場合、ホストはインスタンス化の直後、他のエクスポートより先に呼び出します（WASI のリアクター形式の慣例。TinyGo の `wasm-unknown` はランタイムとグローバル変数をここで初期化する）。
+If a module exports `_initialize` (no arguments or return value), the host calls it right after instantiation, before any other export (the WASI reactor-style convention; TinyGo's `wasm-unknown` initializes the runtime and global variables here).
 
 ### 3.1 `host.log`
 
-ホストの構造化ログ機構（`tracing`）経由で安全にログを出力します。
+Safely outputs logs through the host's structured logging facility (`tracing`).
 
 ```text
 (import "host" "log" (func (param i32 i32 i32)))
 ```
 
-- **引数**:
-  - `level` (i32): ログレベル
+- **Arguments**:
+  - `level` (i32): the log level
     - `0`: DEBUG
     - `1`: INFO
     - `2`: WARN
-    - `3` (またはその他): ERROR
-  - `ptr` (i32): ログメッセージ文字列 (UTF-8) の先頭ポインタ
-  - `len` (i32): ログメッセージ文字列のバイト長
+    - `3` (or anything else): ERROR
+  - `ptr` (i32): the starting pointer of the log message string (UTF-8)
+  - `len` (i32): the byte length of the log message string
 
 ### 3.2 `host.http_check_allowed`
 
-アクセス先 URL がプラグインマニフェストの `capabilities.network.allowed_domains` で許可されているかをホスト側で検証します。
+The host verifies whether the destination URL is allowed by `capabilities.network.allowed_domains` in the plugin manifest.
 
 ```text
 (import "host" "http_check_allowed" (func (param i32 i32) (result i32)))
 ```
 
-- **引数**:
-  - `ptr` (i32): 検証対象 URL 文字列 (UTF-8) の先頭ポインタ
-  - `len` (i32): URL 文字列のバイト長
-- **戻り値** (i32):
-  - `1`: 許可 (Allowed)
-  - `0`: 拒否 (Denied / 不正な URL)
+- **Arguments**:
+  - `ptr` (i32): the starting pointer of the URL string to verify (UTF-8)
+  - `len` (i32): the byte length of the URL string
+- **Return value** (i32):
+  - `1`: allowed (Allowed)
+  - `0`: denied (Denied / invalid URL)
 
 ### 3.3 `host.kv_set`
 
-プラグイン専用ネームスペースの Key-Value ストアへデータを永続化・更新します。マニフェストの `capabilities.storage.kv_namespace` で許可されている必要があります。
+Persists and updates data in the Key-Value store of the plugin's own namespace. It must be permitted by `capabilities.storage.kv_namespace` in the manifest.
 
 ```text
 (import "host" "kv_set" (func (param i32 i32 i32 i32) (result i32)))
 ```
 
-- **引数**:
-  - `k_ptr` (i32): キー文字列 (UTF-8) の先頭ポインタ
-  - `k_len` (i32): キー文字列のバイト長
-  - `v_ptr` (i32): 値文字列 (UTF-8) の先頭ポインタ
-  - `v_len` (i32): 値文字列のバイト長
-- **戻り値** (i32):
-  - `0`: 成功 (Ok)
-  - `1`: 権限不足 (Denied: マニフェストに storage 権限が未宣言)
-  - `2`: エラー (Internal Error: メモリアクセス失敗やロック競合)
-- 値はサーバーの `[cache]` バックエンドに保存されます（`redis` なら再起動後も残る）。
+- **Arguments**:
+  - `k_ptr` (i32): the starting pointer of the key string (UTF-8)
+  - `k_len` (i32): the byte length of the key string
+  - `v_ptr` (i32): the starting pointer of the value string (UTF-8)
+  - `v_len` (i32): the byte length of the value string
+- **Return value** (i32):
+  - `0`: success (Ok)
+  - `1`: insufficient permission (Denied: storage permission not declared in the manifest)
+  - `2`: error (Internal Error: memory access failure or lock contention)
+- The value is stored in the server's `[cache]` backend (with `redis` it remains after a restart).
 
-### 3.4 ゲストメモリへ結果を返すインポートの共通規約
+### 3.4 Common Convention for Imports That Return Results to Guest Memory
 
-`kv_get` / `http_fetch` / `config_get` は結果の長さが事前に分からないため、ホストがゲストの `allocate` エクスポートを呼んで領域を確保し、そこへ UTF-8 の結果を書き込んで `(ptr << 32) | len` の `i64` を返します。ゲストは読み終えたら領域を解放します（Rust SDK の `abi::read_bytes_from_host`）。`0` は「値なし」、負の値はエラーです。
+`kv_get` / `http_fetch` / `config_get` do not know the length of the result in advance, so the host calls the guest's `allocate` export to secure a region, writes the UTF-8 result into it, and returns an `i64` of `(ptr << 32) | len`. The guest frees the region when done reading (the Rust SDK's `abi::read_bytes_from_host`). `0` means "no value", and a negative value is an error.
 
 ### 3.5 `host.kv_get`
 
@@ -155,173 +157,173 @@ packed_result (i64) = ((ptr as i64) << 32) | ((len as u32) as i64)
 (import "host" "kv_get" (func (param i32 i32) (result i64)))
 ```
 
-- **引数**: キー文字列 (UTF-8) の `ptr`, `len`（ネームスペースはホストが付ける）
-- **戻り値** (i64): 値の `(ptr << 32) | len`、未設定なら `0`、権限不足（storage 未宣言）は `-1`、エラーは `-2`
+- **Arguments**: the `ptr`, `len` of the key string (UTF-8) (the host adds the namespace)
+- **Return value** (i64): the value's `(ptr << 32) | len`; `0` if unset; `-1` for insufficient permission (storage not declared); `-2` for an error
 
 ### 3.6 `host.http_fetch`
 
-`allowed_domains` で許可された宛先へ HTTP リクエストを送ります。
+Sends an HTTP request to a destination permitted by `allowed_domains`.
 
 ```text
 (import "host" "http_fetch" (func (param i32 i32) (result i64)))
 ```
 
-- **引数**: リクエスト JSON の `ptr`, `len`
+- **Arguments**: the `ptr`, `len` of the request JSON
   ```json
   { "method": "POST", "url": "https://hooks.slack.com/services/…",
     "headers": { "Content-Type": "application/json" }, "body": "{\"text\":\"hi\"}" }
   ```
-- **戻り値** (i64): 応答 JSON `{"status": 200, "headers": {"content-type": "…"}, "body": "…"}`、または失敗時 `{"error": "<理由>"}` の `(ptr << 32) | len`（書き込めなければ `0`）
-- **制限**: メソッドは GET / POST / PUT / PATCH / DELETE、本文は送受信とも 1 MiB、1 回 10 秒、1 回のフック呼び出しで 8 回まで。待ち時間はフックの `execution_timeout_ms` に含まれる
-- **宛先の制限**: `http` / `https` だけで、ポートは `https` が 443、`http` が 80 か 8080 だけ。内部の IP アドレス（ループバック・プライベート・リンクローカルなど。ホスト名が解決される先も）へは通信しない。リダイレクトは 3 回までホストが追い、**移った先ごと**に許可ドメインと上の制限を確認する（許可されていない先へ移るときはエラー）
+- **Return value** (i64): the `(ptr << 32) | len` of the response JSON `{"status": 200, "headers": {"content-type": "…"}, "body": "…"}`, or on failure `{"error": "<reason>"}` (`0` if it could not be written)
+- **Limits**: the methods are GET / POST / PUT / PATCH / DELETE; the body is 1 MiB for both sending and receiving; 10 seconds per call; up to 8 calls per hook invocation. The waiting time is included in the hook's `execution_timeout_ms`
+- **Destination restrictions**: only `http` / `https`, and ports only 443 for `https` and 80 or 8080 for `http`. It does not connect to internal IP addresses (loopback, private, link-local, etc., including where host names resolve to). The host follows redirects up to 3 times and checks the allowed domains and the above restrictions **at each destination** (moving to a destination that is not allowed is an error)
 
 ### 3.7 `host.config_get`
 
-サーバーの `[plugins.settings.<プラグイン名>]` の値を読みます。
+Reads values from the server's `[plugins.settings.<plugin name>]`.
 
 ```text
 (import "host" "config_get" (func (param i32 i32) (result i64)))
 ```
 
-- **引数**: キー文字列の `ptr`, `len`
-- **戻り値** (i64): 値（文字列はそのまま、それ以外は JSON）の `(ptr << 32) | len`、未設定なら `0`
+- **Arguments**: the `ptr`, `len` of the key string
+- **Return value** (i64): the value's `(ptr << 32) | len` (strings as is, anything else as JSON); `0` if unset
 
 ---
 
-## 4. ライフサイクルフック仕様 (ゲストエクスポート関数)
+## 4. Lifecycle Hook Specification (Guest Export Functions)
 
-プラグインは、実行したいフックに対応する以下の関数をエクスポートします。マニフェストの `capabilities.hooks` に該当フック名（ケバブケース）が宣言されている場合のみホストから呼び出されます。
+A plugin exports the following functions corresponding to the hooks it wants to run. They are called by the host only when the corresponding hook name (kebab-case) is declared in the manifest's `capabilities.hooks`.
 
-| マニフェストフック名 | Wasm エクスポート関数名 | 引数 | 戻り値 | 役割 |
+| Manifest hook name | Wasm export function name | Arguments | Return | Role |
 |---|---|---|---|---|
-| `on-before-save` | `on_before_save` | `(ptr: i32, len: i32)` | `i64` | 記事保存直前の検証・値補正・保存拒否 |
-| `transform-content-ast` | `transform_content_ast` | `(ptr: i32, len: i32)` | `i64` | ブロック AST 配列の変換・装飾 |
-| `on-render-page` | `on_render_page` | `(ptr: i32, len: i32)` | `i64` | 公開ページ描画コンテキストの動的変更 |
-| `on-user-authenticated` | `on_user_authenticated` | `(ptr: i32, len: i32)` | `i64` | ログイン成功後のロールマッピング・属性の補完・ログイン拒否 |
-| `calculate-order` | `calculate_order` | `(ptr: i32, len: i32)` | `i64` | 送料・税・割引の追加、注文の拒否 |
-| `on-order-status-changed` | `on_order_status_changed` | `(ptr: i32, len: i32)` | `i64` | 注文の作成・状態の変化の通知 |
-| `send-notification` | `send_notification` | `(ptr: i32, len: i32)` | `i64` | 通知の配信チャネル（Slack・SMS など） |
-| `on-content-published` | `on_content_published` | `(ptr: i32, len: i32)` | `i64` | 予約公開などコンテンツ公開時の通知 |
-| `check-comment` | `check_comment` | `(ptr: i32, len: i32)` | `i64` | コメントの審査（[4.8.1](#481-check_comment)） |
-| `render-blocks` | `render_blocks` | `(ptr: i32, len: i32)` | `i64` | 本文のカスタムブロックの HTML（[4.9](#49-render_blocks)） |
+| `on-before-save` | `on_before_save` | `(ptr: i32, len: i32)` | `i64` | Validation, value correction, and save refusal right before an article is saved |
+| `transform-content-ast` | `transform_content_ast` | `(ptr: i32, len: i32)` | `i64` | Transforming and decorating the block AST array |
+| `on-render-page` | `on_render_page` | `(ptr: i32, len: i32)` | `i64` | Dynamic changes to the public page rendering context |
+| `on-user-authenticated` | `on_user_authenticated` | `(ptr: i32, len: i32)` | `i64` | Role mapping after a successful login, supplementing attributes, refusing login |
+| `calculate-order` | `calculate_order` | `(ptr: i32, len: i32)` | `i64` | Adding shipping, tax, discounts; refusing an order |
+| `on-order-status-changed` | `on_order_status_changed` | `(ptr: i32, len: i32)` | `i64` | Notification of order creation and status changes |
+| `send-notification` | `send_notification` | `(ptr: i32, len: i32)` | `i64` | A notification delivery channel (Slack, SMS, etc.) |
+| `on-content-published` | `on_content_published` | `(ptr: i32, len: i32)` | `i64` | Notification when content is published, such as by scheduled publication |
+| `check-comment` | `check_comment` | `(ptr: i32, len: i32)` | `i64` | Comment moderation ([4.8.1](#481-check_comment)) |
+| `render-blocks` | `render_blocks` | `(ptr: i32, len: i32)` | `i64` | HTML for custom body blocks ([4.9](#49-render_blocks)) |
 
 ### 4.1 `on_before_save`
 
-記事がデータベースに保存される直前に呼び出されます。
+Called right before an article is saved to the database.
 
-- **入力**: UTF-8 JSON エンコードされた `PostContext`
-- **戻り値**:
-  - 成功時: 変更後の `PostContext` を UTF-8 JSON 化し、パックした `i64`
-  - 保存拒否時: エラーエンベロープ `{"error": "<拒否理由メッセージ>"}` を UTF-8 JSON 化し、パックした `i64`
-- **保存拒否の挙動**:
-  - エラーエンベロープが返されると、ホストは記事の保存処理を即座に中断し、API は `422 Unprocessable Entity` を返します。
+- **Input**: a UTF-8 JSON-encoded `PostContext`
+- **Return value**:
+  - On success: the modified `PostContext` as UTF-8 JSON, packed into an `i64`
+  - To refuse saving: the error envelope `{"error": "<refusal reason message>"}` as UTF-8 JSON, packed into an `i64`
+- **Behavior on refusal**:
+  - When an error envelope is returned, the host immediately aborts saving the article, and the API returns `422 Unprocessable Entity`.
 
 ### 4.2 `transform_content_ast`
 
-記事本文のブロック AST 配列を変換します。保存時および管理画面のリアルタイムプレビュー時に実行されます。
+Transforms the article body's block AST array. It runs on save and on the admin screen's real-time preview.
 
-- **入力**: UTF-8 JSON エンコードされた `BlockNode[]` 配列
-- **戻り値**: 変換後の `BlockNode[]` 配列を UTF-8 JSON 化し、パックした `i64`
-- **注意事項**:
-  - ブロック配列を変更しない場合、引数で渡された `(ptr, len)` をそのままパックして返却可能です。
-  - プレビューのたびに実行されるため、外部副作用（HTTP リクエストや KVS 書き込み）を持たせないでください。
+- **Input**: a UTF-8 JSON-encoded `BlockNode[]` array
+- **Return value**: the transformed `BlockNode[]` array as UTF-8 JSON, packed into an `i64`
+- **Notes**:
+  - If you do not change the block array, you can pack and return the `(ptr, len)` passed in as is.
+  - It runs on every preview, so do not give it external side effects (HTTP requests or KVS writes).
 
 ### 4.3 `on_render_page`
 
-一般公開ページ (`GET /`, `GET /articles/{slug}`) またはプレビュー全体のレンダリング直前に呼び出されます。
+Called right before rendering a public page (`GET /`, `GET /articles/{slug}`) or the whole preview.
 
-- **入力**: UTF-8 JSON エンコードされた `PageRenderContext`
-- **戻り値**: 変更後の `PageRenderContext` を UTF-8 JSON 化し、パックした `i64`
-- **注意事項**:
-  - サイトタイトル (`site_title`)、追加 CSS (`extra_css`)、追加ヘッダー (`extra_head`)、テンプレート変数 (`variables`) を動的に更新できます。
+- **Input**: a UTF-8 JSON-encoded `PageRenderContext`
+- **Return value**: the modified `PageRenderContext` as UTF-8 JSON, packed into an `i64`
+- **Notes**:
+  - You can dynamically update the site title (`site_title`), extra CSS (`extra_css`), extra header (`extra_head`), and template variables (`variables`).
 
 ### 4.4 `on_user_authenticated`
 
-ログイン（パスワード・OpenID Connect）で資格情報を確認した後、セッションを発行する前に呼び出されます。
+Called after credentials are verified at login (password, OpenID Connect) and before the session is issued.
 
-- **入力**: UTF-8 JSON エンコードされた `UserAuthContext`（`provider`, `user_id`, `email`, `display_name`, `role`, `metadata`。詳細は [プラグインフック](plugin_hooks.md#23-userauthcontext)）
-- **戻り値**:
-  - 成功時: 変更後の `UserAuthContext` を UTF-8 JSON 化し、パックした `i64`（`role` / `display_name` / `email` / `metadata` がセッションに反映。`provider` / `user_id` の変更は無視）
-  - ログイン拒否時: エラーエンベロープ `{"error": "<拒否理由メッセージ>"}`。API は `403 Forbidden` を返します
-- **注意事項**:
-  - `role` は `admin` / `editor` / `viewer` のいずれか。それ以外やトラップ・タイムアウトもログイン失敗になります（安全側に倒す）。
+- **Input**: a UTF-8 JSON-encoded `UserAuthContext` (`provider`, `user_id`, `email`, `display_name`, `role`, `metadata`; for details see [Plugin hooks](plugin_hooks.md#23-userauthcontext))
+- **Return value**:
+  - On success: the modified `UserAuthContext` as UTF-8 JSON, packed into an `i64` (`role` / `display_name` / `email` / `metadata` are reflected in the session; changes to `provider` / `user_id` are ignored)
+  - To refuse login: the error envelope `{"error": "<refusal reason message>"}`. The API returns `403 Forbidden`
+- **Notes**:
+  - `role` is one of `admin` / `editor` / `viewer`. Anything else, and traps and timeouts, also make the login fail (erring on the safe side).
 
 ### 4.5 `calculate_order`
 
-EC のカートの見積もり・注文の確定時に呼び出されます（[プラグインフック 1.5](plugin_hooks.md#15-calculate-order)）。
+Called when the e-commerce cart is quoted and when an order is confirmed ([Plugin hooks 1.5](plugin_hooks.md#15-calculate-order)).
 
-- **入力**: `OrderContext` の JSON（[プラグインフック 2.5](plugin_hooks.md#25-ordercontext--orderstatuschange)）
-- **戻り値**: 変更後の `OrderContext`（反映されるのは `adjustments` と `metadata` のみ。`{"adjustments": [...]}` だけを返してもよい）、または注文を断るエラーエンベロープ `{"error": "<顧客に見せる理由>"}`
+- **Input**: the JSON of `OrderContext` ([Plugin hooks 2.5](plugin_hooks.md#24-ordercontext--orderstatuschange))
+- **Return value**: the modified `OrderContext` (only `adjustments` and `metadata` are reflected; returning only `{"adjustments": [...]}` is fine), or an error envelope that refuses the order `{"error": "<reason to show the customer>"}`
 
 ### 4.6 `on_order_status_changed`
 
-注文の作成・状態の変化の後に呼び出されます。
+Called after an order is created or its status changes.
 
-- **入力**: `OrderStatusChange` の JSON
-- **戻り値**: `0`（成功）、または `{"error": "..."}`（ログと監査ログに残るだけで、注文には影響しない）
+- **Input**: the JSON of `OrderStatusChange`
+- **Return value**: `0` (success), or `{"error": "..."}` (it only remains in the log and audit log and does not affect the order)
 
 ### 4.7 `send_notification`
 
-`[notifications].channels` に `"plugin:<名前>"` と書いたプラグインが、通知のたびに呼び出されます（[プラグインフック 1.7](plugin_hooks.md#17-send-notification)）。
+Called on every notification for a plugin that has `"plugin:<name>"` written in `[notifications].channels` ([Plugin hooks 1.7](plugin_hooks.md#17-send-notification)).
 
-- **入力**: `NotificationMessage` の JSON
+- **Input**: the JSON of `NotificationMessage`
 
 ```json
 {
   "kind": "audit.session.create",
   "recipient": { "type": "staff" },
-  "subject": "【Shop】ログインをロックしました（root）",
-  "body": "ログインをロックしました（root）\n\n日時: ...",
+  "subject": "[Shop] Login locked (root)",
+  "body": "Login locked (root)\n\nTime: ...",
   "html": "<!DOCTYPE html>...",
   "data": { "audit": { "action": "session.create", "outcome": "failure", "details": { "locked": "username" } }, "site_name": "Shop" }
 }
 ```
 
-`recipient` は `{"type": "staff"}` か `{"type": "person", "email": "hanako@example.com", "name": "Hanako"}`。`html` は `[notifications].html = true` のときだけ入ります（無いものとして扱えるようにしてください）。
+`recipient` is `{"type": "staff"}` or `{"type": "person", "email": "hanako@example.com", "name": "Hanako"}`. `html` is included only when `[notifications].html = true` (make sure you can treat it as absent).
 
-- **戻り値**:
+- **Return value**:
 
-| 戻り値 | 意味 |
+| Return value | Meaning |
 | --- | --- |
-| `0` | 送った |
-| `{"skipped": true}` | 扱わない通知（失敗ではない。監査ログにも残らない） |
-| `{"error": "...", "permanent": false}` | 一時的な失敗。ホストが間隔を空けて再試行する（`permanent` を省略した場合も同じ） |
-| `{"error": "...", "permanent": true}` | 再試行しても変わらない失敗（設定の不備・相手の 4xx など） |
+| `0` | Sent |
+| `{"skipped": true}` | A notification it does not handle (not a failure; not left in the audit log either) |
+| `{"error": "...", "permanent": false}` | A transient failure. The host retries at intervals (the same if `permanent` is omitted) |
+| `{"error": "...", "permanent": true}` | A failure that would not change on retry (a configuration defect, the other side's 4xx, etc.) |
 
 ### 4.8 `on_content_published`
 
-予約公開などでコンテンツが公開状態になった直後に呼び出されます。
+Called right after content becomes published, such as by scheduled publication.
 
-- **入力**: `PublishedContent` の JSON（[5.8](#58-publishedcontent)）
-- **戻り値**: `0`（成功）、または `{"error": "..."}`（ログと監査ログ `plugin.error` に残るだけで、公開処理には影響しない）
+- **Input**: the JSON of `PublishedContent` ([5.5](#55-publishedcontent))
+- **Return value**: `0` (success), or `{"error": "..."}` (it only remains in the log and the audit log `plugin.error` and does not affect the publishing process)
 
 ### 4.8.1 `check_comment`
 
-公開サイトからコメントが投稿され、保存される前に呼び出されます（[プラグインフック 1.9](plugin_hooks.md#19-check-comment)）。
+Called before a comment posted from the public site is saved ([Plugin hooks 1.9](plugin_hooks.md#19-check-comment)).
 
-- **入力**: `CommentSubmission` の JSON（`content_type`, `content_id`, `content_title`, `content_slug`, `parent_id`, `author_name`, `author_email`, `body`, `ip`, `user_agent`, `status`）
-- **戻り値**: `{"verdict": "allow" | "hold" | "spam", "reason": "..."}`（何も返さない・`verdict` が無ければ `allow`）、または投稿を断るエラーエンベロープ `{"error": "<投稿者に見せる理由>"}`
+- **Input**: the JSON of `CommentSubmission` (`content_type`, `content_id`, `content_title`, `content_slug`, `parent_id`, `author_name`, `author_email`, `body`, `ip`, `user_agent`, `status`)
+- **Return value**: `{"verdict": "allow" | "hold" | "spam", "reason": "..."}` (returning nothing, or no `verdict`, means `allow`), or an error envelope that refuses the post `{"error": "<reason to show the poster>"}`
 
 ---
 
 ### 4.9 `render_blocks`
 
-マニフェストの `blocks` で宣言したカスタムブロックを HTML にします。公開ページなどの描画のたびに、プラグインごとに 1 回呼ばれます。
+Turns the custom blocks declared in the manifest's `blocks` into HTML. It is called once per plugin on each render, such as of a public page.
 
-- **入力**: `{"blocks": [BlockNode, ...]}`（このプラグインのブロック。文書の順）
-- **戻り値**: `{"html": [string | null, ...]}`（入力と同じ順。`null` や足りない分は表示しない）。長さ 0（何も返さない）は全部表示しない
-- **失敗**: エラーエンベロープ `{"error": "..."}`。そのプラグインのブロックは表示されない
-- 返した HTML はホストがサニタイズします（`<script>`・`on*` 属性・`javascript:` の URL などを除去）。
+- **Input**: `{"blocks": [BlockNode, ...]}` (this plugin's blocks, in document order)
+- **Return value**: `{"html": [string | null, ...]}` (in the same order as the input; `null` and missing entries are not shown). Length 0 (returning nothing) shows none of them
+- **Failure**: the error envelope `{"error": "..."}`. That plugin's blocks are not shown
+- The HTML returned is sanitized by the host (removing `<script>`, `on*` attributes, `javascript:` URLs, etc.).
 
-## 5. データ構造仕様 (JSON Schemas)
+## 5. Data Structure Specification (JSON Schemas)
 
-全データ型は JSON 形式でシリアライズされ、リニアメモリ経由で受け渡されます。
+All data types are serialized as JSON and passed through linear memory.
 
 ### 5.1 `PostContext`
 ```json
 {
   "id": "post_01hgbc3...",
-  "title": "記事タイトル",
+  "title": "Article title",
   "slug": "article-slug",
   "content_type": "article",
   "status": "draft",
@@ -340,23 +342,23 @@ EC のカートの見積もり・注文の確定時に呼び出されます（[�
     "level": 1
   },
   "children": [],
-  "text": "テキスト内容"
+  "text": "Text content"
 }
 ```
-- `attributes`: 属性のキー・バリューオブジェクト（未指定時は `{}` または `null`）。
-- `children`: 入れ子の子 `BlockNode` 配列。
-- `text`: ブロックのテキスト本文（未指定時は `""` または `null`）。
+- `attributes`: a key-value object of attributes (`{}` or `null` if unspecified).
+- `children`: an array of nested child `BlockNode`s.
+- `text`: the block's text body (`""` or `null` if unspecified).
 
 ### 5.3 `PageRenderContext`
 ```json
 {
-  "site_title": "AegisCMS サイト",
-  "site_description": "サイトの説明",
+  "site_title": "AegisCMS Site",
+  "site_description": "Site description",
   "template": "article.html",
   "content_type": "article",
-  "title": "記事タイトル",
+  "title": "Article title",
   "slug": "hello-world",
-  "content_html": "<p>本文</p>",
+  "content_html": "<p>Body</p>",
   "content_length": 12,
   "author": "admin",
   "published_at": "2026-10-22T00:00:00Z",
@@ -374,23 +376,23 @@ EC のカートの見積もり・注文の確定時に呼び出されます（[�
 }
 ```
 
-### 5.3.1 オブジェクトを返すフックの部分更新
+### 5.3.1 Partial Updates for Hooks That Return Objects
 
-`on_before_save`・`on_render_page`・`on_user_authenticated` の返り値（JSON オブジェクト）は、**トップレベルのキー単位で入力に上書き**されます。変更したフィールドだけを返してもよく、返さなかったフィールドやプラグインが知らないフィールドは入力の値のまま保たれます（例: `{"extra_css": "..."}` だけを返す）。長さ 0 を返した場合は「変更なし」です。
+The return values (JSON objects) of `on_before_save`, `on_render_page`, and `on_user_authenticated` **overwrite the input per top-level key**. You may return only the fields you changed, and fields you did not return, or fields the plugin does not know about, keep the input's values (for example, returning only `{"extra_css": "..."}`). Returning length 0 means "no change".
 
-### 5.3.2 `on_render_page` の本文の前後に足す（`prepend_content` / `append_content`）
+### 5.3.2 Adding Before and After the Body in `on_render_page` (`prepend_content` / `append_content`)
 
-本文（`content_html`）に HTML を**足すだけ**のプラグインは、`content_html` を書き換えて返さず、`prepend_content`（本文の前）・`append_content`（本文の後）に足す HTML だけを返します（例: `{"append_content": "<nav>…</nav>"}`）。本文を JSON として往復させずに済むので、本文が大きいページほど速くなります（本文 64KB で 1 プラグインあたり約 6µs/KB の JSON の読み書きが無くなります）。
+A plugin that **only adds** HTML to the body (`content_html`) does not rewrite and return `content_html`; it returns only the HTML to add in `prepend_content` (before the body) and `append_content` (after the body) (for example, `{"append_content": "<nav>…</nav>"}`). Since the body no longer round-trips as JSON, pages with larger bodies get faster (for a 64KB body, about 6µs/KB of JSON reading and writing per plugin is eliminated).
 
-- **書き込み専用**: プラグインには常に空で渡されます。返した値をホストがプラグインごとに貯め、**全プラグインのあとで 1 回だけ**「前置き + `content_html` + 後置き」に結合します（結合後は両方とも空）。テンプレートやほかのフックは、結合済みの `content_html` だけを見ます。
-- **順序**は、本文を直接書き換えた場合と同じです。後に実行されるプラグインの前置きほど外側、後置きほど内側の外（つまり後ろ）に付きます。
-- **本文を読むプラグインが見る本文**は、ほかのプラグインが枠に足した HTML を含みません（例: 読了時間の文字数に、共有ボタンの文字は入りません）。`content_html` を直接書き換えるプラグインの結果は、従来どおり後のプラグインにも見えます。
-- `content_html` を直接書き換える従来の方法も使えます（互換）。
-- **`content_length`**: 本文（枠を除く）のバイト数。ホストが各プラグインの呼び出しの前に計算します。後述の `render_page.input` に `content_html` を含めないプラグインが「本文があるか」を調べるために使います。
+- **Write-only**: it is always passed to plugins empty. The host accumulates the values returned per plugin and **once, after all plugins**, joins them as "prefix + `content_html` + suffix" (after joining, both are empty). Templates and other hooks see only the joined `content_html`.
+- **The order** is the same as when rewriting the body directly. A later-running plugin's prefix goes further outside, and its suffix goes further outside the inner ones (that is, further back).
+- **The body a plugin that reads the body sees** does not include HTML other plugins added to the frame (for example, the share buttons' text does not enter the reading time's character count). The result of a plugin that rewrites `content_html` directly remains visible to later plugins as before.
+- The traditional method of rewriting `content_html` directly can still be used (compatibility).
+- **`content_length`**: the byte count of the body (excluding the frame). The host computes it before each plugin call. It is used by plugins that do not include `content_html` in `render_page.input` (below) to check "whether there is a body".
 
-### 5.3.3 `on_render_page` に渡すフィールドの絞り込み（`capabilities.render_page.input`）
+### 5.3.3 Narrowing the Fields Passed to `on_render_page` (`capabilities.render_page.input`)
 
-`on_render_page` の入力 JSON は、本文（`content_html`）・記事一覧（`items`）・カスタムフィールド（`fields`）などを含み、プラグインが使わなくても Wasm のメモリへのコピーと JSON の読み書きの分だけ時間がかかります。マニフェストの `capabilities.render_page.input` に**必要な重いフィールドだけ**を書くと、それ以外は空の値（`""`・`{}`・`[]`・省略）で渡されます。
+The input JSON of `on_render_page` includes the body (`content_html`), the article list (`items`), the custom fields (`fields`), and so on, and even if a plugin does not use them, it takes time for copying into Wasm memory and JSON reading and writing. If you write in the manifest's `capabilities.render_page.input` **only the heavy fields you need**, the others are passed as empty values (`""`, `{}`, `[]`, omitted).
 
 ```json
 "capabilities": {
@@ -399,26 +401,26 @@ EC のカートの見積もり・注文の確定時に呼び出されます（[�
 }
 ```
 
-- 書ける名前は `content_html`・`fields`・`relations`・`items`・`related_articles`・`prev_article`・`next_article`・`comments`。それ以外（`title`・`template`・`extra_head`・`theme_vars` など）は常に渡されます。
-- `render_page` を省略する（または `input` を省略する）と、従来どおり全フィールドを渡します。`"input": []` は重いフィールドを 1 つも要らない宣言です。
-- 渡さなかったフィールドは、プラグインが書き換えて返しても**反映されません**（ホストが元の値に戻します）。本文を足すには前述の枠を使います。
-- 書けない名前を宣言したプラグインは読み込めません。
+- The names you can write are `content_html`, `fields`, `relations`, `items`, `related_articles`, `prev_article`, `next_article`, and `comments`. Everything else (`title`, `template`, `extra_head`, `theme_vars`, etc.) is always passed.
+- If `render_page` is omitted (or `input` is omitted), all fields are passed as before. `"input": []` declares that no heavy fields are needed.
+- Fields that were not passed are **not reflected** even if the plugin rewrites and returns them (the host restores the original value). To add to the body, use the frame described above.
+- A plugin that declares a name that cannot be written cannot be loaded.
 
-#### 宣言的クエリの結果（`capabilities.render_page.queries`）
+#### Results of Declarative Queries (`capabilities.render_page.queries`)
 
-`queries/<name>.yaml` で宣言した集計・一覧（[queries.md](queries.md)）の結果を受け取るには、マニフェストに**名前**を書きます。
+To receive the results of aggregations and lists declared in `queries/<name>.yaml` ([queries.md](queries.md)), write the **names** in the manifest.
 
 ```json
 "render_page": { "queries": ["by_brand", "case_count"] }
 ```
 
-- 書いた名前の結果だけが `PageRenderContext.queries`（名前 → 結果）に入ります。書かなければ空です。`input` とは独立です。
-- **読み取り専用**: 返した値は反映されず、次のプラグインにも見えません。プラグインは DB にもクエリの定義にも触れません。
-- 名前は英小文字・数字・`_`（先頭は英小文字）、32 個まで。存在しない名前は黙って空になります。結果が変わると入力の JSON が変わるので、`on-render-page` の結果のキャッシュ（architecture.md の 10.8）も自然に追従します。
+- Only the results of the names written go into `PageRenderContext.queries` (name → result). If not written, it is empty. It is independent of `input`.
+- **Read-only**: returned values are not reflected and are not visible to the next plugin. Plugins touch neither the DB nor the query definitions.
+- Names are lowercase letters, digits, and `_` (starting with a lowercase letter), up to 32. A nonexistent name silently becomes empty. When a result changes, the input JSON changes, so the `on-render-page` result cache (architecture.md 10.8) naturally follows.
 
-### 5.3.3a `on_render_page` でスクリプトを足す（`scripts`。ABI 2）
+### 5.3.3a Adding Scripts in `on_render_page` (`scripts`; ABI 2)
 
-**スクリプトは、構造化した `scripts` でだけ足せます**。`extra_head`・`prepend_content`・`append_content`（と、書き換えた `content_html`）の中の `<script>` と `on*` 属性（`onclick`・`onload` など）は、**ホストが取り除きます**（`<meta>`・`<link>`・`<style>` などは今までどおり）。設計は [csp.md の 4](csp.md#4-プラグインの-abi破壊的変更)。
+**Scripts can be added only through the structured `scripts`.** `<script>` and `on*` attributes (`onclick`, `onload`, etc.) inside `extra_head`, `prepend_content`, `append_content` (and a rewritten `content_html`) are **removed by the host** (`<meta>`, `<link>`, `<style>`, etc. are as before). For the design, see [csp.md 4](csp.md#4-the-plugin-abi-breaking-change).
 
 ```json
 "scripts": [
@@ -427,35 +429,35 @@ EC のカートの見積もり・注文の確定時に呼び出されます（[�
 ]
 ```
 
-- **書き込み専用**: プラグインには常に空で渡されます。ホストが検査して `<script>` のタグにし、全プラグインのあとで `extra_head` の後ろに足します。**属性はホストが決めます**（`onload` などを書けない）。順序は、返した順（プラグインの順）です。
-- **`external`**: `url` は、このサイトのパス（`/assets/x.js`）か、ホストがマニフェストの `capabilities.csp.script_domains` にある `https://` の URL（ユーザー情報・ポート・引用符・空白を含むものは不可）。`async_load`・`defer`・`crossorigin`（`crossorigin="anonymous"`）は任意。
-- **`inline`**: マニフェストに **`capabilities.inline_scripts: true`** の宣言が要ります（宣言がなければ捨てます）。本文は 64 KB まで、NUL を含まないこと。`</script` と `<!--` は、ホストが JavaScript の意味を変えない形にします。
-- **`consent`**: 同意の区分（`[a-z0-9_-]` の 1〜32 文字）。あれば、ホストが `type="text/plain" data-aegis-consent="区分"` の形で出し、同意のあとにバナーのスクリプトが実行します（[consent.md](consent.md)）。プラグインが HTML を組み立てる必要はありません。
-- **違反したスクリプトは捨てます**（ページは壊しません）。理由は警告ログに残ります。`aegis-plugin-dev` のプレビューは、捨てた理由を表示します。
-- ABI 1 のプラグインは今までどおり読み込めますが、`extra_head` に書いた `<script>` は取り除かれます（`scripts` に移す）。
+- **Write-only**: it is always passed to plugins empty. The host validates it, makes `<script>` tags, and adds them after `extra_head` once, after all plugins. **The host decides the attributes** (`onload` and the like cannot be written). The order is the order returned (the plugins' order).
+- **`external`**: `url` is either this site's path (`/assets/x.js`) or an `https://` URL whose host is in the manifest's `capabilities.csp.script_domains` (one containing user info, a port, quotes, or whitespace is not allowed). `async_load`, `defer`, and `crossorigin` (`crossorigin="anonymous"`) are optional.
+- **`inline`**: the manifest needs the declaration **`capabilities.inline_scripts: true`** (without it, it is dropped). The body is up to 64 KB and must not contain NUL. The host turns `</script` and `<!--` into a form that does not change the JavaScript's meaning.
+- **`consent`**: the consent category (1–32 characters of `[a-z0-9_-]`). If present, the host outputs it as `type="text/plain" data-aegis-consent="category"`, and the banner's script runs it after consent ([consent.md](consent.md)). The plugin does not need to assemble HTML.
+- **Scripts that violate this are dropped** (the page is not broken). The reason is left in the warning log. The `aegis-plugin-dev` preview shows the reason for dropping.
+- ABI 1 plugins can still be loaded as before, but a `<script>` written in `extra_head` is removed (move it to `scripts`).
 
-### 5.3.4 `on_render_page` の結果のキャッシュ
+### 5.3.4 Caching the Result of `on_render_page`
 
-`kv_get` / `kv_set` / `http_fetch` を呼ばず、`config_get` で読んだ設定値が変わっていない呼び出しは、出力が入力の JSON だけで決まるので、ホストが結果を覚えて同じ入力では Wasm を呼びません（宣言は要りません。ホストが呼び出しごとに確かめます）。プラグイン側で必要な対応はありませんが、次の点に注意してください。
+For a call that does not call `kv_get` / `kv_set` / `http_fetch` and whose `config_get` setting values have not changed, the output is determined by the input JSON alone, so the host remembers the result and does not call Wasm for the same input (no declaration is needed; the host checks on each call). No action is needed on the plugin side, but note the following.
 
-- **`on_render_page` に副作用を持たせない**: 覚えた結果を返すときは関数が呼ばれないので、`host::log` も出ません。KV や HTTP を使うと、その呼び出しは覚えられません（毎回呼ばれます）。
-- 設定値は `config_get` で読んでください（読んだ値が変わると結果を使い直さず、呼び直します）。
-- 予算は `[runtime].render_cache_mb`（既定 32、0 で無効）。仕組みは [architecture.md 10.8](architecture.md#108-on-render-page-の結果のキャッシュ-aegis-runtimesrcwasmresult_cachers)。
+- **Give `on_render_page` no side effects**: when a remembered result is returned the function is not called, so `host::log` does not appear either. If KV or HTTP is used, that call is not remembered (it is called every time).
+- Read settings values with `config_get` (when a value read changes, the result is not reused and the function is called again).
+- The budget is `[runtime].render_cache_mb` (default 32, 0 disables). For the mechanism, see [architecture.md 10.8](architecture.md#108-caching-the-result-of-on-render-page-aegis-runtimesrcwasmresult_cachers).
 
-### 5.4 エラーエンベロープ (Error Envelope)
+### 5.4 Error Envelope
 ```json
 {
-  "error": "タイトルは必須入力項目です"
+  "error": "Title is a required field"
 }
 ```
-フックが処理を拒否したい場合、この JSON をホストへ返却します。
+When a hook wants to refuse processing, it returns this JSON to the host.
 
 ### 5.5 `PublishedContent`
 ```json
 {
   "id": "c0a80101-0000-0000-0000-000000000001",
   "content_type": "articles",
-  "title": "AegisCMS 予約公開の仕組み",
+  "title": "How AegisCMS scheduled publishing works",
   "slug": "scheduled-publishing-deep-dive",
   "published_at": "2026-10-24T12:00:00Z",
   "author_id": "editor1",
@@ -465,11 +467,11 @@ EC のカートの見積もり・注文の確定時に呼び出されます（[�
   }
 }
 ```
-`on_content_published` フックに渡される公開完了コンテンツの情報です。
+Information about published content passed to the `on_content_published` hook.
 
 ---
 
-## 6. プラグインマニフェスト仕様 (`plugin.manifest.json`)
+## 6. Plugin Manifest Specification (`plugin.manifest.json`)
 
 ```json
 {
@@ -498,26 +500,26 @@ EC のカートの見積もり・注文の確定時に呼び出されます（[�
 }
 ```
 
-- **`capabilities.hooks`**: プラグインが受領するフックの一覧（ケバブケース）。ここに未列挙のフックは、Wasm 側に関数がエクスポートされていても呼び出されません。
-- **`name`**: プラグインの識別子（英小文字・数字・`-`・`_`）。インストール先は `plugins/<name>/` で、`[plugins].enabled` に書くと有効になる。
-- **`display_name` / `description` / `author` / `license` / `tags` / `homepage` / `repository`**: ストア・一覧表示用のメタデータ（任意）。
-- **`min_aegis_version`**: 動かせる AegisCMS 本体の最小バージョン（SemVer。任意）。本体がこれより古いと読み込まない。
-- **`abi_version`**: プラグインが前提にするこの ABI のバージョン（整数。現在は `2`。任意だが公式プラグイン・テンプレートは必ず書く。`2` は、`on-render-page` で `scripts`（構造化したスクリプトの注入。[5.3.3a](#533a-on_render_page-でスクリプトを足すscriptsabi-2)）を使うプラグイン。`1` のプラグインも読み込めるが、`extra_head` などに書いた `<script>` は取り除かれる）。ホストが対応するバージョンより新しい値、または `0` だと読み込まない。互換性を壊す変更を入れたときだけホストが上げる（[versioning.md](versioning.md#2-プラグインの互換性)）。
-- **`resource_limits`**: メモリ上限（MB単位）、Fuel 上限、タイムアウト（ミリ秒単位）。
-- **`capabilities.embed.frame_domains`**: カスタムブロックの HTML に残せる `<iframe>` の配信元のホスト（CSP の `frame-src` にも足される）。形式は [plugin_hooks.md 3.2](plugin_hooks.md#32-外部のページの埋め込み-capabilitiesembed)。
-- **`capabilities.inline_scripts`**: `on-render-page` の `scripts` でインラインのスクリプトを足す宣言（真偽値。既定 `false`）。形式は [5.3.3a](#533a-on_render_page-でスクリプトを足すscriptsabi-2)。外部のスクリプトのホストは `capabilities.csp.script_domains`。
-- **`capabilities.render_page.input`**: `on-render-page` に渡す重いフィールドの絞り込み。形式は [5.3.3](#533-on_render_page-に渡すフィールドの絞り込みcapabilitiesrender_pageinput)。
-- **`blocks`**: 本文に置けるカスタムブロックの宣言（名前・表示名・入力欄）。`render-blocks` フックが必要。形式は [plugin_hooks.md 3.1](plugin_hooks.md#31-カスタムブロック-blocks)。
+- **`capabilities.hooks`**: the list of hooks the plugin receives (kebab-case). Hooks not listed here are not called even if the Wasm side exports the function.
+- **`name`**: the plugin's identifier (lowercase letters, digits, `-`, `_`). It is installed at `plugins/<name>/`, and writing it in `[plugins].enabled` enables it.
+- **`display_name` / `description` / `author` / `license` / `tags` / `homepage` / `repository`**: metadata for stores and list display (optional).
+- **`min_aegis_version`**: the minimum AegisCMS core version it can run on (SemVer; optional). If the core is older, it is not loaded.
+- **`abi_version`**: the version of this ABI the plugin assumes (an integer; currently `2`; optional, but official plugins and templates always write it. `2` is for plugins that use `scripts` (structured script injection; [5.3.3a](#533a-adding-scripts-in-on_render_page-scripts-abi-2)) in `on-render-page`. `1` plugins can still be loaded, but a `<script>` written in `extra_head` and the like is removed). A value newer than the version the host supports, or `0`, is not loaded. The host raises it only when a change that breaks compatibility is introduced ([versioning.md](versioning.md#2-plugin-compatibility)).
+- **`resource_limits`**: the memory limit (in MB), the fuel limit, and the timeout (in milliseconds).
+- **`capabilities.embed.frame_domains`**: the source hosts of `<iframe>`s that may remain in custom blocks' HTML (also added to the CSP `frame-src`). For the format, see [plugin_hooks.md 3.2](plugin_hooks.md#32-embedding-external-pages-capabilitiesembed).
+- **`capabilities.inline_scripts`**: the declaration for adding inline scripts with `scripts` of `on-render-page` (boolean; default `false`). For the format, see [5.3.3a](#533a-adding-scripts-in-on_render_page-scripts-abi-2). The hosts of external scripts are in `capabilities.csp.script_domains`.
+- **`capabilities.render_page.input`**: narrowing the heavy fields passed to `on-render-page`. For the format, see [5.3.3](#533-narrowing-the-fields-passed-to-on_render_page-capabilitiesrender_pageinput).
+- **`blocks`**: the declaration of custom blocks that can be placed in the body (name, display name, input fields). The `render-blocks` hook is required. For the format, see [plugin_hooks.md 3.1](plugin_hooks.md#31-custom-blocks-blocks).
 
 ---
 
-## 7. 言語別実装ガイドライン
+## 7. Implementation Guidelines by Language
 
-| 項目 | Rust | AssemblyScript | TinyGo |
+| Item | Rust | AssemblyScript | TinyGo |
 |---|---|---|---|
-| **公式 SDK** | `crates/aegis-plugin-sdk` | `sdk/assemblyscript` (`@takumi-mr/plugin-sdk`) | `sdk/tinygo` (`github.com/takumi-mr/AegisCMS/sdk/tinygo`) |
-| **公式テンプレート** | `sdk/templates/rust`（ブロック用: `sdk/templates/rust-block`） | `sdk/templates/assemblyscript` | `sdk/templates/tinygo` |
-| **ビルドコマンド** | `cargo build --target wasm32-unknown-unknown --release` | `npm run asbuild` | `tinygo build -target=wasm-unknown -o plugin.wasm main.go` |
-| **ホストインポート** | `#[link(wasm_import_module = "host")] extern "C"` | `@external("host", "...")` | `//go:wasmimport host ...` |
-| **メモリアロケータ** | `std::alloc::alloc` | `heap.alloc` | `unsafe.Pointer(&buf[0])` / `malloc` |
-| **JSON ハンドリング** | `serde_json` | 軽量 JSON ビルダー / パーサー | `encoding/json` |
+| **Official SDK** | `crates/aegis-plugin-sdk` | `sdk/assemblyscript` (`@takumi-mr/plugin-sdk`) | `sdk/tinygo` (`github.com/takumi-mr/AegisCMS/sdk/tinygo`) |
+| **Official template** | `sdk/templates/rust` (for blocks: `sdk/templates/rust-block`) | `sdk/templates/assemblyscript` | `sdk/templates/tinygo` |
+| **Build command** | `cargo build --target wasm32-unknown-unknown --release` | `npm run asbuild` | `tinygo build -target=wasm-unknown -o plugin.wasm main.go` |
+| **Host imports** | `#[link(wasm_import_module = "host")] extern "C"` | `@external("host", "...")` | `//go:wasmimport host ...` |
+| **Memory allocator** | `std::alloc::alloc` | `heap.alloc` | `unsafe.Pointer(&buf[0])` / `malloc` |
+| **JSON handling** | `serde_json` | A lightweight JSON builder / parser | `encoding/json` |

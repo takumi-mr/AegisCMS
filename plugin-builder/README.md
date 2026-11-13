@@ -11,12 +11,12 @@ npm --prefix plugin-builder ci                      # first time only
 task dev:plugin-builder                             # http://localhost:5175/
 ```
 
-| Command                                 | Description                                              |
-| --------------------------------------- | -------------------------------------------------------- |
-| `npm run dev`                           | Dev server (change the target with `PLUGIN_DEV_URL`)     |
-| `npm run test`                          | Unit tests (Vitest)                                      |
-| `npm run lint` / `npm run format:check` | oxlint (zero warnings) / Prettier                        |
-| `npm run build`                         | Type check and production build (`dist/`)                |
+| Command                                 | Description                                          |
+| --------------------------------------- | ---------------------------------------------------- |
+| `npm run dev`                           | Dev server (change the target with `PLUGIN_DEV_URL`) |
+| `npm run test`                          | Unit tests (Vitest)                                  |
+| `npm run lint` / `npm run format:check` | oxlint (zero warnings) / Prettier                    |
+| `npm run build`                         | Type check and production build (`dist/`)            |
 
 ![Plugin Builder](../docs/images/plugin-builder.png)
 

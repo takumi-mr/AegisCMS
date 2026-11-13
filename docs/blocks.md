@@ -1,215 +1,217 @@
-[← ドキュメント一覧に戻る](README.ja.md)
+[← Back to the documentation index](README.md)
 
-# 本文のブロック
+**English** | [日本語](blocks.ja.md)
 
-記事・固定ページ・商品の本文は、HTML ではなくブロックの木（`BlockNode`）として保存します。保存時に見出しの id を付け、プラグインの `transform-content-ast` フックを通してから、`aegis-ast` の `HtmlRenderer` が HTML にします（[architecture.md 3.1](architecture.md#31-html-の生成経路-aegis-serversrcrenderrs)）。
+# Body Blocks
 
-Admin Studio ではブロックごとに編集するか、Markdown で書きます。両者は相互に変換され（`admin/src/utils/markdown.ts`）、どちらで書いても同じブロックとして保存されます。
+The body of articles, static pages, and products is stored not as HTML but as a tree of blocks (`BlockNode`). On save, heading ids are added, it goes through the plugins' `transform-content-ast` hook, and then `aegis-ast`'s `HtmlRenderer` turns it into HTML ([architecture.md 3.1](architecture.md#31-the-html-generation-path-aegis-serversrcrenderrs)).
+
+In Admin Studio you edit block by block, or write in Markdown. The two convert to each other (`admin/src/utils/markdown.ts`), and whichever you write in, it is saved as the same blocks.
 
 ```json
-{ "name": "core/heading", "attributes": { "level": 2, "id": "install" }, "text": "インストール", "children": [] }
+{ "name": "core/heading", "attributes": { "level": 2, "id": "install" }, "text": "Installation", "children": [] }
 ```
 
-## 1. ブロックの一覧
+## 1. List of Blocks
 
-![エディタのブロックの追加ボタンと本文のブロック（右はプレビュー）](images/blocks-editor.png)
+![The editor's add-block button and body blocks (the preview on the right)](images/blocks-editor.png)
 
-| ブロック | 属性 | Markdown | 出力する HTML |
+| Block | Attributes | Markdown | HTML output |
 |---|---|---|---|
-| `core/heading` | `level`（1〜6、既定 2）、`id`（保存時に自動で付く） | `## 見出し` | `<h2 id="...">` |
-| `core/paragraph` | | 空行で区切った文章 | `<p>` |
-| `core/list` | `ordered`（真偽値）。項目は子の `core/list-item` の `text`。タスクリストの項目は `attributes.checked`（真偽値） | `- 項目` / `1. 項目` / `- [ ] 未完了` / `- [x] 完了` | `<ul>` / `<ol>`（タスクがあれば `class="contains-task-list"`、項目は `<li class="task-list-item"><input type="checkbox" disabled>`。GFM と同じ読み取り専用のチェックボックス） |
-| `core/code` | `language`、`filename`（任意。120 文字まで） | ` ```rust ` 〜 ` ``` `（ファイル名は ` ```rust title="src/main.rs" `） | `<pre data-filename="src/main.rs"><code class="language-rust">`（`data-filename` はファイル名があるときだけ。表示は[公式プラグイン `official-code-lines`](../plugins/official-code-lines)かテーマの CSS） |
-| `core/image` | `src`、`alt` | `![alt](src)` | `<figure><img>` |
-| `core/table` | `rows`（文字列の配列の配列）、`header`（1 行目を見出し行にする。既定 `true`）、`align`（列ごとの `"left"` / `"center"` / `"right"` / `null`） | GFM の表（下記） | `<div class="aegis-table"><table>` |
-| `core/toc` | `title`（空なら見出しを出さない）、`maxLevel`（2〜6、既定 3） | `[TOC]`、`[TOC title="目次" maxLevel=4]` | `<nav class="aegis-toc">` |
-| `core/quote` | `cite`（出典。任意） | `> 引用`（最後の行が `> — 出典` なら出典） | `<blockquote>`（出典があれば `<figure class="aegis-quote">` と `<figcaption>`） |
-| `core/callout` | `variant`（`note` / `tip` / `important` / `warning` / `caution`、既定 `note`）、`title`（任意） | `> [!WARNING] 見出し` に続く `> 本文`、または `:::warning 見出し` 〜 `:::` | `<aside class="aegis-callout aegis-callout-warning" role="note">` |
-| `core/separator` | | `---`（`***`・`___` も可） | `<hr>` |
-| `core/details` | `summary`（見出し）、`open`（最初から開く。既定 `false`） | `:::details 見出し` 〜 `:::`（開いた状態は `:::details+`） | `<details class="aegis-details"><summary>` |
-| `core/footnote` | `label`（英数字・`_`・`-`、40 文字まで）。注釈の文章は `text` | 本文に `[^1]`、定義は `[^1]: 注釈`（1 行） | 文書の末尾の `<section class="aegis-footnotes">`（本文の参照は `<sup class="aegis-fnref">`） |
-| `core/paywall` | なし | `<!-- paywall -->`（HTML のコメント。GitHub では何も表示されない） | 「ここから先は会員向け」の区切り。記事・ページに `access` があるときだけ効き、これより後ろは必要なレベルのない閲覧者の HTML・フィード・検索・API に出ない。読める閲覧者には何も出さない（[members.md 15.3](members.md#153-本文のここから先)） |
-| `core/contact-form` | `form`（`[[contact.forms]]` の名前。既定 `default`） | `[CONTACT]`、`[CONTACT form="sales"]` | [問い合わせフォーム](contact.md#2-フォームを置く)（`[contact].enabled` のときだけ） |
-| `core/html` | `mode`（`sanitized` / `sandbox`） | ` ```html ` / ` ```html:sandbox ` | [カスタム HTML](theme_authoring_guide.md#31-どの-url-でどのテンプレートが使われるか) |
+| `core/heading` | `level` (1–6, default 2), `id` (added automatically on save) | `## Heading` | `<h2 id="...">` |
+| `core/paragraph` | | Text separated by blank lines | `<p>` |
+| `core/list` | `ordered` (boolean). The items are the `text` of child `core/list-item`s. Task list items have `attributes.checked` (boolean) | `- item` / `1. item` / `- [ ] not done` / `- [x] done` | `<ul>` / `<ol>` (with tasks, `class="contains-task-list"`, and items are `<li class="task-list-item"><input type="checkbox" disabled>`; a read-only checkbox as in GFM) |
+| `core/code` | `language`, `filename` (optional; up to 120 characters) | ` ```rust ` to ` ``` ` (for a file name, ` ```rust title="src/main.rs" `) | `<pre data-filename="src/main.rs"><code class="language-rust">` (`data-filename` only when there is a file name; shown by the [official plugin `official-code-lines`](../plugins/official-code-lines) or the theme's CSS) |
+| `core/image` | `src`, `alt` | `![alt](src)` | `<figure><img>` |
+| `core/table` | `rows` (an array of arrays of strings), `header` (make the first row a header row; default `true`), `align` (per column, `"left"` / `"center"` / `"right"` / `null`) | A GFM table (below) | `<div class="aegis-table"><table>` |
+| `core/toc` | `title` (no heading if empty), `maxLevel` (2–6, default 3) | `[TOC]`, `[TOC title="Contents" maxLevel=4]` | `<nav class="aegis-toc">` |
+| `core/quote` | `cite` (the source; optional) | `> quote` (if the last line is `> — source`, that is the source) | `<blockquote>` (with a source, `<figure class="aegis-quote">` and `<figcaption>`) |
+| `core/callout` | `variant` (`note` / `tip` / `important` / `warning` / `caution`, default `note`), `title` (optional) | `> [!WARNING] Title` followed by `> body`, or `:::warning Title` to `:::` | `<aside class="aegis-callout aegis-callout-warning" role="note">` |
+| `core/separator` | | `---` (`***` and `___` also work) | `<hr>` |
+| `core/details` | `summary` (the heading), `open` (open at first; default `false`) | `:::details Heading` to `:::` (`:::details+` for the open state) | `<details class="aegis-details"><summary>` |
+| `core/footnote` | `label` (alphanumerics, `_`, `-`, up to 40 characters). The note's text is `text` | `[^1]` in the body, and the definition `[^1]: note` (one line) | A `<section class="aegis-footnotes">` at the end of the document (references in the body are `<sup class="aegis-fnref">`) |
+| `core/paywall` | None | `<!-- paywall -->` (an HTML comment; nothing is shown on GitHub) | A "members only from here" divider. It takes effect only when the article or page has `access`, and what comes after it does not appear in the HTML, feeds, search, or API for viewers without the required level. Nothing is shown to viewers who can read ([members.md 15.3](members.md#153-from-here-on-in-the-body)) |
+| `core/contact-form` | `form` (the name in `[[contact.forms]]`; default `default`) | `[CONTACT]`, `[CONTACT form="sales"]` | The [contact form](contact.md#2-placing-the-form) (only when `[contact].enabled`) |
+| `core/html` | `mode` (`sanitized` / `sandbox`) | ` ```html ` / ` ```html:sandbox ` | [Custom HTML](theme_authoring_guide.md#31-which-template-is-used-at-which-url) |
 
-`<プラグイン名>/<ブロック名>` のブロックは、そのプラグインが描画します（[4. プラグインのブロック](#4-プラグインのブロック)）。それ以外の知らない名前のブロックは、名前の `/` を `-` にしたカスタム要素（`<my-plugin-card>`）として出力します。
+A block named `<plugin name>/<block name>` is rendered by that plugin ([4. Plugin blocks](#4-plugin-blocks)). Any other block with an unknown name is output as a custom element with the `/` in the name turned into `-` (`<my-plugin-card>`).
 
-### 1.1 表
+### 1.1 Tables
 
 ```markdown
-| 名前 | 種類 | 価格 |
+| Name | Kind | Price |
 | --- | :---: | ---: |
-| エチオピア | **浅煎り** | 1,780円 |
+| Ethiopia | **Light roast** | $17.80 |
 ```
 
-- 区切りの行の `:---`・`:---:`・`---:` が列の揃え（左・中央・右）になります。
-- 見出し行を空にすると、見出し行の無い表（`header: false`）になります。
-- セルの中の `|` は `\|` と書きます。セルではインライン書式（下記）が使えます。
-- 狭い画面では表だけが横にスクロールします（`.aegis-table` に `overflow-x: auto`）。セルには `overflow-wrap: break-word` を指定しているので、テーマが `overflow-wrap: anywhere` でも単語の途中で折り返して列が細くなりすぎることはありません。
+- `:---`, `:---:`, and `---:` in the separator row become the column alignment (left, center, right).
+- Leaving the header row empty makes a table with no header row (`header: false`).
+- Write `|` inside a cell as `\|`. Inline formatting (below) can be used in cells.
+- On narrow screens only the table scrolls horizontally (`overflow-x: auto` on `.aegis-table`). Cells have `overflow-wrap: break-word`, so even if the theme uses `overflow-wrap: anywhere`, columns do not get too narrow by wrapping in the middle of words.
 
-### 1.2 目次
+### 1.2 Table of Contents
 
-`[TOC]` を置いた位置に、本文の見出し（H2 〜 `maxLevel`）を入れ子の番号付きリストにして出します。リンク先は見出しの `id` です。
+At the position where you place `[TOC]`, the body's headings (H2 to `maxLevel`) are output as a nested numbered list. The link targets are the headings' `id`s.
 
-- 見出しの `id` は保存時にインライン書式の記号を除いたテキストから作り、同じ文書の中で重なれば `-2`、`-3` … を付けます。既に `id` のある見出しは変えません。
-- 目次は描画のたびに見出しから作るので、見出しを直して保存すれば目次も変わります。
-- H2 の次に H4 があるときは、H3 の位置に入れます（1 段ずつしか深くしない）。
+- A heading's `id` is made on save from the text without inline formatting marks, and if it collides within the same document, `-2`, `-3`, ... is appended. Headings that already have an `id` are not changed.
+- The table of contents is built from the headings on every render, so if you fix a heading and save, the table of contents changes too.
+- When an H4 follows an H2, it goes at the H3 position (levels deepen only one step at a time).
 
-### 1.2a 脚注
+### 1.2a Footnotes
 
-GitHub と同じ書き方です（定義のあるブロックは `core/footnote`）。
+The syntax is the same as GitHub (the block with definitions is `core/footnote`).
 
 ```markdown
-最初の文[^1]と、次の文[^note]。
+The first sentence[^1], and the next sentence[^note].
 
-[^1]: 注釈の文章。**太字**などのインライン書式が使えます。
-[^note]: もう 1 つの注釈。
+[^1]: The note's text. Inline formatting such as **bold** can be used.
+[^note]: Another note.
 ```
 
-- 番号は**本文で最初に参照された順**に振ります（定義を書いた順ではありません）。同じ脚注を何度参照しても番号は同じで、末尾の注釈に戻りリンクが `↩` `↩²` と増えます。
-- 注釈は定義の位置ではなく、**文書の末尾にまとめて**出します。
-- **定義の無い `[^x]` は文字のまま**、**参照されない定義は出しません**（GitHub と同じ）。
-- 定義は 1 行の文章だけです（GitHub の複数段落の定義は対応しません）。ラベルは英数字・`_`・`-` で 40 文字までです。
-- `id`（`fn-1-1a2b3c4d`・`fnref-1-1a2b3c4d`）には、定義の内容から作ったハッシュを足します。コンテンツ API の一覧など、別々の本文を 1 つのページに並べても重なりません。
-- 見出し・目次・抜粋・検索では、参照 `[^1]` を取り除いたテキストを使います（注釈の文章は検索の対象です）。
-- 参照できるのは、インライン書式が使える場所（段落・リストの項目・見出し・表のセル・引用・注記・折りたたみ）です。プラグインのブロックの中では使えません。
+- Numbers are assigned in **the order first referenced in the body** (not the order the definitions were written). However many times the same footnote is referenced, the number is the same, and the back-links in the note at the end grow as `↩` `↩²`.
+- Notes are output **together at the end of the document**, not at the position of the definition.
+- **A `[^x]` with no definition stays as text**, and **a definition that is not referenced is not output** (the same as GitHub).
+- A definition is a single line of text only (GitHub's multi-paragraph definitions are not supported). Labels are alphanumerics, `_`, and `-`, up to 40 characters.
+- A hash made from the definition's content is added to the `id`s (`fn-1-1a2b3c4d`, `fnref-1-1a2b3c4d`). Even when separate bodies are lined up on one page, such as in the content API's list, they do not collide.
+- Headings, the table of contents, excerpts, and search use the text with the `[^1]` references removed (the note text is searched).
+- References can be used where inline formatting is available (paragraphs, list items, headings, table cells, quotes, notes, collapsibles). They cannot be used inside plugin blocks.
 
-### 1.3 引用と注記
+### 1.3 Quotes and Notes
 
 ```markdown
-> 小さな焙煎所から、季節の豆をお届けします。
-> — 朝凪珈琲
+> We deliver seasonal beans from a small roastery.
+> — Asanagi Coffee
 
-> [!TIP] 保存のこつ
-> 2 週間を過ぎる場合は**冷凍**がおすすめです。
+> [!TIP] Storage tip
+> If it will be more than 2 weeks, we recommend **freezing** it.
 
 :::caution
-この操作は取り消せません。
+This operation cannot be undone.
 :::
 ```
 
-注記の種類は GitHub のアラートと同じ 5 種類です。本文は空行で段落に分かれ、インライン書式が使えます。
+The note kinds are the same 5 as GitHub's alerts. The body is split into paragraphs by blank lines, and inline formatting can be used.
 
-### 1.4 折りたたみ
+### 1.4 Collapsibles
 
-Q&A や補足の詳細に使います。HTML 標準の `<details>` / `<summary>` なので、JavaScript は使わず、キーボードでも開け閉めでき、閉じていても本文は検索エンジンに読まれます。
+Used for Q&A and details of supplementary information. They are the standard HTML `<details>` / `<summary>`, so they use no JavaScript, can be opened and closed from the keyboard, and the body is read by search engines even when closed.
 
 ```markdown
-:::details 無料で使えますか？
-はい。**オープンソース**です。
+:::details Is it free to use?
+Yes. It is **open source**.
 
-商用利用もできます。
+Commercial use is fine too.
 :::
 
-:::details+ 最初から開いておく項目
-本文
+:::details+ An item left open from the start
+Body
 :::
 ```
 
-見出しと本文ではインライン書式が使えます。本文は空行で段落に分かれます。見出しが空なら `Details` と表示します。
+Inline formatting can be used in the heading and body. The body is split into paragraphs by blank lines. If the heading is empty, `Details` is shown.
 
-## 2. インライン書式
+## 2. Inline Formatting
 
-段落・リストの項目・見出し・表のセル・引用・注記・折りたたみの本文と見出しで使えます。
+Usable in the bodies and headings of paragraphs, list items, headings, table cells, quotes, notes, and collapsibles.
 
-| 書き方 | 出力 |
+| Syntax | Output |
 |---|---|
-| `**太字**` | `<strong>` |
-| `*斜体*` | `<em>` |
-| `~~取り消し線~~` | `<del>` |
-| `` `コード` `` | `<code>`（中の記号はそのまま） |
-| `[テキスト](URL)` | `<a href="URL">` |
-| `![代替テキスト](URL)` | `<img loading="lazy">`（行に画像だけを書くと `core/image` ブロックになる） |
-| `[![CI](バッジの画像URL)](リンク先)` | `<a><img></a>`（GitHub・shields.io などのバッジ。画像のホストは限定しない） |
-| `\*` | 記号をそのまま出す |
+| `**bold**` | `<strong>` |
+| `*italic*` | `<em>` |
+| `~~strikethrough~~` | `<del>` |
+| `` `code` `` | `<code>` (symbols inside are left as is) |
+| `[text](URL)` | `<a href="URL">` |
+| `![alt text](URL)` | `<img loading="lazy">` (writing only an image on a line makes a `core/image` block) |
+| `[![CI](badge image URL)](link target)` | `<a><img></a>` (badges from GitHub, shields.io, etc.; the image host is not restricted) |
+| `\*` | Output the symbol as is |
 
-- `*` の直後・閉じの `*` の直前が空白だと書式になりません（`2 * 3 * 4` はそのまま）。閉じの無い記号もそのまま出ます。
-- `_斜体_` は使えません（`snake_case` の識別子を壊さないため）。
-- HTML のタグは書けません。すべて文字としてエスケープします（HTML が必要なときは `core/html`）。
-- リンクの URL は `http:`・`https:`・`mailto:`・`tel:` とスキームの無い相対 URL（`/docs`、`#install` など）だけです。それ以外（`javascript:`・`data:` など）や空白を含む URL のリンクは、テキストだけを出します。外部リンクの `rel` などは、これまでどおり `[security]` の設定で後から付きます。
-- 画像の URL は `http:`・`https:` と相対 URL だけです。それ以外（`data:`・`javascript:` など）は代替テキストだけを出します。
-- **URL だけの段落はリンクカードになります**。段落が `https://…` 1 つだけ（前後に文字や他のリンクが無い）のとき、`<p class="aegis-linkcard" data-provider="qiita"><a href data-host="qiita.com">` に、サイト名（ホスト）とパスを出します。外部への通信はしません。サイトごとのコードは無く、`data-provider`（ホストの末尾のドメインの 1 つ前のラベル。`x`・`qiita`・`github`・`zenn`）と `data-host` を CSS で選んで見た目を変えます（`.aegis-linkcard[data-provider="x"] { … }`）。対応サイトを足すのにサーバーやプラグインの更新は要りません。文章の中のリンクや `[テキスト](URL)` だけの段落は、これまでどおりのリンクです。
-  ![バッジと、URL だけの段落のリンクカード](images/blocks-links-badges.png)
-- 抜粋（一覧の `excerpt`、フィードの `<summary>`）と目次には、記号を除いたテキストを使います。
+- If there is whitespace right after `*` or right before the closing `*`, it is not formatting (`2 * 3 * 4` stays as is). Symbols with no closing one also stay as is.
+- `_italic_` cannot be used (so as not to break `snake_case` identifiers).
+- HTML tags cannot be written. Everything is escaped as text (use `core/html` when you need HTML).
+- Link URLs are only `http:`, `https:`, `mailto:`, `tel:`, and relative URLs with no scheme (such as `/docs` and `#install`). Links with anything else (`javascript:`, `data:`, etc.) or a URL containing whitespace output only the text. For external links, `rel` and so on are added afterward by the `[security]` settings as before.
+- Image URLs are only `http:`, `https:`, and relative URLs. Anything else (`data:`, `javascript:`, etc.) outputs only the alt text.
+- **A paragraph that is only a URL becomes a link card.** When a paragraph is just one `https://…` (with no text or other links before or after), it outputs the site name (host) and path as `<p class="aegis-linkcard" data-provider="qiita"><a href data-host="qiita.com">`. It makes no external requests. There is no per-site code; you change the look by selecting `data-provider` (the label just before the host's trailing domain: `x`, `qiita`, `github`, `zenn`) and `data-host` in CSS (`.aegis-linkcard[data-provider="x"] { … }`). Adding a supported site needs no server or plugin update. Links within sentences and paragraphs that are only `[text](URL)` are ordinary links as before.
+  ![A badge and the link card of a URL-only paragraph](images/blocks-links-badges.png)
+- Excerpts (the list's `excerpt` and the feed's `<summary>`) and the table of contents use the text with the symbols removed.
 
-## 3. 見た目
+## 3. Appearance
 
-表・目次・引用の出典・注記・折りたたみ・脚注には、最低限のスタイルが組み込まれています（全ページの `<head>` の `<style id="aegis-block-styles">`）。セレクタを `:where()` で包んで詳細度を 0 にしているので、テーマの CSS がいつも優先されます。色は文字色の濃淡と、注記の種類ごとの CSS 変数 `--aegis-callout` だけを使うので、明るいテーマでも暗いテーマでも読めます。
+Minimal styles are built in for tables, the table of contents, quote sources, notes, collapsibles, and footnotes (the `<style id="aegis-block-styles">` in every page's `<head>`). Selectors are wrapped in `:where()` to give zero specificity, so the theme's CSS always takes precedence. Colors use only shades of the text color and the CSS variable `--aegis-callout` per note kind, so they are readable on both light and dark themes.
 
-テーマで見た目を変えるときのクラス:
+Classes for changing the look in a theme:
 
-| クラス | 要素 |
+| Class | Element |
 |---|---|
-| `.aegis-table` | 表を包む `<div>`（横スクロール） |
-| `.aegis-toc`、`.aegis-toc-title` | 目次の `<nav>` と見出し |
-| `.aegis-quote` | 出典のある引用の `<figure>`（出典は `figcaption`） |
-| `.aegis-callout`、`.aegis-callout-{note,tip,important,warning,caution}`、`.aegis-callout-title` | 注記と種類・見出し |
-| `.aegis-details`、`.aegis-details-body` | 折りたたみと、その本文 |
-| `.aegis-linkcard`（`data-provider`）、`.aegis-linkcard-site`、`.aegis-linkcard-path` | URL だけの段落のリンクカードと、サイト名・パス |
-| `.aegis-contact-form`、`.aegis-contact-field`、`.aegis-contact-error`、`.aegis-contact-required`、`.aegis-contact-submit` | 問い合わせフォームと項目・誤り・必須の印・送信ボタン |
+| `.aegis-table` | The `<div>` wrapping a table (horizontal scroll) |
+| `.aegis-toc`, `.aegis-toc-title` | The table of contents `<nav>` and its heading |
+| `.aegis-quote` | The `<figure>` of a quote with a source (the source is the `figcaption`) |
+| `.aegis-callout`, `.aegis-callout-{note,tip,important,warning,caution}`, `.aegis-callout-title` | A note, its kind, and its heading |
+| `.aegis-details`, `.aegis-details-body` | A collapsible and its body |
+| `.aegis-linkcard` (`data-provider`), `.aegis-linkcard-site`, `.aegis-linkcard-path` | The link card of a URL-only paragraph, and the site name and path |
+| `.aegis-contact-form`, `.aegis-contact-field`, `.aegis-contact-error`, `.aegis-contact-required`, `.aegis-contact-submit` | The contact form and its fields, errors, required mark, and submit button |
 
 ```css
-/* 例: 注記の「警告」の色をテーマの色に合わせる */
+/* Example: match the note's "warning" color to the theme's color */
 .aegis-callout-warning { --aegis-callout: #c2410c; }
 ```
 
-## 4. プラグインのブロック
+## 4. Plugin Blocks
 
-Wasm プラグインは、本文に置けるブロックを足せます（作り方は [plugin_hooks.md 1.10](plugin_hooks.md#110-render-blocks)）。公式プラグイン [`official-blocks`](../plugins/official-blocks) のボタン（`official-blocks/button`）・リンクカード（`official-blocks/link-card`）・動画（`official-blocks/video`。YouTube・Vimeo）・音声（`official-blocks/audio`）・ファイルのダウンロード（`official-blocks/file`）・地図（`official-blocks/map`。OpenStreetMap）・画像ギャラリー（`official-blocks/gallery`）・FAQ（`official-blocks/faq`）・手順（`official-blocks/steps`）・カラム（`official-blocks/columns`）・画像と文章（`official-blocks/media-text`）・キャプションつきの画像（`official-blocks/figure`）・タイムライン（`official-blocks/timeline`）・吹き出し（`official-blocks/chat`）・タブ（`official-blocks/tabs`）・数値（`official-blocks/stats`）・定義リスト（`official-blocks/definition-list`）・評価（`official-blocks/rating`。schema.org の Review つき）が例です。
+Wasm plugins can add blocks that can be placed in the body (for how to build them, see [plugin_hooks.md 1.10](plugin_hooks.md#110-render-blocks)). Examples are the official plugin [`official-blocks`](../plugins/official-blocks)'s button (`official-blocks/button`), link card (`official-blocks/link-card`), video (`official-blocks/video`; YouTube, Vimeo), audio (`official-blocks/audio`), file download (`official-blocks/file`), map (`official-blocks/map`; OpenStreetMap), image gallery (`official-blocks/gallery`), FAQ (`official-blocks/faq`), steps (`official-blocks/steps`), columns (`official-blocks/columns`), image and text (`official-blocks/media-text`), image with caption (`official-blocks/figure`), timeline (`official-blocks/timeline`), chat bubbles (`official-blocks/chat`), tabs (`official-blocks/tabs`), stats (`official-blocks/stats`), definition list (`official-blocks/definition-list`), and rating (`official-blocks/rating`; with schema.org Review).
 
-- 有効なプラグインのブロックは、Admin Studio のブロックの追加ボタンに並びます（`GET /api/v1/blocks`）。編集画面には、プラグインのマニフェストで宣言した入力欄のフォームが出ます。
-- 保存するのはブロック名と属性だけで、HTML は**表示のたびに**プラグインが作ります。プラグインを更新すると、保存し直さなくても表示が変わります。
-- プラグインが返した HTML は、カスタム HTML ブロックの標準モードと同じくサニタイズしてから出力します（`<script>`・`on*` 属性・`javascript:` の URL などは残りません）。外側は `<div class="aegis-plugin-block" data-block="<名前>">` です。
-- `<iframe>` は、プラグインがマニフェストで宣言したホスト（`capabilities.embed.frame_domains`）のものだけが残り、そのホストは CSP の `frame-src` にも自動で足されます（[plugin_hooks.md 3.2](plugin_hooks.md#32-外部のページの埋め込み-capabilitiesembed)）。動画の埋め込みはこの仕組みで行い、カスタム HTML ブロックは使いません（標準モードでは `<iframe>` が消え、サンドボックスモードでは中のプレーヤーにも制限が掛かります）。
-- プラグインを無効にしてもブロックは消えません。Admin Studio には「プラグインが無効」と表示され、公開ページには表示されません。
+- The blocks of enabled plugins line up in Admin Studio's add-block button (`GET /api/v1/blocks`). The edit screen shows a form of the input fields declared in the plugin's manifest.
+- What is saved is only the block name and attributes, and the plugin builds the HTML **on every display**. When you update the plugin, the display changes without re-saving.
+- The HTML a plugin returns is sanitized in the same way as the custom HTML block's standard mode before output (`<script>`, `on*` attributes, `javascript:` URLs, etc. do not remain). The outside is `<div class="aegis-plugin-block" data-block="<name>">`.
+- For `<iframe>`, only those from hosts the plugin declared in the manifest (`capabilities.embed.frame_domains`) remain, and those hosts are also added automatically to the CSP `frame-src` ([plugin_hooks.md 3.2](plugin_hooks.md#32-embedding-external-pages-capabilitiesembed)). Video embedding uses this mechanism and not the custom HTML block (in standard mode the `<iframe>` disappears, and in sandbox mode restrictions also apply to the player inside).
+- Disabling a plugin does not make its blocks disappear. Admin Studio shows "Plugin disabled", and they are not shown on public pages.
 
-Markdown では 1 行で書き、属性は JSON のオブジェクトです（属性が無ければ省略できます）。
+In Markdown they are written on one line, with attributes as a JSON object (omittable if there are no attributes).
 
 ```markdown
-::: official-blocks/button {"label": "はじめる", "url": "/docs/start", "style": "primary"}
+::: official-blocks/button {"label": "Get started", "url": "/docs/start", "style": "primary"}
 
 ::: official-blocks/link-card {"url": "https://github.com/takumi-mr/aegiscms", "title": "AegisCMS"}
 
 ::: official-blocks/video {"url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ", "aspect": "16x9"}
 
-::: official-blocks/audio {"url": "/uploads/episode-1.mp3", "title": "第 1 回"}
+::: official-blocks/audio {"url": "/uploads/episode-1.mp3", "title": "Episode 1"}
 
-::: official-blocks/file {"url": "/uploads/guide.pdf", "title": "導入ガイド", "size": "PDF・2.4 MB"}
+::: official-blocks/file {"url": "/uploads/guide.pdf", "title": "Getting started guide", "size": "PDF, 2.4 MB"}
 
-::: official-blocks/map {"latitude": 35.6812, "longitude": 139.7671, "zoom": 16, "title": "東京駅"}
+::: official-blocks/map {"latitude": 35.6812, "longitude": 139.7671, "zoom": 16, "title": "Tokyo Station"}
 
-::: official-blocks/gallery {"images": [{"image": "/uploads/a.jpg", "caption": "外観"}, {"image": "/uploads/b.jpg", "caption": "店内"}], "columns": "2"}
+::: official-blocks/gallery {"images": [{"image": "/uploads/a.jpg", "caption": "Exterior"}, {"image": "/uploads/b.jpg", "caption": "Interior"}], "columns": "2"}
 
-::: official-blocks/faq {"items": [{"question": "無料ですか？", "answer": "はい、無料です。"}, {"question": "どう始めますか？", "answer": "バイナリをダウンロードして起動します。"}]}
+::: official-blocks/faq {"items": [{"question": "Is it free?", "answer": "Yes, it is free."}, {"question": "How do I start?", "answer": "Download the binary and run it."}]}
 
-::: official-blocks/steps {"items": [{"title": "入れる", "description": "バイナリをダウンロードします。"}, {"title": "起動する", "description": "サーバーを起動します。"}]}
+::: official-blocks/steps {"items": [{"title": "Install", "description": "Download the binary."}, {"title": "Start", "description": "Start the server."}]}
 
-::: official-blocks/columns {"items": [{"image": "/uploads/a.jpg", "title": "速い", "text": "ミリ秒で表示します。"}, {"image": "/uploads/b.jpg", "title": "安全", "text": "プラグインは Wasm の中で動きます。"}]}
+::: official-blocks/columns {"items": [{"image": "/uploads/a.jpg", "title": "Fast", "text": "Renders in milliseconds."}, {"image": "/uploads/b.jpg", "title": "Safe", "text": "Plugins run inside Wasm."}]}
 
-::: official-blocks/media-text {"image": "/uploads/a.jpg", "alt": "焙煎機", "title": "毎週焙煎", "text": "届くのは焙煎したての豆です。", "side": "right"}
+::: official-blocks/media-text {"image": "/uploads/a.jpg", "alt": "Roaster", "title": "Roasted weekly", "text": "What arrives is freshly roasted beans.", "side": "right"}
 ```
 
-JSON として読めない行は、そのまま段落になります。
+A line that cannot be read as JSON becomes a paragraph as is.
 
-API からは、`blocks` の要素に `name` と `attributes` を書きます（`<プラグイン名>/<ブロック名>`。HTML は書かず、プラグインが表示のたびに作ります）。
+From the API, write `name` and `attributes` in the `blocks` elements (`<plugin name>/<block name>`. You do not write HTML; the plugin builds it on every display).
 
 ```bash
 curl -X POST http://localhost:8080/api/v1/contents/article \
   -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
-  -d '{"title": "例", "slug": "example", "status": "draft",
+  -d '{"title": "Example", "slug": "example", "status": "draft",
        "blocks": [{"name": "official-blocks/button",
-                   "attributes": {"label": "はじめる", "url": "/docs/start", "style": "primary"}}]}'
+                   "attributes": {"label": "Get started", "url": "/docs/start", "style": "primary"}}]}'
 ```
 
-作り方は [最初のブロックプラグインを作る](plugin_block_tutorial.md) にまとめています。
+How to build them is collected in [Creating your first block plugin](plugin_block_tutorial.md).
 
 ## 5. OGP / oEmbed
 
-URL だけの段落のカード（[2](#2-インライン書式)）に、そのページのタイトル・説明・画像を出せます。AegisCMS は oEmbed の**プロバイダー**（配る側）として組み込みで動き、**コンシューマー**（取る側）は公式プラグイン [`official-link-embed`](../plugins/official-link-embed) です。コンシューマーはサンドボックスの中で取得します。
+The card for a URL-only paragraph ([2](#2-inline-formatting)) can show that page's title, description, and image. AegisCMS runs as an oEmbed **provider** (the distributing side) built in, and the **consumer** (the fetching side) is the official plugin [`official-link-embed`](../plugins/official-link-embed). The consumer fetches inside the sandbox.
 
-### 5.1 プロバイダー: `GET /oembed`
+### 5.1 Provider: `GET /oembed`
 
-公開中の記事・固定ページ・商品の URL に、[oEmbed](https://oembed.com/) の JSON（`type: "link"`）を返します。
+For the URL of a published article, static page, or product, it returns [oEmbed](https://oembed.com/) JSON (`type: "link"`).
 
 ```bash
 curl 'https://example.com/oembed?url=https%3A%2F%2Fexample.com%2Farticles%2Fhello&format=json'
@@ -218,34 +220,34 @@ curl 'https://example.com/oembed?url=https%3A%2F%2Fexample.com%2Farticles%2Fhell
 ```json
 { "version": "1.0", "type": "link", "title": "Hello", "provider_name": "My Site",
   "provider_url": "https://example.com", "url": "https://example.com/articles/hello",
-  "description": "記事の抜粋", "thumbnail_url": "https://example.com/uploads/cover.png" }
+  "description": "The article's excerpt", "thumbnail_url": "https://example.com/uploads/cover.png" }
 ```
 
-- `description` は oEmbed の拡張項目（記事の `excerpt`）、`thumbnail_url` は `featured_image` / `image` です。HTML（`html`）は返しません。
-- このサイトの URL だけが対象です（ホストとポートが公開 URL と同じもの。公開 URL は [SEO 設定の `canonical_base_url`](configuration.md)、無ければリクエストの Host）。他のサイトの URL・下書き・非公開・存在しないコンテンツは 404、`format` が `json` 以外なら 501 です。
-- `[seo].canonical_base_url` を設定していると、コンテンツのページの `<head>` に発見用のリンク `<link rel="alternate" type="application/json+oembed" href="/oembed?url=…&format=json">` が入ります。ほかのサイトのコンシューマー（この機能を持つ CMS やチャットなど）が、URL から oEmbed を見つけられます。
+- `description` is an oEmbed extension field (the article's `excerpt`), and `thumbnail_url` is `featured_image` / `image`. HTML (`html`) is not returned.
+- Only URLs of this site are covered (those whose host and port are the same as the public URL; the public URL is [the SEO setting `canonical_base_url`](configuration.md), or the request's Host if absent). URLs of other sites, drafts, unpublished, and nonexistent content give 404, and a `format` other than `json` gives 501.
+- If `[seo].canonical_base_url` is set, a discovery link `<link rel="alternate" type="application/json+oembed" href="/oembed?url=…&format=json">` goes into the `<head>` of content pages. Consumers on other sites (CMSs and chat tools with this feature) can discover the oEmbed from the URL.
 
-OGP（`og:title`・`og:description`・`og:image`・`twitter:` カード）は、これまでどおり全ページの `<head>` に出ます。
+OGP (`og:title`, `og:description`, `og:image`, and `twitter:` cards) still appears in every page's `<head>` as before.
 
-### 5.2 コンシューマー: `official-link-embed`
+### 5.2 Consumer: `official-link-embed`
 
-有効にすると、本文の**段落が `https://…` の URL 1 つだけ**のとき、保存のときに（エディタのプレビューでも）そのページを取得し、タイトル・説明・画像・サイト名を `official-link-embed/embed` ブロックの属性に保存します。表示のときは通信しません（外部のサイトが落ちていても、遅くても、公開ページには影響しません）。
+When enabled, if a body **paragraph is only one `https://…` URL**, at save time (and in the editor's preview too) it fetches that page and stores the title, description, image, and site name in the attributes of an `official-link-embed/embed` block. It makes no requests at display time (even if the external site is down or slow, public pages are unaffected).
 
-- 取得の順: ① 設定の `oembed_endpoints` にあるホスト（既定は X。ページに OGP が無いサイト）は oEmbed ② ページの `og:` / `twitter:` / `<title>` ③ タイトルが取れなければ、ページの oEmbed 発見用リンク。oEmbed が返す `html`（第三者の HTML・スクリプト）は使わず、本文のテキストだけを説明にします。
-- 取得できなかった・許可されていない URL の段落はそのままで、組み込みのリンクカード（ホストとパス）で表示されます。
-- 保存したあとは自動では更新しません（Wasm に時計が無く、期限の判定ができないため）。最新にしたいときは、埋め込みブロックの「再取得」ボタンを押すか、ブロックの `url` を書き換えて保存します（取得したときの URL を `fetched_url` に覚えていて、違っていたら取り直します）。取り直しに失敗したときは、これまでの内容を残します。
-- 1 回の保存で取得するのは 3 つの URL までです（残りは組み込みのカード。保存し直すと続きを取得します）。
+- Fetch order: (1) for hosts in the settings' `oembed_endpoints` (X by default; sites whose pages have no OGP), oEmbed; (2) the page's `og:` / `twitter:` / `<title>`; (3) if no title can be obtained, the page's oEmbed discovery link. The `html` oEmbed returns (third-party HTML and scripts) is not used, and only the body text is used as the description.
+- A paragraph whose URL could not be fetched or is not allowed stays as it is and is displayed with the built-in link card (host and path).
+- After saving, it is not updated automatically (Wasm has no clock, so expiry cannot be decided). To refresh, press the embed block's "Refetch" button, or rewrite the block's `url` and save (the URL at the time of fetching is remembered in `fetched_url`, and it is refetched if different). If refetching fails, the previous contents are kept.
+- A single save fetches up to 3 URLs (the rest use the built-in card; saving again fetches the rest).
 
-**取得先（許可ドメイン）** はコードではなく設定で足します。
+**Fetch destinations (allowed domains)** are added in the settings, not in code.
 
 ```toml
 [plugins.settings.official-link-embed]
-extra_allowed_domains = "speakerdeck.com, example.org"   # 既定の qiita.com・zenn.dev・github.com・note.com・x.com に足す（サブドメインを含む）
-oembed_endpoints = "x.com=https://publish.twitter.com/oembed"  # ページに OGP が無いサイト用（エンドポイントのドメインも許可が必要）
+extra_allowed_domains = "speakerdeck.com, example.org"   # added to the defaults qiita.com, zenn.dev, github.com, note.com, x.com (subdomains included)
+oembed_endpoints = "x.com=https://publish.twitter.com/oembed"  # for sites whose pages have no OGP (the endpoint's domain must be allowed too)
 ```
 
-Admin Studio のプラグイン管理画面からも設定でき、サーバーを再起動しなくても反映されます（[`extra_allowed_domains`](configuration.md#plugins--プラグインの有効化)）。
+It can also be set from Admin Studio's plugin management screen and takes effect without restarting the server ([`extra_allowed_domains`](configuration.md#plugins--enabling-plugins)).
 
-**通信の制限**（すべてのプラグイン共通。[plugin_hooks.md 5.4](plugin_hooks.md#54-http-リクエスト-hosthttp_fetch)）: `http` / `https` だけで、ポートは `https` が 443、`http` が 80 か 8080 だけです。内部の IP アドレス（ループバック・プライベート・リンクローカル＝クラウドのメタデータなど）や、そこに解決されるホスト名へは、許可ドメインに書いても通信しません。リダイレクトは 3 回まで、移った先ごとに許可ドメインと上の制限を確認します。
+**Network restrictions** (common to all plugins; [plugin_hooks.md 5.4](plugin_hooks.md#54-http-requests-hosthttp_fetch)): only `http` / `https`, and ports only 443 for `https` and 80 or 8080 for `http`. It does not connect to internal IP addresses (loopback, private, link-local = cloud metadata, etc.) or host names that resolve to them, even if written in the allowed domains. Redirects are followed up to 3 times, with the allowed domains and the above restrictions checked at each destination.
 
-テーマで見た目を変えるときのクラスは `.oe-card`・`.oe-body`・`.oe-title`・`.oe-description`・`.oe-site`・`.oe-image` です（詳細度 0 の `:where()`）。
+The classes for changing the look in a theme are `.oe-card`, `.oe-body`, `.oe-title`, `.oe-description`, `.oe-site`, and `.oe-image` (zero-specificity `:where()`).

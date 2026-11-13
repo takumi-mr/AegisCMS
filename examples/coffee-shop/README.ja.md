@@ -2,7 +2,7 @@
 
 [English](README.md) | **日本語**
 
-AegisCMS の EC 機能（[docs/commerce.md](../../docs/commerce.md)）で作った、コーヒー豆のオンラインショップのサンプルです。商品・注文・店名はすべて架空のものです。
+AegisCMS の EC 機能（[docs/commerce.ja.md](../../docs/commerce.ja.md)）で作った、コーヒー豆のオンラインショップのサンプルです。商品・注文・店名はすべて架空のものです。
 
 ![サンプルショップ「朝凪珈琲」の商品一覧ページ](../../docs/images/commerce-storefront.png)
 
@@ -61,13 +61,13 @@ node examples/coffee-shop/seed.mjs      # 別のターミナルで
 | クーポン（同上） | `WELCOME10`（10% オフ）、`COFFEE300`（300円引き）。それ以外は 422 で「無効なクーポン」 |
 | 注文と在庫 | 注文すると在庫が減り、注文確認ページに振込先が出る。72 時間支払いがなければ自動で取り消して在庫を戻す |
 | 注文の管理 | 管理画面の **Orders** で支払い済み → 発送 → 完了と進める。顧客の注文確認ページの状態も変わる |
-| 通知（[docs/notifications.md](../../docs/notifications.md)） | 注文・入金確認・発送・取り消しのメールを、サンプルではサーバーのログに出す（`aegis::notify`）。発送にするときのメモ（追跡番号など）は発送のメールに入る。管理者のログインと、パスワードを 5 回間違えたときのログインのロックも知らせる。SMTP サーバーがあれば `channels = ["email"]` で実際に送れる |
+| 通知（[docs/notifications.ja.md](../../docs/notifications.ja.md)） | 注文・入金確認・発送・取り消しのメールを、サンプルではサーバーのログに出す（`aegis::notify`）。発送にするときのメモ（追跡番号など）は発送のメールに入る。管理者のログインと、パスワードを 5 回間違えたときのログインのロックも知らせる。SMTP サーバーがあれば `channels = ["email"]` で実際に送れる |
 | 商品の管理 | 管理画面の **Products** で価格・在庫・画像を編集 |
 | 監査ログ | 管理画面の **Settings › Audit Logs** に注文（`order.create` / `order.update`）や商品の変更が残る |
 
 ## カード決済（Stripe）にする
 
-`aegis.toml` の `[commerce]` を次のように変えると、Stripe Checkout で支払うようになります（テストモードのキーで試せます）。詳しくは [docs/commerce.md「4.2 stripe」](../../docs/commerce.md)。
+`aegis.toml` の `[commerce]` を次のように変えると、Stripe Checkout で支払うようになります（テストモードのキーで試せます）。詳しくは [docs/commerce.md「4.2 stripe」](../../docs/commerce.ja.md)。
 
 ```toml
 [commerce]
