@@ -1090,7 +1090,18 @@ mod tests {
         allowed: &str,
         kv_namespace: Option<&str>,
     ) -> WasmPluginInstance {
+        host_api_plugin_named("test-plugin", services, wasm, allowed, kv_namespace)
+    }
+
+    fn host_api_plugin_named(
+        name: &str,
+        services: Arc<FakeServices>,
+        wasm: &[u8],
+        allowed: &str,
+        kv_namespace: Option<&str>,
+    ) -> WasmPluginInstance {
         let mut manifest = make_sample_manifest(vec!["on-order-status-changed".to_string()]);
+        manifest.name = name.to_string();
         manifest.capabilities.network = Some(NetworkCapability {
             allowed_domains: vec![allowed.to_string()],
         });
@@ -1293,9 +1304,14 @@ mod tests {
         let error = run_order_hook(&plugin).await.unwrap_err().to_string();
         assert!(error.ends_with("stored"), "{}", error);
         assert_eq!(
-            services.kv.lock().unwrap().get("ns:k").map(String::as_str),
+            services
+                .kv
+                .lock()
+                .unwrap()
+                .get("test-plugin:k")
+                .map(String::as_str),
             Some(value),
-            "keys are namespaced by the host"
+            "keys are namespaced by the host with the plugin's name"
         );
 
         // Without capabilities.storage, kv_get returns -1 (denied): the output is "unchanged"
@@ -1309,6 +1325,55 @@ mod tests {
         let plugin = host_api_plugin(fake_services(), &wasm, "example.com", None);
         let error = run_order_hook(&plugin).await.unwrap_err().to_string();
         assert!(error.ends_with("configured"), "{}", error);
+    }
+
+    /// プラグイン同士の KV は、マニフェストで同じ `kv_namespace` を名乗っても分離される
+    /// （`kv_namespace` は自己申告の文字列なので、キーの名前空間にはプラグインの名前を使う）
+    #[tokio::test]
+    async fn test_kv_is_isolated_per_plugin_even_with_the_same_declared_namespace() {
+        let value = r#"{"error":"stored"}"#;
+        let data = format!("k{}", value);
+        let writer = host_api_module(
+            &data,
+            &format!(
+                "(drop (call $kv_set (i32.const 256) (i32.const 1) (i32.const 257) (i32.const {})))
+                 (call $kv_get (i32.const 256) (i32.const 1))",
+                value.len()
+            ),
+        );
+        // 読むだけ: kv_get("k") の結果（無ければ 0 で、フックは成功する）
+        let reader = host_api_module("k", "(call $kv_get (i32.const 256) (i32.const 1))");
+
+        let services = fake_services();
+        let owner = host_api_plugin_named(
+            "owner",
+            services.clone(),
+            &writer,
+            "example.com",
+            Some("shared"),
+        );
+        assert!(run_order_hook(&owner)
+            .await
+            .unwrap_err()
+            .to_string()
+            .ends_with("stored"));
+
+        // 別のプラグインが、同じ名前空間を名乗っても、キーが同じでも読めない
+        let intruder = host_api_plugin_named(
+            "intruder",
+            services.clone(),
+            &reader,
+            "example.com",
+            Some("shared"),
+        );
+        assert!(
+            run_order_hook(&intruder).await.is_ok(),
+            "the owner's value must not be visible"
+        );
+
+        // 保存先は、持ち主のプラグインの名前の下だけ
+        let keys: Vec<String> = services.kv.lock().unwrap().keys().cloned().collect();
+        assert_eq!(keys, vec!["owner:k".to_string()]);
     }
 
     #[tokio::test]

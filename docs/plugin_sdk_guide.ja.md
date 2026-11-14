@@ -193,7 +193,7 @@ if net::is_allowed("https://api.github.com/repos/xxx") {
 
 ### 3.3 Key-Value ストレージ API (`aegis_plugin_sdk::kv`)
 
-プラグイン専用のネームスペース（`capabilities.storage.kv_namespace`）内にデータを永続化します。他のプラグインのデータと物理的に隔離されます。
+プラグインの名前の下にデータを永続化します（ホストがすべてのキーにプラグインの名前を付けます。`capabilities.storage.kv_namespace` は KV を使う宣言です）。他のプラグインのデータとは分離されます。
 
 ```rust
 // 文字列の保存

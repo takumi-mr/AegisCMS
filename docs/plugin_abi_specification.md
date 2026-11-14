@@ -133,7 +133,7 @@ The host verifies whether the destination URL is allowed by `capabilities.networ
 
 ### 3.3 `host.kv_set`
 
-Persists and updates data in the Key-Value store of the plugin's own namespace. It must be permitted by `capabilities.storage.kv_namespace` in the manifest.
+Persists and updates data in the Key-Value store under the plugin's own name (the host prefixes the key with the plugin name). The use of KV must be declared by `capabilities.storage.kv_namespace` in the manifest.
 
 ```text
 (import "host" "kv_set" (func (param i32 i32 i32 i32) (result i32)))

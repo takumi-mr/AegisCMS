@@ -921,8 +921,9 @@ async fn api_invoke_hook(
     if let Ok(mut kv_store) = state.host_services.kv.lock() {
         kv_store.clear();
         for (k, v) in payload.kv {
-            let full_key = if let Some(storage) = &manifest.capabilities.storage {
-                format!("{}:{}", storage.kv_namespace, k)
+            let full_key = if manifest.capabilities.storage.is_some() {
+                // 本番と同じく、キーの接頭辞はプラグインの名前（`kv_namespace` は自己申告なので使わない）
+                format!("{}:{}", manifest.name, k)
             } else {
                 k
             };
@@ -1858,8 +1859,8 @@ mod tests {
         let json: Value = serde_json::from_slice(&body).unwrap();
         assert_eq!(json["success"], true);
 
-        // KV mutation is captured with namespace
-        assert_eq!(json["kv_mutations"]["test_ns:counter"], "42");
+        // KV mutation is captured under the plugin name (not the self-declared kv_namespace)
+        assert_eq!(json["kv_mutations"]["host-test-plugin:counter"], "42");
 
         // HTTP request is captured
         let http_reqs = json["http_requests"].as_array().unwrap();

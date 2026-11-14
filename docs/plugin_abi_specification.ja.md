@@ -133,7 +133,7 @@ packed_result (i64) = ((ptr as i64) << 32) | ((len as u32) as i64)
 
 ### 3.3 `host.kv_set`
 
-プラグイン専用ネームスペースの Key-Value ストアへデータを永続化・更新します。マニフェストの `capabilities.storage.kv_namespace` で許可されている必要があります。
+プラグインの名前の下の Key-Value ストアへデータを永続化・更新します（ホストがキーにプラグインの名前を付けます）。マニフェストの `capabilities.storage.kv_namespace` で KV を使うことを宣言している必要があります。
 
 ```text
 (import "host" "kv_set" (func (param i32 i32 i32 i32) (result i32)))
