@@ -7,6 +7,7 @@ pub mod cache;
 pub mod comments;
 pub mod commerce;
 pub mod csp;
+pub mod dev_guard;
 pub mod entity;
 pub mod error;
 pub mod manifest;

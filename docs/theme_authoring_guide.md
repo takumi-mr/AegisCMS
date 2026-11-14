@@ -361,7 +361,7 @@ The dev server is split into the standalone lightweight crate `aegis-theme-dev` 
     - `GET /__dev/api/package/export`: downloads a ZIP archive for distribution (excluding `samples/` and hidden files)
     - `GET /__dev/api/files`, `GET`, `PUT`, `DELETE /__dev/api/files/<path>`, `POST /__dev/api/rename`: list, read, save, delete, and rename files. The targets are `theme.json` (cannot be deleted or renamed) and text files under `templates/`, `samples/`, and `assets/` (`.html`, `.css`, `.js`, `.json`, `.svg`, etc., up to 1MiB). `..`, hidden files, and anything outside the folder are rejected
     - `POST /__dev/api/render`: renders reflecting unsaved content (`templates` as name → contents, `samples` as name → JSON, and optionally `block` for a block name), and returns the list of available `blocks`. It writes nothing
-    - Writes (`PUT`, `POST`) are available only when listening on loopback. The header `x-aegis-dev` is required, and requests whose `Host` is not a loopback name are rejected (to prevent writes from other sites' pages and DNS rebinding). CORS is not allowed
+    - Writes (`PUT`, `POST`) are available only when listening on loopback. The header `x-aegis-dev` is required, requests whose `Host` is not a loopback name are rejected, and a write that carries an `Origin` is rejected unless it is the dev server itself (to prevent writes from other sites' pages and DNS rebinding). CORS is not allowed
 
 ### Theme Builder (Editor + Live Preview)
 

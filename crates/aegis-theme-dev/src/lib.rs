@@ -258,6 +258,25 @@ async fn guard(State(state): State<DevState>, req: Request, next: Next) -> Respo
             return (StatusCode::FORBIDDEN, "Unexpected Host header").into_response();
         }
     }
+    if !matches!(*req.method(), Method::GET | Method::HEAD | Method::OPTIONS) {
+        // ほかのサイトのページから送られた書き込みを断る（`Origin` が開発サーバー自身でなければ 403）
+        let header_str = |name: header::HeaderName| {
+            req.headers()
+                .get(name)
+                .and_then(|v| v.to_str().ok())
+                .map(str::to_string)
+        };
+        if !aegis_core::dev_guard::is_same_origin_write(
+            header_str(header::ORIGIN).as_deref(),
+            header_str(header::HOST).as_deref(),
+        ) {
+            return (
+                StatusCode::FORBIDDEN,
+                "Cross-origin requests are not allowed",
+            )
+                .into_response();
+        }
+    }
     if !matches!(*req.method(), Method::GET | Method::HEAD | Method::OPTIONS)
         && !req.headers().contains_key(WRITE_HEADER)
     {
@@ -1738,6 +1757,42 @@ mod tests {
     }
 
     const DEV: (&str, &str) = ("x-aegis-dev", "1");
+
+    /// ほかのサイトのページからの書き込みは、カスタムヘッダーが付いていても断る
+    #[tokio::test]
+    async fn test_cross_origin_writes_are_refused() {
+        let tmp = theme_dir();
+        let (app, _tx) = app(&tmp);
+        let body = json!({ "content": "body{color:red}" });
+        for origin in ["https://evil.example", "http://localhost:3000", "null"] {
+            let (status, _) = send(
+                &app,
+                "PUT",
+                "/__dev/api/files/assets/evil.css",
+                &[DEV, ("origin", origin)],
+                Some(body.clone()),
+            )
+            .await;
+            assert_eq!(status, StatusCode::FORBIDDEN, "{origin}");
+        }
+        assert!(!tmp.path().join("mytheme/assets/evil.css").exists());
+        // 同じオリジン（ビルダーの画面）と `Origin` の無い要求は通る
+        for origin in [Some("http://localhost:8090"), None] {
+            let mut headers = vec![DEV];
+            if let Some(origin) = origin {
+                headers.push(("origin", origin));
+            }
+            let (status, _) = send(
+                &app,
+                "PUT",
+                "/__dev/api/files/assets/ok.css",
+                &headers,
+                Some(body.clone()),
+            )
+            .await;
+            assert!(status.is_success(), "{origin:?}: {status}");
+        }
+    }
 
     #[tokio::test]
     async fn test_files_can_be_listed_read_and_saved() {

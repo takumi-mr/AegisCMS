@@ -9,6 +9,8 @@ export default defineConfig({
   plugins: [react()],
   server: {
     port: 5175,
+    // Keep the Host header (do not set `changeOrigin`): the dev server only accepts writes whose
+    // Origin is the same as Host, and loopback names as Host
     proxy: {
       '/__dev': target,
     },

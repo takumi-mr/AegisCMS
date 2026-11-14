@@ -582,7 +582,7 @@ A simple benchmark (4 vCPU, oha from the same machine, 50 concurrent, 50 article
     - A development server (port 8091) for testing and debugging a plugin by itself (plugin.manifest.json and plugin.wasm) immediately, without needing a database, login, or real content.
     - It runs each hook on Wasmtime in a fully memory-isolated environment, and collects and returns in real time the return value, CPU instruction count (Fuel), execution time in milliseconds, and the logs the plugin output (log_info!, etc.) (POST /__dev/api/invoke).
     - The mock host service (DevHostServices) provides mock response definitions and sent-request capture for the external HTTP requests a plugin makes (http_fetch), and state tracking and diff recording for KVS (kv_get / kv_set).
-    - The same security defenses as theme_dev are applied (Host header check when limited to loopback, the x-aegis-dev header required for mutating operations, and path traversal prevention against directory escape).
+    - The same security defenses as theme_dev are applied (Host header check when limited to loopback, the x-aegis-dev header required for mutating operations, `Origin` required to be the dev server itself, no CORS, no file writes or builds when not on loopback, and path traversal prevention against directory escape).
     - Long polling of GET /__dev/version detects recompilation or changes of the Wasm and manifest and automatically notifies the client.
 
 ## 19. Internationalization Policy

@@ -218,9 +218,10 @@ curl -X POST http://127.0.0.1:8091/__dev/api/build \
 The dev server is specialized for local development, but it has the following defenses to prevent unauthorized operation from other browser tabs and malicious external scripts.
 
 1. **DNS rebinding prevention**: For loopback connections, it validates that the `Host` header is `localhost` / `127.0.0.1` / `::1`.
-2. **CSRF / unauthorized fetch prevention**: The `x-aegis-dev` custom header is required on all mutation requests other than `GET` / `HEAD`.
-3. **Path traversal prevention**: The file API blocks paths that escape from under the plugin directory (`..` and symbolic links).
-4. **Preview sandbox**: Plugin Builder's HTML preview iframe is isolated with the attribute `sandbox="allow-scripts allow-forms allow-popups allow-modals"`, preventing same-origin access to the parent screen.
+2. **CSRF / unauthorized fetch prevention**: The `x-aegis-dev` custom header is required on all mutation requests other than `GET` / `HEAD`. If the request carries an `Origin`, it must be the dev server itself (the same as `Host`; Plugin Builder goes through the Vite proxy, which keeps `Host`), so a page of another site cannot write files or start a build even with the header. CORS is not allowed (no `Access-Control-Allow-*` headers, and preflight requests are refused). Requests without an `Origin` (`curl` and scripts) are accepted.
+3. **No editing or building off loopback**: When the server listens on anything but loopback (`--host 0.0.0.0` and the like), writing and deleting files and `POST /__dev/api/build` return `403`. Writing a build script and building it runs code on the developer's machine, so anyone on the network could otherwise do that. Reading, invoking hooks and previews stay available.
+4. **Path traversal prevention**: The file API blocks paths that escape from under the plugin directory (`..` and symbolic links).
+5. **Preview sandbox**: Plugin Builder's HTML preview iframe is isolated with the attribute `sandbox="allow-scripts allow-forms allow-popups allow-modals"`, preventing same-origin access to the parent screen.
 
 ---
 
