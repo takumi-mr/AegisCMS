@@ -40,6 +40,19 @@ jobs:
       - name: Check version consistency
         run: node scripts/check-versions.mjs
 
+      # --all-features turns on `embed-admin`, which embeds admin/dist in the binary
+      - name: Set up Node.js (for the embedded Admin Studio)
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: admin/package-lock.json
+
+      - name: Build Admin Studio (for the embedded Admin Studio)
+        run: |
+          npm --prefix admin ci
+          npm --prefix admin run build
+
       - name: Check code formatting (cargo fmt)
         run: cargo fmt --check
 

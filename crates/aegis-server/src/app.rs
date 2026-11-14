@@ -725,6 +725,15 @@ pub fn router(config: &AegisConfig, state: Arc<AppState>) -> Router {
         let admin_serve = ServeDir::new(&config.paths.admin_dist_dir)
             .not_found_service(ServeFile::new(index_file));
         app = app.nest_service(&config.server.admin_path(), admin_serve);
+    } else {
+        // ディスクに無ければ、実行ファイルに埋め込んだ Admin Studio を配信する（feature `embed-admin`）
+        #[cfg(feature = "embed-admin")]
+        {
+            app = app.nest_service(
+                &config.server.admin_path(),
+                axum::routing::get(crate::admin_embed::serve),
+            );
+        }
     }
 
     app.layer(cors)

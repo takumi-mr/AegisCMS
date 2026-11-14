@@ -41,6 +41,7 @@ axum.workspace = true
 tower.workspace = true
 tower-http.workspace = true
 sqlx.workspace = true
+rust-embed = { workspace = true, optional = true }
 serde.workspace = true
 serde_json.workspace = true
 tracing.workspace = true
@@ -84,5 +85,8 @@ headless = ["dep:aegis-headless"]
 analytics = ["dep:aegis-analytics"]
 # Database & upload storage dump and restore (aegis-server dump / aegis-server restore)
 backup = ["dep:aegis-backup"]
+# Embed the Admin Studio build (admin/dist) in the binary, served when [paths].admin_dist_dir does not exist.
+# Needs `npm --prefix admin run build` first; off by default so `cargo build` does not need the frontend
+embed-admin = ["dep:rust-embed"]
 
 
