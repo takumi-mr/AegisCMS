@@ -577,6 +577,7 @@ In addition to password authentication, AegisCMS supports two-factor authenticat
 3. The screen switches automatically to the two-factor code input form.
 4. The user enters and submits the 6-digit authentication code (or, from "Use a backup code", an 8-digit backup code) (`POST /api/v1/auth/session/verify-2fa`).
 5. The server verifies the code and issues a proper Bearer session. If a backup code was used, that code is consumed and deleted from the DB automatically.
+6. A challenge accepts **one** code attempt (a wrong code also uses it up, and concurrent requests with the same challenge are refused except the first). While the login is locked by [`[auth.login_rate_limit]`](configuration.md#29-authlogin_rate_limit--rate-limiting-of-login-attempts), codes are refused with `429`. A TOTP code that has been used once cannot be used again within its validity window.
 
 ### 12.3 Removal and Recovery by Administrators
 

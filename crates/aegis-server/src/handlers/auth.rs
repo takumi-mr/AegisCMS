@@ -225,8 +225,20 @@ pub async fn verify_2fa(
         }
     };
 
-    // チャレンジは 1 回限り使用可能
+    // チャレンジは 1 回限り使用可能。読んでから消すだけだと、同時に送られた複数のリクエストが
+    // 同じチャレンジで何回もコードを試せてしまうので、不可分な加算で最初の 1 本だけを通す
     let _ = state.cache.delete(&cache_key).await;
+    let used_key = format!("mfa_challenge_used:{}", payload.challenge_token.trim());
+    match state.cache.increment(&used_key, Some(300)).await {
+        Ok(1) => {}
+        _ => {
+            return (
+                StatusCode::UNAUTHORIZED,
+                Json(json!({ "error": "Invalid or expired verification challenge" })),
+            )
+                .into_response();
+        }
+    }
 
     let challenge: serde_json::Value = match serde_json::from_str(&challenge_json) {
         Ok(v) => v,
@@ -259,6 +271,20 @@ pub async fn verify_2fa(
     };
     let ttl_secs = challenge["ttl_secs"].as_u64();
 
+    // ログインがロックされている間は、チャレンジを持っていてもコードを試させない
+    // （コードの総当たりも、パスワードと同じ失敗回数の上限の中に収める）
+    match state.login_limiter.check(&username, ip).await {
+        Ok(Some(lockout)) => return too_many_attempts(lockout.retry_after_secs),
+        Ok(None) => {}
+        Err(e) => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({ "error": format!("Failed to check login rate limit: {}", e) })),
+            )
+                .into_response();
+        }
+    }
+
     let user = match state.db.get_user_by_username(&username).await {
         Ok(Some(u)) => u,
         _ => {
@@ -270,11 +296,22 @@ pub async fn verify_2fa(
         }
     };
 
-    let valid_totp = if let Some(secret) = &user.totp_secret {
+    let mut valid_totp = if let Some(secret) = &user.totp_secret {
         aegis_auth::verify_totp_code(secret, &payload.code)
     } else {
         false
     };
+    // 使った TOTP コードは、有効な時間（前後 1 区間を含めて約 90 秒）の中でも 1 回しか使えない。
+    // 覗き見られたコードや、中間者に渡ったコードで、続けてログインされない
+    if valid_totp {
+        let digits: String = payload
+            .code
+            .chars()
+            .filter(|c| c.is_ascii_digit())
+            .collect();
+        let used_key = format!("totp_used:{}:{}", user.username, digits);
+        valid_totp = matches!(state.cache.increment(&used_key, Some(120)).await, Ok(1));
+    }
 
     let mut is_backup_code = false;
     let is_valid = if valid_totp {
@@ -888,5 +925,115 @@ mod tests {
         )
         .await;
         assert_eq!(reuse_verify.status(), StatusCode::UNAUTHORIZED);
+    }
+
+    /// 2FA を有効にした `alice` と、その TOTP の秘密鍵を用意する
+    async fn state_with_two_factor() -> (Arc<AppState>, String) {
+        let state = crate::test_support::test_state_with_config(
+            AegisConfig::default(),
+            aegis_runtime::PluginSupervisor::new(),
+        )
+        .await;
+        create_user(
+            state.db.as_ref(),
+            NewUser {
+                username: "alice".to_string(),
+                password: "correct-password".to_string(),
+                role: "editor".to_string(),
+                email: None,
+                display_name: None,
+            },
+        )
+        .await
+        .unwrap();
+        let setup = aegis_auth::generate_totp_setup("alice", "AegisCMS").unwrap();
+        let (_, backup_json) = aegis_auth::generate_backup_codes();
+        aegis_auth::users::enable_2fa(state.db.as_ref(), "alice", &setup.secret, &backup_json)
+            .await
+            .unwrap();
+        (state, setup.secret)
+    }
+
+    /// パスワードでログインして、2FA のチャレンジトークンを受け取る
+    async fn challenge(state: &Arc<AppState>, ip: &str) -> String {
+        let resp = login(state, "alice", "correct-password", ip).await;
+        assert_eq!(resp.status(), StatusCode::OK);
+        let body: serde_json::Value = serde_json::from_slice(
+            &axum::body::to_bytes(resp.into_body(), usize::MAX)
+                .await
+                .unwrap(),
+        )
+        .unwrap();
+        body["challenge_token"].as_str().unwrap().to_string()
+    }
+
+    async fn verify(state: &Arc<AppState>, ip: &str, token: &str, code: &str) -> Response {
+        verify_2fa(
+            State(state.clone()),
+            AuditContext::default(),
+            ClientIp(Some(ip.to_string())),
+            Json(Verify2faRequest {
+                challenge_token: token.to_string(),
+                code: code.to_string(),
+            }),
+        )
+        .await
+    }
+
+    /// 1 つのチャレンジで試せるコードは 1 回だけ。同時に何本も送って、推測の回数を増やせない
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn test_two_factor_challenge_is_consumed_atomically() {
+        let (state, secret) = state_with_two_factor().await;
+        let ip = "203.0.113.20";
+        let token = challenge(&state, ip).await;
+        let code = aegis_auth::generate_current_totp_code(&secret).unwrap();
+        let mut tasks = tokio::task::JoinSet::new();
+        for _ in 0..16 {
+            let (state, token, code) = (state.clone(), token.clone(), code.clone());
+            tasks.spawn(async move { verify(&state, ip, &token, &code).await.status() });
+        }
+        let mut created = 0;
+        while let Some(status) = tasks.join_next().await {
+            if status.unwrap() == StatusCode::CREATED {
+                created += 1;
+            }
+        }
+        assert_eq!(created, 1, "one challenge must give at most one session");
+    }
+
+    /// ログインがロックされている間は、チャレンジを持っていても 2FA のコードを試させない
+    #[tokio::test]
+    async fn test_two_factor_verification_respects_the_login_lockout() {
+        let (state, secret) = state_with_two_factor().await;
+        let ip = "203.0.113.21";
+        let token = challenge(&state, ip).await;
+        let max = state.system().max_login_attempts;
+        for _ in 0..max.max(1) + 1 {
+            let _ = state
+                .login_limiter
+                .record_failure_with_max_ip("alice", Some(ip), max)
+                .await;
+        }
+        let code = aegis_auth::generate_current_totp_code(&secret).unwrap();
+        let resp = verify(&state, ip, &token, &code).await;
+        assert_eq!(resp.status(), StatusCode::TOO_MANY_REQUESTS);
+    }
+
+    /// 使った TOTP コードは、有効な時間の中でも 2 回目は使えない（覗き見・中間者による再利用を防ぐ）
+    #[tokio::test]
+    async fn test_two_factor_totp_code_cannot_be_replayed() {
+        let (state, secret) = state_with_two_factor().await;
+        let ip = "203.0.113.22";
+        let code = aegis_auth::generate_current_totp_code(&secret).unwrap();
+        let first = challenge(&state, ip).await;
+        assert_eq!(
+            verify(&state, ip, &first, &code).await.status(),
+            StatusCode::CREATED
+        );
+        let second = challenge(&state, ip).await;
+        assert_eq!(
+            verify(&state, ip, &second, &code).await.status(),
+            StatusCode::UNAUTHORIZED
+        );
     }
 }

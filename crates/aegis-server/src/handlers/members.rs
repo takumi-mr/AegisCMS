@@ -350,18 +350,57 @@ pub async fn login(
         .and_then(|h| h.to_str().ok())
         .map(str::to_string);
 
-    let (session, member) =
-        service
-            .login(req, client_ip, user_agent)
-            .await
-            .map_err(|e| match e {
+    // 失敗が続いたメールアドレス・クライアント IP は、管理者のログインと同じ設定（`[auth.login_rate_limit]`）で
+    // 一時的に拒否する。ロック中は資格情報を検証しない（Argon2 の負荷もかけさせない）。
+    // 管理者のユーザー名と同じ文字列でも数えが混ざらないよう、`member:` を付けた別の枠で数える
+    let limiter_key = format!("member:{}", req.email.trim().to_lowercase());
+    let ip = client_ip.clone();
+    match state.login_limiter.check(&limiter_key, ip.as_deref()).await {
+        Ok(Some(lockout)) => {
+            return Ok((
+                StatusCode::TOO_MANY_REQUESTS,
+                [(header::RETRY_AFTER, lockout.retry_after_secs.to_string())],
+                Json(json!({
+                    "error": "Too many failed login attempts. Try again later.",
+                    "retry_after_secs": lockout.retry_after_secs,
+                })),
+            )
+                .into_response());
+        }
+        Ok(None) => {}
+        Err(e) => return Err(map_aegis_error(e)),
+    }
+
+    let (session, member) = match service.login(req, client_ip, user_agent).await {
+        Ok(logged_in) => logged_in,
+        Err(e) => {
+            // サーバー側のエラーや、パスワードが合っている拒否（未確認・停止中）は失敗に数えない
+            if matches!(e, AegisError::Authentication(_)) {
+                if let Err(err) = state
+                    .login_limiter
+                    .record_failure_with_max_ip(
+                        &limiter_key,
+                        ip.as_deref(),
+                        state.system().max_login_attempts,
+                    )
+                    .await
+                {
+                    tracing::warn!("Failed to record a member login failure: {}", err);
+                }
+            }
+            return Err(match e {
                 // パスワードが合っていて、確認だけが済んでいない。ページが「確認メールを送り直す」を出せるよう、コードを付ける
                 AegisError::PermissionDenied(message) if message == EMAIL_NOT_VERIFIED_MESSAGE => (
                     StatusCode::FORBIDDEN,
                     Json(json!({ "error": message, "code": "email_not_verified" })),
                 ),
                 other => map_aegis_error(other),
-            })?;
+            });
+        }
+    };
+    if let Err(e) = state.login_limiter.record_success(&limiter_key).await {
+        tracing::warn!("Failed to reset member login failures: {}", e);
+    }
 
     // ブラウザには Cookie でも渡す（JavaScript から触れない）。API のクライアントは従来どおり本文のトークンを使う
     let cookie = session_cookie(&state, &headers, &session.token, service.session_ttl_secs());

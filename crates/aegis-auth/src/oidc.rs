@@ -353,8 +353,17 @@ impl OidcAuthProvider {
             .get(&key)
             .await?
             .ok_or_else(|| auth_error(REASON_INVALID_STATE))?;
-        // One-time: a replayed callback finds no state
+        // One-time: a replayed callback finds no state. Reading and then deleting is not atomic,
+        // so concurrent callbacks could all pass; only the first atomic increment may continue
         self.cache.delete(&key).await?;
+        if self
+            .cache
+            .increment(&format!("{key}:used"), Some(STATE_TTL_SECS))
+            .await?
+            != 1
+        {
+            return Err(auth_error(REASON_INVALID_STATE));
+        }
         let pending: PendingLogin =
             serde_json::from_str(&pending).map_err(|_| auth_error(REASON_INVALID_STATE))?;
         let code = parameters

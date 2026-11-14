@@ -32,6 +32,7 @@ struct TestContext {
     app: axum::Router,
     db: Arc<dyn DatabaseAdapter>,
     admin_token: String,
+    state: Arc<crate::state::AppState>,
 }
 
 async fn setup_app() -> TestContext {
@@ -86,11 +87,12 @@ async fn setup_app_with(configure: impl FnOnce(&mut AegisConfig)) -> TestContext
         .await
         .unwrap();
 
-    let app = router(&config, state);
+    let app = router(&config, state.clone());
 
     TestContext {
         app,
         db,
+        state,
         admin_token: admin_session.id,
     }
 }
@@ -714,4 +716,91 @@ async fn test_member_level_is_granted_by_an_admin_over_http() {
         "{}",
         res.status()
     );
+}
+
+/// 会員のログインも、失敗が続いたらロックする（パスワードの総当たりと、Argon2 による負荷をかけられる手を防ぐ）。
+/// 管理者と同じ設定（`[auth.login_rate_limit]`）で数え、管理者のユーザー名とは別の枠で数える
+#[tokio::test]
+async fn test_member_login_is_locked_after_repeated_failures() {
+    let ctx = setup_app().await;
+    let res = post_json(
+        &ctx,
+        "/api/v1/members/register",
+        registration("lock@example.com"),
+    )
+    .await;
+    assert_eq!(res.status(), StatusCode::CREATED);
+
+    let login = |password: &'static str| {
+        post_json(
+            &ctx,
+            "/api/v1/members/login",
+            json!({ "email": "lock@example.com", "password": password }),
+        )
+    };
+    let max = AegisConfig::default()
+        .auth
+        .login_rate_limit
+        .max_failures_per_user;
+    for _ in 0..max {
+        assert_eq!(
+            login("wrong-password").await.status(),
+            StatusCode::UNAUTHORIZED
+        );
+    }
+    // ロック中は正しいパスワードでも入れない。メールアドレスの大文字小文字を変えても同じ
+    let res = login("password123").await;
+    assert_eq!(res.status(), StatusCode::TOO_MANY_REQUESTS);
+    assert!(res.headers().contains_key("retry-after"));
+    let res = post_json(
+        &ctx,
+        "/api/v1/members/login",
+        json!({ "email": " LOCK@example.com ", "password": "password123" }),
+    )
+    .await;
+    assert_eq!(res.status(), StatusCode::TOO_MANY_REQUESTS);
+
+    // 別のメールアドレスには及ばない
+    let res = post_json(
+        &ctx,
+        "/api/v1/members/register",
+        registration("other@example.com"),
+    )
+    .await;
+    assert_eq!(res.status(), StatusCode::CREATED);
+    let res = post_json(
+        &ctx,
+        "/api/v1/members/login",
+        json!({ "email": "other@example.com", "password": "password123" }),
+    )
+    .await;
+    assert_eq!(res.status(), StatusCode::OK);
+}
+
+/// 管理者に同じ文字列のユーザー名があっても、会員の失敗が管理者のロックにならない
+#[tokio::test]
+async fn test_member_login_failures_do_not_lock_an_admin_with_the_same_name() {
+    let ctx = setup_app().await;
+    let res = post_json(
+        &ctx,
+        "/api/v1/members/register",
+        registration("same@example.com"),
+    )
+    .await;
+    assert_eq!(res.status(), StatusCode::CREATED);
+    for _ in 0..10 {
+        post_json(
+            &ctx,
+            "/api/v1/members/login",
+            json!({ "email": "same@example.com", "password": "nope" }),
+        )
+        .await;
+    }
+    assert!(ctx
+        .state
+        .login_limiter
+        .check("same@example.com", None)
+        .await
+        .unwrap()
+        .is_none());
 }
