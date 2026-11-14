@@ -944,11 +944,7 @@ export const App: React.FC = () => {
         : await aegisApi.createContent(contentType, payload);
 
       const submitted = saved.status === 'pending' && storedItem?.status !== 'pending';
-      showToast(
-        submitted
-          ? t('editor.toasts.submitted')
-          : t('editor.toasts.saved', { id: saved.id.slice(0, 8) })
-      );
+      let tagsFailed = false;
       if (tagsEnabled) {
         // The tags are saved with the content (they have their own endpoint)
         try {
@@ -958,12 +954,22 @@ export const App: React.FC = () => {
             contentTags.map((tag) => tag.id)
           );
         } catch (err: any) {
+          tagsFailed = true;
           showToast(err.message || t('tags.saveFailedForContent'), 'error');
         }
       }
       loadContents();
       // Show what was stored: plugins may change the title, slug and blocks on save
       handleSelectContent(saved);
+      // Only now: the toast means the save is complete and the editor shows the stored content,
+      // so anything typed after it is not overwritten by the line above
+      if (!tagsFailed) {
+        showToast(
+          submitted
+            ? t('editor.toasts.submitted')
+            : t('editor.toasts.saved', { id: saved.id.slice(0, 8) })
+        );
+      }
     } catch (err: any) {
       showToast(err.message || t('editor.toasts.saveFailed'), 'error');
     } finally {
