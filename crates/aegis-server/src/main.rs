@@ -812,8 +812,28 @@ async fn run_user_command(config: &AegisConfig, action: UserCommand) -> anyhow::
     Ok(())
 }
 
-#[tokio::main]
-async fn main() -> anyhow::Result<()> {
+/// 起動処理（`run_server` の async 関数）を載せるスレッドのスタックサイズ。
+/// Windows の実行ファイルのメインスレッドは 1 MB で、最適化しないデバッグビルドでは起動処理の
+/// async 関数のフレームがそれを超えて、起動時に stack overflow で落ちる。専用のスレッドで動かして避ける
+const MAIN_STACK_BYTES: usize = 16 * 1024 * 1024;
+
+fn main() -> anyhow::Result<()> {
+    let thread = std::thread::Builder::new()
+        .name("aegis-main".to_string())
+        .stack_size(MAIN_STACK_BYTES)
+        .spawn(|| {
+            tokio::runtime::Builder::new_multi_thread()
+                .enable_all()
+                .build()?
+                .block_on(run_server())
+        })?;
+    match thread.join() {
+        Ok(result) => result,
+        Err(panic) => std::panic::resume_unwind(panic),
+    }
+}
+
+async fn run_server() -> anyhow::Result<()> {
     tracing_subscriber::registry()
         .with(
             tracing_subscriber::EnvFilter::try_from_default_env()
