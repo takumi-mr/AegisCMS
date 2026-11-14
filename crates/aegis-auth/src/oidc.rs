@@ -789,7 +789,7 @@ mod tests {
                 "exp": chrono::Utc::now().timestamp() + 300,
                 "nonce": MockIdp::nonce(&url),
             }),
-            &jsonwebtoken::EncodingKey::from_secret(b"test-secret"),
+            &jsonwebtoken::EncodingKey::from_secret(b"test-secret").unwrap(),
         )
         .unwrap();
         let parameters = setup.idp.sign_in_with_token(&url, hs256);

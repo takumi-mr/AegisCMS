@@ -6,7 +6,7 @@
 use crate::definition::{FieldType, SchemaDefinition};
 use aegis_core::{AegisError, Result};
 use serde::{Deserialize, Deserializer};
-use serde_yaml::Value;
+use serde_json::Value;
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
 
@@ -212,7 +212,7 @@ pub enum QueryMode {
 
 impl QueryDefinition {
     pub fn parse(yaml: &str) -> Result<Self> {
-        serde_yaml::from_str::<QueryDefinition>(yaml)
+        serde_saphyr::from_str::<QueryDefinition>(yaml)
             .map_err(|e| AegisError::Schema(format!("Failed to parse query YAML: {e}")))
     }
 

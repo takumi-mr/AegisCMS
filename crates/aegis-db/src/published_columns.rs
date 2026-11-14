@@ -332,8 +332,8 @@ fn agg_expr(dialect: SqlDialect, func: AggFn, col: Option<&str>) -> (String, Out
 }
 
 /// 値を列の型に合わせてバインド値にする（検証済みの定義が前提）
-fn bind_value(ty: FieldType, v: &serde_yaml::Value, timezone: Tz) -> PubValue {
-    use serde_yaml::Value as Y;
+fn bind_value(ty: FieldType, v: &serde_json::Value, timezone: Tz) -> PubValue {
+    use serde_json::Value as Y;
     let null = PubValue::Null(NullKind::of(ty));
     match (ty, v) {
         (FieldType::Integer, Y::Number(n)) => n.as_i64().map_or(null, PubValue::Int),
@@ -360,7 +360,7 @@ impl SqlBuilder {
 
     fn condition(&mut self, col: &str, ty: FieldType, c: &Condition, out: &mut Vec<String>) {
         let tz = self.timezone;
-        let ops: [(&str, &Option<serde_yaml::Value>); 6] = [
+        let ops: [(&str, &Option<serde_json::Value>); 6] = [
             ("=", &c.eq),
             ("<>", &c.ne),
             (">", &c.gt),
@@ -381,7 +381,7 @@ impl SqlBuilder {
                 .collect();
             out.push(format!("{col} IN ({})", phs.join(", ")));
         }
-        if let Some(serde_yaml::Value::Bool(b)) = &c.is_null {
+        if let Some(serde_json::Value::Bool(b)) = &c.is_null {
             out.push(format!("{col} IS {}NULL", if *b { "" } else { "NOT " }));
         }
     }
