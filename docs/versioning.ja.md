@@ -55,6 +55,7 @@ ABI の中身は [plugin_abi_specification.md](plugin_abi_specification.ja.md) �
 3. マージするとタグと GitHub Release が作られる。さらに `release-please.yml` の `paths_released` 出力に基づき、リリースされた対象パスの公開ワークフローが自動発火する：
     - **AssemblyScript SDK** (`sdk/assemblyscript`): GitHub Packages (`@takumi-mr/plugin-sdk`) へ npm パッケージが自動公開される (`release-sdk.yml`)。
     - **コア** (`.`): GitHub Container Registry (`ghcr.io/takumi-mr/aegiscms`) へ公式 Docker イメージが自動でビルド＆プッシュされる (`release-docker.yml`)。
+    - **コア** (`.`): GitHub Release に Linux (x86_64) と Windows (x86_64) の実行バイナリ（Admin Studio 埋め込み、`config`・`schemas`・`plugins`・`themes` 同梱）と SHA-256 が添付される (`release-binaries.yml`)。既存タグへの再実行は `workflow_dispatch` で `tag` を渡す。
     - **TinyGo SDK** (`sdk/tinygo`): 作成されたタグ (`sdk/tinygo/vX.Y.Z`) 自体が Go モジュールとしての配布となる。
 
 リリース PR にも CI を走らせるため（`GITHUB_TOKEN` で作った PR では CI が動かない）、リポジトリの secret に `RELEASE_PLEASE_TOKEN`（PAT）を登録しています。Fine-grained PAT なら、対象リポジトリに **Contents** と **Pull requests** の Read and write が要ります（足りないと PR のブランチ作成で失敗する）。未登録でも `GITHUB_TOKEN` で動きますが、リリース PR の CI は動きません。

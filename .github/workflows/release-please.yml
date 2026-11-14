@@ -22,6 +22,7 @@ jobs:
       releases_created: ${{ steps.rp.outputs.releases_created }}
       paths_released: ${{ steps.rp.outputs.paths_released }}
       pr: ${{ steps.rp.outputs.pr }}
+      tag_name: ${{ steps.rp.outputs.tag_name }}
     steps:
       - id: rp
         uses: googleapis/release-please-action@v4
@@ -70,6 +71,16 @@ jobs:
     permissions:
       contents: read
       packages: write
+
+  publish-binaries:
+    name: Attach Linux / Windows binaries to the release
+    needs: release-please
+    if: ${{ contains(fromJSON(needs.release-please.outputs.paths_released || '[]'), '.') }}
+    uses: ./.github/workflows/release-binaries.yml
+    with:
+      tag: ${{ needs.release-please.outputs.tag_name }}
+    permissions:
+      contents: write
 
   publish-docker:
     name: Publish Docker Image to GHCR
