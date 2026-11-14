@@ -43,6 +43,22 @@ fn validate_storage_key(key: &str) -> Result<(), (StatusCode, Json<serde_json::V
     Ok(())
 }
 
+/// ブラウザーが開くとスクリプトを実行できるファイルの拡張子。アップロード先は公開ページと同じオリジンなので、
+/// 寄稿者が置いたものを管理者が開くと、管理者のセッションを盗めてしまう。保存を断る
+const ACTIVE_CONTENT_EXTENSIONS: [&str; 13] = [
+    "html", "htm", "xhtml", "xht", "shtml", "xml", "xsl", "xslt", "js", "mjs", "cjs", "hta", "mht",
+];
+
+/// キーの拡張子がスクリプトを実行できる種類か。末尾のドットや空白（Windows では無視される）、
+/// 大文字小文字の違い、`.html.` のような形でも見逃さない
+fn is_active_content(key: &str) -> bool {
+    let name = key.rsplit(['/', '\\']).next().unwrap_or(key);
+    let name = name.trim_end_matches(['.', ' ']);
+    name.rsplit_once('.').is_some_and(|(_, ext)| {
+        ACTIVE_CONTENT_EXTENSIONS.contains(&ext.to_ascii_lowercase().as_str())
+    })
+}
+
 #[derive(Debug, Default, Deserialize)]
 pub struct ListObjectsParams {
     /// キーの前方一致（例: `2026/10/`）
@@ -207,6 +223,16 @@ pub async fn upload_file(
         let uid = Uuid::new_v4().to_string();
         format!("{}/{}-{}", date_folder, &uid[..8], clean_original_name)
     };
+
+    if is_active_content(&storage_key) {
+        return Err((
+            StatusCode::UNSUPPORTED_MEDIA_TYPE,
+            Json(json!({
+                "error": "This file type cannot be uploaded because browsers run scripts in it (HTML, XML and JavaScript)",
+                "code": "active_content_not_allowed"
+            })),
+        ));
+    }
 
     let ct = content_type.unwrap_or_else(|| "application/octet-stream".to_string());
 
@@ -437,6 +463,36 @@ pub async fn delete_object(
 mod tests {
     use super::*;
 
+    #[test]
+    fn test_active_content_is_recognized_whatever_the_spelling() {
+        for key in [
+            "x.html",
+            "x.HTML",
+            "a/b/x.htm",
+            "x.xhtml",
+            "x.xml",
+            "x.js",
+            "x.mjs",
+            "x.html.",
+            "x.html ",
+            "x.png.html",
+            r"a\x.html",
+        ] {
+            assert!(is_active_content(key), "{:?}", key);
+        }
+        for key in [
+            "x.png",
+            "x.svg",
+            "x.pdf",
+            "x",
+            "html",
+            "x.html.png",
+            "a.js/b.png",
+        ] {
+            assert!(!is_active_content(key), "{:?}", key);
+        }
+    }
+
     /// F-04 回帰テスト: `upload_file`/`delete_object` が共有する検証関数そのものを直接確認する
     /// （docs/security-assessment-report.md 参照）。
     #[test]
@@ -561,6 +617,69 @@ mod tests {
         .map_err(|(status, Json(body))| (status, body))
     }
 
+    async fn upload(
+        state: &Arc<AppState>,
+        filename: &str,
+        key: Option<&str>,
+    ) -> Result<StatusCode, (StatusCode, serde_json::Value)> {
+        use axum::extract::FromRequest;
+        let mut body = format!(
+            "--B\r\nContent-Disposition: form-data; name=\"file\"; filename=\"{filename}\"\r\nContent-Type: text/html\r\n\r\n<script>alert(1)</script>\r\n"
+        );
+        if let Some(key) = key {
+            body.push_str(&format!(
+                "--B\r\nContent-Disposition: form-data; name=\"key\"\r\n\r\n{key}\r\n"
+            ));
+        }
+        body.push_str("--B--\r\n");
+        let request = axum::http::Request::builder()
+            .header("content-type", "multipart/form-data; boundary=B")
+            .body(axum::body::Body::from(body))
+            .unwrap();
+        let multipart = axum::extract::Multipart::from_request(request, &())
+            .await
+            .unwrap();
+        let session = RequireRole(aegis_auth::SessionData {
+            id: "ses_test".to_string(),
+            user_id: "contributor1".to_string(),
+            role: "contributor".to_string(),
+            created_at: String::new(),
+            expires_at: String::new(),
+            metadata: Default::default(),
+        });
+        upload_file(
+            State(state.clone()),
+            session,
+            AuditContext::default(),
+            multipart,
+        )
+        .await
+        .map(|r| r.into_response().status())
+        .map_err(|(status, Json(body))| (status, body))
+    }
+
+    /// 寄稿者が HTML / JavaScript を置いて、管理者のセッションを盗む手を塞ぐ
+    #[tokio::test]
+    async fn test_upload_rejects_files_that_browsers_run_as_scripts() {
+        let state = crate::test_support::test_state(aegis_runtime::PluginSupervisor::new()).await;
+        for (filename, key) in [
+            ("evil.html", None),
+            ("EVIL.HTML", None),
+            ("evil.js", None),
+            ("evil.xhtml", None),
+            ("evil.html.", None),
+            ("photo.png", Some("pages/evil.html")),
+        ] {
+            let err = upload(&state, filename, key).await.unwrap_err();
+            assert_eq!(err.0, StatusCode::UNSUPPORTED_MEDIA_TYPE, "{filename}");
+            assert_eq!(err.1["code"], "active_content_not_allowed");
+        }
+        // 画像などは今までどおり保存できる
+        assert_eq!(
+            upload(&state, "photo.png", None).await.unwrap(),
+            StatusCode::CREATED
+        );
+    }
     async fn save_article(state: &Arc<AppState>, slug: &str, blocks_json: String) {
         let schema = state.schemas.read().await["article"].clone();
         let now = chrono::Utc::now().to_rfc3339();

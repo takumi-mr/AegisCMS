@@ -1104,7 +1104,63 @@ async fn security_headers_middleware(
         );
     }
 
+    // アップロードしたファイルは公開ページと同じオリジンから配る。HTML や JavaScript が置かれていても
+    // （以前に保存されたもの・ストレージを直接書き換えられたもの）、スクリプトを実行させない
+    let uploads = state
+        .config
+        .storage
+        .local
+        .public_url_prefix
+        .trim_end_matches('/');
+    if state.config.storage.backend == StorageBackendKind::Local
+        && !uploads.is_empty()
+        && (path == uploads || path.starts_with(&format!("{uploads}/")))
+    {
+        harden_upload_response(&mut response);
+    }
+
     response
+}
+
+/// `/uploads` の応答に付ける防御: 種類の推測を止め（`nosniff`）、スクリプトを実行できる種類
+/// （HTML・XML・JavaScript）は、スクリプトを動かさない CSP を付けてダウンロードさせる
+fn harden_upload_response(response: &mut axum::response::Response) {
+    use axum::http::{header, HeaderValue};
+    let headers = response.headers_mut();
+    headers.insert(
+        header::X_CONTENT_TYPE_OPTIONS,
+        HeaderValue::from_static("nosniff"),
+    );
+    let kind = headers
+        .get(header::CONTENT_TYPE)
+        .and_then(|v| v.to_str().ok())
+        .and_then(|v| v.split(';').next())
+        .unwrap_or("")
+        .trim()
+        .to_ascii_lowercase();
+    let active = matches!(
+        kind.as_str(),
+        "text/html"
+            | "application/xhtml+xml"
+            | "text/xml"
+            | "application/xml"
+            | "text/javascript"
+            | "application/javascript"
+            | "application/ecmascript"
+            | "text/ecmascript"
+            | "application/x-javascript"
+            | "text/xsl"
+    ) || (kind.ends_with("+xml") && kind != "image/svg+xml");
+    if active {
+        headers.insert(
+            header::CONTENT_SECURITY_POLICY,
+            HeaderValue::from_static("default-src 'none'; sandbox"),
+        );
+        headers.insert(
+            header::CONTENT_DISPOSITION,
+            HeaderValue::from_static("attachment"),
+        );
+    }
 }
 
 /// `router` を `base_path`（`ServerConfig::normalized_base_path` の値）配下で公開する。
@@ -1173,6 +1229,46 @@ mod tests {
     use axum::body::Body;
     use axum::http::{header, StatusCode};
     use tower::ServiceExt;
+
+    #[test]
+    fn test_upload_responses_never_run_scripts() {
+        let respond = |content_type: &str| {
+            let mut response = axum::response::Response::new(Body::empty());
+            response
+                .headers_mut()
+                .insert(header::CONTENT_TYPE, content_type.parse().unwrap());
+            harden_upload_response(&mut response);
+            response
+        };
+        for kind in [
+            "text/html",
+            "text/html; charset=utf-8",
+            "application/xhtml+xml",
+            "text/xml",
+            "application/javascript",
+            "text/javascript",
+            "application/atom+xml",
+        ] {
+            let response = respond(kind);
+            let headers = response.headers();
+            assert_eq!(headers[header::X_CONTENT_TYPE_OPTIONS], "nosniff", "{kind}");
+            assert!(
+                headers[header::CONTENT_SECURITY_POLICY]
+                    .to_str()
+                    .unwrap()
+                    .contains("sandbox"),
+                "{kind}"
+            );
+            assert_eq!(headers[header::CONTENT_DISPOSITION], "attachment", "{kind}");
+        }
+        // 画像・PDF は表示のまま（nosniff だけ付く）
+        for kind in ["image/png", "image/svg+xml", "application/pdf"] {
+            let response = respond(kind);
+            let headers = response.headers();
+            assert_eq!(headers[header::X_CONTENT_TYPE_OPTIONS], "nosniff", "{kind}");
+            assert!(headers.get(header::CONTENT_DISPOSITION).is_none(), "{kind}");
+        }
+    }
 
     fn echo_router() -> Router {
         Router::new()

@@ -16,6 +16,8 @@ Uploaded files such as images are stored in the `[storage]` backend (local disk 
 
 All operations are recorded in the audit log (`storage.upload` / `storage.delete`; [Audit log](audit.md#2-recorded-events)).
 
+Files that browsers run as scripts (`.html` / `.htm` / `.xhtml` / `.xml` / `.js` / `.mjs` and similar) are rejected with `415` (`code: "active_content_not_allowed"`), because uploads are served from the same origin as the site. `/uploads` responses carry `X-Content-Type-Options: nosniff`, and any HTML / XML / JavaScript that is already there is served with `Content-Security-Policy: default-src 'none'; sandbox` and `Content-Disposition: attachment`.
+
 ---
 
 ## Deleting a File — `DELETE /api/v1/storage/objects/{key}`
