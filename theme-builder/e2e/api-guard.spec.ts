@@ -45,3 +45,13 @@ test('refuses a Host that is not a loopback name (DNS rebinding)', async ({ requ
   const res = await request.get(`${api}/files`, { headers: { host: 'evil.example' } });
   expect(res.status()).toBe(403);
 });
+
+test('refuses a write from another site even with the x-aegis-dev header', async ({ request }) => {
+  const before = readTheme('theme.json');
+  const res = await request.put(`${api}/files/theme.json`, {
+    headers: { 'x-aegis-dev': '1', origin: 'https://evil.example' },
+    data: { content: '{}' },
+  });
+  expect(res.status()).toBe(403);
+  expect(readTheme('theme.json')).toBe(before);
+});
