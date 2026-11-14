@@ -217,6 +217,11 @@ Admin Studio (`/admin`) logs in with this API from the login screen, keeps the t
     - Behind a reverse proxy all requests come from the proxy's IP, so set `[audit].trust_forwarded_for = true` (when enabled `X-Forwarded-For` can be spoofed, so do so only behind a trusted proxy).
     - A per-username lock can also be used by a third party to fail on purpose and temporarily prevent that user from logging in. If this is a problem in operation, increase `max_failures_per_user` and mainly use the per-IP limit. Releasing a lock is by the CLI only (`aegis-server user unlock <username>` / `user unlock-ip <IP>`; the failure count also returns to 0). It cannot be released from the API or Admin Studio. Locks are in the server's cache, so the CLI can release them only with `redis` (with `memory`, restart the server).
 
+- **Where Admin Studio keeps the session token**: the token is kept in the browser's `sessionStorage` and sent as `Authorization: Bearer` (it is not a cookie, so cross-site request forgery does not apply). Any script running on the Admin Studio origin can read it. If cross-site scripting (XSS) ever happens there, the token can be stolen and used from elsewhere until it expires or the user logs out.
+    - The tokens are not bound to an IP address or a browser. Sessions last at most `[cache].default_ttl_secs` (default 1 hour), and `DELETE /api/v1/auth/session` or a password / role change revokes them.
+    - Mitigations: Admin Studio responds with `script-src 'self'` (inline scripts do not run), and files uploaded to `/uploads` (the same origin as the site) cannot run as scripts (HTML, XML and JavaScript are refused at upload and served sandboxed; [Media](media.md)). Keep these properties when adding a feature that serves user-provided content from the same origin.
+    - An `HttpOnly` cookie would stop the token from being read, but a script running in the page could still call the API as the logged-in user, and cookies need CSRF protection. Admin Studio therefore does not use one at the moment.
+
 ---
 
 ## 6. Single Sign-On (OpenID Connect)
