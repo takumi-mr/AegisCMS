@@ -16,7 +16,11 @@ use aegis_db::ContentListQuery;
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
 
+use crate::ssrf::{is_public_ip, PublicOnlyResolver};
 use crate::state::AppState;
+
+/// 追うリダイレクトの回数の上限
+const MAX_REDIRECTS: usize = 5;
 
 pub const SETTING_KEY: &str = "broken_links.report";
 
@@ -143,12 +147,7 @@ impl BrokenLinksService {
         let mut url_cache: HashMap<String, std::result::Result<(), (Option<u16>, String)>> =
             HashMap::new();
 
-        let client = reqwest::Client::builder()
-            .timeout(Duration::from_secs(5))
-            .redirect(reqwest::redirect::Policy::limited(5))
-            .user_agent("Mozilla/5.0 (compatible; LinkChecker/1.0)")
-            .build()
-            .map_err(|e| AegisError::Internal(e.to_string()))?;
+        let client = build_client()?;
 
         for record in &target_contents {
             let blocks: Vec<BlockNode> =
@@ -292,6 +291,28 @@ async fn check_internal_link(
     Err((Some(404), "Page not found".to_string()))
 }
 
+/// 外部リンクの検査に使う HTTP クライアント。
+/// リダイレクト先も 1 回ずつ確かめる（外部のサイトから内部のアドレスへ転送させて届かせる手を防ぐ）。
+/// 名前の解決結果は `PublicOnlyResolver` が接続のたびに確かめ、環境変数のプロキシは使わない
+/// （プロキシ経由だと解決がプロキシ側で行われ、内部のアドレスを除けない）
+fn build_client() -> Result<reqwest::Client> {
+    reqwest::Client::builder()
+        .timeout(Duration::from_secs(5))
+        .redirect(reqwest::redirect::Policy::custom(|attempt| {
+            if attempt.previous().len() >= MAX_REDIRECTS {
+                attempt.error("Too many redirects")
+            } else if is_private_or_loopback_host(attempt.url().as_str()) {
+                attempt.error("Blocked redirect to a private or loopback address")
+            } else {
+                attempt.follow()
+            }
+        }))
+        .no_proxy()
+        .dns_resolver(Arc::new(PublicOnlyResolver))
+        .user_agent("Mozilla/5.0 (compatible; LinkChecker/1.0)")
+        .build()
+        .map_err(|e| AegisError::Internal(e.to_string()))
+}
 /// 外部リンクの検査
 async fn check_external_link(
     client: &reqwest::Client,
@@ -342,33 +363,24 @@ async fn check_external_link(
     }
 }
 
-/// URL のホストがループバックまたはプライベート IP かを判定（SSRF 防御）
+/// 検査してはいけない宛先か（SSRF 防御）。`http` / `https` 以外・ホストの無い URL・`localhost`・
+/// 公開されていない IP アドレス（プライベート・リンクローカル・ユニークローカル・IPv4 射影など）。
+/// ホスト名が内部のアドレスに解決される場合は、接続のたびに [`PublicOnlyResolver`] が止める
 fn is_private_or_loopback_host(url_str: &str) -> bool {
     let Ok(parsed) = url::Url::parse(url_str) else {
         return true;
     };
-    let Some(host) = parsed.host_str() else {
-        return true;
-    };
-    let host_lower = host.to_ascii_lowercase();
-
-    if host_lower == "localhost" || host_lower.ends_with(".localhost") {
+    if !matches!(parsed.scheme(), "http" | "https") {
         return true;
     }
-
-    if let Ok(ip) = host_lower.parse::<std::net::IpAddr>() {
-        match ip {
-            std::net::IpAddr::V4(ipv4) => {
-                ipv4.is_loopback()
-                    || ipv4.is_private()
-                    || ipv4.is_link_local()
-                    || ipv4.is_broadcast()
-                    || ipv4.is_unspecified()
-            }
-            std::net::IpAddr::V6(ipv6) => ipv6.is_loopback() || ipv6.is_unspecified(),
+    match parsed.host() {
+        None => true,
+        Some(url::Host::Ipv4(ip)) => !is_public_ip(std::net::IpAddr::V4(ip)),
+        Some(url::Host::Ipv6(ip)) => !is_public_ip(std::net::IpAddr::V6(ip)),
+        Some(url::Host::Domain(domain)) => {
+            let domain = domain.trim_end_matches('.').to_ascii_lowercase();
+            domain == "localhost" || domain.ends_with(".localhost")
         }
-    } else {
-        false
     }
 }
 
@@ -454,5 +466,84 @@ mod tests {
         assert!(is_private_or_loopback_host("http://192.168.1.1/secret"));
         assert!(is_private_or_loopback_host("http://10.0.0.1/admin"));
         assert!(!is_private_or_loopback_host("https://example.com/page"));
+        // IPv6 のユニークローカル・リンクローカル・IPv4 射影、メタデータ、共有アドレス、http 以外
+        for url in [
+            "http://[fc00::1]/",
+            "http://[fe80::1]/",
+            "http://[::ffff:10.0.0.1]/",
+            "http://[::ffff:127.0.0.1]/",
+            "http://[64:ff9b::7f00:1]/",
+            "http://169.254.169.254/latest/meta-data/",
+            "http://100.64.0.1/",
+            "http://localhost./",
+            "http://foo.localhost/",
+            "http://2130706433/",
+            "file:///etc/passwd",
+            "ftp://example.com/",
+            "gopher://example.com/",
+        ] {
+            assert!(is_private_or_loopback_host(url), "{}", url);
+        }
+    }
+
+    /// 外部のサイトから内部のアドレスへ転送されても追わない・内部に向く名前は接続しない
+    #[tokio::test]
+    async fn test_redirect_to_an_internal_address_is_not_followed() {
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+        // 内部側のサーバー: 届いたらフラグを立てる
+        let internal = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let internal_port = internal.local_addr().unwrap().port();
+        let hit = Arc::new(AtomicBool::new(false));
+        let hit_flag = hit.clone();
+        tokio::spawn(async move {
+            while let Ok((mut socket, _)) = internal.accept().await {
+                hit_flag.store(true, Ordering::SeqCst);
+                let mut buf = [0u8; 1024];
+                let _ = socket.read(&mut buf).await;
+                let _ = socket
+                    .write_all(
+                        b"HTTP/1.1 200 OK
+Content-Length: 0
+
+",
+                    )
+                    .await;
+            }
+        });
+        let client = build_client().unwrap();
+        // 手元の「外部サイト」: 内部のアドレスへ 302 で転送する
+        let outer = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let outer_port = outer.local_addr().unwrap().port();
+        tokio::spawn(async move {
+            while let Ok((mut socket, _)) = outer.accept().await {
+                let mut buf = [0u8; 1024];
+                let _ = socket.read(&mut buf).await;
+                let response = format!(
+                    "HTTP/1.1 302 Found
+Location: http://127.0.0.1:{}/
+Content-Length: 0
+
+",
+                    internal_port
+                );
+                let _ = socket.write_all(response.as_bytes()).await;
+            }
+        });
+        // 転送元そのものが 127.0.0.1 なので check_external_link は入口で止める
+        let direct = check_external_link(&client, &format!("http://127.0.0.1:{outer_port}/")).await;
+        assert!(direct.is_err());
+        // 転送だけを確かめる: 入口の検査を通らない形（クライアントを直接使う）
+        let followed = client
+            .get(format!("http://127.0.0.1:{outer_port}/"))
+            .send()
+            .await;
+        assert!(followed.is_err(), "the redirect must not be followed");
+        assert!(
+            !hit.load(Ordering::SeqCst),
+            "the internal server was reached"
+        );
+        // 内部のアドレスに解決される名前には接続しない
+        let by_name = client.get("http://localhost.:9/").send().await;
+        assert!(by_name.is_err());
     }
 }
