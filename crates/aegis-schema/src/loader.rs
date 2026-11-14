@@ -8,7 +8,7 @@ pub struct SchemaLoader;
 
 impl SchemaLoader {
     pub fn load_from_str(yaml_content: &str) -> Result<SchemaDefinition> {
-        serde_yaml::from_str::<SchemaDefinition>(yaml_content)
+        serde_saphyr::from_str::<SchemaDefinition>(yaml_content)
             .map(SchemaDefinition::with_builtin_fields)
             .map_err(|e| AegisError::Schema(format!("Failed to parse schema YAML: {}", e)))
     }

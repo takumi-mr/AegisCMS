@@ -1,16 +1,12 @@
 # cargo-audit の設定（`task audit`・.github/workflows/security-audit.yml）。
 #
-# 下の 4 件は、2026-11-14 の時点で未解消のもの。無視しているのではなく、CI を止めずに
+# 下の 2 件は、2026-11-14 の時点で未解消のもの。無視しているのではなく、CI を止めずに
 # 「新しく出た警告」だけを検知するための一時的な除外で、解消するまで TODO.md で追跡する。
 # 解消したらここから消す。新しい警告をここに足すときは、理由を必ず書く
 [advisories]
 ignore = [
     # sqlx 0.9 が束ねる SQLite（libsqlite3-sys 0.37）。修正は libsqlite3-sys 0.39 以上で、sqlx の更新待ち
     "RUSTSEC-2026-0459",
-    # p256 / p384（ecdsa）経由。修正は crypto-bigint 0.7.6 以上で、RustCrypto の更新待ち
-    "RUSTSEC-2026-0387",
-    # rsa 0.9.10（aegis-auth・jsonwebtoken）。修正版は rsa 0.10 以上（まだ安定版がない）
+    # rsa 0.9.10（aegis-auth が SAML 用に直接使う）。修正版は rsa 0.10 以上。jsonwebtoken 12 は 0.10 を使うので、残りはこの直接の依存だけ（保留）
     "RUSTSEC-2023-0071",
-    # unsafe-libyaml（serde_yaml 経由）は保守されていない。代わりの YAML 実装への移行は別に検討する
-    "RUSTSEC-2024-0449",
 ]
