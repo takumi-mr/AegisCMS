@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.1](https://github.com/takumi-mr/AegisCMS/compare/plugin-official-mermaid-v0.2.0...plugin-official-mermaid-v0.2.1) (2026-11-14)
+
+
+### Bug Fixes
+
+* **plugin:** detect dark pages and measure Mermaid text in place ([#338](https://github.com/takumi-mr/AegisCMS/issues/338)) ([954f937](https://github.com/takumi-mr/AegisCMS/commit/954f9374f92eff28bfe5659e6c243a2f20b9c211))
+
 ## [0.2.0](https://github.com/takumi-mr/AegisCMS/compare/plugin-official-mermaid-v0.1.0...plugin-official-mermaid-v0.2.0) (2026-11-10)
 
 

@@ -32,4 +32,4 @@ clone_on_copy = "warn"
 [dependencies]
 serde.workspace = true
 serde_json.workspace = true
-aegis-plugin-macros = { path = "../aegis-plugin-macros", version = "0.8.0" }
+aegis-plugin-macros = { path = "../aegis-plugin-macros", version = "0.9.0" }
