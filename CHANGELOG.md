@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.10.0](https://github.com/takumi-mr/AegisCMS/compare/v0.9.0...v0.10.0) (2026-11-14)
+
+
+### ⚠ BREAKING CHANGES
+
+* **runtime:** values saved by earlier versions under {kv_namespace}:{key} are no longer read. Plugin KV is cache-like data and starts empty.
+
+### Bug Fixes
+
+* **auth:** close 2FA challenge races and TOTP replay, and rate-limit member logins ([#355](https://github.com/takumi-mr/AegisCMS/issues/355)) ([6c8ce3d](https://github.com/takumi-mr/AegisCMS/commit/6c8ce3d5225b18cf2745536f8bf0c81399448cbf))
+* **plugin-builder:** stop other sites from writing files and starting builds on the dev servers ([#358](https://github.com/takumi-mr/AegisCMS/issues/358)) ([cb5c985](https://github.com/takumi-mr/AegisCMS/commit/cb5c9857375a8ac0dbedd4720f1d074131de45b1))
+* **runtime:** isolate plugin KV by plugin name instead of the self-declared kv_namespace ([#359](https://github.com/takumi-mr/AegisCMS/issues/359)) ([4941090](https://github.com/takumi-mr/AegisCMS/commit/49410902245d946105ae17d05a6766af05925f69))
+
 ## [0.9.0](https://github.com/takumi-mr/AegisCMS/compare/v0.8.0...v0.9.0) (2026-11-14)
 
 
