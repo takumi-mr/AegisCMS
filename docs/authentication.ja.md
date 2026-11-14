@@ -217,6 +217,11 @@ Admin Studio（`/admin`）はログイン画面からこの API でログイン�
     - リバースプロキシ配下では全リクエストがプロキシの IP になるため、`[audit].trust_forwarded_for = true` にしてください（有効にすると `X-Forwarded-For` を偽装できるため、信頼できるプロキシ配下でのみ）。
     - ユーザー名単位のロックは、第三者がわざと失敗してそのユーザーを一時的にログインできなくすることにも使えます。運用で問題になる場合は `max_failures_per_user` を大きくし、IP 単位の制限を主に使ってください。ロックの解除は CLI だけです（`aegis-server user unlock <ユーザー名>` / `user unlock-ip <IP>`。失敗回数も 0 に戻ります）。API や Admin Studio からは解除できません。ロックはサーバーのキャッシュにあるため、CLI からは `redis` のときだけ解除できます（`memory` ではサーバーの再起動）。
 
+- **Admin Studio のセッショントークンの置き場所**: トークンはブラウザーの `sessionStorage` に保持し、`Authorization: Bearer` で送ります（Cookie ではないので、クロスサイトのリクエスト偽造（CSRF）は成り立ちません）。Admin Studio のオリジンで動くスクリプトなら、どれでもこれを読めます。そこでクロスサイトスクリプティング（XSS）が起きると、トークンが盗まれ、有効期限が切れるかログアウトするまで別の場所から使われます。
+    - トークンは IP アドレスやブラウザーに結び付けていません。セッションの有効期間は最長で `[cache].default_ttl_secs`（既定 1 時間）で、`DELETE /api/v1/auth/session` やパスワード・ロールの変更で失効します。
+    - 軽減策: Admin Studio の応答は `script-src 'self'` でインラインのスクリプトを実行させず、`/uploads`（サイトと同じオリジン）に置いたファイルはスクリプトとして動きません（HTML・XML・JavaScript はアップロードで断り、すでにあるものはサンドボックス付きで配信。[メディア](media.ja.md)）。ユーザーが与えた内容を同じオリジンから配る機能を足すときは、この性質を保ってください。
+    - `HttpOnly` の Cookie にするとトークンは読めなくなりますが、ページ内で動くスクリプトはログイン中のユーザーとして API を呼べるままで、Cookie には CSRF 対策も要ります。そのため Admin Studio は現在使っていません。
+
 ---
 
 ## 6. シングルサインオン (OpenID Connect)
