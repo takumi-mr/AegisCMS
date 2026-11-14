@@ -1,7 +1,9 @@
 name: Release Binaries
 
-# GitHub Release に Linux / Windows の実行バイナリ（Admin Studio 埋め込み）を添付する。
+# GitHub Release に Linux (x86_64 / arm64) と Windows (x86_64) の実行バイナリ（Admin Studio 埋め込み）を添付する。
 # release-please.yml からタグ作成後に呼ばれる。手動でも、既存タグに対して再実行できる。
+# glibc の要件はビルド環境で決まるため、Linux はすべて Ubuntu 22.04（glibc 2.35）でビルドする。
+# arm64 の runner は 24.04 しかないので、22.04 のコンテナの中でビルドする。
 
 on:
   workflow_call:
@@ -21,20 +23,10 @@ permissions:
   contents: write
 
 jobs:
-  build:
-    name: Build ${{ matrix.target }}
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          # glibc を古めに揃えるため、最新ではなく 22.04 でビルドする
-          - os: ubuntu-22.04
-            target: x86_64-unknown-linux-gnu
-            archive: tar.gz
-          - os: windows-latest
-            target: x86_64-pc-windows-msvc
-            archive: zip
+  # Admin Studio のビルドは CPU アーキテクチャに依存しないので、1 回だけビルドして各ターゲットで使い回す
+  admin:
+    name: Build Admin Studio
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout the tag
         uses: actions/checkout@v4
@@ -52,6 +44,54 @@ jobs:
         run: |
           npm --prefix admin ci
           npm --prefix admin run build
+
+      - name: Upload admin/dist
+        uses: actions/upload-artifact@v4
+        with:
+          name: admin-dist
+          path: admin/dist
+          if-no-files-found: error
+
+  build:
+    name: Build ${{ matrix.target }}
+    needs: admin
+    runs-on: ${{ matrix.os }}
+    # 空文字ならコンテナを使わない
+    container: ${{ matrix.container }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-22.04
+            target: x86_64-unknown-linux-gnu
+            archive: tar.gz
+            container: ''
+          - os: ubuntu-24.04-arm
+            target: aarch64-unknown-linux-gnu
+            archive: tar.gz
+            container: ubuntu:22.04
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            archive: zip
+            container: ''
+    steps:
+      # 素の ubuntu イメージにはビルドツールがない
+      - name: Install build tools (container)
+        if: ${{ matrix.container != '' }}
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends build-essential ca-certificates cmake curl git pkg-config
+
+      - name: Checkout the tag
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag }}
+
+      - name: Download admin/dist
+        uses: actions/download-artifact@v4
+        with:
+          name: admin-dist
+          path: admin/dist
 
       - name: Set up Rust toolchain
         uses: dtolnay/rust-toolchain@stable
@@ -89,9 +129,31 @@ jobs:
             sha256sum "${name}.tar.gz" > "${name}.tar.gz.sha256"
           fi
 
+      - name: Upload the archive
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-${{ matrix.target }}
+          path: |
+            dist/*.zip
+            dist/*.tar.gz
+            dist/*.sha256
+          if-no-files-found: error
+
+  # コンテナ内には gh がないので、添付は別ジョブでまとめて行う
+  upload:
+    name: Upload to the GitHub Release
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download the archives
+        uses: actions/download-artifact@v4
+        with:
+          pattern: release-*
+          path: dist
+          merge-multiple: true
+
       - name: Upload to the GitHub Release
-        shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG: ${{ inputs.tag }}
-        run: gh release upload "$TAG" dist/*.zip dist/*.tar.gz dist/*.sha256 --clobber --repo "$GITHUB_REPOSITORY"
+        run: gh release upload "$TAG" dist/* --clobber --repo "$GITHUB_REPOSITORY"

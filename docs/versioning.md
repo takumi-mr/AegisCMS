@@ -55,7 +55,7 @@ Which target a commit counts toward is decided by the **path of the changed file
 3. Merging creates tags and GitHub Releases. In addition, based on the `paths_released` output of `release-please.yml`, the publishing workflows for the released target paths are triggered automatically:
     - **AssemblyScript SDK** (`sdk/assemblyscript`): the npm package is published automatically to GitHub Packages (`@takumi-mr/plugin-sdk`) (`release-sdk.yml`).
     - **Core** (`.`): the official Docker image is built and pushed automatically to the GitHub Container Registry (`ghcr.io/takumi-mr/aegiscms`) (`release-docker.yml`).
-    - **Core** (`.`): Linux (x86_64) and Windows (x86_64) binaries with Admin Studio embedded (bundled with `config`, `schemas`, `plugins` and `themes`) plus SHA-256 files are attached to the GitHub Release (`release-binaries.yml`). To re-run for an existing tag, use `workflow_dispatch` with `tag`.
+    - **Core** (`.`): Linux (x86_64, arm64) and Windows (x86_64) binaries with Admin Studio embedded (bundled with `config`, `schemas`, `plugins` and `themes`) plus SHA-256 files are attached to the GitHub Release (`release-binaries.yml`). To re-run for an existing tag, use `workflow_dispatch` with `tag`.
     - **TinyGo SDK** (`sdk/tinygo`): the created tag (`sdk/tinygo/vX.Y.Z`) itself is the distribution as a Go module.
 
 So that CI also runs on release PRs (CI does not run on PRs created with `GITHUB_TOKEN`), `RELEASE_PLEASE_TOKEN` (a PAT) is registered in the repository secrets. A fine-grained PAT needs Read and write for **Contents** and **Pull requests** on the target repository (without them, creating the PR's branch fails). It also works with `GITHUB_TOKEN` if unregistered, but CI does not run on release PRs.
