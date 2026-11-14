@@ -1,0 +1,97 @@
+name: Release Binaries
+
+# GitHub Release に Linux / Windows の実行バイナリ（Admin Studio 埋め込み）を添付する。
+# release-please.yml からタグ作成後に呼ばれる。手動でも、既存タグに対して再実行できる。
+
+on:
+  workflow_call:
+    inputs:
+      tag:
+        description: 'Release tag to attach the binaries to (e.g. v0.2.0)'
+        required: true
+        type: string
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag to attach the binaries to (e.g. v0.2.0)'
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build ${{ matrix.target }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # glibc を古めに揃えるため、最新ではなく 22.04 でビルドする
+          - os: ubuntu-22.04
+            target: x86_64-unknown-linux-gnu
+            archive: tar.gz
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            archive: zip
+    steps:
+      - name: Checkout the tag
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag }}
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: admin/package-lock.json
+
+      - name: Build Admin Studio
+        run: |
+          npm --prefix admin ci
+          npm --prefix admin run build
+
+      - name: Set up Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: release-${{ matrix.target }}
+
+      - name: Build aegis-server (Admin Studio embedded)
+        run: cargo build --release --locked -p aegis-server --features embed-admin
+
+      - name: Package
+        shell: bash
+        env:
+          TAG: ${{ inputs.tag }}
+          TARGET: ${{ matrix.target }}
+          ARCHIVE: ${{ matrix.archive }}
+        run: |
+          name="aegiscms-${TAG}-${TARGET}"
+          mkdir -p "dist/${name}"
+          exe=aegis-server
+          if [ "$ARCHIVE" = zip ]; then exe=aegis-server.exe; fi
+          cp "target/release/${exe}" "dist/${name}/"
+          cp -r config schemas plugins themes "dist/${name}/"
+          for f in LICENSE LICENSE-MIT LICENSE-APACHE README.md; do
+            if [ -f "$f" ]; then cp "$f" "dist/${name}/"; fi
+          done
+          cd dist
+          if [ "$ARCHIVE" = zip ]; then
+            7z a -tzip "${name}.zip" "${name}" > /dev/null
+            sha256sum "${name}.zip" > "${name}.zip.sha256"
+          else
+            tar -czf "${name}.tar.gz" "${name}"
+            sha256sum "${name}.tar.gz" > "${name}.tar.gz.sha256"
+          fi
+
+      - name: Upload to the GitHub Release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ inputs.tag }}
+        run: gh release upload "$TAG" dist/*.zip dist/*.tar.gz dist/*.sha256 --clobber --repo "$GITHUB_REPOSITORY"
