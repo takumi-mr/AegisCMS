@@ -1,6 +1,26 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type Locator, type Page } from '@playwright/test';
 
 import { signIn } from './helpers';
+
+/**
+ * Click a button that saves content, and wait until the server has answered the save request.
+ * The "Saved!" toast stays on screen for 4 seconds, so a toast from the previous save would
+ * satisfy an assertion on it before this save has finished
+ */
+async function clickAndWaitForSave(page: Page, button: Locator) {
+  // The content itself (POST /contents/{type}, PUT /contents/{type}/{id}), not the follow-up
+  // requests for its tags and so on (PUT /contents/{type}/{id}/tags)
+  const saved = page.waitForResponse(
+    (response) =>
+      /\/api\/v1\/contents\/[^/]+(\/[^/?]+)?(\?.*)?$/.test(response.url()) &&
+      ['POST', 'PUT'].includes(response.request().method())
+  );
+  await button.click();
+  expect((await saved).ok()).toBeTruthy();
+  // The button is disabled until the whole save (tags, reloading the editor) has finished
+  await expect(button).toBeEnabled();
+  await expect(page.getByText(/Saved!/)).toBeVisible();
+}
 
 test.describe('Content Editor', () => {
   test.beforeEach(async ({ page }) => {
@@ -79,12 +99,10 @@ test.describe('Content Editor', () => {
       .locator('select')
       .filter({ hasText: /Draft|Published|Scheduled/ });
     await statusSelect.selectOption('published');
-    await page.getByRole('button', { name: /Save/ }).click();
-    await expect(page.getByText(/Saved!/)).toBeVisible();
+    await clickAndWaitForSave(page, page.getByRole('button', { name: /Save/ }));
 
     await page.getByPlaceholder('Enter post title...').fill(workingTitle);
-    await page.getByRole('button', { name: /Save/ }).click();
-    await expect(page.getByText(/Saved!/)).toBeVisible();
+    await clickAndWaitForSave(page, page.getByRole('button', { name: /Save/ }));
 
     const publicPage = await page.request.get(`http://127.0.0.1:18080/articles/${slug}`);
     const oldHtml = await publicPage.text();
@@ -92,8 +110,7 @@ test.describe('Content Editor', () => {
     expect(oldHtml).toContain(firstTitle);
     expect(oldHtml).not.toContain(workingTitle);
 
-    await page.getByRole('button', { name: 'Publish changes' }).click();
-    await expect(page.getByText(/Saved!/)).toBeVisible();
+    await clickAndWaitForSave(page, page.getByRole('button', { name: 'Publish changes' }));
 
     const updatedPage = await page.request.get(`http://127.0.0.1:18080/articles/${slug}`);
     expect(await updatedPage.text()).toContain(workingTitle);
