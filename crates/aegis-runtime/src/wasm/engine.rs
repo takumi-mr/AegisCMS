@@ -75,7 +75,12 @@ async fn write_guest(caller: &mut Caller<'_, PluginHostState>, data: &[u8]) -> i
     ((ptr as i64) << 32) | data.len() as i64
 }
 
-/// KV のキーにプラグインのネームスペースを付ける（`capabilities.storage` が無ければ `None`）
+/// KV のキーにプラグインの名前を付ける（`capabilities.storage` が無ければ `None`）
+///
+/// 接頭辞には、マニフェストの `kv_namespace`（プラグインの自己申告）ではなく、プラグインの名前
+/// （`plugins_dir` の直下のディレクトリ名で、プラグインごとに一意。英小文字・数字・`-`・`_` だけで
+/// `:` を含まない）を使う。`kv_namespace` を接頭辞にすると、ほかのプラグインと同じ値を名乗るだけで
+/// そのプラグインの KV を読み書きでき、`:` を含む値で別の名前空間のキーと重ねることもできてしまう
 fn namespaced_key(caller: &Caller<'_, PluginHostState>, key: &str) -> Option<String> {
     let state = caller.data();
     let namespace = state
@@ -86,7 +91,11 @@ fn namespaced_key(caller: &Caller<'_, PluginHostState>, key: &str) -> Option<Str
         .kv_namespace
         .clone();
     state.guard().check_storage_access(&namespace).ok()?;
-    Some(format!("{}:{}", namespace, key))
+    let plugin = &state.manifest.name;
+    if !aegis_core::is_valid_plugin_name(plugin) {
+        return None;
+    }
+    Some(format!("{}:{}", plugin, key))
 }
 
 /// `host.http_fetch` の本体。失敗はプラグインに返すメッセージ

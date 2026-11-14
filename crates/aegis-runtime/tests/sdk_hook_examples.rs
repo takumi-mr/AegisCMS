@@ -136,7 +136,7 @@ fn notification(recipient: Recipient) -> NotificationMessage {
     }
 }
 
-async fn check_hooks(dir: PathBuf, plugin_name: &str, kv_namespace: &str, calculated_by: &str) {
+async fn check_hooks(dir: PathBuf, plugin_name: &str, calculated_by: &str) {
     let services = FakeServices::new(plugin_name);
     let plugin = load(&dir, services.clone());
     let name = dir.display().to_string();
@@ -187,7 +187,7 @@ async fn check_hooks(dir: PathBuf, plugin_name: &str, kv_namespace: &str, calcul
             .kv
             .lock()
             .unwrap()
-            .get(&format!("{}:order_events", kv_namespace))
+            .get(&format!("{}:order_events", plugin_name))
             .map(String::as_str),
         Some("2"),
         "{}",
@@ -258,7 +258,7 @@ async fn check_hooks(dir: PathBuf, plugin_name: &str, kv_namespace: &str, calcul
             .kv
             .lock()
             .unwrap()
-            .get(&format!("{}:last_published", kv_namespace))
+            .get(&format!("{}:last_published", plugin_name))
             .map(String::as_str),
         Some("articles/hello"),
         "{}",
@@ -422,7 +422,6 @@ async fn test_assemblyscript_example_handles_the_commerce_notification_and_comme
     check_hooks(
         sdk_path("examples/assemblyscript-hooks"),
         "example-as-hooks",
-        "example_as_hooks_state",
         "example-as-hooks",
     )
     .await;
@@ -433,7 +432,6 @@ async fn test_tinygo_example_handles_the_commerce_notification_and_comment_hooks
     check_hooks(
         sdk_path("tinygo/examples/hooks"),
         "example-tinygo-hooks",
-        "example_tinygo_hooks_state",
         "example-tinygo-hooks",
     )
     .await;

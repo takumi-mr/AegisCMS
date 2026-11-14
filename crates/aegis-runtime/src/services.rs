@@ -37,7 +37,7 @@ pub struct HttpResponse {
 
 #[async_trait]
 pub trait HostServices: Send + Sync {
-    /// `key` は `{kv_namespace}:{プラグインのキー}`（ネームスペースはホストが付ける）
+    /// `key` は `{プラグインの名前}:{プラグインのキー}`（接頭辞はホストが付ける。自己申告の `kv_namespace` は使わない）
     async fn kv_get(&self, key: &str) -> Result<Option<String>>;
 
     async fn kv_set(&self, key: &str, value: &str) -> Result<()>;

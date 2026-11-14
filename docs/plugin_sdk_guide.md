@@ -193,7 +193,7 @@ if net::is_allowed("https://api.github.com/repos/xxx") {
 
 ### 3.3 Key-Value Storage API (`aegis_plugin_sdk::kv`)
 
-Persists data in the plugin's own namespace (`capabilities.storage.kv_namespace`). It is physically isolated from other plugins' data.
+Persists data under the plugin's own name (the host prefixes every key with the plugin name; `capabilities.storage.kv_namespace` only declares the use of KV). It is isolated from other plugins' data.
 
 ```rust
 // Save a string
