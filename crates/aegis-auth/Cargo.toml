@@ -39,9 +39,10 @@ flate2 = { workspace = true, optional = true }
 [dev-dependencies]
 aegis-cache = { path = "../aegis-cache" }
 axum.workspace = true
+getrandom.workspace = true
 p256.workspace = true
 rand_core.workspace = true
-rsa = { workspace = true, features = ["u64_digit"] }
+rsa.workspace = true
 tokio.workspace = true
 x509-cert = { workspace = true, features = ["builder"] }
 

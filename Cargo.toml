@@ -90,6 +90,7 @@ p256 = { version = "0.14", features = ["ecdsa", "pkcs8", "pem", "getrandom"] }
 proc-macro2 = "1.0"
 quick-xml = "0.42"
 quote = "1.0"
+getrandom = { version = "0.4", default-features = false, features = ["sys_rng"] }
 rand_core = { version = "0.6.4", features = ["getrandom"] }
 redis = { version = "1.8", features = ["tokio-comp", "connection-manager"] }
 reqwest = { version = "0.13", default-features = false, features = [
@@ -98,10 +99,11 @@ reqwest = { version = "0.13", default-features = false, features = [
 ] }
 ring = "0.17.14"
 rpassword = "7.5"
-rsa = { version = "0.9.10", default-features = false, features = [
+rsa = { version = "0.10", default-features = false, features = [
     "std",
-    "pem",
-    "sha2",
+    "encoding",
+    "getrandom",
+    "pkcs1v15",
 ] }
 semver = "1.0"
 serde = { version = "1.0", features = ["derive"] }
@@ -174,5 +176,7 @@ codegen-units = 16
 debug = "line-tables-only"
 
 # RSA の鍵生成（SAML のモック IdP）が最適化なしでは非常に遅いため、テストでも最適化する
-[profile.dev.package.num-bigint-dig]
+[profile.dev.package.crypto-bigint]
+opt-level = 3
+[profile.dev.package.crypto-primes]
 opt-level = 3

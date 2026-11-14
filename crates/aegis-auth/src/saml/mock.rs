@@ -10,7 +10,7 @@ use base64::engine::general_purpose::STANDARD;
 use base64::Engine;
 use rsa::pkcs8::{EncodePublicKey, LineEnding};
 use rsa::signature::{SignatureEncoding, Signer};
-use rsa::RsaPrivateKey;
+use rsa::{Generate, PrivateKey};
 use sha2::{Digest, Sha256};
 use std::io::Read;
 use std::sync::OnceLock;
@@ -21,9 +21,9 @@ pub const SP_ENTITY_ID: &str = "https://cms.example.test/saml";
 pub const ACS_URL: &str = "https://cms.example.test/api/v1/auth/saml/acs";
 
 /// One key per process: RSA key generation takes a while
-fn shared_key() -> &'static RsaPrivateKey {
-    static KEY: OnceLock<RsaPrivateKey> = OnceLock::new();
-    KEY.get_or_init(|| RsaPrivateKey::new(&mut rand_core::OsRng, 2048).expect("RSA key"))
+fn shared_key() -> &'static PrivateKey {
+    static KEY: OnceLock<PrivateKey> = OnceLock::new();
+    KEY.get_or_init(PrivateKey::generate)
 }
 
 /// A user signing in at the mock IdP
@@ -54,7 +54,7 @@ impl MockUser {
 }
 
 pub struct MockSamlIdp {
-    key: RsaPrivateKey,
+    key: PrivateKey,
 }
 
 impl Default for MockSamlIdp {
@@ -86,7 +86,7 @@ impl MockSamlIdp {
     /// An IdP with its own key (its responses do not verify with `config()` of another IdP)
     pub fn with_new_key() -> Self {
         Self {
-            key: RsaPrivateKey::new(&mut rand_core::OsRng, 2048).expect("RSA key"),
+            key: PrivateKey::generate(),
         }
     }
 
@@ -97,7 +97,7 @@ impl MockSamlIdp {
             .expect("PEM")
     }
 
-    pub fn private_key(&self) -> &RsaPrivateKey {
+    pub fn private_key(&self) -> &PrivateKey {
         &self.key
     }
 
@@ -230,7 +230,7 @@ impl MockSamlIdp {
             digest = digest
         );
         let signed_info_c14n = canonicalize(&parse(&signed_info).expect("SignedInfo"), None, &[]);
-        let value = rsa::pkcs1v15::SigningKey::<Sha256>::new(self.key.clone())
+        let value = rsa::pkcs1v15::SigningKey::<rsa::sha2::Sha256>::new(self.key.clone())
             .sign(signed_info_c14n.as_bytes())
             .to_vec();
         let signature = format!(

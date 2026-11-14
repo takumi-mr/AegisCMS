@@ -13,7 +13,7 @@ use base64::Engine;
 use rsa::pkcs8::DecodePublicKey;
 use rsa::signature::Verifier;
 use rsa::traits::PublicKeyParts;
-use rsa::RsaPublicKey;
+use rsa::PublicKey;
 use sha2::{Digest, Sha256, Sha384, Sha512};
 use x509_cert::der::{DecodePem, Encode};
 
@@ -57,19 +57,19 @@ impl Hash {
         }
     }
 
-    fn verify(self, key: &RsaPublicKey, message: &[u8], signature: &[u8]) -> bool {
+    fn verify(self, key: &PublicKey, message: &[u8], signature: &[u8]) -> bool {
         use rsa::pkcs1v15::{Signature, VerifyingKey};
         let Ok(signature) = Signature::try_from(signature) else {
             return false;
         };
         match self {
-            Self::Sha256 => VerifyingKey::<Sha256>::new(key.clone())
+            Self::Sha256 => VerifyingKey::<rsa::sha2::Sha256>::new(key.clone())
                 .verify(message, &signature)
                 .is_ok(),
-            Self::Sha384 => VerifyingKey::<Sha384>::new(key.clone())
+            Self::Sha384 => VerifyingKey::<rsa::sha2::Sha384>::new(key.clone())
                 .verify(message, &signature)
                 .is_ok(),
-            Self::Sha512 => VerifyingKey::<Sha512>::new(key.clone())
+            Self::Sha512 => VerifyingKey::<rsa::sha2::Sha512>::new(key.clone())
                 .verify(message, &signature)
                 .is_ok(),
         }
@@ -78,7 +78,7 @@ impl Hash {
 
 /// The IdP's signing keys (`[auth.saml].idp_certificates`)
 #[derive(Debug, Clone)]
-pub struct TrustedKeys(Vec<RsaPublicKey>);
+pub struct TrustedKeys(Vec<PublicKey>);
 
 fn decode_base64(value: &str) -> Result<Vec<u8>, String> {
     let compact: String = value.chars().filter(|c| !c.is_ascii_whitespace()).collect();
@@ -95,7 +95,7 @@ impl TrustedKeys {
         for (i, entry) in entries.iter().enumerate() {
             let entry = entry.trim();
             let key = if entry.contains("-----BEGIN PUBLIC KEY-----") {
-                RsaPublicKey::from_public_key_pem(entry).map_err(|e| e.to_string())
+                PublicKey::from_public_key_pem(entry).map_err(|e| e.to_string())
             } else if entry.contains("-----BEGIN CERTIFICATE-----") {
                 x509_cert::Certificate::from_pem(entry)
                     .map_err(|e| e.to_string())
@@ -109,7 +109,7 @@ impl TrustedKeys {
                 })
             }
             .map_err(|e| format!("certificate #{}: {}", i + 1, e))?;
-            if key.n().bits() < MIN_RSA_BITS {
+            if key.n().bit_width() < MIN_RSA_BITS as u32 {
                 return Err(format!(
                     "certificate #{}: the RSA key is shorter than {} bits",
                     i + 1,
@@ -125,13 +125,13 @@ impl TrustedKeys {
     }
 }
 
-fn rsa_key_of(cert: &x509_cert::Certificate) -> Result<RsaPublicKey, String> {
+fn rsa_key_of(cert: &x509_cert::Certificate) -> Result<PublicKey, String> {
     let spki = cert
         .tbs_certificate()
         .subject_public_key_info()
         .to_der()
         .map_err(|e| e.to_string())?;
-    RsaPublicKey::from_public_key_der(&spki).map_err(|_| "not an RSA certificate".to_string())
+    PublicKey::from_public_key_der(&spki).map_err(|_| "not an RSA certificate".to_string())
 }
 
 fn dsig_child<'a>(parent: &'a Element, name: &str) -> Result<&'a Element, String> {
@@ -334,7 +334,7 @@ mod tests {
 
         assert!(TrustedKeys::parse(&[]).is_err());
         assert!(TrustedKeys::parse(&["not a certificate".to_string()]).is_err());
-        let small = rsa::RsaPrivateKey::new(&mut rand_core::OsRng, 1024).unwrap();
+        let small = rsa::PrivateKey::new(&mut getrandom::SysRng, 1024).unwrap();
         let small = rsa::pkcs8::EncodePublicKey::to_public_key_pem(
             &small.to_public_key(),
             rsa::pkcs8::LineEnding::LF,
