@@ -514,18 +514,14 @@ fn is_loopback_host(host: &str) -> bool {
 // ---------------------------------------------------------------------------
 
 async fn guard_middleware(State(state): State<DevState>, req: Request, next: Next) -> Response {
-    // OPTIONS プリフライト
+    // ほかのサイトのページからの要求は受けない（CORS を許可しない）。ビルダーの画面は同じオリジン
+    //（または `Host` を保つ Vite のプロキシ）から呼ぶので、プリフライトは要らない
     if req.method() == Method::OPTIONS {
-        return Response::builder()
-            .status(StatusCode::OK)
-            .header(header::ACCESS_CONTROL_ALLOW_ORIGIN, "*")
-            .header(
-                header::ACCESS_CONTROL_ALLOW_METHODS,
-                "GET, POST, PUT, DELETE, OPTIONS",
-            )
-            .header(header::ACCESS_CONTROL_ALLOW_HEADERS, "*")
-            .body(axum::body::Body::empty())
-            .unwrap_or_else(|_| (StatusCode::INTERNAL_SERVER_ERROR, "error").into_response());
+        return (
+            StatusCode::FORBIDDEN,
+            "Cross-origin requests are not allowed",
+        )
+            .into_response();
     }
 
     // DNS リバインディング防止
@@ -540,23 +536,48 @@ async fn guard_middleware(State(state): State<DevState>, req: Request, next: Nex
         }
     }
 
-    // ミューテーションリクエストのヘッダー検証
-    if !matches!(*req.method(), Method::GET | Method::HEAD)
-        && !req.headers().contains_key(WRITE_HEADER)
-    {
-        return (
-            StatusCode::FORBIDDEN,
-            format!("Missing {WRITE_HEADER} header"),
-        )
-            .into_response();
+    let mutating = !matches!(*req.method(), Method::GET | Method::HEAD);
+    if mutating {
+        // ほかのサイトのページから送られた書き込みを断る（`Origin` が開発サーバー自身でなければ 403）。
+        // ファイルの書き込みとビルドを組み合わせると、開発者の PC でコードを実行できてしまう
+        let header_str = |name: header::HeaderName| {
+            req.headers()
+                .get(name)
+                .and_then(|v| v.to_str().ok())
+                .map(str::to_string)
+        };
+        if !aegis_core::dev_guard::is_same_origin_write(
+            header_str(header::ORIGIN).as_deref(),
+            header_str(header::HOST).as_deref(),
+        ) {
+            return (
+                StatusCode::FORBIDDEN,
+                "Cross-origin requests are not allowed",
+            )
+                .into_response();
+        }
+        // ミューテーションリクエストのヘッダー検証
+        if !req.headers().contains_key(WRITE_HEADER) {
+            return (
+                StatusCode::FORBIDDEN,
+                format!("Missing {WRITE_HEADER} header"),
+            )
+                .into_response();
+        }
+        // ループバック以外で待ち受けているときは、ファイルの書き込み・削除とビルド（コードの実行）を
+        // 受けない（ネットワークの誰からでも開発者の PC でコードを実行できてしまう）
+        let path = req.uri().path();
+        if !state.loopback && (path == "/__dev/api/build" || path.starts_with("/__dev/api/files/"))
+        {
+            return (
+                StatusCode::FORBIDDEN,
+                "Editing and building are only available when listening on a loopback address",
+            )
+                .into_response();
+        }
     }
 
-    let mut res = next.run(req).await;
-    res.headers_mut().insert(
-        header::ACCESS_CONTROL_ALLOW_ORIGIN,
-        header::HeaderValue::from_static("*"),
-    );
-    res
+    next.run(req).await
 }
 
 // ---------------------------------------------------------------------------
@@ -1523,6 +1544,10 @@ mod tests {
     }
 
     fn create_test_router(dir: PathBuf) -> Router {
+        create_test_router_on(dir, true)
+    }
+
+    fn create_test_router_on(dir: PathBuf, loopback: bool) -> Router {
         let engine = WasmEngine::new().unwrap();
         let host_services = DevHostServices::new();
         let (_tx, rx) = watch::channel(0);
@@ -1531,7 +1556,7 @@ mod tests {
             dir,
             engine,
             version: rx,
-            loopback: true,
+            loopback,
             host_services,
             build_status,
         };
@@ -1582,6 +1607,157 @@ mod tests {
             .unwrap()
             .iter()
             .any(|v| v == "on_before_save"));
+    }
+
+    /// 書き込みのリクエストを送る。`headers` は `Host` 以外の追加ヘッダー
+    async fn write_request(
+        app: &Router,
+        method: &str,
+        uri: &str,
+        host: &str,
+        headers: &[(&str, &str)],
+    ) -> Response {
+        let mut req = Request::builder()
+            .method(method)
+            .uri(uri)
+            .header("Host", host)
+            .header("content-type", "application/json");
+        for (name, value) in headers {
+            req = req.header(*name, *value);
+        }
+        app.clone()
+            .oneshot(req.body(Body::from(r#"{"content":"x"}"#)).unwrap())
+            .await
+            .unwrap()
+    }
+
+    /// ほかのサイトのページから、ファイルの書き込み・ビルド（= 開発者の PC でのコードの実行）を送れない
+    #[tokio::test]
+    async fn test_cross_origin_writes_and_builds_are_refused() {
+        let tmp = setup_test_plugin_dir();
+        let dir = tmp.path().join("my-test-plugin");
+        let app = create_test_router(dir.clone());
+        let host = "127.0.0.1:8091";
+        let evil = [("origin", "https://evil.example"), ("x-aegis-dev", "1")];
+
+        // プリフライトは通らない（許可のヘッダーを返さない）
+        let preflight =
+            write_request(&app, "OPTIONS", "/__dev/api/files/build.rs", host, &evil).await;
+        assert_eq!(preflight.status(), StatusCode::FORBIDDEN);
+        assert!(preflight
+            .headers()
+            .get(header::ACCESS_CONTROL_ALLOW_ORIGIN)
+            .is_none());
+
+        // 書き込みも、ビルドも、削除も 403。ファイルは作られない
+        for (method, uri) in [
+            ("PUT", "/__dev/api/files/build.rs"),
+            ("DELETE", "/__dev/api/files/plugin.manifest.json"),
+            ("POST", "/__dev/api/build"),
+        ] {
+            let res = write_request(&app, method, uri, host, &evil).await;
+            assert_eq!(res.status(), StatusCode::FORBIDDEN, "{method} {uri}");
+        }
+        assert!(!dir.join("build.rs").exists());
+        assert!(dir.join("plugin.manifest.json").exists());
+
+        // 別のポートのページ（別のローカルのアプリ）や `null` も同じ
+        for origin in ["http://localhost:3000", "null"] {
+            let res = write_request(
+                &app,
+                "PUT",
+                "/__dev/api/files/build.rs",
+                host,
+                &[("origin", origin), ("x-aegis-dev", "1")],
+            )
+            .await;
+            assert_eq!(res.status(), StatusCode::FORBIDDEN, "{origin}");
+        }
+
+        // 読み出しの応答に、ほかのサイトが読める許可（CORS）は付かない
+        let read = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .uri("/__dev/api/files/plugin.manifest.json")
+                    .header("Host", host)
+                    .header("origin", "https://evil.example")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert!(read
+            .headers()
+            .get(header::ACCESS_CONTROL_ALLOW_ORIGIN)
+            .is_none());
+    }
+
+    /// ビルダーの画面（開発サーバーと同じオリジン）と `curl`（`Origin` なし）からの書き込みは、今までどおり通る
+    #[tokio::test]
+    async fn test_same_origin_and_non_browser_writes_still_work() {
+        let tmp = setup_test_plugin_dir();
+        // 実際の起動と同じく、正規化したパス（保存先の検査が実体のパスと比べる）
+        let dir = tmp.path().join("my-test-plugin").canonicalize().unwrap();
+        let app = create_test_router(dir.clone());
+        let res = write_request(
+            &app,
+            "PUT",
+            "/__dev/api/files/notes.txt",
+            "localhost:5175",
+            &[("origin", "http://localhost:5175"), ("x-aegis-dev", "1")],
+        )
+        .await;
+        assert_eq!(res.status(), StatusCode::NO_CONTENT);
+        let res = write_request(
+            &app,
+            "PUT",
+            "/__dev/api/files/curl.txt",
+            "127.0.0.1:8091",
+            &[("x-aegis-dev", "1")],
+        )
+        .await;
+        assert_eq!(res.status(), StatusCode::NO_CONTENT);
+        assert!(dir.join("notes.txt").exists() && dir.join("curl.txt").exists());
+    }
+
+    /// ループバック以外（`--host 0.0.0.0` など）で待ち受けているときは、ネットワークの誰からでも
+    /// コードを実行できてしまうので、ファイルの書き込み・削除とビルドは受けない
+    #[tokio::test]
+    async fn test_editing_and_building_are_refused_when_not_on_loopback() {
+        let tmp = setup_test_plugin_dir();
+        let dir = tmp.path().join("my-test-plugin");
+        let app = create_test_router_on(dir.clone(), false);
+        for (method, uri) in [
+            ("PUT", "/__dev/api/files/build.rs"),
+            ("DELETE", "/__dev/api/files/plugin.manifest.json"),
+            ("POST", "/__dev/api/build"),
+        ] {
+            let res = write_request(
+                &app,
+                method,
+                uri,
+                "192.168.1.5:8091",
+                &[("x-aegis-dev", "1")],
+            )
+            .await;
+            assert_eq!(res.status(), StatusCode::FORBIDDEN, "{method} {uri}");
+        }
+        assert!(!dir.join("build.rs").exists());
+        assert!(dir.join("plugin.manifest.json").exists());
+        // 読み出しは使える
+        let res = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .uri("/__dev/api/plugin")
+                    .header("Host", "192.168.1.5:8091")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(res.status(), StatusCode::OK);
     }
 
     #[tokio::test]

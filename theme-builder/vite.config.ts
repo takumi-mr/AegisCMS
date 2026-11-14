@@ -10,12 +10,14 @@ export default defineConfig({
   plugins: [react()],
   server: {
     port: 5174,
-    // Keep the Host header (localhost:5174): the dev server only accepts loopback names
+    // Keep the Host header (localhost:5174): the dev server only accepts loopback names, and a write
+    // whose Origin is not the same as Host is refused. The string shorthand (`'/__dev': target`) sets
+    // `changeOrigin: true`, which rewrites Host to the target and breaks that, so it is spelled out
     proxy: {
-      '/__dev': target,
-      '/theme': target,
-      '/themes': target,
-      '/preview': target,
+      '/__dev': { target, changeOrigin: false },
+      '/theme': { target, changeOrigin: false },
+      '/themes': { target, changeOrigin: false },
+      '/preview': { target, changeOrigin: false },
     },
   },
   test: {

@@ -361,7 +361,7 @@ task dev:theme -- themes/my-theme      # = cargo run -p aegis-theme-dev -- theme
     - `GET /__dev/api/package/export`: 配布用 ZIP アーカイブ（`samples/` や隠しファイルを除外）をダウンロードする
     - `GET /__dev/api/files`、`GET`・`PUT`・`DELETE /__dev/api/files/<パス>`、`POST /__dev/api/rename`: ファイルの一覧・読み出し・保存・削除・改名。対象は `theme.json`（削除・改名不可）と、`templates/`・`samples/`・`assets/` の下のテキストファイル（`.html`・`.css`・`.js`・`.json`・`.svg` など、1MiB まで）です。`..`・隠しファイル・フォルダーの外は拒否します
     - `POST /__dev/api/render`: 保存していない内容（`templates` に名前 → 中身、`samples` に名前 → JSON、オプショナルで `block` にブロック名）を反映して描画し、利用可能な `blocks` 一覧を返す。何も書き込みません
-    - 書き込み（`PUT`・`POST`）は、ループバックで待ち受けているときだけ使えます。ヘッダー `x-aegis-dev` が必要で、`Host` がループバックの名前でないリクエストは拒否します（ほかのサイトのページからの書き込みと、DNS リバインディングを防ぐため）。CORS は許可しません
+    - 書き込み（`PUT`・`POST`）は、ループバックで待ち受けているときだけ使えます。ヘッダー `x-aegis-dev` が必要で、`Host` がループバックの名前でないリクエストと、`Origin` が開発サーバー自身でない書き込みは拒否します（ほかのサイトのページからの書き込みと、DNS リバインディングを防ぐため）。CORS は許可しません
 
 ### Theme Builder（エディター + ライブプレビュー）
 
