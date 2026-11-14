@@ -7,6 +7,8 @@ use clap::{Parser, Subcommand};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 #[cfg(feature = "analytics")]
+#[cfg(feature = "embed-admin")]
+mod admin_embed;
 mod analytics;
 mod app;
 mod audit;

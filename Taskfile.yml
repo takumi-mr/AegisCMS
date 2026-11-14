@@ -224,6 +224,12 @@ tasks:
     cmds:
       - cargo build --release -p aegis-server
 
+  build:standalone:
+    desc: Admin Studio を埋め込んだ単体バイナリをビルド (admin/dist を先にビルドし、feature embed-admin を付ける)
+    cmds:
+      - task: build:admin
+      - cargo build --release -p aegis-server --features embed-admin
+
   build:admin:
     desc: Admin Studio フロントエンドの本番バンドルをビルド (admin/dist/)
     cmds:

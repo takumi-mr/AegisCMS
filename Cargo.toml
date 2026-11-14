@@ -99,6 +99,7 @@ reqwest = { version = "0.13", default-features = false, features = [
 ] }
 ring = "0.17.14"
 rpassword = "7.5"
+rust-embed = { version = "8.7", default-features = false, features = ["mime-guess"] }
 rsa = { version = "0.10", default-features = false, features = [
     "std",
     "encoding",

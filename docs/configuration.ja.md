@@ -157,7 +157,7 @@ public_url_prefix = "https://cdn.example.com"
 | `schemas_dir`    | path | `"schemas"`    | 宣言的スキーマ (`*.yaml`) の読み込み元                                                                                                                                          |
 | `queries_dir`    | path | `"queries"`    | 宣言的クエリの定義（`*.yaml`）の読み込み元（[queries.md](queries.ja.md)）                                                                                                       |
 | `plugins_dir`    | path | `"plugins"`    | Wasm プラグインのインストール先（`<plugins_dir>/<name>/` に 1 プラグイン）。読み込むのは有効化リスト（`[plugins].enabled`、または Admin Studio で切り替えた一覧）にあるものだけ |
-| `admin_dist_dir` | path | `"admin/dist"` | Admin Studio ビルド成果物。存在すれば `/` で SPA として配信                                                                                                                     |
+| `admin_dist_dir` | path | `"admin/dist"` | Admin Studio ビルド成果物。存在すれば `/` で SPA として配信。なければ、`embed-admin` feature でビルドしたバイナリは、埋め込んだ Admin Studio を配信（`task build:standalone`）  |
 
 ### 2.6 `[runtime]` — Wasm プラグインランタイム
 
