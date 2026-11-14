@@ -1,5 +1,26 @@
 # Changelog
 
+## [0.9.0](https://github.com/takumi-mr/AegisCMS/compare/v0.8.0...v0.9.0) (2026-11-14)
+
+
+### Features
+
+* **admin:** preview a saved version and diff it against the editor ([#340](https://github.com/takumi-mr/AegisCMS/issues/340)) ([52224a6](https://github.com/takumi-mr/AegisCMS/commit/52224a62bff439aa59e925bcbff396fb92f6229f))
+* **server:** embed Admin Studio in the binary (feature embed-admin) ([#352](https://github.com/takumi-mr/AegisCMS/issues/352)) ([cbfc470](https://github.com/takumi-mr/AegisCMS/commit/cbfc4705492eb7182dc4dcbff2a5cb3a7eb0368b))
+* **server:** expand env: values in every config field at load time ([#343](https://github.com/takumi-mr/AegisCMS/issues/343)) ([2d2dadc](https://github.com/takumi-mr/AegisCMS/commit/2d2dadc625e60d5dbc1b5e7eae0cf535c7dc95f1))
+
+
+### Bug Fixes
+
+* **admin:** show "Saved!" only after the save has finished and the editor is refreshed ([#354](https://github.com/takumi-mr/AegisCMS/issues/354)) ([a5c8e8d](https://github.com/takumi-mr/AegisCMS/commit/a5c8e8da60bc74cec0b065a08990905f0b58c0eb))
+* **auth:** update rsa to 0.10 (RUSTSEC-2023-0071) ([#349](https://github.com/takumi-mr/AegisCMS/issues/349)) ([20d90dd](https://github.com/takumi-mr/AegisCMS/commit/20d90dd39d451165d4877d4632db5a4d84beed8f))
+* **core:** replace serde_yaml with serde-saphyr and update jsonwebtoken to 12 ([#348](https://github.com/takumi-mr/AegisCMS/issues/348)) ([a583b3b](https://github.com/takumi-mr/AegisCMS/commit/a583b3be047c86c125a246dd01b3ffcb41c37243))
+* **runtime:** validate guest pointers and lengths before allocating; forbid unsafe_code; add cargo-audit and Miri to CI ([#347](https://github.com/takumi-mr/AegisCMS/issues/347)) ([057c7ad](https://github.com/takumi-mr/AegisCMS/commit/057c7ad9d1dfc3de7241a3c7759cca1fdba5557a))
+* **server:** apply the namespace to article HTML in Atom feeds and JSON APIs ([#345](https://github.com/takumi-mr/AegisCMS/issues/345)) ([8aaca2b](https://github.com/takumi-mr/AegisCMS/commit/8aaca2bcb6b5870e5b8e42e329b671fb1fa1b9e6))
+* **server:** refuse uploads that browsers run as scripts and sandbox them when served ([#351](https://github.com/takumi-mr/AegisCMS/issues/351)) ([6f3cc0c](https://github.com/takumi-mr/AegisCMS/commit/6f3cc0c9317bceb85ea906d4baa41894df92958d))
+* **server:** run startup on a 16 MB stack thread to avoid the debug-build overflow ([#353](https://github.com/takumi-mr/AegisCMS/issues/353)) ([58fb91e](https://github.com/takumi-mr/AegisCMS/commit/58fb91ef1eefb08bfa11c7814673321b0b7f2058))
+* **server:** stop the link checker from reaching internal addresses through redirects or DNS ([#350](https://github.com/takumi-mr/AegisCMS/issues/350)) ([95b0d84](https://github.com/takumi-mr/AegisCMS/commit/95b0d84ad6e7e90432e575a0547337acab60d0ff))
+
 ## [0.8.0](https://github.com/takumi-mr/AegisCMS/compare/v0.7.0...v0.8.0) (2026-11-12)
 
 
