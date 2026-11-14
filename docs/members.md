@@ -218,7 +218,7 @@ Two screens are added to Admin Studio's "Shop" (the API is implemented).
 
 - **Not revealing registration**: password reset and resending confirmation emails are always `202`. Login failures also do not distinguish between no email and a wrong password (as now).
 - **Duplicates at registration**: registering with an already registered email stays `409`. When `require_email_verification = true`, the registration response is made uniform (it only says a confirmation email was sent) so as not to leak whether it was already registered.
-- **Rate limits**: sign-up, login, reset, and resend are limited per IP (the existing cache counters).
+- **Rate limits**: sign-up, reset, and resend are limited per IP (the existing cache counters). Login failures are counted per email address and per IP with the same settings as the administrator login ([`[auth.login_rate_limit]`](configuration.md#29-authlogin_rate_limit--rate-limiting-of-login-attempts)); while locked, even the correct password is refused with `429` and `Retry-After`
 - **Sessions**: when a password is changed, all other sessions are revoked. They are also revoked when a member is suspended.
 - **Not mixing with admin accounts**: a member token (`mses_...`) does not pass the admin screen's API. The same the other way.
 - **Personal information**: member API responses do not include the password hash. It can be deleted by withdrawal. Backups (`task dump`) include members.

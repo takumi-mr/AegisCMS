@@ -435,6 +435,16 @@ impl SamlAuthProvider {
             return Err(auth_error(REASON_INVALID_STATE));
         }
         self.cache.delete(&key).await?;
+        // Reading and then deleting is not atomic: concurrent copies of one response could all
+        // pass. Only the first atomic increment may continue
+        if self
+            .cache
+            .increment(&format!("{key}:used"), Some(600))
+            .await?
+            != 1
+        {
+            return Err(auth_error(REASON_INVALID_STATE));
+        }
 
         let attributes = &login.attributes;
         let email = attributes.first(&self.config.email_attribute).or_else(|| {
