@@ -1,5 +1,6 @@
 use axum::{
     extract::{Query, State},
+    http::HeaderMap,
     response::Response,
 };
 use std::collections::HashMap;
@@ -24,11 +25,18 @@ pub async fn oidc_login(State(state): State<Arc<AppState>>) -> Response {
 pub async fn oidc_callback(
     State(state): State<Arc<AppState>>,
     audit: AuditContext,
+    headers: HeaderMap,
     Query(parameters): Query<HashMap<String, String>>,
 ) -> Response {
     let Some(oidc) = &state.oidc else {
         return sso_disabled("OIDC");
     };
+    // MCP クライアントの許可（OAuth）の途中のログインなら、そちらで続きを行う
+    if let Some(response) =
+        crate::oauth::resume_after_sso(&state, &audit, oidc, &headers, &parameters).await
+    {
+        return response;
+    }
     let credentials = AuthCredentials {
         kind: OIDC_CALLBACK_CREDENTIALS.to_string(),
         parameters,
@@ -82,6 +90,7 @@ mod tests {
         let resp = oidc_callback(
             State(state.clone()),
             AuditContext::default(),
+            HeaderMap::new(),
             Query(parameters),
         )
         .await;
@@ -154,6 +163,7 @@ mod tests {
         let resp = oidc_callback(
             State(state.clone()),
             AuditContext::default(),
+            HeaderMap::new(),
             Query(HashMap::from([
                 ("code".to_string(), "c".to_string()),
                 ("state".to_string(), "forged".to_string()),

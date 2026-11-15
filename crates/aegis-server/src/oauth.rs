@@ -17,6 +17,8 @@ use std::sync::Arc;
 
 use aegis_auth::api_tokens::{issue_api_token, NewApiToken};
 use aegis_core::{AuditAction, AuditOutcome};
+use std::collections::HashMap;
+
 use axum::{
     body::Body,
     extract::{ConnectInfo, Extension, Form, FromRequest, Request, State},
@@ -32,8 +34,9 @@ use sha2::{Digest, Sha256};
 use tower::ServiceExt;
 
 use crate::audit::AuditContext;
+use crate::handlers::auth::complete_login;
 use crate::handlers::feed::public_base_url;
-use crate::state::AppState;
+use crate::state::{AppState, SsoLogin};
 
 /// 署名鍵を置く設定の名前（隠しの設定。管理画面には出ない）
 const SIGNING_KEY_SETTING: &str = "oauth.signing_key";
@@ -463,7 +466,7 @@ pub async fn register(
 
 // ---------------------------------------------------------------- 認可
 
-#[derive(Debug, Default, Clone, Deserialize)]
+#[derive(Debug, Default, Clone, Deserialize, Serialize)]
 pub struct AuthParams {
     #[serde(default)]
     response_type: String,
@@ -760,8 +763,17 @@ fn consent_page(
     }
     body.push_str(
         "<div class=\"actions\"><button type=\"submit\" name=\"action\" value=\"allow\">Allow</button>\
-<button type=\"submit\" name=\"action\" value=\"deny\" class=\"secondary\" formnovalidate>Deny</button></div></form>",
+<button type=\"submit\" name=\"action\" value=\"deny\" class=\"secondary\" formnovalidate>Deny</button></div>",
     );
+    // シングルサインオンのアカウント用: IdP でログインして、いまのチェックのとおり許可する
+    if let (false, Some(sso)) = (in_second_step, state.oidc.as_ref()) {
+        body.push_str(&format!(
+            "<p class=\"muted\">Or use single sign-on instead of a password:</p>\
+<div class=\"actions\"><button type=\"submit\" name=\"action\" value=\"sso\" class=\"secondary\" formnovalidate>Allow with {}</button></div>",
+            html_escape(&sso.display_name)
+        ));
+    }
+    body.push_str("</form>");
     html_page(status, "Allow access", &body)
 }
 
@@ -877,6 +889,9 @@ pub async fn authorize_post(
 
     let username = form.username.trim().to_string();
     let chosen = Chosen::from_form(&form, &prepared);
+    if form.action == "sso" {
+        return start_sso(&state, &headers, &params, chosen).await;
+    }
     let page = |challenge: Option<&str>, error: Option<&str>, status: StatusCode| {
         let view = View {
             username: &username,
@@ -952,8 +967,28 @@ pub async fn authorize_post(
     let user_role = reply["role"].as_str().unwrap_or("viewer").to_string();
     let _ = state.sessions.destroy_session(&session_id).await;
 
+    finish_authorization(
+        &state,
+        &audit,
+        &prepared,
+        &params,
+        chosen,
+        (&who, &user_role),
+    )
+    .await
+}
+
+/// ログインできた持ち主に、認可コードを発行してクライアントへ戻す（パスワードでも SSO でも共通）
+async fn finish_authorization(
+    state: &AppState,
+    audit: &AuditContext,
+    prepared: &Prepared,
+    params: &AuthParams,
+    chosen: Chosen,
+    (who, user_role): (&str, &str),
+) -> Response {
     let granted = chosen.scopes();
-    let role = role_for(&granted, &user_role);
+    let role = role_for(&granted, user_role);
     let code = format!(
         "{}{}",
         uuid::Uuid::new_v4().simple(),
@@ -975,7 +1010,7 @@ pub async fn authorize_post(
         .is_err()
     {
         return invalid_response(
-            &params,
+            params,
             Invalid::Back("server_error", "Could not issue the authorization code"),
             true,
         );
@@ -985,7 +1020,7 @@ pub async fn authorize_post(
         .record(
             audit
                 .event(AuditAction::UserUpdate, AuditOutcome::Success)
-                .with_resource("user", Some(who.clone()))
+                .with_resource("user", Some(who.to_string()))
                 .with_details(json!({
                     "action": "oauth.authorize",
                     "client": prepared.client.n,
@@ -1001,6 +1036,169 @@ pub async fn authorize_post(
             &[("code", &code), ("state", &params.state)],
         ),
         true,
+    )
+}
+
+// ---------------------------------------------------------------- シングルサインオン（OpenID Connect）
+
+/// SSO を始めたブラウザを覚えておく Cookie。IdP のログインのあとの戻り（コールバック）が、
+/// 始めたのと同じブラウザからだと確かめる。無いと、攻撃者が始めた IdP の URL を被害者に踏ませて、
+/// 被害者のアカウントのコードを攻撃者のクライアントへ発行させられる
+const SSO_COOKIE: &str = "aegis_oauth_sso";
+
+fn sso_cookie(value: &str, max_age: u32, secure: bool) -> HeaderValue {
+    HeaderValue::from_str(&format!(
+        "{SSO_COOKIE}={value}; Max-Age={max_age}; Path=/; HttpOnly; SameSite=Lax{}",
+        if secure { "; Secure" } else { "" }
+    ))
+    .expect("cookie is ASCII")
+}
+
+fn cookie_value<'a>(headers: &'a HeaderMap, name: &str) -> Option<&'a str> {
+    headers
+        .get_all(header::COOKIE)
+        .iter()
+        .filter_map(|v| v.to_str().ok())
+        .flat_map(|v| v.split(';'))
+        .filter_map(|pair| pair.trim().split_once('='))
+        .find(|(k, _)| *k == name)
+        .map(|(_, v)| v)
+}
+
+/// 画面で SSO のボタンが押された: 選んだ内容と始めたブラウザを覚えて、IdP へ送る
+async fn start_sso(
+    state: &AppState,
+    headers: &HeaderMap,
+    params: &AuthParams,
+    chosen: Chosen,
+) -> Response {
+    let Some(sso) = state.oidc.as_ref() else {
+        return error_page("Single sign-on is not enabled on this site");
+    };
+    let failed = || {
+        invalid_response(
+            params,
+            Invalid::Back("server_error", "Could not start single sign-on"),
+            true,
+        )
+    };
+    let Ok(Some(redirect)) = sso.provider.initiate_login("").await else {
+        return failed();
+    };
+    let idp_state = url::Url::parse(&redirect.url).ok().and_then(|u| {
+        u.query_pairs()
+            .find(|(k, _)| k == "state")
+            .map(|(_, v)| v.into_owned())
+    });
+    let Some(idp_state) = idp_state else {
+        return failed();
+    };
+    let binding = format!(
+        "{}{}",
+        uuid::Uuid::new_v4().simple(),
+        uuid::Uuid::new_v4().simple()
+    );
+    let pending = json!({
+        "params": params,
+        "draft": chosen.draft,
+        "publish": chosen.publish,
+        "binding": sha256_hex(&binding),
+    });
+    if state
+        .cache
+        .set(
+            &format!("oauth_sso:{idp_state}"),
+            &pending.to_string(),
+            Some(CODE_TTL_SECS),
+        )
+        .await
+        .is_err()
+    {
+        return failed();
+    }
+    let secure = public_base_url(state, headers).starts_with("https://");
+    let mut response = send_back(&redirect.url, true);
+    response.headers_mut().append(
+        header::SET_COOKIE,
+        sso_cookie(&binding, CODE_TTL_SECS as u32, secure),
+    );
+    response
+}
+
+/// `GET /api/v1/auth/oidc/callback` から呼ぶ。この戻りが「MCP クライアントの許可」の途中のものなら、
+/// ログインを済ませて認可コードを発行し、クライアントへ戻す応答を返す。そうでなければ `None`（普通のログイン）
+pub async fn resume_after_sso(
+    state: &AppState,
+    audit: &AuditContext,
+    sso: &SsoLogin,
+    headers: &HeaderMap,
+    parameters: &HashMap<String, String>,
+) -> Option<Response> {
+    let key = format!("oauth_sso:{}", parameters.get("state")?);
+    let raw = state.cache.get(&key).await.ok()??;
+    let _ = state.cache.delete(&key).await;
+    let pending: Value = serde_json::from_str(&raw).ok()?;
+    let params: AuthParams = serde_json::from_value(pending["params"].clone()).ok()?;
+
+    let secure = public_base_url(state, headers).starts_with("https://");
+    let done = |mut response: Response| {
+        response
+            .headers_mut()
+            .append(header::SET_COOKIE, sso_cookie("", 0, secure));
+        Some(response)
+    };
+
+    // 始めたのと同じブラウザか
+    let same_browser = cookie_value(headers, SSO_COOKIE)
+        .map(sha256_hex)
+        .is_some_and(|hash| Some(hash.as_str()) == pending["binding"].as_str());
+    if !same_browser {
+        return done(error_page(
+            "This sign-in was not started in this browser. Start again from the application.",
+        ));
+    }
+    let prepared = match prepare(state, &params).await {
+        Ok(p) => p,
+        Err(invalid) => return done(invalid_response(&params, invalid, true)),
+    };
+    let chosen = Chosen {
+        draft: prepared.scopes.contains(&SCOPE_DRAFT) && pending["draft"].as_bool() == Some(true),
+        publish: prepared.scopes.contains(&SCOPE_PUBLISH)
+            && pending["publish"].as_bool() == Some(true),
+    };
+    let denied = |description: &'static str| {
+        invalid_response(&params, Invalid::Back("access_denied", description), true)
+    };
+
+    let credentials = aegis_core::AuthCredentials {
+        kind: aegis_auth::OIDC_CALLBACK_CREDENTIALS.to_string(),
+        parameters: parameters.clone(),
+        ..Default::default()
+    };
+    let identity = match sso.provider.authenticate(&credentials).await {
+        Ok(identity) => identity,
+        Err(e) => {
+            tracing::warn!("Single sign-on for an OAuth authorization failed: {e}");
+            return done(denied("Single sign-on failed"));
+        }
+    };
+    let session =
+        match complete_login(state, audit, sso.provider.provider_id(), identity, Some(60)).await {
+            Ok(session) => session,
+            Err(_) => return done(denied("This account cannot sign in")),
+        };
+    // 許可のためのログインなので、セッションはすぐ捨てる
+    let _ = state.sessions.destroy_session(&session.id).await;
+    done(
+        finish_authorization(
+            state,
+            audit,
+            &prepared,
+            &params,
+            chosen,
+            (&session.user_id, &session.role),
+        )
+        .await,
     )
 }
 

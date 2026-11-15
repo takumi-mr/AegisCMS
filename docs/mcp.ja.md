@@ -41,7 +41,7 @@ Claude.ai のカスタムコネクタのように OAuth でサインインする
 
 > [!NOTE]
 >
-> - この画面のサインインはユーザー名とパスワードです。シングルサインオンでしか入れないアカウントは、まだアプリを許可できません。[API トークン](#1-つなぐ)を使ってください。
+> - この画面では、ユーザー名とパスワードでサインインします。サイトが OpenID Connect のシングルサインオンを使っているときは（[認証](authentication.ja.md#6-シングルサインオン-openid-connect)）、**Allow with <名前>** のボタンも出ます。IdP でサインインしたあと、画面で選んだ許可の内容のまま、アプリへ戻ります。始めたのと同じブラウザで最後まで行う必要があります。SAML のシングルサインオンは、この画面ではまだ使えません。[API トークン](#1-つなぐ)を使ってください。
 > - サイトは `https://` で公開し、**正規 URL** を設定してください（[サイトの設定](admin-settings.ja.md)）。クライアントに伝えるサインイン画面のアドレスは、これから作られます。
 > - エンドポイントは `/.well-known/oauth-protected-resource`、`/.well-known/oauth-authorization-server`、`/oauth/register`（動的クライアント登録）、`/oauth/authorize`、`/oauth/token` です。PKCE（`S256`）が必須です。
 
