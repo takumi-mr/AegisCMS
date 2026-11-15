@@ -736,6 +736,15 @@ pub fn router(config: &AegisConfig, state: Arc<AppState>) -> Router {
         }
     }
 
+    // MCP（`POST /mcp`）。ツールは中で REST API のルーター（この時点までのルート）を呼ぶ
+    let api: Router = app.clone().with_state(state.clone());
+    app = app.route(
+        "/mcp",
+        post(crate::mcp::handle)
+            .get(crate::mcp::not_supported)
+            .layer(axum::Extension(api)),
+    );
+
     app.layer(cors)
         .layer(axum::middleware::from_fn_with_state(
             state.clone(),
