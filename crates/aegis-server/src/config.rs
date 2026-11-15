@@ -28,6 +28,20 @@ pub struct Captchas {
     pub forum: Option<Arc<aegis_captcha::Captcha>>,
 }
 
+/// `[mcp]` — MCP サーバー（`POST /mcp`）と、MCP クライアント向けの OAuth（`/oauth/*`・`/.well-known/oauth-*`）
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct McpConfig {
+    /// `false` なら、MCP も OAuth のエンドポイントも出さない（404）。API トークンでの REST API には影響しない
+    pub enabled: bool,
+}
+
+impl Default for McpConfig {
+    fn default() -> Self {
+        Self { enabled: true }
+    }
+}
+
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct AegisConfig {
     #[serde(default)]
@@ -65,6 +79,9 @@ pub struct AegisConfig {
     pub comments: CommentsConfig,
     #[serde(default)]
     pub tags: TagsConfig,
+    /// MCP サーバーと、そのための OAuth（`[mcp]`。docs/mcp.md）
+    #[serde(default)]
+    pub mcp: McpConfig,
     /// 宣言的クエリ（`[queries]`。定義は `queries/*.yaml`。docs/queries.md）
     #[serde(default)]
     pub queries: crate::queries::QueriesConfig,
@@ -531,6 +548,24 @@ posting = \"members\"
             docker.storage.local.upload_dir,
             PathBuf::from("/app/data/uploads")
         );
+    }
+
+    #[test]
+    fn test_mcp_is_on_unless_it_is_turned_off() {
+        assert!(AegisConfig::default().mcp.enabled);
+        let config: AegisConfig = toml::from_str(
+            "[mcp]
+enabled = false",
+        )
+        .unwrap();
+        assert!(!config.mcp.enabled);
+        // 書かなければ、これまでどおり出す
+        let config: AegisConfig = toml::from_str(
+            "[server]
+port = 9000",
+        )
+        .unwrap();
+        assert!(config.mcp.enabled);
     }
 
     #[test]

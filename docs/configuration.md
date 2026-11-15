@@ -665,6 +665,16 @@ Aggregations and conditional lists are declared in YAML (`*.yaml` in `[paths].qu
 
 Wrong definitions and mistakes in these settings are a startup error that stops the server.
 
+### 2.27 `[mcp]` — MCP Server
+
+The MCP server for AI assistants (`POST /mcp`) and the OAuth endpoints it signs in with (`/.well-known/oauth-*`, `/oauth/*`). For how to use it, see [mcp.md](mcp.md).
+
+| Key       | Default | Description                                                                                                                                                                                                          |
+| --------- | ------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `enabled` | `true`  | `false` turns off both: `/mcp` and the OAuth endpoints answer 404, so no assistant can connect. The REST API and the API tokens are not affected, and tokens already given to assistants stop working only on `/mcp` |
+
+It is read at startup, so restart the server after changing it. To stop one assistant only, revoke its token in Admin Studio (My profile › API tokens).
+
 ## 3. A Complete Example
 
 A parseable-as-is example with every item written out.

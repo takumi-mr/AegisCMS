@@ -736,43 +736,60 @@ pub fn router(config: &AegisConfig, state: Arc<AppState>) -> Router {
         }
     }
 
-    // MCP（`POST /mcp`）。ツールは中で REST API のルーター（この時点までのルート）を呼ぶ
-    let api: Router = app.clone().with_state(state.clone());
-    app = app.route(
-        "/mcp",
-        post(crate::mcp::handle)
-            .get(crate::mcp::not_supported)
-            .layer(axum::Extension(api.clone())),
-    );
-    // MCP クライアント向けの OAuth 2.1 認可サーバー（`oauth.rs`）
-    app = app
-        .route(
-            "/.well-known/oauth-protected-resource",
-            get(crate::oauth::protected_resource_metadata).options(crate::oauth::preflight),
-        )
-        .route(
-            "/.well-known/oauth-protected-resource/mcp",
-            get(crate::oauth::protected_resource_metadata).options(crate::oauth::preflight),
-        )
-        .route(
-            "/.well-known/oauth-authorization-server",
-            get(crate::oauth::authorization_server_metadata).options(crate::oauth::preflight),
-        )
-        .route(
-            "/oauth/register",
-            post(crate::oauth::register).options(crate::oauth::preflight),
-        )
-        .route(
-            "/oauth/token",
-            post(crate::oauth::token).options(crate::oauth::preflight),
-        )
-        .route("/oauth/authorize.css", get(crate::oauth::authorize_css))
-        .route(
-            "/oauth/authorize",
-            get(crate::oauth::authorize_get)
-                .post(crate::oauth::authorize_post)
-                .layer(axum::Extension(api)),
+    // `[mcp] enabled = false` なら、MCP も OAuth も出さない
+    if config.mcp.enabled {
+        // MCP（`POST /mcp`）。ツールは中で REST API のルーター（この時点までのルート）を呼ぶ
+        let api: Router = app.clone().with_state(state.clone());
+        app = app.route(
+            "/mcp",
+            post(crate::mcp::handle)
+                .get(crate::mcp::not_supported)
+                .layer(axum::Extension(api.clone())),
         );
+        // MCP クライアント向けの OAuth 2.1 認可サーバー（`oauth.rs`）
+        app = app
+            .route(
+                "/.well-known/oauth-protected-resource",
+                get(crate::oauth::protected_resource_metadata).options(crate::oauth::preflight),
+            )
+            .route(
+                "/.well-known/oauth-protected-resource/mcp",
+                get(crate::oauth::protected_resource_metadata).options(crate::oauth::preflight),
+            )
+            .route(
+                "/.well-known/oauth-authorization-server",
+                get(crate::oauth::authorization_server_metadata).options(crate::oauth::preflight),
+            )
+            .route(
+                "/oauth/register",
+                post(crate::oauth::register).options(crate::oauth::preflight),
+            )
+            .route(
+                "/oauth/token",
+                post(crate::oauth::token).options(crate::oauth::preflight),
+            )
+            .route("/oauth/authorize.css", get(crate::oauth::authorize_css))
+            .route(
+                "/oauth/authorize",
+                get(crate::oauth::authorize_get)
+                    .post(crate::oauth::authorize_post)
+                    .layer(axum::Extension(api)),
+            );
+    } else {
+        // 止めているときは、公開サイトの GET 専用の経路に当たって 405 にならないよう、はっきり 404 にする
+        for path in [
+            "/mcp",
+            "/.well-known/oauth-protected-resource",
+            "/.well-known/oauth-protected-resource/mcp",
+            "/.well-known/oauth-authorization-server",
+            "/oauth/register",
+            "/oauth/token",
+            "/oauth/authorize",
+            "/oauth/authorize.css",
+        ] {
+            app = app.route(path, any(|| async { StatusCode::NOT_FOUND }));
+        }
+    }
 
     app.layer(cors)
         .layer(axum::middleware::from_fn_with_state(

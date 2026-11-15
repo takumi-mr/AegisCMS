@@ -116,7 +116,7 @@ When a tool fails, the assistant receives the HTTP status and the error message 
 
 - Only these tools. Settings, users, themes, plugins and the forum, newsletter and contact messages are not available through MCP; use Admin Studio or the REST API.
 - The sign-in page is in English only.
-- There is no switch to turn the endpoint off. To stop an assistant, revoke its token.
+- To turn MCP off for the whole site, set `[mcp] enabled = false` ([Configuration reference](configuration.md#227-mcp--mcp-server)); `/mcp` and the OAuth endpoints then answer 404. To stop one assistant only, revoke its token.
 - Only `POST /mcp` is served (no streaming from the server); `GET /mcp` answers `405`.
 
 ## Related Guides

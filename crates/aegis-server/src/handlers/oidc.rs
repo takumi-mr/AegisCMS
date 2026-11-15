@@ -32,10 +32,12 @@ pub async fn oidc_callback(
         return sso_disabled("OIDC");
     };
     // MCP クライアントの許可（OAuth）の途中のログインなら、そちらで続きを行う
-    if let Some(response) =
-        crate::oauth::resume_after_sso(&state, &audit, oidc, &headers, &parameters).await
-    {
-        return response;
+    if state.config.mcp.enabled {
+        if let Some(response) =
+            crate::oauth::resume_after_sso(&state, &audit, oidc, &headers, &parameters).await
+        {
+            return response;
+        }
     }
     let credentials = AuthCredentials {
         kind: OIDC_CALLBACK_CREDENTIALS.to_string(),
