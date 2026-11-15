@@ -44,6 +44,8 @@ const CODE_TTL_SECS: u64 = 600;
 const ACCESS_TOKEN_DAYS: u32 = 30;
 const SCOPE_READ: &str = "content:read";
 const SCOPE_DRAFT: &str = "content:draft";
+/// 公開・非公開・削除。求められても既定ではチェックを外した状態で出し、人が選んだときだけ渡す
+const SCOPE_PUBLISH: &str = "content:publish";
 const MAX_REDIRECT_URIS: usize = 5;
 const MAX_REDIRECT_URI_CHARS: usize = 400;
 const MAX_CLIENT_NAME_CHARS: usize = 100;
@@ -305,12 +307,15 @@ input[type=text], input[type=password] { width:100%; padding:.55rem .65rem; bord
 button { flex:1; padding:.6rem; border-radius:8px; border:1px solid var(--accent); background:var(--accent); color:#fff; font:inherit; font-weight:600; cursor:pointer; }
 button.secondary { background:transparent; color:var(--text); border-color:var(--line); }
 a { color:var(--accent); }
+li { margin:.35rem 0; }
+label.warn { color:var(--danger); font-weight:600; }
+ul label { display:block; margin:0; font-size:1rem; }
 "#;
 
 // ---------------------------------------------------------------- メタデータ
 
 fn scopes_supported() -> Value {
-    json!([SCOPE_READ, SCOPE_DRAFT])
+    json!([SCOPE_READ, SCOPE_DRAFT, SCOPE_PUBLISH])
 }
 
 /// `GET /.well-known/oauth-protected-resource`（`/mcp` 付きも同じ）
@@ -487,6 +492,52 @@ pub struct AuthForm {
     challenge_token: String,
     #[serde(default)]
     code: String,
+    /// 許可する範囲のチェックを画面で選んだ印（無ければ既定: 下書きまで）
+    #[serde(default)]
+    grants: String,
+    #[serde(default)]
+    grant_draft: String,
+    #[serde(default)]
+    grant_publish: String,
+}
+
+/// 画面で選んだ、読み取り以外の範囲
+#[derive(Debug, Clone, Copy)]
+struct Chosen {
+    draft: bool,
+    publish: bool,
+}
+
+impl Chosen {
+    /// 画面を開いたときの既定: 下書きはオン、公開はオフ
+    fn default_for(prepared: &Prepared) -> Self {
+        Chosen {
+            draft: prepared.scopes.contains(&SCOPE_DRAFT),
+            publish: false,
+        }
+    }
+
+    fn from_form(form: &AuthForm, prepared: &Prepared) -> Self {
+        if form.grants.is_empty() {
+            return Self::default_for(prepared);
+        }
+        Chosen {
+            draft: prepared.scopes.contains(&SCOPE_DRAFT) && form.grant_draft == "on",
+            publish: prepared.scopes.contains(&SCOPE_PUBLISH) && form.grant_publish == "on",
+        }
+    }
+
+    /// 渡す範囲（読み取りは常に含む）
+    fn scopes(self) -> Vec<&'static str> {
+        let mut scopes = vec![SCOPE_READ];
+        if self.draft {
+            scopes.push(SCOPE_DRAFT);
+        }
+        if self.publish {
+            scopes.push(SCOPE_PUBLISH);
+        }
+        scopes
+    }
 }
 
 struct Prepared {
@@ -533,7 +584,7 @@ async fn prepare(state: &AppState, params: &AuthParams) -> Result<Prepared, Inva
     }
     let mut scopes: Vec<&'static str> = Vec::new();
     for requested in params.scope.split_whitespace() {
-        for known in [SCOPE_READ, SCOPE_DRAFT] {
+        for known in [SCOPE_READ, SCOPE_DRAFT, SCOPE_PUBLISH] {
             if requested == known && !scopes.contains(&known) {
                 scopes.push(known);
             }
@@ -565,7 +616,12 @@ fn invalid_response(params: &AuthParams, invalid: Invalid, via_page: bool) -> Re
 fn scope_description(scope: &str) -> &'static str {
     match scope {
         SCOPE_READ => "Read content on this site, as far as your role allows",
-        _ => "Create and edit drafts. It cannot publish or delete anything",
+        SCOPE_DRAFT => {
+            "Create and edit drafts, upload media, set tags and send content to review. Nothing becomes visible to visitors"
+        }
+        _ => {
+            "Publish and unpublish content, and delete it. This changes what visitors see, as far as your role allows"
+        }
     }
 }
 
@@ -578,15 +634,28 @@ fn hidden(name: &str, value: &str) -> String {
 }
 
 /// 許可の画面。`challenge` があれば 2 段階認証のコードの入力、`error` があれば先頭に出す
+#[derive(Clone, Copy)]
+struct View<'a> {
+    username: &'a str,
+    chosen: Chosen,
+    challenge: Option<&'a str>,
+    error: Option<&'a str>,
+    status: StatusCode,
+}
+
 fn consent_page(
     state: &AppState,
     prepared: &Prepared,
     params: &AuthParams,
-    username: &str,
-    challenge: Option<&str>,
-    error: Option<&str>,
-    status: StatusCode,
+    view: &View,
 ) -> Response {
+    let View {
+        username,
+        chosen,
+        challenge,
+        error,
+        status,
+    } = *view;
     let site = state.site().title;
     let host = url::Url::parse(&params.redirect_uri)
         .ok()
@@ -596,11 +665,46 @@ fn consent_page(
                 .unwrap_or_else(|| format!("{}://", u.scheme()))
         })
         .unwrap_or_default();
-    let scopes: String = prepared
-        .scopes
-        .iter()
-        .map(|s| format!("<li>{}</li>", scope_description(s)))
-        .collect();
+    // 2 段階認証の入力のときは、さっき選んだ内容を文章で見せ、選択は隠し項目で持ち越す
+    let in_second_step = challenge.is_some();
+    let mut scopes = format!("<li>{}</li>", scope_description(SCOPE_READ));
+    for (scope, requested, on) in [
+        (
+            SCOPE_DRAFT,
+            prepared.scopes.contains(&SCOPE_DRAFT),
+            chosen.draft,
+        ),
+        (
+            SCOPE_PUBLISH,
+            prepared.scopes.contains(&SCOPE_PUBLISH),
+            chosen.publish,
+        ),
+    ] {
+        if !requested {
+            continue;
+        }
+        let field = if scope == SCOPE_DRAFT {
+            "grant_draft"
+        } else {
+            "grant_publish"
+        };
+        let class = if scope == SCOPE_PUBLISH {
+            " class=\"warn\""
+        } else {
+            ""
+        };
+        if in_second_step {
+            if on {
+                scopes.push_str(&format!("<li>{}</li>", scope_description(scope)));
+            }
+        } else {
+            scopes.push_str(&format!(
+                "<li><label{class}><input type=\"checkbox\" name=\"{field}\" value=\"on\"{}> {}</label></li>",
+                if on { " checked" } else { "" },
+                scope_description(scope)
+            ));
+        }
+    }
     let mut body = format!(
         "<h1>Allow access?</h1><p><strong>{}</strong> wants to use <strong>{}</strong> on your behalf.</p><ul>{}</ul>\
 <p class=\"muted\">After you decide, you are sent back to {}. You can revoke the access at any time in Admin Studio under My profile › API tokens.</p>",
@@ -627,8 +731,15 @@ fn consent_page(
     ] {
         body.push_str(&hidden(name, value));
     }
+    body.push_str(&hidden("grants", "1"));
     match challenge {
         Some(token) => {
+            if chosen.draft {
+                body.push_str(&hidden("grant_draft", "on"));
+            }
+            if chosen.publish {
+                body.push_str(&hidden("grant_publish", "on"));
+            }
             body.push_str(&hidden("challenge_token", token));
             body.push_str(&hidden("username", username));
             body.push_str(
@@ -657,7 +768,17 @@ pub async fn authorize_get(
     axum::extract::Query(params): axum::extract::Query<AuthParams>,
 ) -> Response {
     match prepare(&state, &params).await {
-        Ok(prepared) => consent_page(&state, &prepared, &params, "", None, None, StatusCode::OK),
+        Ok(prepared) => {
+            let chosen = Chosen::default_for(&prepared);
+            let view = View {
+                username: "",
+                chosen,
+                challenge: None,
+                error: None,
+                status: StatusCode::OK,
+            };
+            consent_page(&state, &prepared, &params, &view)
+        }
         Err(invalid) => invalid_response(&params, invalid, false),
     }
 }
@@ -701,7 +822,9 @@ async fn call_api(
 
 /// ユーザーのロールを超えない、スコープに見合うロール
 fn role_for(scopes: &[&str], user_role: &str) -> String {
-    let wanted = if scopes.contains(&SCOPE_DRAFT) {
+    let wanted = if scopes.contains(&SCOPE_PUBLISH) {
+        "editor"
+    } else if scopes.contains(&SCOPE_DRAFT) {
         "contributor"
     } else {
         "viewer"
@@ -750,10 +873,16 @@ pub async fn authorize_post(
     }
 
     let username = form.username.trim().to_string();
+    let chosen = Chosen::from_form(&form, &prepared);
     let page = |challenge: Option<&str>, error: Option<&str>, status: StatusCode| {
-        consent_page(
-            &state, &prepared, &params, &username, challenge, error, status,
-        )
+        let view = View {
+            username: &username,
+            chosen,
+            challenge,
+            error,
+            status,
+        };
+        consent_page(&state, &prepared, &params, &view)
     };
 
     let (status, reply) = if !form.challenge_token.is_empty() {
@@ -820,7 +949,8 @@ pub async fn authorize_post(
     let user_role = reply["role"].as_str().unwrap_or("viewer").to_string();
     let _ = state.sessions.destroy_session(&session_id).await;
 
-    let role = role_for(&prepared.scopes, &user_role);
+    let granted = chosen.scopes();
+    let role = role_for(&granted, &user_role);
     let code = format!(
         "{}{}",
         uuid::Uuid::new_v4().simple(),
@@ -833,7 +963,7 @@ pub async fn authorize_post(
         "code_challenge": params.code_challenge,
         "username": who,
         "role": role,
-        "scope": prepared.scopes.join(" "),
+        "scope": granted.join(" "),
     });
     if state
         .cache
@@ -856,7 +986,7 @@ pub async fn authorize_post(
                 .with_details(json!({
                     "action": "oauth.authorize",
                     "client": prepared.client.n,
-                    "scope": prepared.scopes.join(" "),
+                    "scope": granted.join(" "),
                     "role": role,
                 })),
         )

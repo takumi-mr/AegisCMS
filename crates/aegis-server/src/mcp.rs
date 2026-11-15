@@ -2,7 +2,9 @@
 //!
 //! 認証と権限は REST API と同じ。`Authorization: Bearer` に API トークン（`aegis_pat_...`）かセッション ID を付ける。
 //! ツールは中で REST API のルーターを呼ぶだけで、承認フロー・検証・監査ログ・ロールの確認は REST と同じ経路を通る。
-//! 最初のリリースは読み取りと「下書きの作成・更新」だけ。公開（`publish`）や状態の変更はできない。
+//! ツールは 3 段に分かれる: 読み取り（viewer）、下書きの作成・更新・レビュー依頼・タグ・メディア（contributor）、
+//! 公開・非公開・削除（editor）。`tools/list` は呼び出した人のロールで使えるものだけ返し、呼ばれたときの権限の確認は
+//! REST API が行う。
 
 use std::sync::Arc;
 
@@ -26,15 +28,46 @@ const MAX_API_RESPONSE_BYTES: usize = 16 * 1024 * 1024;
 const DEFAULT_LIST_LIMIT: u64 = 20;
 const MAX_LIST_LIMIT: u64 = 100;
 
-const INSTRUCTIONS: &str = "AegisCMS content tools. Reads see what the token's role may see. \
-Writes only ever save drafts or working copies: nothing here publishes, unpublishes or deletes content, \
-so visitors never see a change until a person publishes it in Admin Studio. \
+const INSTRUCTIONS: &str = "AegisCMS content tools. What you can see and do follows the role of the token. \
+create_draft and update_content only save drafts or working copies: visitors see nothing new until the content is published. \
+publish_content, unpublish_content and delete_content change what visitors see, and delete_content cannot be undone, \
+so use them only when the user clearly asked for it. \
 Body text is a list of blocks (see the content API guide); use get_content_schema for the custom fields of a type.";
+
+/// 使うのに要る一番低いロール。ここに無いツールは読み取り（viewer）
+fn tool_min_role(name: &str) -> &'static str {
+    match name {
+        "create_draft" | "update_content" | "request_review" | "set_tags" | "upload_media" => {
+            "contributor"
+        }
+        "publish_content" | "unpublish_content" | "delete_content" => "editor",
+        _ => "viewer",
+    }
+}
+
+/// `level` のロールで使えるツールだけ（`None` なら全部）
+fn visible_tools(level: Option<u8>) -> Value {
+    let all = tool_definitions();
+    let Some(level) = level else {
+        return all;
+    };
+    Value::Array(
+        all.as_array()
+            .into_iter()
+            .flatten()
+            .filter(|tool| {
+                let name = tool["name"].as_str().unwrap_or_default();
+                aegis_auth::role_level(tool_min_role(name)) <= level
+            })
+            .cloned()
+            .collect(),
+    )
+}
 
 /// `/mcp` の本体。`api` は REST API のルーター（`/mcp` 自身は含まない）
 pub async fn handle(
     State(state): State<Arc<AppState>>,
-    Extension(api): Extension<Router>,
+    Extension(router): Extension<Router>,
     headers: HeaderMap,
     Json(message): Json<Value>,
 ) -> Response {
@@ -81,7 +114,17 @@ pub async fn handle(
             )
         }
         "ping" => rpc_result(id, json!({})),
-        "tools/list" => rpc_result(id, json!({ "tools": tool_definitions() })),
+        "tools/list" => {
+            let (status, me) = api(&router, auth, Method::GET, "/api/v1/auth/session", None).await;
+            if status == StatusCode::UNAUTHORIZED {
+                return unauthorized(&state, &headers);
+            }
+            let level = status
+                .is_success()
+                .then(|| me["role"].as_str().map(aegis_auth::role_level))
+                .flatten();
+            rpc_result(id, json!({ "tools": visible_tools(level) }))
+        }
         "tools/call" => {
             let name = params.get("name").and_then(Value::as_str).unwrap_or("");
             let args = params
@@ -91,7 +134,7 @@ pub async fn handle(
             if !args.is_object() {
                 return rpc_error(id, -32602, "arguments must be an object");
             }
-            match call_tool(&api, auth, name, &args).await {
+            match call_tool(&router, auth, name, &args).await {
                 Outcome::Unauthorized => unauthorized(&state, &headers),
                 Outcome::UnknownTool => rpc_error(id, -32602, &format!("Unknown tool: {name}")),
                 Outcome::Done(text) => rpc_result(
@@ -225,6 +268,72 @@ fn tool_definitions() -> Value {
                 "fields": fields
             }, "required": ["content_type", "slug_or_id"] },
             "annotations": { "readOnlyHint": false, "destructiveHint": false, "idempotentHint": true }
+        },
+        {
+            "name": "request_review",
+            "title": "Send an item to review",
+            "description": "Set the status to \"pending\" so that an editor or reviewer can approve it. Nothing is published.",
+            "inputSchema": { "type": "object", "properties": {
+                "content_type": content_type,
+                "slug_or_id": { "type": "string" },
+                "review_note": { "type": "string", "description": "A note for the reviewer" }
+            }, "required": ["content_type", "slug_or_id"] },
+            "annotations": { "readOnlyHint": false, "destructiveHint": false, "idempotentHint": true }
+        },
+        {
+            "name": "set_tags",
+            "title": "Set the tags of an item",
+            "description": "Replace the tags of an item. Tags must already exist (see list_tags). An empty list removes all tags.",
+            "inputSchema": { "type": "object", "properties": {
+                "content_type": content_type,
+                "slug_or_id": { "type": "string" },
+                "tags": { "type": "array", "items": { "type": "string" }, "description": "Tag slugs or ids" }
+            }, "required": ["content_type", "slug_or_id", "tags"] },
+            "annotations": { "readOnlyHint": false, "destructiveHint": false, "idempotentHint": true }
+        },
+        {
+            "name": "upload_media",
+            "title": "Upload an image or file",
+            "description": "Upload a file (up to 8 MB) to the media library. Returns the url to use in an image block (core/image attributes.src). The server adds a prefix to the file name, so use the returned url.",
+            "inputSchema": { "type": "object", "properties": {
+                "filename": { "type": "string", "description": "e.g. cover.png" },
+                "data_base64": { "type": "string", "description": "The file content, base64 encoded" },
+                "content_type": { "type": "string", "description": "e.g. image/png. Guessed from the file name if omitted" }
+            }, "required": ["filename", "data_base64"] },
+            "annotations": { "readOnlyHint": false, "destructiveHint": false, "idempotentHint": false }
+        },
+        {
+            "name": "publish_content",
+            "title": "Publish an item",
+            "description": "Make an item visible to visitors. The latest saved version (including a working copy) becomes the published version. With publish_at, it is published automatically at that time instead. Do this only when the user asked to publish.",
+            "inputSchema": { "type": "object", "properties": {
+                "content_type": content_type,
+                "slug_or_id": { "type": "string" },
+                "publish_at": { "type": "string", "description": "RFC 3339 date and time to publish at, e.g. 2030-01-31T09:00:00+09:00. Omit to publish now" },
+                "review_note": { "type": "string" }
+            }, "required": ["content_type", "slug_or_id"] },
+            "annotations": { "readOnlyHint": false, "destructiveHint": true, "idempotentHint": true }
+        },
+        {
+            "name": "unpublish_content",
+            "title": "Take an item off the site",
+            "description": "Stop showing an item to visitors by setting its status to \"draft\" (default) or \"archived\". The content is kept.",
+            "inputSchema": { "type": "object", "properties": {
+                "content_type": content_type,
+                "slug_or_id": { "type": "string" },
+                "to": { "type": "string", "enum": ["draft", "archived"] }
+            }, "required": ["content_type", "slug_or_id"] },
+            "annotations": { "readOnlyHint": false, "destructiveHint": true, "idempotentHint": true }
+        },
+        {
+            "name": "delete_content",
+            "title": "Delete an item",
+            "description": "Delete an item permanently. Do this only when the user clearly asked to delete.",
+            "inputSchema": { "type": "object", "properties": {
+                "content_type": content_type,
+                "slug_or_id": { "type": "string" }
+            }, "required": ["content_type", "slug_or_id"] },
+            "annotations": { "readOnlyHint": false, "destructiveHint": true, "idempotentHint": true }
         }
     ])
 }
@@ -261,17 +370,37 @@ async fn api(
     uri: &str,
     body: Option<&Value>,
 ) -> (StatusCode, Value) {
+    match body {
+        Some(value) => {
+            api_with(
+                router,
+                auth,
+                method,
+                uri,
+                Some("application/json"),
+                Body::from(value.to_string()),
+            )
+            .await
+        }
+        None => api_with(router, auth, method, uri, None, Body::empty()).await,
+    }
+}
+
+async fn api_with(
+    router: &Router,
+    auth: &str,
+    method: Method,
+    uri: &str,
+    content_type: Option<&str>,
+    body: Body,
+) -> (StatusCode, Value) {
     let mut builder = Request::builder()
         .method(method)
         .uri(uri)
         .header(header::AUTHORIZATION, auth);
-    let body = match body {
-        Some(value) => {
-            builder = builder.header(header::CONTENT_TYPE, "application/json");
-            Body::from(value.to_string())
-        }
-        None => Body::empty(),
-    };
+    if let Some(content_type) = content_type {
+        builder = builder.header(header::CONTENT_TYPE, content_type);
+    }
     let request = builder.body(body).expect("internal request");
     let response = match router.clone().oneshot(request).await {
         Ok(response) => response,
@@ -281,8 +410,12 @@ async fn api(
     let bytes = axum::body::to_bytes(response.into_body(), MAX_API_RESPONSE_BYTES)
         .await
         .unwrap_or_default();
-    let value = serde_json::from_slice(&bytes)
-        .unwrap_or_else(|_| Value::String(String::from_utf8_lossy(&bytes).into_owned()));
+    let value = if bytes.is_empty() {
+        Value::Null
+    } else {
+        serde_json::from_slice(&bytes)
+            .unwrap_or_else(|_| Value::String(String::from_utf8_lossy(&bytes).into_owned()))
+    };
     (status, value)
 }
 
@@ -372,13 +505,24 @@ async fn call_tool(router: &Router, auth: &str, name: &str, args: &Value) -> Out
             finish(s, v)
         }
         "update_content" => update_content(router, auth, args).await,
+        "request_review" => change_status(router, auth, args, Change::Review).await,
+        "publish_content" => change_status(router, auth, args, Change::Publish).await,
+        "unpublish_content" => change_status(router, auth, args, Change::Unpublish).await,
+        "delete_content" => delete_content(router, auth, args).await,
+        "set_tags" => set_tags(router, auth, args).await,
+        "upload_media" => upload_media(router, auth, args).await,
         _ => Outcome::UnknownTool,
     }
 }
 
-/// PUT は本文・フィールドを丸ごと置き換えるので、今の内容を読んで、送られた項目だけ差し替えて書き戻す。
-/// 状態は今のまま（`publish` は付けない）なので、公開中のコンテンツは作業用のコピーとして保存される
-async fn update_content(router: &Router, auth: &str, args: &Value) -> Outcome {
+/// PUT は本文・フィールドを丸ごと置き換えるので、今の内容を読んで、`change` で差し替えた分だけ書き戻す。
+/// 状態は `change` が変えなければ今のまま。`publish` は付けないので、公開中のコンテンツは作業用のコピーとして保存される
+async fn rewrite(
+    router: &Router,
+    auth: &str,
+    args: &Value,
+    change: impl FnOnce(&mut Map<String, Value>) -> Result<(), String>,
+) -> Outcome {
     let (Some(ct), Some(item)) = (str_arg(args, "content_type"), str_arg(args, "slug_or_id"))
     else {
         return bad("content_type and slug_or_id are required");
@@ -388,40 +532,242 @@ async fn update_content(router: &Router, auth: &str, args: &Value) -> Outcome {
     if !status.is_success() {
         return finish(status, current);
     }
-
     let mut body = Map::new();
-    body.insert(
-        "title".into(),
-        json!(str_arg(args, "title")
-            .or_else(|| current["title"].as_str())
-            .unwrap_or_default()),
-    );
-    body.insert(
-        "slug".into(),
-        json!(str_arg(args, "slug")
-            .or_else(|| current["slug"].as_str())
-            .unwrap_or_default()),
-    );
-    body.insert("status".into(), current["status"].clone());
+    for key in ["title", "slug", "status", "blocks"] {
+        body.insert(key.into(), current[key].clone());
+    }
     for key in ["author_id", "published_at", "unpublish_at"] {
         if !current[key].is_null() {
             body.insert(key.into(), current[key].clone());
         }
     }
     body.insert(
-        "blocks".into(),
-        args.get("blocks")
-            .cloned()
-            .unwrap_or_else(|| current["blocks"].clone()),
+        "fields".into(),
+        Value::Object(current["fields"].as_object().cloned().unwrap_or_default()),
     );
-    let mut fields = current["fields"].as_object().cloned().unwrap_or_default();
-    if let Some(new_fields) = args.get("fields").and_then(Value::as_object) {
-        for (key, value) in new_fields {
-            fields.insert(key.clone(), value.clone());
+    if let Err(message) = change(&mut body) {
+        return bad(message);
+    }
+    let (s, v) = api(router, auth, Method::PUT, &path, Some(&Value::Object(body))).await;
+    finish(s, v)
+}
+
+async fn update_content(router: &Router, auth: &str, args: &Value) -> Outcome {
+    rewrite(router, auth, args, |body| {
+        for key in ["title", "slug"] {
+            if let Some(value) = str_arg(args, key) {
+                body.insert(key.into(), json!(value));
+            }
+        }
+        if let Some(blocks) = args.get("blocks") {
+            body.insert("blocks".into(), blocks.clone());
+        }
+        if let Some(new_fields) = args.get("fields").and_then(Value::as_object) {
+            if let Some(Value::Object(fields)) = body.get_mut("fields") {
+                for (key, value) in new_fields {
+                    fields.insert(key.clone(), value.clone());
+                }
+            }
+        }
+        Ok(())
+    })
+    .await
+}
+
+enum Change {
+    Review,
+    Publish,
+    Unpublish,
+}
+
+/// 状態を変える 3 つ: レビューに出す（pending）、公開か予約公開にする、公開をやめる（draft か archived）
+async fn change_status(router: &Router, auth: &str, args: &Value, change: Change) -> Outcome {
+    rewrite(router, auth, args, |body| {
+        match change {
+            Change::Review => {
+                body.insert("status".into(), json!("pending"));
+            }
+            Change::Publish => {
+                if let Some(at) = str_arg(args, "publish_at") {
+                    // 予約公開: 日時になると自動で公開される
+                    if chrono::DateTime::parse_from_rfc3339(at).is_err() {
+                        return Err(
+                            "publish_at must be an RFC 3339 date and time, e.g. 2030-01-31T09:00:00+09:00"
+                                .into(),
+                        );
+                    }
+                    body.insert("status".into(), json!("scheduled"));
+                    body.insert("published_at".into(), json!(at));
+                } else {
+                    body.insert("status".into(), json!("published"));
+                    // 作業用のコピーがあれば、それを公開版にする
+                    body.insert("publish".into(), json!(true));
+                }
+            }
+            Change::Unpublish => {
+                let to = str_arg(args, "to").unwrap_or("draft");
+                if to != "draft" && to != "archived" {
+                    return Err("to must be \"draft\" or \"archived\"".into());
+                }
+                body.insert("status".into(), json!(to));
+            }
+        }
+        if let Some(note) = str_arg(args, "review_note") {
+            body.insert("review_note".into(), json!(note));
+        }
+        Ok(())
+    })
+    .await
+}
+
+async fn delete_content(router: &Router, auth: &str, args: &Value) -> Outcome {
+    let (Some(ct), Some(item)) = (str_arg(args, "content_type"), str_arg(args, "slug_or_id"))
+    else {
+        return bad("content_type and slug_or_id are required");
+    };
+    let (s, v) = api(
+        router,
+        auth,
+        Method::DELETE,
+        &format!("/api/v1/contents/{}/{}", enc(ct), enc(item)),
+        None,
+    )
+    .await;
+    if s.is_success() {
+        Outcome::Done(
+            json!({ "deleted": true, "content_type": ct, "slug_or_id": item }).to_string(),
+        )
+    } else {
+        finish(s, v)
+    }
+}
+
+/// タグを置き換える。`tags` は slug か ID
+async fn set_tags(router: &Router, auth: &str, args: &Value) -> Outcome {
+    let (Some(ct), Some(item)) = (str_arg(args, "content_type"), str_arg(args, "slug_or_id"))
+    else {
+        return bad("content_type and slug_or_id are required");
+    };
+    let Some(wanted) = args.get("tags").and_then(Value::as_array) else {
+        return bad(
+            "tags is required: a list of tag slugs or ids (an empty list removes all tags)",
+        );
+    };
+    let mut ids: Vec<String> = Vec::new();
+    for value in wanted {
+        let Some(value) = value.as_str().map(str::trim).filter(|v| !v.is_empty()) else {
+            return bad("tags must be non-empty strings");
+        };
+        let (s, found) = api(
+            router,
+            auth,
+            Method::GET,
+            &format!("/api/v1/tags?limit=50&q={}", enc(value)),
+            None,
+        )
+        .await;
+        if !s.is_success() {
+            return finish(s, found);
+        }
+        let hit = found["tags"].as_array().into_iter().flatten().find(|t| {
+            t["id"].as_str() == Some(value)
+                || t["slug"]
+                    .as_str()
+                    .is_some_and(|slug| slug.eq_ignore_ascii_case(value))
+        });
+        match hit.and_then(|t| t["id"].as_str()) {
+            Some(id) => {
+                if !ids.iter().any(|known| known == id) {
+                    ids.push(id.to_string());
+                }
+            }
+            None => {
+                return bad(format!(
+                    "Unknown tag '{value}'. See list_tags for the existing tags"
+                ))
+            }
         }
     }
-    body.insert("fields".into(), Value::Object(fields));
+    let (s, v) = api(
+        router,
+        auth,
+        Method::PUT,
+        &format!("/api/v1/contents/{}/{}/tags", enc(ct), enc(item)),
+        Some(&json!({ "tag_ids": ids })),
+    )
+    .await;
+    finish(s, v)
+}
 
-    let (s, v) = api(router, auth, Method::PUT, &path, Some(&Value::Object(body))).await;
+/// MCP 経由でアップロードできる大きさ（デコード後）。それ以上は REST API を使う
+const MAX_MEDIA_BYTES: usize = 8 * 1024 * 1024;
+
+fn guess_content_type(filename: &str) -> &'static str {
+    match filename
+        .rsplit('.')
+        .next()
+        .unwrap_or_default()
+        .to_ascii_lowercase()
+        .as_str()
+    {
+        "png" => "image/png",
+        "jpg" | "jpeg" => "image/jpeg",
+        "gif" => "image/gif",
+        "webp" => "image/webp",
+        "avif" => "image/avif",
+        "pdf" => "application/pdf",
+        "txt" => "text/plain",
+        _ => "application/octet-stream",
+    }
+}
+
+async fn upload_media(router: &Router, auth: &str, args: &Value) -> Outcome {
+    use base64::Engine;
+    let too_large = || {
+        bad(format!(
+            "The file is too large for MCP (limit: {} MB). Upload it with the REST API instead",
+            MAX_MEDIA_BYTES / (1024 * 1024)
+        ))
+    };
+    let (Some(filename), Some(data)) = (str_arg(args, "filename"), str_arg(args, "data_base64"))
+    else {
+        return bad("filename and data_base64 are required");
+    };
+    if data.len() > MAX_MEDIA_BYTES / 3 * 4 + 8 {
+        return too_large();
+    }
+    let Ok(bytes) = base64::engine::general_purpose::STANDARD.decode(data) else {
+        return bad("data_base64 is not valid base64");
+    };
+    if bytes.len() > MAX_MEDIA_BYTES {
+        return too_large();
+    }
+    // ヘッダーに入るので、引用符・改行・パスの区切りを除く
+    let filename: String = filename
+        .chars()
+        .filter(|c| !c.is_control() && !matches!(c, '"' | '/' | '\\'))
+        .collect();
+    if filename.is_empty() {
+        return bad("filename is empty");
+    }
+    let content_type = str_arg(args, "content_type")
+        .filter(|t| !t.chars().any(|c| c.is_control() || c == '"'))
+        .unwrap_or_else(|| guess_content_type(&filename));
+    let boundary = format!("aegis{}", uuid::Uuid::new_v4().simple());
+    let mut body = format!(
+        "--{boundary}\r\nContent-Disposition: form-data; name=\"file\"; filename=\"{filename}\"\r\nContent-Type: {content_type}\r\n\r\n"
+    )
+    .into_bytes();
+    body.extend_from_slice(&bytes);
+    body.extend_from_slice(format!("\r\n--{boundary}--\r\n").as_bytes());
+    let (s, v) = api_with(
+        router,
+        auth,
+        Method::POST,
+        "/api/v1/storage/upload",
+        Some(&format!("multipart/form-data; boundary={boundary}")),
+        Body::from(body),
+    )
+    .await;
     finish(s, v)
 }
