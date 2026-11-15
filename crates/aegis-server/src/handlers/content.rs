@@ -97,7 +97,10 @@ async fn ensure_slug_free(
     match existing {
         Some(other) if other.slug == slug && Some(other.id.as_str()) != own_id => Err(api_error(
             StatusCode::CONFLICT,
-            format!("A {} with the slug '{}' already exists", content_type, slug),
+            format!(
+                "The slug '{}' is already used by another {}",
+                slug, content_type
+            ),
         )),
         _ => Ok(()),
     }
