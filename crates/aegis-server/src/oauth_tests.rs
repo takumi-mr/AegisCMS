@@ -451,6 +451,49 @@ async fn test_full_flow_issues_a_scoped_token_that_works_on_mcp() {
 }
 
 #[tokio::test]
+async fn test_the_pages_are_not_renamed_by_the_namespace() {
+    // 既定の `[server].namespace`（cms）は HTML の `aegis-` / `aegis_` を書き換える。
+    // 画面が返す client_id（`aegis_oc_…`）などが変わると、ブラウザから送った許可が通らなくなる
+    let state = state().await;
+    assert_ne!(state.config.server.namespace(), "aegis");
+    let client_id = register(&state, REDIRECT).await;
+    assert!(client_id.starts_with("aegis_oc_"));
+
+    let page = send(
+        &state,
+        "GET",
+        &format!(
+            "/oauth/authorize?{}",
+            authorize_query(&client_id, REDIRECT, "")
+        ),
+        None,
+        String::new(),
+        &[],
+    )
+    .await;
+    assert!(
+        page.text.contains(&format!("value=\"{client_id}\"")),
+        "{}",
+        page.text
+    );
+
+    // 画面のとおりに送ると通る（ブラウザと同じ）
+    let marker = "name=\"client_id\" value=\"";
+    let from = page.text.find(marker).unwrap() + marker.len();
+    let echoed: String = page.text[from..].split('"').next().unwrap().to_string();
+    let approved = allow(
+        &state,
+        &echoed,
+        REDIRECT,
+        "",
+        "alice",
+        "correct-horse-battery",
+    )
+    .await;
+    assert!(code_from(&approved).len() > 20);
+}
+
+#[tokio::test]
 async fn test_scope_and_role_limit_the_token() {
     let state = state().await;
     let client_id = register(&state, REDIRECT).await;
