@@ -1,6 +1,6 @@
 {
   "name": "official-shop-rules",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "entrypoint": "plugin.wasm",
   "display_name": "Shop Rules (Shipping, Coupons & Tax)",
   "description": "Adds shipping fees (with a free-shipping threshold), coupon codes with optional usage limits and an optional tax line to shop orders. Configure it in [plugins.settings.official-shop-rules].",

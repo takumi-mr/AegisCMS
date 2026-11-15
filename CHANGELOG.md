@@ -1,5 +1,32 @@
 # Changelog
 
+## [0.10.0](https://github.com/takumi-mr/AegisCMS/compare/v0.9.0...v0.10.0) (2026-11-15)
+
+
+### ⚠ BREAKING CHANGES
+
+* **runtime:** values saved by earlier versions under {kv_namespace}:{key} are no longer read. Plugin KV is cache-like data and starts empty.
+
+### Features
+
+* **server:** add [mcp] enabled to turn off the MCP server and its OAuth ([#377](https://github.com/takumi-mr/AegisCMS/issues/377)) ([8f528bc](https://github.com/takumi-mr/AegisCMS/commit/8f528bc9b6b371778711b74f606f6b54ddcffa84))
+* **server:** add a built-in MCP server that reads content and saves drafts ([#370](https://github.com/takumi-mr/AegisCMS/issues/370)) ([2d5043a](https://github.com/takumi-mr/AegisCMS/commit/2d5043a111a764addf2148ea3bf841fa324a4e32))
+* **server:** add an OAuth 2.1 authorization server for MCP clients ([#371](https://github.com/takumi-mr/AegisCMS/issues/371)) ([1eb1d7e](https://github.com/takumi-mr/AegisCMS/commit/1eb1d7e898bf2f148f3cffb2faa2bec8fab1d782))
+* **server:** add MCP tools for comments, reviews, orders and members ([#376](https://github.com/takumi-mr/AegisCMS/issues/376)) ([03004a4](https://github.com/takumi-mr/AegisCMS/commit/03004a4cd2077ca7ba43e881092d5bb6d2da4bf0))
+* **server:** add MCP tools for review, tags, media, publishing and deleting ([#372](https://github.com/takumi-mr/AegisCMS/issues/372)) ([3ca5e92](https://github.com/takumi-mr/AegisCMS/commit/3ca5e92c1cf37aba03dfc1260d549992bf3a18aa))
+* **server:** add OAuth refresh tokens for MCP clients ([#374](https://github.com/takumi-mr/AegisCMS/issues/374)) ([7b4b4bf](https://github.com/takumi-mr/AegisCMS/commit/7b4b4bf351eae4a00db146595c334b2a4582fbea))
+* **server:** let single sign-on accounts allow MCP clients ([#375](https://github.com/takumi-mr/AegisCMS/issues/375)) ([76d899d](https://github.com/takumi-mr/AegisCMS/commit/76d899d45ad876121eef59f7ef9d4c19e88dafd4))
+
+
+### Bug Fixes
+
+* **auth:** close 2FA challenge races and TOTP replay, and rate-limit member logins ([#355](https://github.com/takumi-mr/AegisCMS/issues/355)) ([6c8ce3d](https://github.com/takumi-mr/AegisCMS/commit/6c8ce3d5225b18cf2745536f8bf0c81399448cbf))
+* **plugin-builder:** stop other sites from writing files and starting builds on the dev servers ([#358](https://github.com/takumi-mr/AegisCMS/issues/358)) ([cb5c985](https://github.com/takumi-mr/AegisCMS/commit/cb5c9857375a8ac0dbedd4720f1d074131de45b1))
+* **plugin:** inherit workspace lints in plugins and templates ([#378](https://github.com/takumi-mr/AegisCMS/issues/378)) ([1ad333b](https://github.com/takumi-mr/AegisCMS/commit/1ad333ba8c287e21d0eb908431a06e9504bf87ea))
+* **runtime:** isolate plugin KV by plugin name instead of the self-declared kv_namespace ([#359](https://github.com/takumi-mr/AegisCMS/issues/359)) ([4941090](https://github.com/takumi-mr/AegisCMS/commit/49410902245d946105ae17d05a6766af05925f69))
+* **server:** leave the OAuth pages out of the namespace renaming ([#373](https://github.com/takumi-mr/AegisCMS/issues/373)) ([42f5487](https://github.com/takumi-mr/AegisCMS/commit/42f5487fe486d3c1732c20d81a4ceeb579f6224d))
+* **server:** refuse unknown statuses, answer duplicate slugs with 409, keep the status on update ([#369](https://github.com/takumi-mr/AegisCMS/issues/369)) ([b550a68](https://github.com/takumi-mr/AegisCMS/commit/b550a687091d936dce498529a3b8219448d05541))
+
 ## [0.9.0](https://github.com/takumi-mr/AegisCMS/compare/v0.8.0...v0.9.0) (2026-11-14)
 
 
