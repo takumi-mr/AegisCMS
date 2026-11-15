@@ -970,3 +970,222 @@ async fn test_publish_scope_is_off_until_the_user_ticks_it() {
         ("content:read".to_string(), "viewer".to_string())
     );
 }
+
+// ---------------------------------------------------------------- シングルサインオン
+
+#[cfg(feature = "oidc")]
+mod sso {
+    use super::*;
+    use crate::state::SsoLogin;
+    use aegis_auth::oidc::OidcAuthProvider;
+    use aegis_auth::oidc_mock::MockIdp;
+
+    async fn state_with_oidc(idp: &MockIdp) -> Arc<AppState> {
+        let state = state().await;
+        let mut config = idp.config();
+        config.post_login_redirect = "http://localhost:5173/admin/".to_string();
+        let provider =
+            OidcAuthProvider::new(config, state.cache.clone(), state.db.clone()).unwrap();
+        let state = Arc::try_unwrap(state)
+            .ok()
+            .expect("state is not shared yet");
+        Arc::new(state.with_oidc(SsoLogin {
+            provider: Arc::new(provider),
+            display_name: "Example SSO".to_string(),
+            post_login_redirect: "http://localhost:5173/admin/".to_string(),
+        }))
+    }
+
+    /// 同意の画面で、SSO のボタンを押す。`(IdP の URL, 始めたブラウザの Cookie)` を返す
+    async fn start(
+        state: &Arc<AppState>,
+        client_id: &str,
+        extra: &[(&str, &str)],
+    ) -> (Reply, String) {
+        let mut pairs: Vec<(String, String)> = url::form_urlencoded::parse(
+            authorize_query(
+                client_id,
+                REDIRECT,
+                "content:read content:draft content:publish",
+            )
+            .as_bytes(),
+        )
+        .into_owned()
+        .collect();
+        pairs.push(("action".into(), "sso".into()));
+        for (k, v) in extra {
+            pairs.push((k.to_string(), v.to_string()));
+        }
+        let borrowed: Vec<(&str, &str)> = pairs
+            .iter()
+            .map(|(k, v)| (k.as_str(), v.as_str()))
+            .collect();
+        let reply = send(
+            state,
+            "POST",
+            "/oauth/authorize",
+            Some("application/x-www-form-urlencoded"),
+            form(&borrowed),
+            &[],
+        )
+        .await;
+        assert_eq!(reply.status, StatusCode::OK, "{}", reply.text);
+        // 中継画面のリンクが、IdP の URL
+        let marker = "<a href=\"";
+        let from = reply.text.find(marker).expect("a link to the IdP") + marker.len();
+        let idp_url = reply.text[from..]
+            .split('"')
+            .next()
+            .unwrap()
+            .replace("&amp;", "&");
+        (reply, idp_url)
+    }
+
+    fn cookie_of(reply: &Reply) -> String {
+        let set = reply.headers[header::SET_COOKIE].to_str().unwrap();
+        assert!(set.contains("HttpOnly") && set.contains("SameSite=Lax"));
+        set.split(';').next().unwrap().to_string()
+    }
+
+    async fn callback(
+        state: &Arc<AppState>,
+        parameters: std::collections::HashMap<String, String>,
+        cookie: Option<&str>,
+    ) -> Reply {
+        let pairs: Vec<(&str, &str)> = parameters
+            .iter()
+            .map(|(k, v)| (k.as_str(), v.as_str()))
+            .collect();
+        let extra: Vec<(&str, &str)> = cookie.map(|c| ("cookie", c)).into_iter().collect();
+        send(
+            state,
+            "GET",
+            &format!("/api/v1/auth/oidc/callback?{}", form(&pairs)),
+            None,
+            String::new(),
+            &extra,
+        )
+        .await
+    }
+
+    #[tokio::test]
+    async fn test_an_sso_account_can_allow_an_application() {
+        let idp = MockIdp::start().await;
+        let state = state_with_oidc(&idp).await;
+        let client_id = register(&state, REDIRECT).await;
+
+        // 画面に SSO のボタンが出る
+        let page = send(
+            &state,
+            "GET",
+            &format!(
+                "/oauth/authorize?{}",
+                authorize_query(&client_id, REDIRECT, "")
+            ),
+            None,
+            String::new(),
+            &[],
+        )
+        .await;
+        assert!(page.text.contains("Allow with Example SSO"));
+
+        let (started, idp_url) = start(
+            &state,
+            &client_id,
+            &[("grants", "1"), ("grant_draft", "on")],
+        )
+        .await;
+        assert!(idp_url.starts_with(&idp.config().issuer_url));
+        let cookie = cookie_of(&started);
+
+        // IdP でログインして戻ると、コードが発行される
+        let parameters = idp.sign_in(
+            &idp_url,
+            json!({ "sub": "u-1", "preferred_username": "carol", "email": "carol@example.com" }),
+        );
+        let back = callback(&state, parameters, Some(&cookie)).await;
+        assert!(
+            back.text.contains(REDIRECT) && back.text.contains("state=xyz"),
+            "{}",
+            back.text
+        );
+        // 始めた Cookie は片付ける
+        assert!(back.headers[header::SET_COOKIE]
+            .to_str()
+            .unwrap()
+            .contains("Max-Age=0"));
+
+        let token = exchange(&state, &client_id, REDIRECT, &code_from(&back), &verifier()).await;
+        assert_eq!(token.status, StatusCode::OK, "{}", token.text);
+        // 公開にはチェックを入れていないので、渡るのは下書きまで（SSO で作られた viewer は viewer のまま）
+        assert_eq!(token.json()["scope"], "content:read content:draft");
+        let access = token.json()["access_token"].as_str().unwrap().to_string();
+        let me = send(
+            &state,
+            "GET",
+            "/api/v1/auth/session",
+            None,
+            String::new(),
+            &[("authorization", &format!("Bearer {access}"))],
+        )
+        .await;
+        assert_eq!(me.json()["user_id"], "carol");
+        assert_eq!(me.json()["role"], "viewer");
+        // ログイン用のセッションは残らない
+        assert_eq!(state.db.list_api_tokens("carol").await.unwrap().len(), 1);
+    }
+
+    #[tokio::test]
+    async fn test_another_browser_cannot_finish_an_sso_started_elsewhere() {
+        let idp = MockIdp::start().await;
+        let state = state_with_oidc(&idp).await;
+        let client_id = register(&state, REDIRECT).await;
+        let claims = json!({ "sub": "u-9", "preferred_username": "victim" });
+
+        // 攻撃者が始めた IdP の URL を、被害者が（自分のブラウザで）開いてログインしてしまった場合
+        let (_started, idp_url) = start(&state, &client_id, &[]).await;
+        let parameters = idp.sign_in(&idp_url, claims.clone());
+        let no_cookie = callback(&state, parameters, None).await;
+        assert_eq!(no_cookie.status, StatusCode::BAD_REQUEST);
+        assert!(!no_cookie.text.contains("code="));
+        assert!(!no_cookie.text.contains(REDIRECT));
+
+        // 別のブラウザの Cookie でも同じ
+        let (_started, idp_url) = start(&state, &client_id, &[]).await;
+        let parameters = idp.sign_in(&idp_url, claims);
+        let wrong = callback(&state, parameters, Some("aegis_oauth_sso=somebody-else")).await;
+        assert_eq!(wrong.status, StatusCode::BAD_REQUEST);
+        assert!(!wrong.text.contains("code="));
+        // コードもトークンも発行されていない
+        assert!(state.db.list_api_tokens("victim").await.unwrap().is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_a_normal_sso_login_still_goes_to_admin_studio() {
+        let idp = MockIdp::start().await;
+        let state = state_with_oidc(&idp).await;
+        let login = send(
+            &state,
+            "GET",
+            "/api/v1/auth/oidc/login",
+            None,
+            String::new(),
+            &[],
+        )
+        .await;
+        assert_eq!(login.status, StatusCode::SEE_OTHER);
+        let to_idp = login.headers[header::LOCATION]
+            .to_str()
+            .unwrap()
+            .to_string();
+        let parameters = idp.sign_in(
+            &to_idp,
+            json!({ "sub": "u-2", "preferred_username": "dave" }),
+        );
+        let back = callback(&state, parameters, None).await;
+        assert!(back.headers[header::LOCATION]
+            .to_str()
+            .unwrap()
+            .starts_with("http://localhost:5173/admin/#session="));
+    }
+}

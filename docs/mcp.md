@@ -41,7 +41,7 @@ The token appears in **My profile › API tokens** as `OAuth: <application name>
 
 > [!NOTE]
 >
-> - Sign-in on this page uses a username and password. An account that can only sign in through single sign-on cannot allow an application yet; use an [API token](#1-connect) instead.
+> - Sign in on this page with your username and password. If the site uses OpenID Connect single sign-on ([Authentication](authentication.md#6-single-sign-on-openid-connect)), the page also has an **Allow with <name>** button: it sends you to your identity provider and, once you have signed in there, back to the application with the permissions chosen on the page. It must be finished in the same browser it was started in. SAML single sign-on is not supported on this page yet; use an [API token](#1-connect) instead.
 > - The site should be served over `https://` and have its **Canonical URL** set ([Site settings](admin-settings.md)), because the addresses of the sign-in page given to the client are built from it.
 > - The endpoints are `/.well-known/oauth-protected-resource`, `/.well-known/oauth-authorization-server`, `/oauth/register` (dynamic client registration), `/oauth/authorize` and `/oauth/token`. PKCE (`S256`) is required.
 

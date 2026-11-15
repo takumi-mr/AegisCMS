@@ -11,7 +11,7 @@
 
 - [ ] **宣言的クエリの残り**（本体、全言語プラグイン SDK の `PageRenderContext.queries`、`theme dev` / Theme Builder のサンプル（`samples/queries.json`）は実装済み。仕様は [queries.md](docs/queries.ja.md)、設計判断は [architecture.md 25](docs/architecture.ja.md#25-宣言的クエリ-aegis-schemasrcqueryrs-aegis-dbsrcpublished_columnsrs-aegis-serversrcqueriesrs)）: ① Admin Studio でクエリの一覧・結果のプレビューを出すか（要望を見て決める）。型をまたぐ結合は対応しない方針（[queries.md 10](docs/queries.ja.md#10-型をまたぐ結合をしない方針と代わりの方法)）。
 
-- [ ] **MCP の残り**（読み取り、下書き、レビュー依頼、タグ、メディア、公開・非公開・削除のツールと、認可サーバーとしての OAuth 2.1 は実装済み。仕様は [mcp.md](docs/mcp.ja.md)、実装は `crates/aegis-server/src/mcp.rs`・`oauth.rs`。MCP のツールも OAuth のログインも REST API のルーターを中で呼ぶ。既存の OpenID Connect の SSO は AegisCMS が外部 IdP に任せる側なので別物）: ① シングルサインオンでしか入れないアカウントの許可（今は同意画面がユーザー名とパスワードだけ）。同意画面の日本語化。③ 無効にする設定（`[mcp] enabled`）が要るかは要望を見て決める。④ コメント・ショップ・会員のツール（要望を見て決める）。⑤ 実際の MCP クライアント（Claude Code、Cursor、Claude.ai）での接続確認は、curl とテストでの確認しかしていない。2FA ありのアカウントでの許可の流れも、実機では見ていない。
+- [ ] **MCP の残り**（読み取り、下書き、レビュー依頼、タグ、メディア、公開・非公開・削除のツールと、認可サーバーとしての OAuth 2.1 は実装済み。仕様は [mcp.md](docs/mcp.ja.md)、実装は `crates/aegis-server/src/mcp.rs`・`oauth.rs`。MCP のツールも OAuth のログインも REST API のルーターを中で呼ぶ。既存の OpenID Connect の SSO は AegisCMS が外部 IdP に任せる側なので別物）: ① SAML のシングルサインオンでの許可（OpenID Connect は対応済み）。同意画面の日本語化。③ 無効にする設定（`[mcp] enabled`）が要るかは要望を見て決める。④ コメント・ショップ・会員のツール（要望を見て決める）。⑤ 実際の MCP クライアント（Claude Code、Cursor、Claude.ai）での接続確認は、curl とテストでの確認しかしていない。2FA ありのアカウントでの許可の流れも、実機では見ていない。
 
 ---
 
