@@ -192,6 +192,11 @@ pub async fn revoke_api_token(
     if !deleted {
         return Err(api_error(StatusCode::NOT_FOUND, "API token not found"));
     }
+    // OAuth で渡したトークンなら、取り直す許可（リフレッシュトークン）も終わらせる
+    let _ = state
+        .db
+        .delete_oauth_refresh_by_access_token(&session.user_id, &id)
+        .await;
     state
         .audit
         .record(

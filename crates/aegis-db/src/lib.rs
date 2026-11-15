@@ -10,6 +10,7 @@ pub mod members;
 pub mod mysql;
 pub mod newsletter;
 pub mod notifications;
+pub mod oauth_refresh;
 pub mod orders;
 pub mod postgres;
 pub mod published_columns;
@@ -53,6 +54,7 @@ pub use notifications::{
     NotificationListQuery, NotificationPage, NotificationQueueStorage, NotificationRelease,
     QueuedNotification, NOTIFICATION_QUEUE_TABLE, QUEUE_FAILED, QUEUE_PENDING,
 };
+pub use oauth_refresh::{OAuthRefreshRecord, OAuthRefreshStorage, OAUTH_REFRESH_TABLE};
 pub use orders::{
     OrderListQuery, OrderPage, OrderRecord, OrderRefundUpdate, OrderStorage, OrderTransition,
     OutOfStock, SalesReportRow, StockReservation,
@@ -550,6 +552,7 @@ pub trait DatabaseAdapter:
     + PurchaseStorage
     + SubscriptionStorage
     + ApiTokenStorage
+    + OAuthRefreshStorage
     + ReviewStorage
     + AnalyticsStorage
     + ContactStorage
