@@ -5,7 +5,7 @@
 //! 書いている。応答が返る直前に 1 か所でこれを設定の接頭辞に置き換えるので、HTML を作る側（各クレート・
 //! プラグイン・自作テーマ）は接頭辞を意識しなくてよく、HTML・CSS・JS で同じ置き換えが掛かるため互いに食い違わない
 //!
-//! 対象は `text/html`・`text/css`・JavaScript の応答。API（`/api/`）、Admin Studio、アップロードは触らない。
+//! 対象は `text/html`・`text/css`・JavaScript の応答。API（`/api/`）、OAuth の画面（`/oauth/`）、Admin Studio、アップロードは触らない。
 //! 接頭辞が `aegis` なら何もしない
 
 use std::borrow::Cow;
@@ -109,6 +109,8 @@ fn is_excluded(state: &AppState, path: &str) -> bool {
     let uploads = state.config.storage.local.public_url_prefix.clone();
     [
         "/api",
+        // OAuth の同意画面・中継画面。client_id（`aegis_oc_…`）や IdP の URL をそのまま往復させる
+        "/oauth",
         admin.trim_end_matches('/'),
         uploads.trim_end_matches('/'),
     ]
