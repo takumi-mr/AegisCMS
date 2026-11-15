@@ -52,6 +52,8 @@ const SCOPE_READ: &str = "content:read";
 const SCOPE_DRAFT: &str = "content:draft";
 /// 公開・非公開・削除。求められても既定ではチェックを外した状態で出し、人が選んだときだけ渡す
 const SCOPE_PUBLISH: &str = "content:publish";
+/// コメントとレビューのモデレーション、注文と会員の参照。顧客の個人情報に触れるので、公開とは別にして既定はオフ
+const SCOPE_MANAGE: &str = "site:manage";
 const MAX_REDIRECT_URIS: usize = 5;
 const MAX_REDIRECT_URI_CHARS: usize = 400;
 const MAX_CLIENT_NAME_CHARS: usize = 100;
@@ -321,7 +323,7 @@ ul label { display:block; margin:0; font-size:1rem; }
 // ---------------------------------------------------------------- メタデータ
 
 fn scopes_supported() -> Value {
-    json!([SCOPE_READ, SCOPE_DRAFT, SCOPE_PUBLISH])
+    json!([SCOPE_READ, SCOPE_DRAFT, SCOPE_PUBLISH, SCOPE_MANAGE])
 }
 
 /// `GET /.well-known/oauth-protected-resource`（`/mcp` 付きも同じ）
@@ -505,6 +507,8 @@ pub struct AuthForm {
     grant_draft: String,
     #[serde(default)]
     grant_publish: String,
+    #[serde(default)]
+    grant_manage: String,
 }
 
 /// 画面で選んだ、読み取り以外の範囲
@@ -512,6 +516,7 @@ pub struct AuthForm {
 struct Chosen {
     draft: bool,
     publish: bool,
+    manage: bool,
 }
 
 impl Chosen {
@@ -520,6 +525,7 @@ impl Chosen {
         Chosen {
             draft: prepared.scopes.contains(&SCOPE_DRAFT),
             publish: false,
+            manage: false,
         }
     }
 
@@ -530,6 +536,7 @@ impl Chosen {
         Chosen {
             draft: prepared.scopes.contains(&SCOPE_DRAFT) && form.grant_draft == "on",
             publish: prepared.scopes.contains(&SCOPE_PUBLISH) && form.grant_publish == "on",
+            manage: prepared.scopes.contains(&SCOPE_MANAGE) && form.grant_manage == "on",
         }
     }
 
@@ -541,6 +548,9 @@ impl Chosen {
         }
         if self.publish {
             scopes.push(SCOPE_PUBLISH);
+        }
+        if self.manage {
+            scopes.push(SCOPE_MANAGE);
         }
         scopes
     }
@@ -590,7 +600,7 @@ async fn prepare(state: &AppState, params: &AuthParams) -> Result<Prepared, Inva
     }
     let mut scopes: Vec<&'static str> = Vec::new();
     for requested in params.scope.split_whitespace() {
-        for known in [SCOPE_READ, SCOPE_DRAFT, SCOPE_PUBLISH] {
+        for known in [SCOPE_READ, SCOPE_DRAFT, SCOPE_PUBLISH, SCOPE_MANAGE] {
             if requested == known && !scopes.contains(&known) {
                 scopes.push(known);
             }
@@ -624,6 +634,9 @@ fn scope_description(scope: &str) -> &'static str {
         SCOPE_READ => "Read content on this site, as far as your role allows",
         SCOPE_DRAFT => {
             "Create and edit drafts, upload media, set tags and send content to review. Nothing becomes visible to visitors"
+        }
+        SCOPE_MANAGE => {
+            "Moderate and reply to comments and reviews, and read orders, sales and members. This includes customers' personal information, as far as your role allows"
         }
         _ => {
             "Publish and unpublish content, and delete it. This changes what visitors see, as far as your role allows"
@@ -685,16 +698,21 @@ fn consent_page(
             prepared.scopes.contains(&SCOPE_PUBLISH),
             chosen.publish,
         ),
+        (
+            SCOPE_MANAGE,
+            prepared.scopes.contains(&SCOPE_MANAGE),
+            chosen.manage,
+        ),
     ] {
         if !requested {
             continue;
         }
-        let field = if scope == SCOPE_DRAFT {
-            "grant_draft"
-        } else {
-            "grant_publish"
+        let field = match scope {
+            SCOPE_DRAFT => "grant_draft",
+            SCOPE_PUBLISH => "grant_publish",
+            _ => "grant_manage",
         };
-        let class = if scope == SCOPE_PUBLISH {
+        let class = if scope != SCOPE_DRAFT {
             " class=\"warn\""
         } else {
             ""
@@ -745,6 +763,9 @@ fn consent_page(
             }
             if chosen.publish {
                 body.push_str(&hidden("grant_publish", "on"));
+            }
+            if chosen.manage {
+                body.push_str(&hidden("grant_manage", "on"));
             }
             body.push_str(&hidden("challenge_token", token));
             body.push_str(&hidden("username", username));
@@ -837,7 +858,7 @@ async fn call_api(
 
 /// ユーザーのロールを超えない、スコープに見合うロール
 fn role_for(scopes: &[&str], user_role: &str) -> String {
-    let wanted = if scopes.contains(&SCOPE_PUBLISH) {
+    let wanted = if scopes.contains(&SCOPE_PUBLISH) || scopes.contains(&SCOPE_MANAGE) {
         "editor"
     } else if scopes.contains(&SCOPE_DRAFT) {
         "contributor"
@@ -1102,6 +1123,7 @@ async fn start_sso(
         "params": params,
         "draft": chosen.draft,
         "publish": chosen.publish,
+        "manage": chosen.manage,
         "binding": sha256_hex(&binding),
     });
     if state
@@ -1165,6 +1187,8 @@ pub async fn resume_after_sso(
         draft: prepared.scopes.contains(&SCOPE_DRAFT) && pending["draft"].as_bool() == Some(true),
         publish: prepared.scopes.contains(&SCOPE_PUBLISH)
             && pending["publish"].as_bool() == Some(true),
+        manage: prepared.scopes.contains(&SCOPE_MANAGE)
+            && pending["manage"].as_bool() == Some(true),
     };
     let denied = |description: &'static str| {
         invalid_response(&params, Invalid::Back("access_denied", description), true)

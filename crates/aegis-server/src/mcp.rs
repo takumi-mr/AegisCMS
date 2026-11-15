@@ -32,6 +32,8 @@ const INSTRUCTIONS: &str = "AegisCMS content tools. What you can see and do foll
 create_draft and update_content only save drafts or working copies: visitors see nothing new until the content is published. \
 publish_content, unpublish_content and delete_content change what visitors see, and delete_content cannot be undone, \
 so use them only when the user clearly asked for it. \
+The comment, review, order, sales and member tools reach customers' personal information and public replies: \
+use them only for what the user asked. \
 Body text is a list of blocks (see the content API guide); use get_content_schema for the custom fields of a type.";
 
 /// 使うのに要る一番低いロール。ここに無いツールは読み取り（viewer）
@@ -40,7 +42,10 @@ fn tool_min_role(name: &str) -> &'static str {
         "create_draft" | "update_content" | "request_review" | "set_tags" | "upload_media" => {
             "contributor"
         }
-        "publish_content" | "unpublish_content" | "delete_content" => "editor",
+        "publish_content" | "unpublish_content" | "delete_content" | "list_comments"
+        | "moderate_comment" | "reply_to_comment" | "list_orders" | "get_order"
+        | "sales_report" | "list_reviews" | "moderate_review" | "reply_to_review"
+        | "list_members" | "get_member" => "editor",
         _ => "viewer",
     }
 }
@@ -334,6 +339,117 @@ fn tool_definitions() -> Value {
                 "slug_or_id": { "type": "string" }
             }, "required": ["content_type", "slug_or_id"] },
             "annotations": { "readOnlyHint": false, "destructiveHint": true, "idempotentHint": true }
+        },
+        {
+            "name": "list_comments",
+            "title": "List comments",
+            "description": "List comments for moderation, newest first, with the counts per status. Needs the comment feature to be on.",
+            "inputSchema": { "type": "object", "properties": {
+                "status": { "type": "string", "enum": ["pending", "approved", "spam", "trash"] },
+                "content_type": { "type": "string" },
+                "content_id": { "type": "string" },
+                "limit": { "type": "integer", "minimum": 1, "maximum": MAX_LIST_LIMIT },
+                "offset": { "type": "integer", "minimum": 0 }
+            } },
+            "annotations": { "readOnlyHint": true }
+        },
+        {
+            "name": "moderate_comment",
+            "title": "Approve, hold, or reject a comment",
+            "description": "Set the status of a comment: approved makes it public; pending, spam and trash hide it. Do this only as the user asked.",
+            "inputSchema": { "type": "object", "properties": {
+                "id": { "type": "string" },
+                "status": { "type": "string", "enum": ["pending", "approved", "spam", "trash"] }
+            }, "required": ["id", "status"] },
+            "annotations": { "readOnlyHint": false, "destructiveHint": true, "idempotentHint": true }
+        },
+        {
+            "name": "reply_to_comment",
+            "title": "Reply to a comment",
+            "description": "Post a public reply to a comment, as the owner of the token. The reply is published at once, and the comment it answers is approved with it. Write the text exactly as the user asked.",
+            "inputSchema": { "type": "object", "properties": {
+                "id": { "type": "string", "description": "The id of the comment to answer" },
+                "body": { "type": "string", "description": "Plain text" }
+            }, "required": ["id", "body"] },
+            "annotations": { "readOnlyHint": false, "destructiveHint": true, "idempotentHint": false }
+        },
+        {
+            "name": "list_orders",
+            "title": "List orders",
+            "description": "List shop orders, newest first. This includes customers' personal information. Needs the shop to be on.",
+            "inputSchema": { "type": "object", "properties": {
+                "status": { "type": "string", "description": "e.g. pending, paid, shipped, completed, cancelled" },
+                "limit": { "type": "integer", "minimum": 1, "maximum": MAX_LIST_LIMIT },
+                "offset": { "type": "integer", "minimum": 0 }
+            } },
+            "annotations": { "readOnlyHint": true }
+        },
+        {
+            "name": "get_order",
+            "title": "Get an order",
+            "description": "Get one order with its items and customer details.",
+            "inputSchema": { "type": "object", "properties": { "id": { "type": "string" } }, "required": ["id"] },
+            "annotations": { "readOnlyHint": true }
+        },
+        {
+            "name": "sales_report",
+            "title": "Daily sales report",
+            "description": "Sales per day between two UTC dates (inclusive).",
+            "inputSchema": { "type": "object", "properties": {
+                "start": { "type": "string", "description": "YYYY-MM-DD" },
+                "end": { "type": "string", "description": "YYYY-MM-DD" }
+            }, "required": ["start", "end"] },
+            "annotations": { "readOnlyHint": true }
+        },
+        {
+            "name": "list_reviews",
+            "title": "List product reviews",
+            "description": "List product reviews for moderation. Needs the shop reviews to be on.",
+            "inputSchema": { "type": "object", "properties": {
+                "product_id": { "type": "string" },
+                "status": { "type": "string", "enum": ["pending", "approved", "spam", "trash"] },
+                "limit": { "type": "integer", "minimum": 1, "maximum": MAX_LIST_LIMIT },
+                "offset": { "type": "integer", "minimum": 0 }
+            } },
+            "annotations": { "readOnlyHint": true }
+        },
+        {
+            "name": "moderate_review",
+            "title": "Approve, hold, or reject a review",
+            "description": "Set the status of a review: approved makes it public. When rejecting, give the reason in rejection_reason. Do this only as the user asked.",
+            "inputSchema": { "type": "object", "properties": {
+                "id": { "type": "string" },
+                "status": { "type": "string", "enum": ["pending", "approved", "spam", "trash"] },
+                "rejection_reason": { "type": "string" }
+            }, "required": ["id", "status"] },
+            "annotations": { "readOnlyHint": false, "destructiveHint": true, "idempotentHint": true }
+        },
+        {
+            "name": "reply_to_review",
+            "title": "Reply to a review",
+            "description": "Set the shop's public reply to a review. Write the text exactly as the user asked.",
+            "inputSchema": { "type": "object", "properties": {
+                "id": { "type": "string" },
+                "reply": { "type": "string", "description": "Plain text" }
+            }, "required": ["id", "reply"] },
+            "annotations": { "readOnlyHint": false, "destructiveHint": true, "idempotentHint": true }
+        },
+        {
+            "name": "list_members",
+            "title": "List members",
+            "description": "List the site's members (visitor accounts). This includes personal information. Needs the member feature to be on.",
+            "inputSchema": { "type": "object", "properties": {
+                "limit": { "type": "integer", "minimum": 1, "maximum": MAX_LIST_LIMIT },
+                "offset": { "type": "integer", "minimum": 0 }
+            } },
+            "annotations": { "readOnlyHint": true }
+        },
+        {
+            "name": "get_member",
+            "title": "Get a member",
+            "description": "Get one member with their level and status.",
+            "inputSchema": { "type": "object", "properties": { "id": { "type": "string" } }, "required": ["id"] },
+            "annotations": { "readOnlyHint": true }
         }
     ])
 }
@@ -511,7 +627,144 @@ async fn call_tool(router: &Router, auth: &str, name: &str, args: &Value) -> Out
         "delete_content" => delete_content(router, auth, args).await,
         "set_tags" => set_tags(router, auth, args).await,
         "upload_media" => upload_media(router, auth, args).await,
+        "list_comments" => {
+            let query = query_of(args, &["status", "content_type", "content_id"]);
+            site_get(router, auth, &format!("/api/v1/comments?{query}")).await
+        }
+        "moderate_comment" => {
+            let (Some(id), Some(status)) = (str_arg(args, "id"), str_arg(args, "status")) else {
+                return bad("id and status are required");
+            };
+            site_write(
+                router,
+                auth,
+                Method::PATCH,
+                &format!("/api/v1/comments/{}", enc(id)),
+                json!({ "status": status }),
+            )
+            .await
+        }
+        "reply_to_comment" => {
+            let (Some(id), Some(body)) = (str_arg(args, "id"), str_arg(args, "body")) else {
+                return bad("id and body are required");
+            };
+            site_write(
+                router,
+                auth,
+                Method::POST,
+                &format!("/api/v1/comments/{}/replies", enc(id)),
+                json!({ "body": body }),
+            )
+            .await
+        }
+        "list_orders" => {
+            let query = query_of(args, &["status"]);
+            site_get(router, auth, &format!("/api/v1/orders?{query}")).await
+        }
+        "get_order" => {
+            let Some(id) = str_arg(args, "id") else {
+                return bad("id is required");
+            };
+            site_get(router, auth, &format!("/api/v1/orders/{}", enc(id))).await
+        }
+        "sales_report" => {
+            let (Some(start), Some(end)) = (str_arg(args, "start"), str_arg(args, "end")) else {
+                return bad("start and end are required (YYYY-MM-DD)");
+            };
+            site_get(
+                router,
+                auth,
+                &format!(
+                    "/api/v1/orders/report?start={}&end={}",
+                    enc(start),
+                    enc(end)
+                ),
+            )
+            .await
+        }
+        "list_reviews" => {
+            let query = query_of(args, &["product_id", "status"]);
+            site_get(router, auth, &format!("/api/v1/admin/reviews?{query}")).await
+        }
+        "moderate_review" => {
+            let (Some(id), Some(status)) = (str_arg(args, "id"), str_arg(args, "status")) else {
+                return bad("id and status are required");
+            };
+            let mut body = json!({ "status": status });
+            if let Some(reason) = str_arg(args, "rejection_reason") {
+                body["rejection_reason"] = json!(reason);
+            }
+            site_write(
+                router,
+                auth,
+                Method::PATCH,
+                &format!("/api/v1/admin/reviews/{}", enc(id)),
+                body,
+            )
+            .await
+        }
+        "reply_to_review" => {
+            let (Some(id), Some(reply)) = (str_arg(args, "id"), str_arg(args, "reply")) else {
+                return bad("id and reply are required");
+            };
+            site_write(
+                router,
+                auth,
+                Method::POST,
+                &format!("/api/v1/admin/reviews/{}/reply", enc(id)),
+                json!({ "reply": reply }),
+            )
+            .await
+        }
+        "list_members" => {
+            let query = query_of(args, &[]);
+            site_get(router, auth, &format!("/api/v1/admin/members?{query}")).await
+        }
+        "get_member" => {
+            let Some(id) = str_arg(args, "id") else {
+                return bad("id is required");
+            };
+            site_get(router, auth, &format!("/api/v1/admin/members/{}", enc(id))).await
+        }
         _ => Outcome::UnknownTool,
+    }
+}
+
+/// 一覧の問い合わせ文字列: 渡された文字列の絞り込み（`keys`）と、件数（既定 20・最大 100）・位置
+fn query_of(args: &Value, keys: &[&str]) -> String {
+    let limit = args
+        .get("limit")
+        .and_then(Value::as_u64)
+        .unwrap_or(DEFAULT_LIST_LIMIT)
+        .clamp(1, MAX_LIST_LIMIT);
+    let offset = args.get("offset").and_then(Value::as_u64).unwrap_or(0);
+    let mut query = format!("limit={limit}&offset={offset}");
+    for key in keys {
+        if let Some(value) = str_arg(args, key) {
+            query.push_str(&format!("&{key}={}", enc(value)));
+        }
+    }
+    query
+}
+
+async fn site_get(router: &Router, auth: &str, path: &str) -> Outcome {
+    let (s, v) = api(router, auth, Method::GET, path, None).await;
+    finish(s, v)
+}
+
+/// コメント・レビューの書き込み。本文の無い成功（204）には、した内容を返す
+async fn site_write(
+    router: &Router,
+    auth: &str,
+    method: Method,
+    path: &str,
+    body: Value,
+) -> Outcome {
+    let (s, v) = api(router, auth, method, path, Some(&body)).await;
+    if s.is_success() && v.is_null() {
+        Outcome::Done(json!({ "ok": true, "request": body }).to_string())
+    } else {
+        finish(s, v)
     }
 }
 

@@ -491,3 +491,189 @@ async fn test_upload_media() {
     }
     let _ = std::fs::remove_dir_all(dir);
 }
+
+const SITE_TOOLS: [&str; 11] = [
+    "list_comments",
+    "moderate_comment",
+    "reply_to_comment",
+    "list_orders",
+    "get_order",
+    "sales_report",
+    "list_reviews",
+    "moderate_review",
+    "reply_to_review",
+    "list_members",
+    "get_member",
+];
+
+async fn tool_names(state: &Arc<AppState>, token: &str) -> Vec<String> {
+    let (_, reply) = rpc(
+        state,
+        Some(token),
+        json!({ "jsonrpc": "2.0", "id": 9, "method": "tools/list" }),
+    )
+    .await;
+    reply["result"]["tools"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|t| t["name"].as_str().unwrap().to_string())
+        .collect()
+}
+
+#[tokio::test]
+async fn test_site_tools_are_for_editors_only() {
+    let state = state().await;
+    let editor = session(&state, "editor").await;
+    let contributor = session(&state, "contributor").await;
+    let editor_tools = tool_names(&state, &editor).await;
+    let contributor_tools = tool_names(&state, &contributor).await;
+    for name in SITE_TOOLS {
+        assert!(editor_tools.iter().any(|n| n == name), "{name}");
+        assert!(!contributor_tools.iter().any(|n| n == name), "{name}");
+    }
+
+    // 見えないだけでなく、呼んでも REST の権限の確認で断られる
+    for (name, args) in [
+        ("list_comments", json!({})),
+        ("list_orders", json!({})),
+        ("list_members", json!({})),
+        (
+            "moderate_comment",
+            json!({ "id": "x", "status": "approved" }),
+        ),
+    ] {
+        let (is_error, denied) = call(&state, &contributor, name, args).await;
+        assert!(is_error, "{name}");
+        assert_eq!(denied["status"], 403, "{name}: {denied}");
+    }
+}
+
+#[tokio::test]
+async fn test_site_tools_reach_features_that_are_turned_off_as_errors() {
+    let state = state().await;
+    let editor = session(&state, "editor").await;
+    for (name, args) in [
+        ("list_comments", json!({})),
+        ("list_orders", json!({})),
+        ("get_order", json!({ "id": "o1" })),
+        (
+            "sales_report",
+            json!({ "start": "2026-01-01", "end": "2026-01-31" }),
+        ),
+        ("list_reviews", json!({})),
+        ("list_members", json!({})),
+        ("get_member", json!({ "id": "m1" })),
+    ] {
+        let (is_error, reply) = call(&state, &editor, name, args).await;
+        assert!(is_error, "{name}: {reply}");
+        assert!(reply["status"].is_number(), "{name}: {reply}");
+    }
+    // 引数が足りないときは、REST を呼ばずに断る
+    let (is_error, missing) = call(&state, &editor, "moderate_comment", json!({ "id": "x" })).await;
+    assert!(is_error);
+    assert!(missing["error"].as_str().unwrap().contains("status"));
+    let (is_error, _) = call(
+        &state,
+        &editor,
+        "sales_report",
+        json!({ "start": "2026-01-01" }),
+    )
+    .await;
+    assert!(is_error);
+}
+
+#[tokio::test]
+async fn test_moderate_and_reply_to_comments() {
+    let mut config = AegisConfig::default();
+    config.comments.enabled = true;
+    let captchas = config.resolve_captcha().unwrap();
+    let state =
+        crate::test_support::test_app_state(config, PluginSupervisor::new(), Vec::new()).await;
+    let state = state.with_captcha(captchas);
+    let comments =
+        aegis_comments::CommentService::new(state.config.comments.clone(), state.comment_deps())
+            .unwrap();
+    let state = Arc::new(state.with_comments(comments));
+    let editor = session(&state, "editor").await;
+
+    // 公開済みの記事に、訪問者がコメントする
+    call(
+        &state,
+        &editor,
+        "create_draft",
+        json!({ "content_type": "article", "title": "Hello", "slug": "hello" }),
+    )
+    .await;
+    let (is_error, _) = call(
+        &state,
+        &editor,
+        "publish_content",
+        json!({ "content_type": "article", "slug_or_id": "hello" }),
+    )
+    .await;
+    assert!(!is_error);
+    let (status, posted) = rest(
+        &state,
+        "",
+        "POST",
+        "/api/v1/contents/article/hello/comments",
+        json!({ "name": "Hanako", "email": "hanako@example.com", "body": "Nice post" }),
+    )
+    .await;
+    assert_eq!(status, StatusCode::ACCEPTED, "{posted}");
+
+    // 承認待ちに見える
+    let (is_error, listed) = call(
+        &state,
+        &editor,
+        "list_comments",
+        json!({ "status": "pending" }),
+    )
+    .await;
+    assert!(!is_error, "{listed}");
+    let first = &listed["comments"][0];
+    assert_eq!(first["body"], "Nice post");
+    let id = first["id"].as_str().unwrap().to_string();
+
+    // 承認する
+    let (is_error, moderated) = call(
+        &state,
+        &editor,
+        "moderate_comment",
+        json!({ "id": id, "status": "approved" }),
+    )
+    .await;
+    assert!(!is_error, "{moderated}");
+    let (_, approved) = call(
+        &state,
+        &editor,
+        "list_comments",
+        json!({ "status": "approved" }),
+    )
+    .await;
+    assert_eq!(approved["comments"][0]["id"], id.as_str());
+
+    // 知らない状態は REST が断る
+    let (is_error, refused) = call(
+        &state,
+        &editor,
+        "moderate_comment",
+        json!({ "id": id, "status": "deleted" }),
+    )
+    .await;
+    assert!(is_error);
+    assert_eq!(refused["status"], 400, "{refused}");
+
+    // 返信する
+    let (is_error, replied) = call(
+        &state,
+        &editor,
+        "reply_to_comment",
+        json!({ "id": id, "body": "Thank you!" }),
+    )
+    .await;
+    assert!(!is_error, "{replied}");
+    let (_, after) = call(&state, &editor, "list_comments", json!({})).await;
+    assert!(after.to_string().contains("Thank you!"));
+}
