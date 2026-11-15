@@ -54,7 +54,7 @@ Which target a commit counts toward is decided by the **path of the changed file
 2. Check the release PR's versions and CHANGELOG and merge it. The workflow makes `Cargo.lock` follow in the same PR.
 3. Merging creates tags and GitHub Releases. In addition, based on the `paths_released` output of `release-please.yml`, the publishing workflows for the released target paths are triggered automatically:
     - **AssemblyScript SDK** (`sdk/assemblyscript`): the npm package is published automatically to GitHub Packages (`@takumi-mr/plugin-sdk`) (`release-sdk.yml`).
-    - **Core** (`.`): the official Docker image is built and pushed automatically to the GitHub Container Registry (`ghcr.io/takumi-mr/aegiscms`) (`release-docker.yml`).
+    - **Core** (`.`): the official Docker image is built and pushed automatically to the GitHub Container Registry (`ghcr.io/takumi-mr/aegiscms`) as a multi-architecture image (`linux/amd64`, `linux/arm64`) (`release-docker.yml`). Each architecture is built on a native runner and merged into one tag at the end.
     - **Core** (`.`): Linux (x86_64, arm64) and Windows (x86_64) binaries with Admin Studio embedded (bundled with `config`, `schemas`, `plugins` and `themes`) plus SHA-256 files are attached to the GitHub Release (`release-binaries.yml`). To re-run for an existing tag, use `workflow_dispatch` with `tag`.
     - **TinyGo SDK** (`sdk/tinygo`): the created tag (`sdk/tinygo/vX.Y.Z`) itself is the distribution as a Go module.
 
