@@ -5,6 +5,9 @@ edition = "2021"
 authors = ["AegisCMS Core Team"]
 description = "Official Wasm plugin that opens the images of articles and pages in a viewer when clicked"
 
+[lints]
+workspace = true
+
 [lib]
 crate-type = ["cdylib", "rlib"]
 
