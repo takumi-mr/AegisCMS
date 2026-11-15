@@ -381,4 +381,109 @@ mod tests {
         );
         assert!(none["paths"].as_object().unwrap().is_empty());
     }
+
+    #[test]
+    fn project_output_matches_openapi_schemas() {
+        use std::collections::BTreeSet;
+
+        fn key_set(obj: &Value) -> BTreeSet<String> {
+            obj.as_object().unwrap().keys().cloned().collect()
+        }
+
+        let all_schemas = schemas();
+        let article_schema = &all_schemas["article"];
+        let spec = public_openapi(&all_schemas, &HeadlessConfig::default());
+        let components = &spec["components"]["schemas"];
+
+        let relation = aegis_db::ResolvedRelation {
+            id: "rel-1".to_string(),
+            content_type: "page".to_string(),
+            title: "About".to_string(),
+            slug: "about".to_string(),
+        };
+        let relations = HashMap::from([("related".to_string(), relation.clone())]);
+
+        let record = aegis_db::ContentRecord {
+            id: "art-1".to_string(),
+            content_type: "article".to_string(),
+            title: "Hello".to_string(),
+            slug: "hello".to_string(),
+            status: "published".to_string(),
+            blocks_json: serde_json::to_string(&vec![aegis_ast::BlockNode {
+                name: "core/paragraph".to_string(),
+                attributes: Default::default(),
+                children: vec![],
+                text: Some("Body paragraph".to_string()),
+            }])
+            .unwrap(),
+            author_id: Some("user-1".to_string()),
+            published_at: Some("2026-01-01T00:00:00Z".to_string()),
+            unpublish_at: None,
+            created_at: "2026-01-01T00:00:00Z".to_string(),
+            updated_at: "2026-01-02T00:00:00Z".to_string(),
+            custom_fields: HashMap::from([
+                ("excerpt".to_string(), json!("Summary")),
+                ("internal_note".to_string(), json!("Secret")),
+            ]),
+        };
+
+        // 1. ArticleSummary vs project(..., false)
+        let summary = crate::view::project(article_schema, &record, &relations, false);
+        let summary_schema = &components["ArticleSummary"];
+        let summary_props = key_set(&summary_schema["properties"]);
+        let summary_keys = key_set(&summary);
+        assert_eq!(summary_keys, summary_props);
+        for req in summary_schema["required"].as_array().unwrap() {
+            assert!(summary.get(req.as_str().unwrap()).is_some());
+        }
+
+        // 2. Article vs project(..., true) (only `html` is added by ?include=html)
+        let full = crate::view::project(article_schema, &record, &relations, true);
+        let full_schema = &components["Article"];
+        let full_props = key_set(&full_schema["properties"]);
+        let mut full_keys = key_set(&full);
+        assert!(!full_keys.contains("html"));
+        full_keys.insert("html".to_string());
+        assert_eq!(full_keys, full_props);
+        for req in full_schema["required"].as_array().unwrap() {
+            assert!(full.get(req.as_str().unwrap()).is_some());
+        }
+
+        // 3. PublicBlock vs serialized BlockNode
+        let block_props = key_set(&components["PublicBlock"]["properties"]);
+        for block in full["blocks"].as_array().unwrap() {
+            for k in key_set(block) {
+                assert!(block_props.contains(&k), "unexpected block key: {k}");
+            }
+        }
+
+        // 4. PublicRelation vs serialized ResolvedRelation
+        let rel_val = serde_json::to_value(&relation).unwrap();
+        let rel_schema = &components["PublicRelation"];
+        assert_eq!(key_set(&rel_val), key_set(&rel_schema["properties"]));
+        let rel_required: BTreeSet<String> = rel_schema["required"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|v| v.as_str().unwrap().to_string())
+            .collect();
+        assert_eq!(key_set(&rel_val), rel_required);
+
+        // 5. ArticleList vs serialized ListResponse
+        let list_val = serde_json::to_value(crate::service::ListResponse {
+            items: vec![summary],
+            next_cursor: None,
+            total: 1,
+        })
+        .unwrap();
+        let list_schema = &components["ArticleList"];
+        assert_eq!(key_set(&list_val), key_set(&list_schema["properties"]));
+        let list_required: BTreeSet<String> = list_schema["required"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|v| v.as_str().unwrap().to_string())
+            .collect();
+        assert_eq!(key_set(&list_val), list_required);
+    }
 }

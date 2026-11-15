@@ -17,7 +17,7 @@ impl OpenApiGenerator {
                 "get": {
                     "tags": ["System"],
                     "summary": "Health check",
-                    "description": "Check if AegisCMS core service is running. `system` and `version` are only returned to an `admin` session.",
+                    "description": "Check if AegisCMS core service is running. `system`, `version` and `plugin_abi_version` are only returned to an `admin` session.",
                     "responses": {
                         "200": {
                             "description": "Service is healthy",
@@ -29,7 +29,8 @@ impl OpenApiGenerator {
                                             "status": { "type": "string", "example": "ok" },
                                             "timestamp": { "type": "string", "format": "date-time" },
                                             "system": { "type": "string", "example": "AegisCMS" },
-                                            "version": { "type": "string", "example": "0.1.0" }
+                                            "version": { "type": "string", "example": "0.1.0" },
+                                            "plugin_abi_version": { "type": "integer", "example": 1 }
                                         },
                                         "required": ["status", "timestamp"]
                                     }
@@ -54,8 +55,15 @@ impl OpenApiGenerator {
                             "content": {
                                 "application/json": {
                                     "schema": {
-                                        "type": "array",
-                                        "items": { "$ref": "#/components/schemas/SchemaDefinition" }
+                                        "type": "object",
+                                        "required": ["schemas", "total"],
+                                        "properties": {
+                                            "schemas": {
+                                                "type": "array",
+                                                "items": { "$ref": "#/components/schemas/SchemaDefinition" }
+                                            },
+                                            "total": { "type": "integer" }
+                                        }
                                     }
                                 }
                             }
@@ -144,6 +152,13 @@ impl OpenApiGenerator {
                             "schema": { "type": "string" }
                         },
                         {
+                            "name": "tag",
+                            "in": "query",
+                            "required": false,
+                            "description": "A tag slug or id",
+                            "schema": { "type": "string" }
+                        },
+                        {
                             "name": "view",
                             "in": "query",
                             "required": false,
@@ -225,6 +240,7 @@ impl OpenApiGenerator {
                         },
                         "400": { "description": "Invalid payload, validation failed or an on-before-save plugin hook failed" },
                         "404": { "description": "Schema content_type not registered" },
+                        "409": { "description": "Another item of this content type already uses the slug" },
                         "422": { "description": "Rejected by an on-before-save plugin hook, or a JSON body that does not match the request type" }
                     }
                 }
@@ -261,6 +277,70 @@ impl OpenApiGenerator {
                             }
                         },
                         "404": { "description": "Content not found" }
+                    }
+                },
+                "put": {
+                    "tags": ["Contents"],
+                    "summary": "Update content by slug or id",
+                    "parameters": [
+                        {
+                            "name": "content_type",
+                            "in": "path",
+                            "required": true,
+                            "schema": { "type": "string" }
+                        },
+                        {
+                            "name": "slug",
+                            "in": "path",
+                            "required": true,
+                            "schema": { "type": "string" },
+                            "description": "The slug or the id of the content"
+                        }
+                    ],
+                    "requestBody": {
+                        "required": true,
+                        "content": {
+                            "application/json": {
+                                "schema": { "$ref": "#/components/schemas/CreateContentPayload" }
+                            }
+                        }
+                    },
+                    "responses": {
+                        "200": {
+                            "description": "Content successfully updated",
+                            "content": {
+                                "application/json": {
+                                    "schema": { "$ref": "#/components/schemas/BaseContentItem" }
+                                }
+                            }
+                        },
+                        "400": { "description": "Invalid payload, validation failed or an on-before-save plugin hook failed" },
+                        "404": { "description": "Schema or content not found" },
+                        "409": { "description": "Another item of this content type already uses the slug" },
+                        "422": { "description": "Rejected by an on-before-save plugin hook, or a JSON body that does not match the request type" }
+                    }
+                },
+                "delete": {
+                    "tags": ["Contents"],
+                    "summary": "Delete content by slug or id",
+                    "parameters": [
+                        {
+                            "name": "content_type",
+                            "in": "path",
+                            "required": true,
+                            "schema": { "type": "string" }
+                        },
+                        {
+                            "name": "slug",
+                            "in": "path",
+                            "required": true,
+                            "schema": { "type": "string" },
+                            "description": "The slug or the id of the content"
+                        }
+                    ],
+                    "responses": {
+                        "204": { "description": "Content deleted" },
+                        "404": { "description": "Schema or content not found" }
                     }
                 }
             }),
@@ -311,8 +391,8 @@ impl OpenApiGenerator {
                     "nullable": { "type": "boolean" },
                     "unique": { "type": "boolean" },
                     "index": { "type": "boolean" },
-                    "max_length": { "type": "integer" },
-                    "target": { "type": "string" },
+                    "max_length": { "type": "integer", "nullable": true },
+                    "target": { "type": "string", "nullable": true },
                     "indexed_paths": {
                         "type": "array",
                         "items": { "type": "string" }
@@ -330,7 +410,7 @@ impl OpenApiGenerator {
                 "properties": {
                     "content_type": { "type": "string" },
                     "label": { "type": "string" },
-                    "description": { "type": "string" },
+                    "description": { "type": "string", "nullable": true },
                     "fields": {
                         "type": "array",
                         "items": { "$ref": "#/components/schemas/FieldDefinition" }
@@ -607,11 +687,47 @@ mod tests {
             "status",
             "q",
             "category",
+            "tag",
             "view",
             "cursor_created_at",
             "cursor_id",
         ] {
             assert!(list_params.iter().any(|p| p["name"] == name), "{}", name);
+        }
+        let schemas_resp = &val["paths"]["/api/v1/schemas"]["get"]["responses"]["200"]["content"]
+            ["application/json"]["schema"];
+        assert!(schemas_resp["properties"]["schemas"].is_object());
+        assert!(schemas_resp["properties"]["total"].is_object());
+        let item_path = &val["paths"]["/api/v1/contents/{content_type}/{slug}"];
+        assert!(item_path["put"].is_object());
+        assert!(item_path["delete"].is_object());
+
+        fn collect_refs(value: &Value, out: &mut Vec<String>) {
+            match value {
+                Value::Object(map) => {
+                    for (key, v) in map {
+                        if key == "$ref" {
+                            out.push(v.as_str().unwrap().to_string());
+                        } else {
+                            collect_refs(v, out);
+                        }
+                    }
+                }
+                Value::Array(items) => items.iter().for_each(|v| collect_refs(v, out)),
+                _ => {}
+            }
+        }
+        let mut refs = Vec::new();
+        collect_refs(&val, &mut refs);
+        assert!(!refs.is_empty());
+        for reference in refs {
+            let name = reference
+                .strip_prefix("#/components/schemas/")
+                .expect("unexpected $ref prefix");
+            assert!(
+                val["components"]["schemas"].get(name).is_some(),
+                "{reference} is missing"
+            );
         }
         assert!(val["components"]["schemas"]["ContentSummary"].is_object());
         assert!(val["components"]["schemas"]["ArticleContent"].is_object());
