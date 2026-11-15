@@ -416,7 +416,7 @@ async fn test_full_flow_issues_a_scoped_token_that_works_on_mcp() {
         created.text
     );
 
-    // 同じアプリで入れ直すと、前のトークンは置き換わる
+    // 同じアプリを別の端末でも許可できる（前の端末のトークンは、そのまま使える）
     let approved = allow(
         &state,
         &client_id,
@@ -435,10 +435,8 @@ async fn test_full_flow_issues_a_scoped_token_that_works_on_mcp() {
     )
     .await;
     assert_eq!(second.status, StatusCode::OK);
-    let listed = state.db.list_api_tokens("alice").await.unwrap();
-    assert_eq!(listed.len(), 1);
-    assert_eq!(listed[0].name, "OAuth: Test <Agent>");
-    let old = send(
+    assert_eq!(state.db.list_api_tokens("alice").await.unwrap().len(), 2);
+    let first_still = send(
         &state,
         "GET",
         "/api/v1/auth/session",
@@ -447,7 +445,189 @@ async fn test_full_flow_issues_a_scoped_token_that_works_on_mcp() {
         &[("authorization", &format!("Bearer {access_token}"))],
     )
     .await;
-    assert_eq!(old.status, StatusCode::UNAUTHORIZED);
+    assert_eq!(first_still.status, StatusCode::OK);
+}
+
+async fn refresh(state: &Arc<AppState>, client_id: &str, refresh_token: &str) -> Reply {
+    send(
+        state,
+        "POST",
+        "/oauth/token",
+        Some("application/x-www-form-urlencoded"),
+        form(&[
+            ("grant_type", "refresh_token"),
+            ("refresh_token", refresh_token),
+            ("client_id", client_id),
+        ]),
+        &[],
+    )
+    .await
+}
+
+async fn session_status(state: &Arc<AppState>, access_token: &str) -> StatusCode {
+    send(
+        state,
+        "GET",
+        "/api/v1/auth/session",
+        None,
+        String::new(),
+        &[("authorization", &format!("Bearer {access_token}"))],
+    )
+    .await
+    .status
+}
+
+async fn first_tokens(state: &Arc<AppState>, client_id: &str, scope: &str) -> Value {
+    let approved = allow(
+        state,
+        client_id,
+        REDIRECT,
+        scope,
+        "alice",
+        "correct-horse-battery",
+    )
+    .await;
+    let token = exchange(
+        state,
+        client_id,
+        REDIRECT,
+        &code_from(&approved),
+        &verifier(),
+    )
+    .await;
+    assert_eq!(token.status, StatusCode::OK, "{}", token.text);
+    token.json()
+}
+
+#[tokio::test]
+async fn test_refresh_token_rotates_and_replaces_the_access_token() {
+    let state = state().await;
+    let client_id = register(&state, REDIRECT).await;
+    let first = first_tokens(&state, &client_id, "content:read content:draft").await;
+    let (access1, refresh1) = (
+        first["access_token"].as_str().unwrap().to_string(),
+        first["refresh_token"].as_str().unwrap().to_string(),
+    );
+    assert!(refresh1.starts_with("aegis_ort_"));
+    assert_eq!(first["expires_in"], 86_400);
+    assert!(!state.db.list_api_tokens("alice").await.unwrap()[0]
+        .token_prefix
+        .contains("ort"));
+
+    // 取り直す: 新しいアクセストークンとリフレッシュトークンが渡り、前のアクセストークンは使えなくなる
+    let second = refresh(&state, &client_id, &refresh1).await;
+    assert_eq!(second.status, StatusCode::OK, "{}", second.text);
+    let (access2, refresh2) = (
+        second.json()["access_token"].as_str().unwrap().to_string(),
+        second.json()["refresh_token"].as_str().unwrap().to_string(),
+    );
+    assert_ne!(access1, access2);
+    assert_ne!(refresh1, refresh2);
+    assert_eq!(second.json()["scope"], "content:read content:draft");
+    assert_eq!(
+        session_status(&state, &access1).await,
+        StatusCode::UNAUTHORIZED
+    );
+    assert_eq!(session_status(&state, &access2).await, StatusCode::OK);
+    // 一覧には 1 つだけ（溜まらない）
+    assert_eq!(state.db.list_api_tokens("alice").await.unwrap().len(), 1);
+
+    // 使ったリフレッシュトークンは 2 回目は通らない
+    let reused = refresh(&state, &client_id, &refresh1).await;
+    assert_eq!(reused.status, StatusCode::BAD_REQUEST);
+    assert_eq!(reused.json()["error"], "invalid_grant");
+
+    // 別のクライアントのものとしては使えない（使うと、そのトークンも無駄になる）
+    let other_client = register(&state, "https://other.example/cb").await;
+    let wrong = refresh(&state, &other_client, &refresh2).await;
+    assert_eq!(wrong.json()["error"], "invalid_grant");
+    let gone = refresh(&state, &client_id, &refresh2).await;
+    assert_eq!(gone.json()["error"], "invalid_grant");
+
+    // 何も送らない・知らないトークン
+    assert_eq!(
+        refresh(&state, &client_id, "").await.status,
+        StatusCode::BAD_REQUEST
+    );
+    assert_eq!(
+        refresh(&state, &client_id, "aegis_ort_nope").await.json()["error"],
+        "invalid_grant"
+    );
+}
+
+#[tokio::test]
+async fn test_revoking_the_token_in_the_profile_ends_the_grant() {
+    let state = state().await;
+    let client_id = register(&state, REDIRECT).await;
+    let first = first_tokens(&state, &client_id, "").await;
+    let refresh_token = first["refresh_token"].as_str().unwrap().to_string();
+    let id = state.db.list_api_tokens("alice").await.unwrap()[0]
+        .id
+        .clone();
+
+    // プロフィールのように、ログインのセッションで失効する
+    let login = state
+        .sessions
+        .create_session("alice", "editor", Default::default(), None)
+        .await
+        .unwrap();
+    let revoked = send(
+        &state,
+        "DELETE",
+        &format!("/api/v1/users/me/tokens/{id}"),
+        None,
+        String::new(),
+        &[("authorization", &format!("Bearer {}", login.id))],
+    )
+    .await;
+    assert_eq!(revoked.status, StatusCode::NO_CONTENT);
+
+    let after = refresh(&state, &client_id, &refresh_token).await;
+    assert_eq!(after.status, StatusCode::BAD_REQUEST);
+    assert_eq!(after.json()["error"], "invalid_grant");
+}
+
+#[tokio::test]
+async fn test_refresh_follows_the_owner_role_and_status() {
+    let state = state().await;
+    let client_id = register(&state, REDIRECT).await;
+    let first = first_tokens(&state, &client_id, "content:read content:draft").await;
+
+    // 持ち主が viewer に下げられたら、取り直したトークンも viewer
+    let mut user = state
+        .db
+        .get_user_by_username("alice")
+        .await
+        .unwrap()
+        .unwrap();
+    user.role = "viewer".to_string();
+    state.db.update_user(&user).await.unwrap();
+    let second = refresh(&state, &client_id, first["refresh_token"].as_str().unwrap()).await;
+    assert_eq!(second.status, StatusCode::OK, "{}", second.text);
+    let me = send(
+        &state,
+        "GET",
+        "/api/v1/auth/session",
+        None,
+        String::new(),
+        &[(
+            "authorization",
+            &format!("Bearer {}", second.json()["access_token"].as_str().unwrap()),
+        )],
+    )
+    .await;
+    assert_eq!(me.json()["role"], "viewer");
+
+    // 無効にされたら、取り直せない
+    user.disabled = true;
+    state.db.update_user(&user).await.unwrap();
+    let third = refresh(
+        &state,
+        &client_id,
+        second.json()["refresh_token"].as_str().unwrap(),
+    )
+    .await;
+    assert_eq!(third.json()["error"], "invalid_grant");
 }
 
 #[tokio::test]

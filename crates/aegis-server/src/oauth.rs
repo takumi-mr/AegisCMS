@@ -40,8 +40,11 @@ const SIGNING_KEY_SETTING: &str = "oauth.signing_key";
 const CLIENT_ID_PREFIX: &str = "aegis_oc_";
 /// 認可コードの有効秒数
 const CODE_TTL_SECS: u64 = 600;
-/// 発行するアクセストークンの有効日数（リフレッシュトークンはまだ無いので、切れたら同意からやり直す）
-const ACCESS_TOKEN_DAYS: u32 = 30;
+/// 発行するアクセストークンの有効日数。切れたらリフレッシュトークンで取り直す
+const ACCESS_TOKEN_DAYS: u32 = 1;
+/// リフレッシュトークンの有効日数（使うたびに新しく発行して延びる）
+const REFRESH_TOKEN_DAYS: u32 = 90;
+const REFRESH_TOKEN_PREFIX: &str = "aegis_ort_";
 const SCOPE_READ: &str = "content:read";
 const SCOPE_DRAFT: &str = "content:draft";
 /// 公開・非公開・削除。求められても既定ではチェックを外した状態で出し、人が選んだときだけ渡す
@@ -344,7 +347,7 @@ pub async fn authorization_server_metadata(
         "token_endpoint": format!("{base}/oauth/token"),
         "registration_endpoint": format!("{base}/oauth/register"),
         "response_types_supported": ["code"],
-        "grant_types_supported": ["authorization_code"],
+        "grant_types_supported": ["authorization_code", "refresh_token"],
         "code_challenge_methods_supported": ["S256"],
         "token_endpoint_auth_methods_supported": ["none"],
         "scopes_supported": scopes_supported(),
@@ -450,7 +453,7 @@ pub async fn register(
             "client_id": encode_client_id(&key, &client),
             "client_name": name,
             "redirect_uris": request.redirect_uris,
-            "grant_types": ["authorization_code"],
+            "grant_types": ["authorization_code", "refresh_token"],
             "response_types": ["code"],
             "token_endpoint_auth_method": "none",
             "client_id_issued_at": chrono::Utc::now().timestamp(),
@@ -1015,29 +1018,85 @@ pub struct TokenForm {
     client_id: String,
     #[serde(default)]
     code_verifier: String,
+    #[serde(default)]
+    refresh_token: String,
 }
 
-/// `POST /oauth/token`
+/// 同意された内容（コードの引き換えでもリフレッシュでも、ここに揃えてからトークンを作る）
+struct Granted {
+    username: String,
+    client_name: String,
+    client_id: String,
+    role: String,
+    scope: String,
+    /// リフレッシュで置き換える、前のアクセストークンの ID
+    replaces: Option<String>,
+}
+
+fn sha256_hex(value: &str) -> String {
+    hex::encode(Sha256::digest(value.as_bytes()))
+}
+
+fn invalid_grant(description: &str) -> Response {
+    oauth_error(StatusCode::BAD_REQUEST, "invalid_grant", description)
+}
+
+/// トークンの引き換えの失敗（応答は `token` で作る。`Response` は大きいので持ち回らない）
+struct TokenError {
+    status: StatusCode,
+    error: &'static str,
+    description: String,
+}
+
+impl TokenError {
+    fn grant(description: &str) -> Self {
+        Self {
+            status: StatusCode::BAD_REQUEST,
+            error: "invalid_grant",
+            description: description.to_string(),
+        }
+    }
+
+    fn server(description: &str) -> Self {
+        Self {
+            status: StatusCode::INTERNAL_SERVER_ERROR,
+            error: "server_error",
+            description: description.to_string(),
+        }
+    }
+}
+
+/// `POST /oauth/token`（`authorization_code` と `refresh_token`）
 pub async fn token(
     State(state): State<Arc<AppState>>,
     audit: AuditContext,
     Form(form): Form<TokenForm>,
 ) -> Response {
-    if form.grant_type != "authorization_code" {
-        return oauth_error(
-            StatusCode::BAD_REQUEST,
-            "unsupported_grant_type",
-            "Only grant_type=authorization_code is supported",
-        );
+    let granted = match form.grant_type.as_str() {
+        "authorization_code" => redeem_code(&state, &form).await,
+        "refresh_token" => redeem_refresh(&state, &form).await,
+        _ => {
+            return oauth_error(
+                StatusCode::BAD_REQUEST,
+                "unsupported_grant_type",
+                "Supported grant types: authorization_code, refresh_token",
+            )
+        }
+    };
+    match granted {
+        Ok(granted) => issue_tokens(&state, &audit, granted, &form.grant_type).await,
+        Err(e) => oauth_error(e.status, e.error, &e.description),
     }
-    let invalid =
-        |description: &str| oauth_error(StatusCode::BAD_REQUEST, "invalid_grant", description);
+}
+
+/// 認可コードを検証する（1 回限り・PKCE・登録したリダイレクト先）
+async fn redeem_code(state: &AppState, form: &TokenForm) -> Result<Granted, TokenError> {
     if form.code.is_empty() {
-        return invalid("code is required");
+        return Err(TokenError::grant("code is required"));
     }
     let key = code_key(&form.code);
     let Ok(Some(raw)) = state.cache.get(&key).await else {
-        return invalid("The code is invalid or expired");
+        return Err(TokenError::grant("The code is invalid or expired"));
     };
     // 1 回しか使えない: 数えて 1 回目だけ通す
     let first_use = state
@@ -1048,75 +1107,213 @@ pub async fn token(
         .unwrap_or(false);
     let _ = state.cache.delete(&key).await;
     if !first_use {
-        return invalid("The code was already used");
+        return Err(TokenError::grant("The code was already used"));
     }
     let Ok(grant) = serde_json::from_str::<Value>(&raw) else {
-        return invalid("The code is invalid");
+        return Err(TokenError::grant("The code is invalid"));
     };
     if grant["client_id"] != form.client_id.as_str()
         || grant["redirect_uri"] != form.redirect_uri.as_str()
     {
-        return invalid("client_id or redirect_uri does not match the authorization request");
+        return Err(TokenError::grant(
+            "client_id or redirect_uri does not match the authorization request",
+        ));
     }
     let verifier_ok = (43..=128).contains(&form.code_verifier.len())
         && URL_SAFE_NO_PAD.encode(Sha256::digest(form.code_verifier.as_bytes()))
             == grant["code_challenge"].as_str().unwrap_or_default();
     if !verifier_ok {
-        return invalid("code_verifier does not match the code_challenge");
+        return Err(TokenError::grant(
+            "code_verifier does not match the code_challenge",
+        ));
     }
+    Ok(Granted {
+        username: grant["username"].as_str().unwrap_or_default().to_string(),
+        client_name: grant["client_name"]
+            .as_str()
+            .unwrap_or("OAuth client")
+            .to_string(),
+        client_id: form.client_id.clone(),
+        role: grant["role"].as_str().unwrap_or("viewer").to_string(),
+        scope: grant["scope"].as_str().unwrap_or_default().to_string(),
+        replaces: None,
+    })
+}
 
-    let username = grant["username"].as_str().unwrap_or_default().to_string();
-    let client_name = grant["client_name"].as_str().unwrap_or("OAuth client");
-    let name: String = format!("OAuth: {client_name}")
+/// リフレッシュトークンを検証する。使えるのは 1 回だけ（使うと新しいものに替わる）
+async fn redeem_refresh(state: &AppState, form: &TokenForm) -> Result<Granted, TokenError> {
+    if form.refresh_token.is_empty() {
+        return Err(TokenError::grant("refresh_token is required"));
+    }
+    let taken = state
+        .db
+        .take_oauth_refresh_by_hash(&sha256_hex(&form.refresh_token))
+        .await
+        .map_err(|e| {
+            tracing::warn!("OAuth refresh lookup failed: {e}");
+            TokenError::server("Could not check the refresh token")
+        })?;
+    let Some(record) = taken else {
+        return Err(TokenError::grant(
+            "The refresh token is invalid or already used",
+        ));
+    };
+    if record.client_hash != sha256_hex(&form.client_id) {
+        return Err(TokenError::grant(
+            "The refresh token was issued to another client",
+        ));
+    }
+    let expired = chrono::DateTime::parse_from_rfc3339(&record.expires_at)
+        .map(|at| at < chrono::Utc::now())
+        .unwrap_or(true);
+    if expired {
+        return Err(TokenError::grant("The refresh token has expired"));
+    }
+    // ロールが下げられていたら、それに合わせる
+    let role = match state.db.get_user_by_username(&record.username).await {
+        Ok(Some(user)) if !user.disabled => {
+            if aegis_auth::role_level(&record.role) <= aegis_auth::role_level(&user.role) {
+                record.role.clone()
+            } else {
+                user.role
+            }
+        }
+        _ => return Err(TokenError::grant("The account is no longer active")),
+    };
+    Ok(Granted {
+        username: record.username,
+        client_name: record.client_name,
+        client_id: form.client_id.clone(),
+        role,
+        scope: record.scope,
+        replaces: Some(record.access_token_id),
+    })
+}
+
+/// アクセストークン（API トークン）とリフレッシュトークンを発行して返す
+async fn issue_tokens(
+    state: &AppState,
+    audit: &AuditContext,
+    granted: Granted,
+    grant_type: &str,
+) -> Response {
+    let name: String = format!("OAuth: {}", granted.client_name)
         .chars()
         .take(aegis_auth::api_tokens::MAX_NAME_CHARS)
         .collect();
-    // 同じアプリを入れ直したときは、前のトークンを置き換える（トークンの数の上限に当たらないように）
-    if let Ok(existing) = state.db.list_api_tokens(&username).await {
-        for old in existing.iter().filter(|t| t.name == name) {
-            let _ = state.db.delete_api_token(&username, &old.id).await;
+    let existing = state
+        .db
+        .list_api_tokens(&granted.username)
+        .await
+        .unwrap_or_default();
+    // 前のアクセストークンは置き換える。同じアプリを別の端末で許可したトークンには触れない
+    if let Some(old) = &granted.replaces {
+        let _ = state.db.delete_api_token(&granted.username, old).await;
+    }
+    // 期限が切れた OAuth のトークンは片付ける。上限の数に溜まらないように
+    let now = chrono::Utc::now();
+    for old in existing.iter().filter(|t| {
+        t.name.starts_with("OAuth: ")
+            && t.expires_at
+                .as_deref()
+                .and_then(|at| chrono::DateTime::parse_from_rfc3339(at).ok())
+                .is_some_and(|at| at < now)
+    }) {
+        let _ = state.db.delete_api_token(&granted.username, &old.id).await;
+    }
+    // それでも上限に近いときは、同じアプリの古いものから外す（新しい許可が通らないよりよい）
+    if let Ok(mut left) = state.db.list_api_tokens(&granted.username).await {
+        left.reverse();
+        let mut over = (left.len() + 1).saturating_sub(aegis_auth::api_tokens::MAX_TOKENS_PER_USER);
+        for old in left.iter().filter(|t| t.name == name) {
+            if over == 0 {
+                break;
+            }
+            let _ = state.db.delete_api_token(&granted.username, &old.id).await;
+            over -= 1;
         }
     }
+
     let issued = issue_api_token(
         &*state.db,
         NewApiToken {
-            username: username.clone(),
+            username: granted.username.clone(),
             name,
-            role: grant["role"].as_str().unwrap_or("viewer").to_string(),
+            role: granted.role.clone(),
             expires_in_days: Some(ACCESS_TOKEN_DAYS),
         },
     )
     .await;
-    match issued {
-        Ok(issued) => {
-            state
-                .audit
-                .record(
-                    audit
-                        .event(AuditAction::UserUpdate, AuditOutcome::Success)
-                        .with_resource("user", Some(username))
-                        .with_details(json!({
-                            "action": "oauth.token",
-                            "token_id": issued.record.id,
-                            "client": client_name,
-                            "role": issued.record.role,
-                            "expires_at": issued.record.expires_at,
-                        })),
-                )
-                .await;
-            json_no_store(
-                StatusCode::OK,
-                json!({
-                    "access_token": issued.token,
-                    "token_type": "Bearer",
-                    "expires_in": i64::from(ACCESS_TOKEN_DAYS) * 86_400,
-                    "scope": grant["scope"],
-                }),
-            )
-        }
+    let issued = match issued {
+        Ok(issued) => issued,
         Err(e) => {
             tracing::warn!("OAuth token issue failed: {e}");
-            invalid("The token could not be issued (is the account still active?)")
+            return invalid_grant("The token could not be issued (is the account still active?)");
         }
+    };
+
+    // 取り直すためのトークン。使うたびに替わる
+    let refresh = format!(
+        "{}{}{}",
+        REFRESH_TOKEN_PREFIX,
+        uuid::Uuid::new_v4().simple(),
+        uuid::Uuid::new_v4().simple()
+    );
+    let created = now.to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
+    let expires = (now + chrono::Duration::days(i64::from(REFRESH_TOKEN_DAYS)))
+        .to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
+    let _ = state.db.delete_expired_oauth_refresh(&created).await;
+    let stored = state
+        .db
+        .insert_oauth_refresh(&aegis_db::OAuthRefreshRecord {
+            id: uuid::Uuid::new_v4().to_string(),
+            token_hash: sha256_hex(&refresh),
+            username: granted.username.clone(),
+            client_hash: sha256_hex(&granted.client_id),
+            client_name: granted.client_name.clone(),
+            scope: granted.scope.clone(),
+            role: granted.role.clone(),
+            access_token_id: issued.record.id.clone(),
+            created_at: created,
+            expires_at: expires,
+        })
+        .await;
+    if let Err(e) = stored {
+        tracing::warn!("OAuth refresh token could not be stored: {e}");
+        let _ = state
+            .db
+            .delete_api_token(&granted.username, &issued.record.id)
+            .await;
+        return oauth_error(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "server_error",
+            "Could not issue the token",
+        );
     }
+
+    state
+        .audit
+        .record(
+            audit
+                .event(AuditAction::UserUpdate, AuditOutcome::Success)
+                .with_resource("user", Some(granted.username.clone()))
+                .with_details(json!({
+                    "action": if grant_type == "refresh_token" { "oauth.refresh" } else { "oauth.token" },
+                    "token_id": issued.record.id,
+                    "client": granted.client_name,
+                    "role": issued.record.role,
+                    "expires_at": issued.record.expires_at,
+                })),
+        )
+        .await;
+    json_no_store(
+        StatusCode::OK,
+        json!({
+            "access_token": issued.token,
+            "token_type": "Bearer",
+            "expires_in": i64::from(ACCESS_TOKEN_DAYS) * 86_400,
+            "refresh_token": refresh,
+            "scope": granted.scope,
+        }),
+    )
 }

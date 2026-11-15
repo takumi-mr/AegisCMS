@@ -33,11 +33,11 @@ Clients that sign in with OAuth, such as the custom connectors of Claude.ai, nee
 
 1. The client finds the sign-in page by itself and opens it in your browser.
 2. The page names the application and what it asks for. Enter your **username and password** (and the authentication code, if you use two-factor authentication) and click **Allow**. **Deny** sends you back without giving access.
-3. The client receives an API token. It is valid for **30 days**; after that the client asks you to allow it again.
+3. The client receives an access token (an API token valid for **1 day**) and a **refresh token** (valid for **90 days**). The client gets a new access token by itself with the refresh token, and every refresh token can be used only once and is replaced by a new one. You are asked again only if the application is not used for 90 days.
 
 What the application can do is limited twice. The permissions you agree to decide the role of the token: reading only (`content:read`) gives `viewer`, drafts (`content:draft`) give `contributor`, and publishing (`content:publish`) gives `editor`. The application can ask for each one, but **drafts are on by default and Publish is off**: you tick them on the page. And the token never goes above your own role.
 
-The token appears in **My profile › API tokens** as `OAuth: <application name>`, and you can revoke it there at any time. Allowing the same application again replaces its earlier token.
+The token appears in **My profile › API tokens** as `OAuth: <application name>`, and you can revoke it there at any time. Revoking it ends the permission completely: the application cannot get a new token with its refresh token. Allowing the same application again, for example on another device, adds another token.
 
 > [!NOTE]
 >
@@ -95,7 +95,7 @@ When a tool fails, the assistant receives the HTTP status and the error message 
 ## 4. Limits of this version
 
 - Only these tools. Comments, the shop, members and settings are not available through MCP; use Admin Studio or the REST API.
-- OAuth gives a token valid for 30 days and has no refresh tokens yet, so the client asks you to allow it again when it expires. The sign-in page is in English only.
+- The sign-in page is in English only.
 - There is no switch to turn the endpoint off. To stop an assistant, revoke its token.
 - Only `POST /mcp` is served (no streaming from the server); `GET /mcp` answers `405`.
 
