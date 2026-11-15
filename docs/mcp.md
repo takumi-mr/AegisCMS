@@ -7,7 +7,7 @@
 AegisCMS has a built-in [MCP](https://modelcontextprotocol.io/) (Model Context Protocol) server. An AI assistant such as Claude Code or Cursor can then read your site and write drafts, with no script in between.
 
 - **Address**: `POST /mcp` on your site (for example `https://example.com/mcp`). It uses the Streamable HTTP transport and needs no extra setting on the server.
-- **Sign-in**: an [API token](content-api.md#13-api-tokens-for-scripts-ci-and-agents) sent as `Authorization: Bearer aegis_pat_...`. Nothing else is accepted: a request without it gets `401`.
+- **Sign-in**: either **OAuth** (the client opens a sign-in page and you click Allow; [section 2](#2-connect-with-oauth)) or an [API token](content-api.md#13-api-tokens-for-scripts-ci-and-agents) sent as `Authorization: Bearer aegis_pat_...`. A request with neither gets `401`.
 - **Permissions**: the same as the REST API. The tools run as the token's role, so they go through the same checks (roles, review flow, validation) and are recorded in the [audit log](audit.md) like any other change.
 
 > [!IMPORTANT]
@@ -27,10 +27,25 @@ AegisCMS has a built-in [MCP](https://modelcontextprotocol.io/) (Model Context P
 
 3. Ask the assistant, for example: "List my draft articles", or "Write a draft article about our new release".
 
-> [!NOTE]
-> Clients that can only sign in with OAuth (for example, custom connectors in Claude.ai on the web) cannot connect yet. OAuth is planned as a later step.
+## 2. Connect with OAuth
 
-## 2. Tools
+Clients that sign in with OAuth, such as the custom connectors of Claude.ai, need only the address of the server (`https://example.com/mcp`). No token has to be made by hand:
+
+1. The client finds the sign-in page by itself and opens it in your browser.
+2. The page names the application and what it asks for. Enter your **username and password** (and the authentication code, if you use two-factor authentication) and click **Allow**. **Deny** sends you back without giving access.
+3. The client receives an API token. It is valid for **30 days**; after that the client asks you to allow it again.
+
+What the application can do is limited twice. The scope it asks for decides the role of the token: reading only (`content:read`) gives `viewer`, and drafts (`content:draft`) give `contributor`. And the token never goes above your own role. Neither scope can publish or delete.
+
+The token appears in **My profile › API tokens** as `OAuth: <application name>`, and you can revoke it there at any time. Allowing the same application again replaces its earlier token.
+
+> [!NOTE]
+>
+> - Sign-in on this page uses a username and password. An account that can only sign in through single sign-on cannot allow an application yet; use an [API token](#1-connect) instead.
+> - The site should be served over `https://` and have its **Canonical URL** set ([Site settings](admin-settings.md)), because the addresses of the sign-in page given to the client are built from it.
+> - The endpoints are `/.well-known/oauth-protected-resource`, `/.well-known/oauth-authorization-server`, `/oauth/register` (dynamic client registration), `/oauth/authorize` and `/oauth/token`. PKCE (`S256`) is required.
+
+## 3. Tools
 
 | Tool                 | What it does                                                                                                                                                           |
 | -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -53,9 +68,10 @@ What reading shows depends on the token's role, as with the REST API: a `viewer`
 
 When a tool fails, the assistant receives the HTTP status and the error message of the REST API (for example `409` for a slug that is already used, `404` for an item that does not exist).
 
-## 3. Limits of this version
+## 4. Limits of this version
 
 - Only these tools. Publishing, scheduling, deleting, uploading media and attaching tags are not available through MCP yet; use Admin Studio or the [REST API](content-api.md).
+- OAuth gives a token valid for 30 days and has no refresh tokens yet, so the client asks you to allow it again when it expires. The sign-in page is in English only.
 - There is no switch to turn the endpoint off. To stop an assistant, revoke its token.
 - Only `POST /mcp` is served (no streaming from the server); `GET /mcp` answers `405`.
 

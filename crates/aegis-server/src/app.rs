@@ -742,8 +742,37 @@ pub fn router(config: &AegisConfig, state: Arc<AppState>) -> Router {
         "/mcp",
         post(crate::mcp::handle)
             .get(crate::mcp::not_supported)
-            .layer(axum::Extension(api)),
+            .layer(axum::Extension(api.clone())),
     );
+    // MCP クライアント向けの OAuth 2.1 認可サーバー（`oauth.rs`）
+    app = app
+        .route(
+            "/.well-known/oauth-protected-resource",
+            get(crate::oauth::protected_resource_metadata).options(crate::oauth::preflight),
+        )
+        .route(
+            "/.well-known/oauth-protected-resource/mcp",
+            get(crate::oauth::protected_resource_metadata).options(crate::oauth::preflight),
+        )
+        .route(
+            "/.well-known/oauth-authorization-server",
+            get(crate::oauth::authorization_server_metadata).options(crate::oauth::preflight),
+        )
+        .route(
+            "/oauth/register",
+            post(crate::oauth::register).options(crate::oauth::preflight),
+        )
+        .route(
+            "/oauth/token",
+            post(crate::oauth::token).options(crate::oauth::preflight),
+        )
+        .route("/oauth/authorize.css", get(crate::oauth::authorize_css))
+        .route(
+            "/oauth/authorize",
+            get(crate::oauth::authorize_get)
+                .post(crate::oauth::authorize_post)
+                .layer(axum::Extension(api)),
+        );
 
     app.layer(cors)
         .layer(axum::middleware::from_fn_with_state(

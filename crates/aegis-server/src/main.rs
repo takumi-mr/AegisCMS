@@ -34,6 +34,9 @@ mod mcp_tests;
 mod namespace;
 mod notices;
 mod notify_plugins;
+mod oauth;
+#[cfg(test)]
+mod oauth_tests;
 mod plugin_dev;
 mod plugin_host;
 mod plugin_registry;
