@@ -54,7 +54,7 @@ ABI の中身は [plugin_abi_specification.md](plugin_abi_specification.ja.md) �
 2. リリース PR のバージョンと CHANGELOG を確かめてマージする。`Cargo.lock` はワークフローが同じ PR に追従させる。
 3. マージするとタグと GitHub Release が作られる。さらに `release-please.yml` の `paths_released` 出力に基づき、リリースされた対象パスの公開ワークフローが自動発火する：
     - **AssemblyScript SDK** (`sdk/assemblyscript`): GitHub Packages (`@takumi-mr/plugin-sdk`) へ npm パッケージが自動公開される (`release-sdk.yml`)。
-    - **コア** (`.`): GitHub Container Registry (`ghcr.io/takumi-mr/aegiscms`) へ公式 Docker イメージ（`linux/amd64`・`linux/arm64` のマルチアーキテクチャ）が自動でビルド＆プッシュされる (`release-docker.yml`)。各アーキテクチャはネイティブ runner でビルドし、最後に 1 つのタグへまとめる。
+    - **コア** (`.`): GitHub Container Registry (`ghcr.io/takumi-mr/aegiscms`) へ公式 Docker イメージ（`linux/amd64`・`linux/arm64` のマルチアーキテクチャ）が自動でビルド＆プッシュされる (`release-docker.yml`)。各アーキテクチャはネイティブ runner でビルドし、最後に 1 つのタグへまとめる。付くタグは、正確なバージョン（`0.9.0`）、マイナー（`0.9`）、`latest`。既存のリリースを作り直すときは、ワークフローを手動で実行し、`version` にそのタグ（例: `v0.9.0`）を渡す。
     - **コア** (`.`): GitHub Release に Linux (x86_64・arm64) と Windows (x86_64) の実行バイナリ（Admin Studio 埋め込み、`config`・`schemas`・`plugins`・`themes` 同梱）と SHA-256 が添付される (`release-binaries.yml`)。既存タグへの再実行は `workflow_dispatch` で `tag` を渡す。
     - **TinyGo SDK** (`sdk/tinygo`): 作成されたタグ (`sdk/tinygo/vX.Y.Z`) 自体が Go モジュールとしての配布となる。
 
