@@ -37,7 +37,8 @@
 ```bash
 # Docker イメージ（GitHub Container Registry）から動かす
 docker run -d --name aegiscms -p 8080:8080 -v aegis-data:/app/data ghcr.io/takumi-mr/aegiscms:latest
-# 最初の管理者を作る（新しいサイトにはアカウントがありません）。そのあと http://localhost:8080/admin/ でログイン
+# 新しいサイトにはアカウントがありません。ブラウザで http://localhost:8080/admin/ を開いて初期セットアップをするか、
+# コマンドラインで最初の管理者を作ります:
 docker exec -it aegiscms aegis-server user add admin --role admin
 
 # ...またはソースからビルドして動かす（ポート 8080）

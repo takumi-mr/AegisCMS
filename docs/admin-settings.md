@@ -1,0 +1,98 @@
+[← Back to the documentation index](README.md)
+
+**English** | [日本語](admin-settings.ja.md)
+
+# Site Settings in Admin Studio
+
+Open the **Settings** tab. The menu on the left lists the sections. You see only the sections your role may use, and the ones for a feature that is turned off on your server are hidden or explain what must be enabled. Most of the sections below are for **administrators**.
+
+Changes here take effect right away, without restarting the server. For settings that are made in the server's configuration file instead, see the [Configuration reference](configuration.md).
+
+## Your Site
+
+### Site
+
+The **name** of the site and its **favicon** (the small icon in the browser tab). For the favicon, choose an image from the media library, upload one, or enter a URL. Saving an empty value returns to the value in the server's configuration file.
+
+### SEO & Bot
+
+How search engines and crawlers see the site. Changes apply immediately to public pages, `/robots.txt` and `/sitemap.xml`.
+
+- **Canonical URL**: your site's address, with `https://` (for example, `https://example.com`). It is used for canonical links, the sitemap, the feeds, and social sharing. Set this once the site is public.
+- **Default meta description** and **keywords**: used when a page does not have its own summary.
+- **Image for social sharing**: shown when a page without its own image is shared.
+- **Bot rules**: which crawlers may visit, including AI scrapers.
+
+### Themes
+
+The look of the public site. Each installed theme is a card with a preview. **Activate** switches the site to it, and you can open the public site in a new tab to check. Installing a new theme means placing it on the server ([Theme authoring guide](theme_authoring_guide.md)); the marketplace tab is not available yet.
+
+### Plugins
+
+The extensions installed on the server. Open a plugin to change its settings. Which plugins are turned on is decided on the server ([Configuration reference](configuration.md#26-runtime--wasm-plugin-runtime)); a plugin that is installed but not turned on is shown as disabled.
+
+### Categories and Tags
+
+- **Categories**: a title, a description and a colour. An article has one category. Anyone with the editor role or above can create them, and **Manage** in the editor opens this screen.
+- **Tags**: any number of tags can be put on articles, pages and products. You find them by name, edit them, and see how many items use each one. Deleting a tag removes it from everything.
+
+### Redirects
+
+Rules that send an old address to a new one, as **301** (permanent) or **302** (temporary). When you change the slug of a published item, a rule is added for you and marked **auto**. Use this screen to add rules for pages you moved or removed.
+
+### Notices
+
+A banner shown at the top of every public page, for example a maintenance announcement. Give it a message and, if you like, the period to show it. The list shows each notice as showing, scheduled, ended or disabled. Times are entered in your browser's local time.
+
+### Broken Links
+
+Checks the published articles and pages for links that no longer work, both inside your site and to other sites. Click **Scan Now**; the result lists the links that failed.
+
+## Visitors and Communication
+
+### Newsletter
+
+Send a published article to your subscribers. The screen shows how many are subscribed, waiting for confirmation, or stopped; lets you edit the summary, send a test to yourself, and confirm before sending; and lists subscribers (search, delete, export as CSV) and what was sent. Needs the newsletter to be turned on by your administrator ([Newsletter](newsletter.md)).
+
+### Notifications
+
+The emails AegisCMS sends, such as new comments or review requests ([Notifications](notifications.md)). You can see whether sending works, retry or discard notifications that failed, send a test message, and edit the subject and text of each message, with a preview before saving. **Restore defaults** undoes your changes.
+
+## People and Security
+
+### Users
+
+Create, edit, disable and delete accounts, change roles, and reset passwords. **Invite user** sends an email with a link where the person chooses their own username and password. Accounts that registered themselves and wait for approval show a **Pending approval** badge; approve and enable them from the edit dialog. The last administrator cannot be removed ([Roles](admin-studio.md#3-roles)).
+
+![The users screen](images/users-admin.png)
+
+### Audit Logs
+
+A record of who did what and when: sign-ins, changes to users, content and settings, and operations refused for lack of permission. Use it to answer "who changed this?" ([Audit log](audit.md)).
+
+### Headers
+
+The HTTP headers the server sends, including the browser protections (Content-Security-Policy, X-Frame-Options and others). Leave a field empty to use the built-in default, which is right for nearly every site. A wrong value can break the site or make it less safe, so change it only when you know why ([Content-Security-Policy](csp.md)).
+
+### System
+
+Operating settings that you can change without restarting the server:
+
+- **Maintenance mode**, with the text shown to visitors
+- The **upload size limit**
+- **Browser and CDN caching**, and how long to keep pages
+- Turning **self-registration** off and on
+- How many failed sign-ins lock an account
+- Turning comments and forum posts off and on
+
+There is a button to return to the defaults ([Configuration reference](configuration.md#53-system-operation-settings-system)).
+
+### Licenses
+
+The licenses of AegisCMS and of the open-source software it uses.
+
+## Related Guides
+
+- [Getting started with Admin Studio](admin-studio.md)
+- [Writing and publishing content](admin-editing.md)
+- [Media library and uploads](media.md)

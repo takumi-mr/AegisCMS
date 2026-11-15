@@ -6,7 +6,7 @@
 
 Choose how to run AegisCMS: [Docker](#1-docker), a [Linux binary](#2-linux-binary), or a [Windows binary](#3-windows-binary). For the required environment, see [System Requirements](../README.md#system-requirements). All of them start on SQLite with nothing else to install.
 
-After starting, [create an administrator](#4-create-an-administrator). Until you do, nobody can log in.
+After starting, [create an administrator](#4-create-an-administrator) (you can do it in the browser at `/admin/`). Until you do, nobody can log in.
 
 ## 1. Docker
 
@@ -75,7 +75,11 @@ Open `http://localhost:8080/`. Admin Studio is built into the executable, and is
 
 ## 4. Create an Administrator
 
-A new site has no accounts. Create the first administrator on the machine that runs AegisCMS:
+A new site has no accounts. There are two ways to create the first administrator.
+
+**In the browser (easiest).** Open `/admin/`. A new site shows **Initial Setup**: enter a site title, a username and a password, and you are signed in ([Admin Studio](admin-studio.md#1-first-sign-in)). Until this is done, the first person who opens `/admin/` becomes the administrator, so do it before the site is reachable from the internet.
+
+**On the server.** Create the administrator on the machine that runs AegisCMS, so nobody else can get there first:
 
 ```bash
 # Docker (you are asked for a password)
@@ -85,7 +89,7 @@ docker exec -it aegiscms aegis-server user add admin --role admin
 ./aegis-server user add admin --role admin
 ```
 
-For scripts, pass the password in the `AEGIS_USER_PASSWORD` environment variable instead. Then log in at `/admin/`.
+For scripts, pass the password in the `AEGIS_USER_PASSWORD` environment variable instead. Then sign in at `/admin/`.
 
 Other user commands (`user list`, `user passwd`, `user disable`, and more) are in [Authentication](authentication.md).
 
