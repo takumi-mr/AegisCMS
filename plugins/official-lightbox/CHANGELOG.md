@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.1](https://github.com/takumi-mr/AegisCMS/compare/plugin-official-lightbox-v0.3.0...plugin-official-lightbox-v0.3.1) (2026-11-15)
+
+
+### Bug Fixes
+
+* **plugin:** inherit workspace lints in plugins and templates ([#378](https://github.com/takumi-mr/AegisCMS/issues/378)) ([1ad333b](https://github.com/takumi-mr/AegisCMS/commit/1ad333ba8c287e21d0eb908431a06e9504bf87ea))
+
 ## [0.3.0](https://github.com/takumi-mr/AegisCMS/compare/plugin-official-lightbox-v0.2.1...plugin-official-lightbox-v0.3.0) (2026-11-10)
 
 
