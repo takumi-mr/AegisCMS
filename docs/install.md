@@ -17,6 +17,7 @@ docker run -d --name aegiscms -p 8080:8080 -v aegis-data:/app/data ghcr.io/takum
 - Open `http://localhost:8080/` for the site and `http://localhost:8080/admin/` for Admin Studio.
 - The database and uploaded files are in `/app/data`. Keep it in a volume (`-v aegis-data:/app/data`) so they survive when the container is replaced.
 - View logs with `docker logs aegiscms`. Stop with `docker stop aegiscms`.
+- `latest` moves to each new release. For a production site, pin a version instead, such as `ghcr.io/takumi-mr/aegiscms:0.9` ([Updating](upgrade.md#pinning-a-version-docker)).
 - The image supports `linux/amd64` and `linux/arm64`; Docker picks the right one.
 
 ## 2. Linux Binary
