@@ -37,6 +37,8 @@
 ```bash
 # Docker イメージ（GitHub Container Registry）から動かす
 docker run -d --name aegiscms -p 8080:8080 -v aegis-data:/app/data ghcr.io/takumi-mr/aegiscms:latest
+# 最初の管理者を作る（新しいサイトにはアカウントがありません）。そのあと http://localhost:8080/admin/ でログイン
+docker exec -it aegiscms aegis-server user add admin --role admin
 
 # ...またはソースからビルドして動かす（ポート 8080）
 task dev
@@ -44,7 +46,26 @@ task dev
 
 - **サンプルサイトで試す**: EC の [`examples/coffee-shop/`](examples/coffee-shop)（`task demo:shop`）か、掲示板の [`examples/hiking-forum/`](examples/hiking-forum)（`task demo:forum`）。
 - **サーバーで HTTPS 公開する**: [`deploy/`](deploy)（AegisCMS + Caddy）。`sites.toml` にドメインを書いて `./deploy.sh up`。複数サイトにも対応しています。
+- **導入・更新・バックアップ・トラブル対応**: [導入](docs/install.ja.md)ほかの手順書は [ドキュメント一覧](docs/README.ja.md) から。
 - **開発する**: [docs/development.ja.md](docs/development.ja.md) を参照。PR の前に `task check` を実行してください。
+
+## 動作環境
+
+AegisCMS は 1 つのバイナリで動き、データベース（SQLite）も内蔵しているため、小さなサーバーで始められます。
+
+|                    |                                                                                                                                                                     |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **OS / CPU**       | Linux（x86_64、arm64）、Windows（x86_64）。Docker イメージはマルチアーキテクチャ（`linux/amd64`、`linux/arm64`）です。                                              |
+| **Linux バイナリ** | glibc 2.35 以降（Ubuntu 22.04 以降、Debian 12 以降など）。[Releases](https://github.com/takumi-mr/AegisCMS/releases/latest) からダウンロードします。                |
+| **Docker**         | 最近の Docker Engine。イメージのサイズは約 280 MB です。                                                                                                            |
+| **メモリ**         | 新しいサイトで、起動直後は約 13 MiB、3,000 リクエスト後で約 23 MiB（Docker イメージ + SQLite で実測）。コンテンツ・プラグイン・検索インデックスが増えると増えます。 |
+| **ディスク**       | バイナリは圧縮で約 30 MB（展開後 87 MB）で、Admin Studio を含みます。新しいサイトのデータは約 1 MB です。アップロードとバックアップの分を足してください。           |
+| **データベース**   | SQLite（既定。インストール不要）。大きなサイトでは PostgreSQL 16 または MySQL 8.0（テストしているバージョン）。                                                     |
+| **あれば**         | Redis 7（複数台でのセッション・キャッシュの共有）、S3 互換ストレージ（アップロード）、SMTP サーバー（メール送信）。                                                 |
+| **ネットワーク**   | TCP ポート 1 つ（既定は 8080）。公開サイトでは HTTPS の背後に置きます（[`deploy/`](deploy) が Caddy を用意します）。                                                |
+
+> [!NOTE]
+> メモリの数値は、空のサイトを amd64 のマシンで 1 回測った値です。本番サイトの容量計画の目安ではありません。実際のコンテンツとプラグインで測ってください。
 
 ## 目次
 

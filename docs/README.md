@@ -12,6 +12,16 @@ Refer to the most suitable document for what you want to know and for your role 
 
 ## 🗺️ Documentation Map
 
+### 0. 🚀 Installing & Operating (for users)
+
+| Document                                                      | Overview                                                                                   | Audience  |
+| ------------------------------------------------------------- | ------------------------------------------------------------------------------------------ | --------- |
+| [Installing (`install.md`)](install.md)                       | Start with Docker, a Linux binary, or a Windows binary, and create the first administrator | Operators |
+| [Publishing on the internet (`publish.md`)](publish.md)       | HTTPS with the Caddy setup or your own reverse proxy                                       | Operators |
+| [Backup and restore (`backup-restore.md`)](backup-restore.md) | Taking, verifying and restoring backups                                                    | Operators |
+| [Updating (`upgrade.md`)](upgrade.md)                         | Updating Docker and binary installs, and going back                                        | Operators |
+| [Troubleshooting (`troubleshooting.md`)](troubleshooting.md)  | Login, startup, upload and restore problems                                                | Operators |
+
 ### 1. 🏗️ Core Architecture & Design
 
 | Document                                                              | Overview                                                                                                                                        | Audience                    |
@@ -79,6 +89,7 @@ Refer to the most suitable document for what you want to know and for your role 
 
 ### 👩‍💼 Site Operators / Administrators
 
+0. [Installing](install.md) → [Publishing](publish.md) → [Backup and restore](backup-restore.md) → [Updating](upgrade.md) (and [Troubleshooting](troubleshooting.md) when stuck)
 1. [Configuration file reference (`configuration.md`)](configuration.md) - basic settings and dynamic settings from the admin screen (`system.*`)
 2. [Authentication & user management (`authentication.md`)](authentication.md) - user registration, role permissions, SSO integration
 3. [Audit log (`audit.md`)](audit.md) / [Analytics (`analytics.md`)](analytics.md) - operational monitoring and access statistics

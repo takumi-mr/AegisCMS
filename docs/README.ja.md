@@ -9,6 +9,16 @@ AegisCMS の設計、設定、機能仕様、拡張開発（テーマ・プラ�
 
 ## 🗺️ ドキュメントマップ
 
+### 0. 🚀 導入・運用（利用者向け）
+
+| ドキュメント                                                     | 概要                                                                   | 対象   |
+| ---------------------------------------------------------------- | ---------------------------------------------------------------------- | ------ |
+| [導入 (`install.md`)](install.ja.md)                             | Docker・Linux バイナリ・Windows バイナリでの起動と、最初の管理者の作成 | 運用者 |
+| [インターネットへの公開 (`publish.md`)](publish.ja.md)           | Caddy 構成または自前のリバースプロキシでの HTTPS 化                    | 運用者 |
+| [バックアップと復元 (`backup-restore.md`)](backup-restore.ja.md) | バックアップの取得・検証・復元                                         | 運用者 |
+| [更新 (`upgrade.md`)](upgrade.ja.md)                             | Docker・バイナリの更新手順と、元に戻す方法                             | 運用者 |
+| [トラブル対応 (`troubleshooting.md`)](troubleshooting.ja.md)     | ログイン・起動・アップロード・復元で困ったとき                         | 運用者 |
+
 ### 1. 🏗️ コアアーキテクチャ & 設計
 
 | ドキュメント                                                         | 概要                                                                                                                      | 対象               |
@@ -76,6 +86,7 @@ AegisCMS の設計、設定、機能仕様、拡張開発（テーマ・プラ�
 
 ### 👩‍💼 サイト運用者 / 管理者
 
+0. [導入](install.ja.md) → [公開](publish.ja.md) → [バックアップと復元](backup-restore.ja.md) → [更新](upgrade.ja.md)（困ったら[トラブル対応](troubleshooting.ja.md)）
 1. [設定ファイルリファレンス (`configuration.md`)](configuration.ja.md) - 基本設定および管理画面からの動的設定（`system.*`）
 2. [認証 & ユーザー管理 (`authentication.md`)](authentication.ja.md) - ユーザー登録、ロール権限、SSO 連携
 3. [監査ログ (`audit.md`)](audit.ja.md) / [アクセス解析 (`analytics.md`)](analytics.ja.md) - 運用監視とアクセス統計
