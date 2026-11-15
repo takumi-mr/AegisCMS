@@ -29,8 +29,9 @@ use aegis_schema::{FieldType, SchemaDefinition};
 pub struct CreateContentRequest {
     pub title: String,
     pub slug: String,
-    #[serde(default = "default_status")]
-    pub status: String,
+    /// Publication state. When left out, a new item is a `draft` and an update keeps the current state
+    #[serde(default)]
+    pub status: Option<String>,
     #[serde(default)]
     pub blocks: Vec<BlockNode>,
     #[serde(default)]
@@ -54,8 +55,52 @@ pub struct CreateContentRequest {
     pub fields: HashMap<String, serde_json::Value>,
 }
 
-fn default_status() -> String {
-    "draft".to_string()
+/// The publication states the API accepts. Anything else is refused instead of being stored as an
+/// unknown state that is neither public nor reachable from the admin screen.
+const VALID_STATUSES: [&str; 5] = ["draft", "pending", "scheduled", "published", "archived"];
+
+fn ensure_valid_status(status: &str) -> Result<(), ApiError> {
+    if VALID_STATUSES.contains(&status) {
+        return Ok(());
+    }
+    Err(api_error(
+        StatusCode::BAD_REQUEST,
+        format!(
+            "Invalid status '{}': use one of {}",
+            status,
+            VALID_STATUSES.join(", ")
+        ),
+    ))
+}
+
+/// A unique-constraint failure from the database, in the wording of SQLite, PostgreSQL and MySQL
+fn is_unique_violation(message: &str) -> bool {
+    message.contains("UNIQUE constraint failed")
+        || message.contains("duplicate key value violates unique constraint")
+        || message.contains("Duplicate entry")
+}
+
+/// 409 when another item of the same content type already uses `slug`
+async fn ensure_slug_free(
+    state: &AppState,
+    schema: &SchemaDefinition,
+    content_type: &str,
+    slug: &str,
+    own_id: Option<&str>,
+) -> Result<(), ApiError> {
+    let existing = state.db.get_content(schema, slug).await.map_err(|e| {
+        api_error(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            format!("Database error: {}", e),
+        )
+    })?;
+    match existing {
+        Some(other) if other.slug == slug && Some(other.id.as_str()) != own_id => Err(api_error(
+            StatusCode::CONFLICT,
+            format!("A {} with the slug '{}' already exists", content_type, slug),
+        )),
+        _ => Ok(()),
+    }
 }
 
 /// 予約公開の状態。`published_at` の日時になると `scheduler` が `published` にする
@@ -560,6 +605,11 @@ async fn record_store_result(
     result.map_err(|e| match e {
         // カスタムフィールドの値が列型に変換できない場合はクライアントの入力エラー
         AegisError::Validation(_) => api_error(StatusCode::BAD_REQUEST, e.to_string()),
+        // Two saves with the same slug at once get past the check before the insert
+        AegisError::Database(ref message) if is_unique_violation(message) => api_error(
+            StatusCode::CONFLICT,
+            "The slug (or another unique value) is already used by another item".to_string(),
+        ),
         other => api_error(
             StatusCode::INTERNAL_SERVER_ERROR,
             format!("Database error: {}", other),
@@ -627,8 +677,10 @@ pub async fn create_content(
             "Reviewers cannot create new content",
         ));
     }
-    // contributor は下書き・レビュー待ちとしてだけ作れる
-    review::ensure_may_set_status(&session, &payload.status)?;
+    // 省略したら下書き。contributor は下書き・レビュー待ちとしてだけ作れる
+    let requested_status = payload.status.take().unwrap_or_else(|| "draft".to_string());
+    ensure_valid_status(&requested_status)?;
+    review::ensure_may_set_status(&session, &requested_status)?;
     let review_note = review::normalize_note(payload.review_note.take())?;
     // 著者は既定でログインユーザー。他人を著者にできるのは admin のみ
     match &payload.author_id {
@@ -650,7 +702,7 @@ pub async fn create_content(
     let now = now_at.to_rfc3339();
     let author_id = payload.author_id.clone();
     let (status, published_at, unpublish_at) = resolve_publication(
-        payload.status.clone(),
+        requested_status,
         payload.published_at.as_deref(),
         payload.unpublish_at.as_deref(),
         None,
@@ -667,6 +719,8 @@ pub async fn create_content(
         payload,
     )
     .await?;
+
+    ensure_slug_free(&state, &schema, &content_type, &saved.slug, None).await?;
 
     // 4. ContentRecord 作成および DatabaseAdapter による永続化
     let record = ContentRecord {
@@ -732,7 +786,11 @@ pub async fn update_content(
     audit: AuditContext,
     Json(mut payload): Json<CreateContentRequest>,
 ) -> Result<Json<ContentResponse>, ApiError> {
-    review::ensure_may_set_status(&session, &payload.status)?;
+    // A status that was sent is checked up front; one that was left out keeps the current state (below)
+    if let Some(requested) = payload.status.as_deref() {
+        ensure_valid_status(requested)?;
+        review::ensure_may_set_status(&session, requested)?;
+    }
     let review_note = review::normalize_note(payload.review_note.take())?;
     let schema = find_schema(&state, &content_type).await?;
     ensure_known_access(&state, &payload.fields)?;
@@ -753,7 +811,13 @@ pub async fn update_content(
                 format!("Content '{}' not found", slug_or_id),
             )
         })?;
-    review::ensure_may_update(&session, &current, &payload.status)?;
+    let status_omitted = payload.status.is_none();
+    let requested_status = payload
+        .status
+        .take()
+        .unwrap_or_else(|| current.status.clone());
+    review::ensure_may_set_status(&session, &requested_status)?;
+    review::ensure_may_update(&session, &current, &requested_status)?;
 
     // Seed a baseline for records saved before versioning was enabled.
     let existing_versions = state
@@ -797,9 +861,15 @@ pub async fn update_content(
     let publish_requested = payload.publish;
     let now_at = chrono::Utc::now();
     let now = now_at.to_rfc3339();
+    // Keeping a scheduled item as it is also keeps the time it is scheduled for
+    let requested_at = payload.published_at.clone().or_else(|| {
+        (status_omitted && requested_status == STATUS_SCHEDULED)
+            .then(|| current.published_at.clone())
+            .flatten()
+    });
     let (status, published_at, unpublish_at) = resolve_publication(
-        payload.status.clone(),
-        payload.published_at.as_deref(),
+        requested_status,
+        requested_at.as_deref(),
         payload.unpublish_at.as_deref(),
         Some(&current),
         now_at,
@@ -815,6 +885,16 @@ pub async fn update_content(
     )
     .await?;
 
+    if saved.slug != current.slug {
+        ensure_slug_free(
+            &state,
+            &schema,
+            &content_type,
+            &saved.slug,
+            Some(&current.id),
+        )
+        .await?;
+    }
     let previous_status = current.status.clone();
     let previous_slug = current.slug.clone();
     // The URL visitors use now: the published version's slug, which only changes when a new version is published

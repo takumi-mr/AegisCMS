@@ -380,3 +380,242 @@ async fn test_reviewer_role_permissions() {
     assert_eq!(status, StatusCode::FORBIDDEN, "{body}");
     assert_eq!(body["error"], "Reviewers cannot delete content");
 }
+
+fn page(title: &str, slug: &str) -> Value {
+    json!({ "title": title, "slug": slug, "blocks": [] })
+}
+
+fn with(mut body: Value, key: &str, value: Value) -> Value {
+    body[key] = value;
+    body
+}
+
+#[tokio::test]
+async fn test_an_unknown_status_is_refused() {
+    let site = site().await;
+    let (status, body) = site
+        .send(
+            "POST",
+            "/api/v1/contents/page",
+            Some(with(page("Live", "live"), "status", json!("live"))),
+        )
+        .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST, "{body}");
+    assert!(body["error"].as_str().unwrap().contains("Invalid status"));
+
+    // Nothing was stored
+    let (status, _) = site.send("GET", "/api/v1/contents/page/live", None).await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+
+    // The same on update, and the item is left as it was
+    let (status, _) = site
+        .send("POST", "/api/v1/contents/page", Some(page("Real", "real")))
+        .await;
+    assert_eq!(status, StatusCode::CREATED);
+    let (status, body) = site
+        .send(
+            "PUT",
+            "/api/v1/contents/page/real",
+            Some(with(page("Real", "real"), "status", json!("live"))),
+        )
+        .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST, "{body}");
+    let (_, read) = site.send("GET", "/api/v1/contents/page/real", None).await;
+    assert_eq!(read["status"], "draft");
+
+    // The five documented states are accepted
+    for state in ["draft", "pending", "published", "archived"] {
+        let (status, body) = site
+            .send(
+                "POST",
+                "/api/v1/contents/page",
+                Some(with(
+                    page(state, &format!("is-{state}")),
+                    "status",
+                    json!(state),
+                )),
+            )
+            .await;
+        assert_eq!(status, StatusCode::CREATED, "{state}: {body}");
+    }
+}
+
+#[tokio::test]
+async fn test_a_duplicate_slug_is_a_conflict() {
+    let site = site().await;
+    let (status, _) = site
+        .send("POST", "/api/v1/contents/page", Some(page("One", "same")))
+        .await;
+    assert_eq!(status, StatusCode::CREATED);
+
+    let (status, body) = site
+        .send("POST", "/api/v1/contents/page", Some(page("Two", "same")))
+        .await;
+    assert_eq!(status, StatusCode::CONFLICT, "{body}");
+    assert!(body["error"].as_str().unwrap().contains("'same'"));
+
+    // Renaming another item to a slug that is taken is a conflict too
+    let (status, _) = site
+        .send(
+            "POST",
+            "/api/v1/contents/page",
+            Some(page("Other", "other")),
+        )
+        .await;
+    assert_eq!(status, StatusCode::CREATED);
+    let (status, body) = site
+        .send(
+            "PUT",
+            "/api/v1/contents/page/other",
+            Some(page("Other", "same")),
+        )
+        .await;
+    assert_eq!(status, StatusCode::CONFLICT, "{body}");
+
+    // Saving an item with its own slug is not a conflict, and a free slug works
+    let (status, body) = site
+        .send(
+            "PUT",
+            "/api/v1/contents/page/other",
+            Some(page("Other again", "other")),
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    let (status, body) = site
+        .send(
+            "PUT",
+            "/api/v1/contents/page/other",
+            Some(page("Renamed", "renamed")),
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+}
+
+#[tokio::test]
+async fn test_an_update_without_status_keeps_the_current_status() {
+    let site = site().await;
+
+    // Published stays published, and keeps its first publication time
+    let (status, created) = site
+        .send(
+            "POST",
+            "/api/v1/contents/page",
+            Some(with(
+                page("Live", "kept-live"),
+                "status",
+                json!("published"),
+            )),
+        )
+        .await;
+    assert_eq!(status, StatusCode::CREATED, "{created}");
+    let (status, updated) = site
+        .send(
+            "PUT",
+            "/api/v1/contents/page/kept-live",
+            Some(page("Live, edited", "kept-live")),
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK, "{updated}");
+    assert_eq!(updated["status"], "published");
+    assert_eq!(updated["title"], "Live, edited");
+    assert_eq!(updated["published_at"], created["published_at"]);
+
+    // A draft stays a draft, an archived item stays archived
+    for state in ["draft", "archived"] {
+        let slug = format!("kept-{state}");
+        site.send(
+            "POST",
+            "/api/v1/contents/page",
+            Some(with(page(state, &slug), "status", json!(state))),
+        )
+        .await;
+        let (status, updated) = site
+            .send(
+                "PUT",
+                &format!("/api/v1/contents/page/{slug}"),
+                Some(page("Edited", &slug)),
+            )
+            .await;
+        assert_eq!(status, StatusCode::OK, "{updated}");
+        assert_eq!(updated["status"], state);
+    }
+
+    // A scheduled item keeps the time it is scheduled for
+    let (status, created) = site
+        .send(
+            "POST",
+            "/api/v1/contents/page",
+            Some(with(
+                with(
+                    page("Later", "kept-scheduled"),
+                    "status",
+                    json!("scheduled"),
+                ),
+                "published_at",
+                json!("2999-01-01T00:00:00Z"),
+            )),
+        )
+        .await;
+    assert_eq!(status, StatusCode::CREATED, "{created}");
+    let (status, updated) = site
+        .send(
+            "PUT",
+            "/api/v1/contents/page/kept-scheduled",
+            Some(page("Later, edited", "kept-scheduled")),
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK, "{updated}");
+    assert_eq!(updated["status"], "scheduled");
+    assert_eq!(updated["published_at"], created["published_at"]);
+
+    // A new item without a status is still a draft
+    let (status, created) = site
+        .send("POST", "/api/v1/contents/page", Some(page("New", "fresh")))
+        .await;
+    assert_eq!(status, StatusCode::CREATED);
+    assert_eq!(created["status"], "draft");
+}
+
+#[tokio::test]
+async fn test_a_contributor_update_without_status_cannot_publish() {
+    let site = site().await;
+    let contributor = site.new_session("writer", "contributor").await;
+
+    // Their own item waiting for review stays that way
+    let (status, _) = site
+        .send_as(
+            &contributor,
+            "POST",
+            "/api/v1/contents/page",
+            Some(with(page("Mine", "mine"), "status", json!("pending"))),
+        )
+        .await;
+    assert_eq!(status, StatusCode::CREATED);
+    let (status, updated) = site
+        .send_as(
+            &contributor,
+            "PUT",
+            "/api/v1/contents/page/mine",
+            Some(page("Mine, edited", "mine")),
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK, "{updated}");
+    assert_eq!(updated["status"], "pending");
+
+    // Leaving the status out does not let them touch published content
+    site.send(
+        "POST",
+        "/api/v1/contents/page",
+        Some(with(page("Live", "editors"), "status", json!("published"))),
+    )
+    .await;
+    let (status, body) = site
+        .send_as(
+            &contributor,
+            "PUT",
+            "/api/v1/contents/page/editors",
+            Some(page("Hijacked", "editors")),
+        )
+        .await;
+    assert_eq!(status, StatusCode::FORBIDDEN, "{body}");
+}
