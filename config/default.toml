@@ -315,6 +315,11 @@ cache_max_age = 60
 # Requests per IP per minute (0 = no limit)
 rate_limit_per_minute = 600
 
+[mcp]
+# MCP server for AI assistants (POST /mcp) and the OAuth endpoints it signs in with (docs/mcp.md).
+# false turns off both (404); the REST API and API tokens are not affected
+enabled = true
+
 [analytics]
 # Cookie-less access analytics: a small beacon on public pages and daily counts in the database,
 # shown in Admin Studio's Analytics tab (docs/analytics.md). No IP addresses are stored

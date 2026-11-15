@@ -677,3 +677,64 @@ async fn test_moderate_and_reply_to_comments() {
     let (_, after) = call(&state, &editor, "list_comments", json!({})).await;
     assert!(after.to_string().contains("Thank you!"));
 }
+
+#[tokio::test]
+async fn test_mcp_and_oauth_can_be_turned_off() {
+    let mut config = AegisConfig::default();
+    config.mcp.enabled = false;
+    let state = Arc::new(
+        crate::test_support::test_app_state(config, PluginSupervisor::new(), Vec::new()).await,
+    );
+    let editor = session(&state, "editor").await;
+
+    let (status, _) = rpc(
+        &state,
+        Some(&editor),
+        json!({ "jsonrpc": "2.0", "id": 1, "method": "ping" }),
+    )
+    .await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+
+    // OAuth のエンドポイントも、案内も出ない
+    for (method, path) in [
+        ("GET", "/mcp"),
+        ("GET", "/.well-known/oauth-protected-resource"),
+        ("GET", "/.well-known/oauth-protected-resource/mcp"),
+        ("GET", "/.well-known/oauth-authorization-server"),
+        ("POST", "/oauth/register"),
+        ("POST", "/oauth/token"),
+        ("GET", "/oauth/authorize"),
+        ("POST", "/oauth/authorize"),
+        ("GET", "/oauth/authorize.css"),
+    ] {
+        let response = crate::app::router(&state.config, state.clone())
+            .oneshot(
+                Request::builder()
+                    .method(method)
+                    .uri(path)
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::NOT_FOUND, "{method} {path}");
+    }
+
+    // REST API は今までどおり使える
+    let (status, me) = rest(&state, &editor, "GET", "/api/v1/auth/session", json!(null)).await;
+    assert_eq!(status, StatusCode::OK, "{me}");
+}
+
+#[tokio::test]
+async fn test_mcp_is_on_by_default() {
+    let state = state().await;
+    assert!(state.config.mcp.enabled);
+    let editor = session(&state, "editor").await;
+    let (status, _) = rpc(
+        &state,
+        Some(&editor),
+        json!({ "jsonrpc": "2.0", "id": 1, "method": "ping" }),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+}
