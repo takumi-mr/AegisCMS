@@ -37,6 +37,8 @@
 ```bash
 # Run the Docker image (GitHub Container Registry)
 docker run -d --name aegiscms -p 8080:8080 -v aegis-data:/app/data ghcr.io/takumi-mr/aegiscms:latest
+# Create the first administrator (a new site has no accounts), then log in at http://localhost:8080/admin/
+docker exec -it aegiscms aegis-server user add admin --role admin
 
 # ...or build and run from source (port 8080)
 task dev
@@ -44,10 +46,29 @@ task dev
 
 - **Try a sample site**: the e-commerce shop [`examples/coffee-shop/`](examples/coffee-shop) (`task demo:shop`) or the forum [`examples/hiking-forum/`](examples/hiking-forum) (`task demo:forum`).
 - **Publish over HTTPS on a server**: use [`deploy/`](deploy) (AegisCMS + Caddy). Write your domains in `sites.toml` and run `./deploy.sh up`. Multiple sites are supported.
+- **Install, update, back up, troubleshoot**: see [Installing](docs/install.md) and the other guides in the [documentation index](docs/README.md).
 - **Develop**: see [docs/development.md](docs/development.md). Run `task check` before opening a PR.
 
 > [!NOTE]
 > The READMEs are available in English and Japanese (`README.md` / `README.ja.md` in each directory). The detailed documents under [`docs/`](docs) are in English (`*.md`), with Japanese copies (`*.ja.md`) kept as a snapshot.
+
+## System Requirements
+
+AegisCMS is a single binary with a built-in database (SQLite), so a small server is enough to start.
+
+|                  |                                                                                                                                                                 |
+| ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **OS / CPU**     | Linux (x86_64, arm64), Windows (x86_64). Docker images are multi-architecture (`linux/amd64`, `linux/arm64`).                                                   |
+| **Linux binary** | glibc 2.35 or later (Ubuntu 22.04+, Debian 12+, and similar). Download from [Releases](https://github.com/takumi-mr/AegisCMS/releases/latest).                  |
+| **Docker**       | Any recent Docker Engine. The image is about 280 MB.                                                                                                            |
+| **Memory**       | About 13 MiB idle and 23 MiB after 3,000 requests to a new site (measured with the Docker image, SQLite). It grows with content, plugins, and the search index. |
+| **Disk**         | The binary is about 30 MB compressed (87 MB extracted) and includes Admin Studio. A new site's data is about 1 MB. Add space for uploads and backups.           |
+| **Database**     | SQLite (default, nothing to install). For larger sites: PostgreSQL 16 or MySQL 8.0 (the versions we test against).                                              |
+| **Optional**     | Redis 7 (shared sessions and cache across servers), S3-compatible storage (uploads), an SMTP server (email).                                                    |
+| **Network**      | One TCP port (8080 by default). For public sites, put it behind HTTPS ([`deploy/`](deploy) sets up Caddy for you).                                              |
+
+> [!NOTE]
+> The memory figures are for an empty site, measured once on an amd64 machine. They are not a sizing guide for a production site: measure with your own content and plugins.
 
 ## Table of Contents
 
