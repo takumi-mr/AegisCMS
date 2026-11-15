@@ -35,7 +35,7 @@ Clients that sign in with OAuth, such as the custom connectors of Claude.ai, nee
 2. The page names the application and what it asks for. Enter your **username and password** (and the authentication code, if you use two-factor authentication) and click **Allow**. **Deny** sends you back without giving access.
 3. The client receives an access token (an API token valid for **1 day**) and a **refresh token** (valid for **90 days**). The client gets a new access token by itself with the refresh token, and every refresh token can be used only once and is replaced by a new one. You are asked again only if the application is not used for 90 days.
 
-What the application can do is limited twice. The permissions you agree to decide the role of the token: reading only (`content:read`) gives `viewer`, drafts (`content:draft`) give `contributor`, and publishing (`content:publish`) gives `editor`. The application can ask for each one, but **drafts are on by default and Publish is off**: you tick them on the page. And the token never goes above your own role.
+What the application can do is limited twice. The permissions you agree to decide the role of the token: reading only (`content:read`) gives `viewer`, drafts (`content:draft`) give `contributor`, publishing (`content:publish`) and managing the site (`site:manage`: comments, reviews, orders, members) give `editor`. The application can ask for each one, but **drafts are on by default; publishing and managing the site are off**: you tick them on the page. And the token never goes above your own role.
 
 The token appears in **My profile › API tokens** as `OAuth: <application name>`, and you can revoke it there at any time. Revoking it ends the permission completely: the application cannot get a new token with its refresh token. Allowing the same application again, for example on another device, adds another token.
 
@@ -83,6 +83,26 @@ These change what visitors see. The assistant is told to use them only when you 
 | `unpublish_content` | Takes an item off the site by setting its status to `draft` (default) or `archived` (`to`). The content is kept.                                                            |
 | `delete_content`    | Deletes an item permanently.                                                                                                                                                |
 
+### Comments, shop and members (`editor` and above)
+
+These reach visitors' and customers' personal information (comments, orders, members) and public replies. With OAuth they are given only if you tick the permission to moderate comments and reviews and read orders and members on the sign-in page (`site:manage`, off by default), and the clients ask you to confirm the tools that write. Each one needs its feature to be on on the server (comments, the shop, reviews, members); when it is off, the tool fails with the REST API's error.
+
+| Tool               | What it does                                                                                                                                                    |
+| ------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `list_comments`    | Comments for moderation, newest first, with the counts per status. Filter with `status` (`pending`, `approved`, `spam`, `trash`), `content_type`, `content_id`. |
+| `moderate_comment` | Sets the `status` of a comment. `approved` makes it public; the others hide it.                                                                                 |
+| `reply_to_comment` | Posts a public reply (`body`, plain text). It is published at once, and the comment it answers is approved with it.                                             |
+| `list_orders`      | Shop orders, newest first (filter with `status`). Includes customers' personal information.                                                                     |
+| `get_order`        | One order with its items and customer details.                                                                                                                  |
+| `sales_report`     | Sales per day between `start` and `end` (`YYYY-MM-DD`, UTC, inclusive).                                                                                         |
+| `list_reviews`     | Product reviews for moderation (filter with `product_id`, `status`).                                                                                            |
+| `moderate_review`  | Sets the `status` of a review, with a `rejection_reason` when rejecting.                                                                                        |
+| `reply_to_review`  | Sets the shop's public reply to a review.                                                                                                                       |
+| `list_members`     | The site's members (visitor accounts). Includes personal information.                                                                                           |
+| `get_member`       | One member with their level and status.                                                                                                                         |
+
+Products are content items: read and edit them with the content tools (`list_content` with the product type, `update_content`). Changing an order's status, refunds, and changing members are not available through MCP.
+
 ### How writing behaves
 
 - **`create_draft` always saves a draft.** A `status` or `publish` sent along is ignored. The slug must be unique within the type.
@@ -94,7 +114,7 @@ When a tool fails, the assistant receives the HTTP status and the error message 
 
 ## 4. Limits of this version
 
-- Only these tools. Comments, the shop, members and settings are not available through MCP; use Admin Studio or the REST API.
+- Only these tools. Settings, users, themes, plugins and the forum, newsletter and contact messages are not available through MCP; use Admin Studio or the REST API.
 - The sign-in page is in English only.
 - There is no switch to turn the endpoint off. To stop an assistant, revoke its token.
 - Only `POST /mcp` is served (no streaming from the server); `GET /mcp` answers `405`.

@@ -1189,3 +1189,77 @@ mod sso {
             .starts_with("http://localhost:5173/admin/#session="));
     }
 }
+
+#[tokio::test]
+async fn test_manage_scope_is_off_until_the_user_ticks_it() {
+    let state = state().await;
+    let client_id = register(&state, REDIRECT).await;
+    let scope = "content:read site:manage";
+
+    let page = send(
+        &state,
+        "GET",
+        &format!(
+            "/oauth/authorize?{}",
+            authorize_query(&client_id, REDIRECT, scope)
+        ),
+        None,
+        String::new(),
+        &[],
+    )
+    .await;
+    // 顧客の情報に触れる範囲は、警告つきでオフのまま出る
+    assert!(page.text.contains("name=\"grant_manage\" value=\"on\">"));
+    assert!(page.text.contains("personal information"));
+    assert!(!page.text.contains("name=\"grant_draft\""));
+
+    let granted = |extra: &'static [(&'static str, &'static str)]| {
+        let state = state.clone();
+        let client_id = client_id.clone();
+        async move {
+            let reply = allow_with(
+                &state,
+                &client_id,
+                REDIRECT,
+                scope,
+                "alice",
+                "correct-horse-battery",
+                extra,
+            )
+            .await;
+            let token = exchange(
+                &state,
+                &client_id,
+                REDIRECT,
+                &code_from(&reply),
+                &verifier(),
+            )
+            .await;
+            let access = token.json()["access_token"].as_str().unwrap().to_string();
+            let me = send(
+                &state,
+                "GET",
+                "/api/v1/auth/session",
+                None,
+                String::new(),
+                &[("authorization", &format!("Bearer {access}"))],
+            )
+            .await;
+            (
+                token.json()["scope"].as_str().unwrap().to_string(),
+                me.json()["role"].as_str().unwrap().to_string(),
+            )
+        }
+    };
+
+    // チェックを入れなければ読み取りだけ
+    assert_eq!(
+        granted(&[("grants", "1")]).await,
+        ("content:read".to_string(), "viewer".to_string())
+    );
+    // 入れたときだけ editor（持ち主のロールの範囲で）
+    assert_eq!(
+        granted(&[("grants", "1"), ("grant_manage", "on")]).await,
+        ("content:read site:manage".to_string(), "editor".to_string())
+    );
+}
