@@ -5,6 +5,9 @@ edition = "2021"
 authors = ["AegisCMS Core Team"]
 description = "Official Wasm plugin with content blocks: buttons and link cards"
 
+[lints]
+workspace = true
+
 [lib]
 crate-type = ["cdylib", "rlib"]
 

@@ -5,6 +5,9 @@ edition = "2021"
 authors = ["AegisCMS Core Team"]
 description = "Official Wasm plugin that draws Mermaid diagrams from ```mermaid code blocks"
 
+[lints]
+workspace = true
+
 [lib]
 crate-type = ["cdylib", "rlib"]
 

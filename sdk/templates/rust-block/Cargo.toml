@@ -5,6 +5,9 @@ edition = "2021"
 authors = ["AegisCMS Plugin Developer"]
 description = "Official Rust WebAssembly template for a plugin that adds a custom block (render-blocks)"
 
+[lints]
+workspace = true
+
 [lib]
 crate-type = ["cdylib", "rlib"]
 

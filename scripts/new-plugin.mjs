@@ -175,7 +175,8 @@ if (lang === 'rust') {
       /path = "\.\.\/\.\.\/\.\.\/crates\/aegis-plugin-sdk"/g,
       'path = "../../crates/aegis-plugin-sdk"'
     );
-    // 独立クレート化: ルートの workspace member でないため、空の [workspace] を追加して競合を防止
+    // 独立クレート化: ルートの workspace member でないため、[lints] workspace = true を外し空の [workspace] を追加して競合を防止
+    content = content.replace(/\[lints\]\r?\nworkspace = true\r?\n\r?\n/, '');
     if (!content.includes('[workspace]')) {
       content = content.trimEnd() + '\n\n[workspace]\n';
     }

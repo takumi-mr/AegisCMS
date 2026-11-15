@@ -5,6 +5,9 @@ edition = "2021"
 authors = ["AegisCMS Core Team"]
 description = "Official Wasm plugin for syntax highlighting, external code themes and copy buttons"
 
+[lints]
+workspace = true
+
 [lib]
 crate-type = ["cdylib", "rlib"]
 

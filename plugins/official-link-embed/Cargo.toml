@@ -5,6 +5,9 @@ edition = "2021"
 authors = ["AegisCMS Core Team"]
 description = "Official Wasm plugin that turns a URL-only paragraph into a link card from the page's OGP / oEmbed data"
 
+[lints]
+workspace = true
+
 [lib]
 crate-type = ["cdylib", "rlib"]
 
