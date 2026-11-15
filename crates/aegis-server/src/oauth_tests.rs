@@ -140,6 +140,19 @@ async fn allow(
     username: &str,
     password: &str,
 ) -> Reply {
+    allow_with(state, client_id, redirect, scope, username, password, &[]).await
+}
+
+/// `extra` は画面のチェックの値（`grants`・`grant_draft`・`grant_publish`）
+async fn allow_with(
+    state: &Arc<AppState>,
+    client_id: &str,
+    redirect: &str,
+    scope: &str,
+    username: &str,
+    password: &str,
+    extra: &[(&str, &str)],
+) -> Reply {
     let mut pairs: Vec<(String, String)> =
         url::form_urlencoded::parse(authorize_query(client_id, redirect, scope).as_bytes())
             .into_owned()
@@ -147,6 +160,9 @@ async fn allow(
     pairs.push(("action".into(), "allow".into()));
     pairs.push(("username".into(), username.into()));
     pairs.push(("password".into(), password.into()));
+    for (k, v) in extra {
+        pairs.push((k.to_string(), v.to_string()));
+    }
     let borrowed: Vec<(&str, &str)> = pairs
         .iter()
         .map(|(k, v)| (k.as_str(), v.as_str()))
@@ -598,4 +614,136 @@ async fn test_deny_and_loopback_ports() {
     )
     .await;
     assert!(denied.text.contains("error=access_denied") && denied.text.contains("state=xyz"));
+}
+
+#[tokio::test]
+async fn test_publish_scope_is_off_until_the_user_ticks_it() {
+    let state = state().await;
+    let client_id = register(&state, REDIRECT).await;
+    let scope = "content:read content:draft content:publish";
+
+    // 画面では、下書きはオン、公開はオフ（警告つき）で出る
+    let page = send(
+        &state,
+        "GET",
+        &format!(
+            "/oauth/authorize?{}",
+            authorize_query(&client_id, REDIRECT, scope)
+        ),
+        None,
+        String::new(),
+        &[],
+    )
+    .await;
+    assert!(page
+        .text
+        .contains("name=\"grant_draft\" value=\"on\" checked"));
+    assert!(page.text.contains("name=\"grant_publish\" value=\"on\">"));
+    assert!(page.text.contains("class=\"warn\""));
+
+    let role_after = |reply: Reply| {
+        let state = state.clone();
+        let client_id = client_id.clone();
+        async move {
+            let token = exchange(
+                &state,
+                &client_id,
+                REDIRECT,
+                &code_from(&reply),
+                &verifier(),
+            )
+            .await;
+            let scope = token.json()["scope"].as_str().unwrap().to_string();
+            let tok = token.json()["access_token"].as_str().unwrap().to_string();
+            let me = send(
+                &state,
+                "GET",
+                "/api/v1/auth/session",
+                None,
+                String::new(),
+                &[("authorization", &format!("Bearer {tok}"))],
+            )
+            .await;
+            (scope, me.json()["role"].as_str().unwrap().to_string())
+        }
+    };
+
+    // 公開にチェックを入れなければ、求められても渡さない
+    let reply = allow_with(
+        &state,
+        &client_id,
+        REDIRECT,
+        scope,
+        "alice",
+        "correct-horse-battery",
+        &[("grants", "1"), ("grant_draft", "on")],
+    )
+    .await;
+    assert_eq!(
+        role_after(reply).await,
+        (
+            "content:read content:draft".to_string(),
+            "contributor".to_string()
+        )
+    );
+
+    // チェックを入れると editor まで（持ち主のロールの範囲で）
+    let reply = allow_with(
+        &state,
+        &client_id,
+        REDIRECT,
+        scope,
+        "alice",
+        "correct-horse-battery",
+        &[
+            ("grants", "1"),
+            ("grant_draft", "on"),
+            ("grant_publish", "on"),
+        ],
+    )
+    .await;
+    assert_eq!(
+        role_after(reply).await,
+        (
+            "content:read content:draft content:publish".to_string(),
+            "editor".to_string()
+        )
+    );
+
+    // viewer の持ち主は、公開を許可しても viewer のまま
+    let reply = allow_with(
+        &state,
+        &client_id,
+        REDIRECT,
+        scope,
+        "vera",
+        "correct-horse-battery",
+        &[
+            ("grants", "1"),
+            ("grant_draft", "on"),
+            ("grant_publish", "on"),
+        ],
+    )
+    .await;
+    assert_eq!(role_after(reply).await.1, "viewer");
+
+    // 求めていない範囲は、チェックを偽装しても渡さない
+    let reply = allow_with(
+        &state,
+        &client_id,
+        REDIRECT,
+        "content:read",
+        "alice",
+        "correct-horse-battery",
+        &[
+            ("grants", "1"),
+            ("grant_draft", "on"),
+            ("grant_publish", "on"),
+        ],
+    )
+    .await;
+    assert_eq!(
+        role_after(reply).await,
+        ("content:read".to_string(), "viewer".to_string())
+    );
 }
