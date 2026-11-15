@@ -17,6 +17,7 @@ docker run -d --name aegiscms -p 8080:8080 -v aegis-data:/app/data ghcr.io/takum
 - サイトは `http://localhost:8080/`、Admin Studio は `http://localhost:8080/admin/` で開きます。
 - データベースとアップロードしたファイルは `/app/data` に入ります。コンテナを入れ替えても残るよう、ボリューム（`-v aegis-data:/app/data`）に置いてください。
 - ログは `docker logs aegiscms`、停止は `docker stop aegiscms` です。
+- `latest` はリリースのたびに動きます。本番のサイトでは、`ghcr.io/takumi-mr/aegiscms:0.9` のようにバージョンを固定してください（[更新](upgrade.ja.md#バージョンを固定するdocker)）。
 - イメージは `linux/amd64` と `linux/arm64` に対応しています。Docker が自動で合うほうを選びます。
 
 ## 2. Linux バイナリ

@@ -24,6 +24,18 @@ docker run -d --name aegiscms -p 8080:8080 -v aegis-data:/app/data ghcr.io/takum
 
 Use the same volume (`-v`) and the same options as before. Your data stays in the volume. With `deploy/`, run `./deploy.sh pull && ./deploy.sh up`.
 
+#### Pinning a version (Docker)
+
+`latest` always points to the newest release, so `docker pull` can move you across a breaking change. For a production site, name the version you want:
+
+| Tag                                 | Follows                                       |
+| ----------------------------------- | --------------------------------------------- |
+| `ghcr.io/takumi-mr/aegiscms:0.9.0`  | Nothing. This exact release only              |
+| `ghcr.io/takumi-mr/aegiscms:0.9`    | Fixes (`0.9.1`, `0.9.2`, ...), but not `0.10` |
+| `ghcr.io/takumi-mr/aegiscms:latest` | Every new release                             |
+
+Before 1.0, a new minor version (`0.9` to `0.10`) can contain breaking changes, so `0.9` is a good choice: you get fixes by running `docker pull` again, and you move to the next minor version when you decide to, after reading its release notes. Version tags exist from `0.9.0` on.
+
 ### Binary
 
 1. Stop the server.
