@@ -28,6 +28,9 @@ mod headers;
 #[cfg(feature = "headless")]
 mod headless;
 mod inject;
+mod mcp;
+#[cfg(test)]
+mod mcp_tests;
 mod namespace;
 mod notices;
 mod notify_plugins;

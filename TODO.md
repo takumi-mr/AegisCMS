@@ -11,6 +11,8 @@
 
 - [ ] **宣言的クエリの残り**（本体、全言語プラグイン SDK の `PageRenderContext.queries`、`theme dev` / Theme Builder のサンプル（`samples/queries.json`）は実装済み。仕様は [queries.md](docs/queries.ja.md)、設計判断は [architecture.md 25](docs/architecture.ja.md#25-宣言的クエリ-aegis-schemasrcqueryrs-aegis-dbsrcpublished_columnsrs-aegis-serversrcqueriesrs)）: ① Admin Studio でクエリの一覧・結果のプレビューを出すか（要望を見て決める）。型をまたぐ結合は対応しない方針（[queries.md 10](docs/queries.ja.md#10-型をまたぐ結合をしない方針と代わりの方法)）。
 
+- [ ] **MCP の残り**（読み取りと下書きの保存は実装済み。仕様は [mcp.md](docs/mcp.ja.md)、実装は `crates/aegis-server/src/mcp.rs`。ツールは REST API のルーターを中で呼ぶ）: ① OAuth 2.1 対応（認可サーバーのメタデータ・動的クライアント登録・同意画面。Web 版 Claude.ai のカスタムコネクタに必要）。② 公開・予約・削除・メディアのアップロード・タグの付与のツール（公開系は確認の取り方を決めてから）。③ 無効にする設定（`[mcp] enabled`）が要るかは要望を見て決める。④ 実際の MCP クライアント（Claude Code、Cursor）での接続確認は、curl での確認しかしていない。
+
 ---
 
 ## 技術メモ・申し送り事項
