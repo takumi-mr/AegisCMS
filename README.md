@@ -37,7 +37,8 @@
 ```bash
 # Run the Docker image (GitHub Container Registry)
 docker run -d --name aegiscms -p 8080:8080 -v aegis-data:/app/data ghcr.io/takumi-mr/aegiscms:latest
-# Create the first administrator (a new site has no accounts), then log in at http://localhost:8080/admin/
+# A new site has no accounts. Open http://localhost:8080/admin/ to run the initial setup in the browser,
+# or create the first administrator from the command line:
 docker exec -it aegiscms aegis-server user add admin --role admin
 
 # ...or build and run from source (port 8080)
