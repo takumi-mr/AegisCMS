@@ -268,7 +268,7 @@ mod tests {
             Json(CreateContentRequest {
                 title: "Hello".to_string(),
                 slug: "hello".to_string(),
-                status: "published".to_string(),
+                status: Some("published".to_string()),
                 blocks: Vec::new(),
                 author_id: None,
                 published_at: None,
@@ -319,7 +319,7 @@ mod tests {
             Json(CreateContentRequest {
                 title: "First Post".to_string(),
                 slug: "first-post".to_string(),
-                status: "published".to_string(),
+                status: Some("published".to_string()),
                 blocks: Vec::new(),
                 author_id: None,
                 published_at: None,
@@ -412,7 +412,7 @@ mod tests {
             Json(CreateContentRequest {
                 title: "First Post Renamed".to_string(),
                 slug: "renamed-post".to_string(),
-                status: "published".to_string(),
+                status: Some("published".to_string()),
                 blocks: Vec::new(),
                 author_id: None,
                 published_at: None,
@@ -440,7 +440,7 @@ mod tests {
             Json(CreateContentRequest {
                 title: "About Us".to_string(),
                 slug: "about".to_string(),
-                status: "published".to_string(),
+                status: Some("published".to_string()),
                 blocks: Vec::new(),
                 author_id: None,
                 published_at: None,
@@ -494,7 +494,7 @@ mod tests {
             Json(CreateContentRequest {
                 title: "Scheduled Post".to_string(),
                 slug: "scheduled-post".to_string(),
-                status: STATUS_SCHEDULED.to_string(),
+                status: Some(STATUS_SCHEDULED.to_string()),
                 blocks: Vec::new(),
                 author_id: None,
                 published_at: Some(future_pub),
