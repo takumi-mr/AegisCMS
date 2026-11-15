@@ -4,15 +4,19 @@
 //! ツールは中で REST API のルーターを呼ぶだけで、承認フロー・検証・監査ログ・ロールの確認は REST と同じ経路を通る。
 //! 最初のリリースは読み取りと「下書きの作成・更新」だけ。公開（`publish`）や状態の変更はできない。
 
+use std::sync::Arc;
+
 use axum::{
     body::Body,
-    extract::Extension,
+    extract::{Extension, State},
     http::{header, HeaderMap, Method, Request, StatusCode},
     response::{IntoResponse, Response},
     Json, Router,
 };
 use serde_json::{json, Map, Value};
 use tower::ServiceExt;
+
+use crate::state::AppState;
 
 /// 実装している MCP のバージョン（新しい順）。クライアントが求めたものがこの中にあればそれで応じる
 const SUPPORTED_VERSIONS: [&str; 3] = ["2025-06-18", "2025-03-26", "2024-11-05"];
@@ -29,6 +33,7 @@ Body text is a list of blocks (see the content API guide); use get_content_schem
 
 /// `/mcp` の本体。`api` は REST API のルーター（`/mcp` 自身は含まない）
 pub async fn handle(
+    State(state): State<Arc<AppState>>,
     Extension(api): Extension<Router>,
     headers: HeaderMap,
     Json(message): Json<Value>,
@@ -38,7 +43,7 @@ pub async fn handle(
         .and_then(|v| v.to_str().ok())
         .filter(|v| v.len() > 7 && v[..7].eq_ignore_ascii_case("bearer "))
     else {
-        return unauthorized();
+        return unauthorized(&state, &headers);
     };
 
     if message.is_array() {
@@ -87,7 +92,7 @@ pub async fn handle(
                 return rpc_error(id, -32602, "arguments must be an object");
             }
             match call_tool(&api, auth, name, &args).await {
-                Outcome::Unauthorized => unauthorized(),
+                Outcome::Unauthorized => unauthorized(&state, &headers),
                 Outcome::UnknownTool => rpc_error(id, -32602, &format!("Unknown tool: {name}")),
                 Outcome::Done(text) => rpc_result(
                     id,
@@ -112,10 +117,14 @@ pub async fn not_supported() -> Response {
     response
 }
 
-fn unauthorized() -> Response {
+/// 401。OAuth で始められるクライアントには、`WWW-Authenticate` で認可サーバーの案内（RFC 9728）を返す
+fn unauthorized(state: &AppState, headers: &HeaderMap) -> Response {
     (
         StatusCode::UNAUTHORIZED,
-        [(header::WWW_AUTHENTICATE, "Bearer")],
+        [(
+            header::WWW_AUTHENTICATE,
+            crate::oauth::www_authenticate(state, headers),
+        )],
         Json(json!({ "error": "Send an API token as 'Authorization: Bearer <token>'" })),
     )
         .into_response()
