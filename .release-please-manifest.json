@@ -5,6 +5,7 @@
   "plugins/official-ads": "0.3.1",
   "plugins/official-back-to-top": "0.3.1",
   "plugins/official-blocks": "0.4.1",
+  "plugins/official-charts": "0.1.0",
   "plugins/official-code-enhancer": "0.5.1",
   "plugins/official-mermaid": "0.2.2",
   "plugins/official-plantuml": "0.2.1",

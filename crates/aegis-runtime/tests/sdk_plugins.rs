@@ -235,6 +235,70 @@ async fn test_official_blocks_plugin_renders_its_blocks() {
     assert_eq!(html[1], None);
 }
 
+/// 公式プラグイン `official-charts` のビルド済み `plugin.wasm` で、マニフェストの `blocks` が検証を通り、
+/// 複数系列を含む SVG グラフが `render-blocks` で生成され、サニタイズ後もそのまま残ること
+#[tokio::test]
+async fn test_official_charts_plugin_renders_its_blocks() {
+    let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../plugins/official-charts");
+    let plugin = load(&WasmEngine::new().unwrap(), &dir);
+    plugin.manifest().validate_blocks().unwrap();
+    assert!(plugin.manifest().declares_block("official-charts/chart"));
+
+    let chart = |attributes: serde_json::Value| {
+        let mut node = BlockNode::new("official-charts/chart");
+        node.attributes = attributes;
+        node
+    };
+    let html = plugin
+        .render_blocks(vec![
+            chart(serde_json::json!({
+                "type": "bar",
+                "title": "Sales",
+                "unit": "k",
+                "series": "2025, 2026",
+                "items": [
+                    { "label": "Q1", "values": "120, 150" },
+                    { "label": "Q2", "values": "140, 180" }
+                ]
+            })),
+            chart(serde_json::json!({
+                "type": "donut",
+                "unit": "%",
+                "items": [
+                    { "label": "Search", "values": "65" },
+                    { "label": "Direct", "values": "35" }
+                ]
+            })),
+            chart(serde_json::json!({
+                "type": "bar",
+                "items": []
+            })),
+        ])
+        .await
+        .unwrap();
+    assert_eq!(html.len(), 3);
+    assert_eq!(html[2], None);
+
+    let bar = aegis_ast::renderer::sanitize_html_fragment_with_frames(
+        html[0].as_deref().unwrap(),
+        plugin.manifest().frame_domains(),
+    );
+    assert!(bar.contains("<style>"), "{bar}");
+    assert!(bar.contains("<svg "), "{bar}");
+    assert!(bar.contains("viewBox="), "{bar}");
+    assert!(bar.contains("<rect "), "{bar}");
+    assert!(!bar.contains("style=\""), "{bar}");
+
+    let donut = aegis_ast::renderer::sanitize_html_fragment_with_frames(
+        html[1].as_deref().unwrap(),
+        plugin.manifest().frame_domains(),
+    );
+    assert!(donut.contains("<svg "), "{donut}");
+    assert!(donut.contains("viewBox="), "{donut}");
+    assert!(donut.contains("<circle "), "{donut}");
+    assert!(!donut.contains("style=\""), "{donut}");
+}
+
 /// 公式プラグイン `official-page-toc` / `official-back-to-top` のビルド済み `plugin.wasm` で、`on-render-page` が
 /// ホストから呼べること（設定が無いときは既定の見た目で、本文・`extra_css`・`extra_head` に足す）
 #[tokio::test]

@@ -381,6 +381,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "aegis-plugin-charts"
+version = "0.1.0"
+dependencies = [
+ "aegis-plugin-sdk",
+ "serde_json",
+]
+
+[[package]]
 name = "aegis-plugin-clarity"
 version = "0.2.1"
 dependencies = [

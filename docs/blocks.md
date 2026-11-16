@@ -157,7 +157,7 @@ Classes for changing the look in a theme:
 
 ## 4. Plugin Blocks
 
-Wasm plugins can add blocks that can be placed in the body (for how to build them, see [plugin_hooks.md 1.10](plugin_hooks.md#110-render-blocks)). Examples are the official plugin [`official-blocks`](../plugins/official-blocks)'s button (`official-blocks/button`), link card (`official-blocks/link-card`), video (`official-blocks/video`; YouTube, Vimeo), audio (`official-blocks/audio`), file download (`official-blocks/file`), map (`official-blocks/map`; OpenStreetMap), image gallery (`official-blocks/gallery`), FAQ (`official-blocks/faq`), steps (`official-blocks/steps`), columns (`official-blocks/columns`), image and text (`official-blocks/media-text`), image with caption (`official-blocks/figure`), timeline (`official-blocks/timeline`), chat bubbles (`official-blocks/chat`), tabs (`official-blocks/tabs`), stats (`official-blocks/stats`), definition list (`official-blocks/definition-list`), and rating (`official-blocks/rating`; with schema.org Review).
+Wasm plugins can add blocks that can be placed in the body (for how to build them, see [plugin_hooks.md 1.10](plugin_hooks.md#110-render-blocks)). Examples are the official plugin [`official-blocks`](../plugins/official-blocks)'s button (`official-blocks/button`), link card (`official-blocks/link-card`), video (`official-blocks/video`; YouTube, Vimeo), audio (`official-blocks/audio`), file download (`official-blocks/file`), map (`official-blocks/map`; OpenStreetMap), image gallery (`official-blocks/gallery`), FAQ (`official-blocks/faq`), steps (`official-blocks/steps`), columns (`official-blocks/columns`), image and text (`official-blocks/media-text`), image with caption (`official-blocks/figure`), timeline (`official-blocks/timeline`), chat bubbles (`official-blocks/chat`), tabs (`official-blocks/tabs`), stats (`official-blocks/stats`), definition list (`official-blocks/definition-list`), and rating (`official-blocks/rating`; with schema.org Review), as well as the official plugin [`official-charts`](../plugins/official-charts)'s chart (`official-charts/chart`; bar, stacked bar, horizontal bar, line, and donut with multi-series support).
 
 - The blocks of enabled plugins line up in Admin Studio's add-block button (`GET /api/v1/blocks`). The edit screen shows a form of the input fields declared in the plugin's manifest.
 - What is saved is only the block name and attributes, and the plugin builds the HTML **on every display**. When you update the plugin, the display changes without re-saving.
@@ -189,6 +189,8 @@ In Markdown they are written on one line, with attributes as a JSON object (omit
 ::: official-blocks/columns {"items": [{"image": "/uploads/a.jpg", "title": "Fast", "text": "Renders in milliseconds."}, {"image": "/uploads/b.jpg", "title": "Safe", "text": "Plugins run inside Wasm."}]}
 
 ::: official-blocks/media-text {"image": "/uploads/a.jpg", "alt": "Roaster", "title": "Roasted weekly", "text": "What arrives is freshly roasted beans.", "side": "right"}
+
+::: official-charts/chart {"type": "bar", "title": "Monthly visits", "unit": "k", "series": "2025, 2026", "items": [{"label": "Jan", "values": "120, 150"}, {"label": "Feb", "values": "140, 185"}]}
 ```
 
 A line that cannot be read as JSON becomes a paragraph as is.
