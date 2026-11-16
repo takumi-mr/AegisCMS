@@ -32,13 +32,13 @@
 <section>
   <div class="rs-section-head">
     <h2>{{ t("theme.roastery.nav_journal") }}</h2>
-    <a href="{{ base_path }}/articles">{{ t("theme.roastery.all_articles") }} &rarr;</a>
+    <a href="{{ articles_url }}">{{ t("theme.roastery.all_articles") }} &rarr;</a>
   </div>
   <div class="rs-journal">
     {% for item in items %}
     <article class="rs-journal-card">
       <span class="rs-date">{{ item.published_at | date_short }}</span>
-      <h3><a href="{{ base_path }}/articles/{{ item.slug }}">{{ item.title }}</a></h3>
+      <h3><a href="{{ item.fields.url }}">{{ item.title }}</a></h3>
       <p>{{ item.excerpt | truncate(90) }}</p>
     </article>
     {% else %}

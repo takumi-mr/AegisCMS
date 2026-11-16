@@ -414,6 +414,11 @@ impl OpenApiGenerator {
                     "fields": {
                         "type": "array",
                         "items": { "$ref": "#/components/schemas/FieldDefinition" }
+                    },
+                    "public_path": {
+                        "type": "string",
+                        "nullable": true,
+                        "description": "URL prefix of the public pages, e.g. \"/news\" serves /news/{slug}. Default: /articles for article, none for other types"
                     }
                 },
                 "required": ["content_type", "label", "fields"]
@@ -644,6 +649,7 @@ mod tests {
     #[test]
     fn test_generate_openapi() {
         let schema = SchemaDefinition {
+            public_path: None,
             content_type: "article".to_string(),
             label: "技術記事".to_string(),
             description: Some("技術ブログ".to_string()),

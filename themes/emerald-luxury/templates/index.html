@@ -14,12 +14,12 @@
   <article class="lux-card">
     <div class="lux-card-tag">{{ item.content_type | upper }}</div>
     <h2 class="lux-card-title">
-      <a href="{{ base_path }}/articles/{{ item.slug }}">{{ item.title }}</a>
+      <a href="{{ item.fields.url }}">{{ item.title }}</a>
     </h2>
     <p class="lux-card-excerpt">{{ item.excerpt | truncate(150) }}</p>
     <div class="lux-card-footer">
       <span>{{ item.published_at | date_short }}</span>
-      <a href="{{ base_path }}/articles/{{ item.slug }}" class="lux-card-link">{{ t("theme.lux.view_exhibit") }} &rarr;</a>
+      <a href="{{ item.fields.url }}" class="lux-card-link">{{ t("theme.lux.view_exhibit") }} &rarr;</a>
     </div>
   </article>
   {% else %}

@@ -48,6 +48,102 @@ pub struct SchemaDefinition {
     pub description: Option<String>,
     #[serde(default)]
     pub fields: Vec<FieldDefinition>,
+    /// 公開ページの URL の先頭（`/news` など。`/news/{slug}` で詳細ページを出す）。
+    /// 省略時は `article` が `/articles`、`page` が `/`、それ以外は公開ページを持たない
+    ///
+    /// `auto`（YAML の `true` でも可）は、型名から `/<content_type>` を作る（読み込み時に置き換わる）。
+    /// `false` は書かないのと同じ
+    #[serde(default, deserialize_with = "deserialize_public_path")]
+    pub public_path: Option<String>,
+}
+
+/// `public_path` の値の書き方: 文字列（`/news`・`auto`）、`true`（`auto` と同じ）、`false`（なし）
+fn deserialize_public_path<'de, D>(deserializer: D) -> Result<Option<String>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    #[derive(Deserialize)]
+    #[serde(untagged)]
+    enum Raw {
+        Flag(bool),
+        Path(String),
+    }
+    Ok(match Option::<Raw>::deserialize(deserializer)? {
+        Some(Raw::Flag(true)) => Some(PUBLIC_PATH_AUTO.to_string()),
+        Some(Raw::Path(path)) => Some(path),
+        Some(Raw::Flag(false)) | None => None,
+    })
+}
+
+/// `public_path` に型名から決めさせる指定
+pub const PUBLIC_PATH_AUTO: &str = "auto";
+
+/// `public_path` の先頭に使えない名前（サーバーや機能が先に使っている URL）
+const RESERVED_PUBLIC_PATHS: &[&str] = &[
+    "api",
+    "uploads",
+    "category",
+    "tags",
+    "products",
+    "cart",
+    "orders",
+    "shop",
+    "account",
+    "forum",
+    "theme",
+    "themes",
+    "feed.xml",
+    "sitemap.xml",
+    "robots.txt",
+    "oembed",
+    "metrics",
+    "admin",
+    "contact",
+    "search",
+];
+
+impl SchemaDefinition {
+    /// `public_path: auto` を `/<content_type>` に置き換える（検査の前に呼ぶ）
+    pub fn resolve_public_path(mut self) -> Self {
+        if self.public_path.as_deref() == Some(PUBLIC_PATH_AUTO) {
+            self.public_path = Some(format!("/{}", self.content_type));
+        }
+        self
+    }
+
+    /// `public_path` の検査。`/` に続く 1 つの区切りだけ（小文字・数字・`-`・`_`）で、予約済みの名前や、
+    /// 公開ページを別に持つ型（`page`・`category`）では使えない
+    pub fn validate_public_path(&self) -> Result<(), String> {
+        let Some(path) = self.public_path.as_deref() else {
+            return Ok(());
+        };
+        if matches!(self.content_type.as_str(), "page" | "category") {
+            return Err(format!(
+                "schema '{}': public_path cannot be set (this type has its own public URL)",
+                self.content_type
+            ));
+        }
+        let name = path.strip_prefix('/').unwrap_or("");
+        let valid = !name.is_empty()
+            && name.len() <= 64
+            && name.starts_with(|c: char| c.is_ascii_lowercase() || c.is_ascii_digit())
+            && name
+                .chars()
+                .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-' || c == '_');
+        if !valid {
+            return Err(format!(
+                "schema '{}': public_path '{}' must be a single segment like \"/news\" (a-z, 0-9, '-', '_')",
+                self.content_type, path
+            ));
+        }
+        if RESERVED_PUBLIC_PATHS.contains(&name) || name.starts_with("wp-") {
+            return Err(format!(
+                "schema '{}': public_path '{}' is reserved by the server",
+                self.content_type, path
+            ));
+        }
+        Ok(())
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

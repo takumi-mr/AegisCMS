@@ -149,6 +149,18 @@ fn truthy(value: &serde_json::Value) -> bool {
     }
 }
 
+/// 記事へのリンク先。ホストが `fields.url`（`base_path` と記事の `public_path` 込み）を渡すのでそれを使い、
+/// 古いホストでは `/articles/{slug}` に戻す
+fn article_href(summary: &ContentSummary) -> String {
+    summary
+        .fields
+        .get("url")
+        .and_then(|v| v.as_str())
+        .filter(|s| !s.trim().is_empty())
+        .map(|s| s.to_string())
+        .unwrap_or_else(|| format!("/articles/{}", summary.slug))
+}
+
 fn get_thumbnail_url(summary: &ContentSummary) -> Option<String> {
     summary
         .fields
@@ -246,12 +258,12 @@ fn render_nav_html(
         };
 
         html.push_str(&format!(
-            "<a href=\"/articles/{}\" class=\"apn-item apn-prev\" rel=\"prev\">\
+            "<a href=\"{}\" class=\"apn-item apn-prev\" rel=\"prev\">\
                 <span class=\"apn-arrow\" aria-hidden=\"true\">&larr;</span>\
                 {}\
                 <div class=\"apn-body\">{}{}<span class=\"apn-title\">{}</span></div>\
             </a>",
-            escape(&p.slug),
+            escape(&article_href(p)),
             thumb_part,
             label_part,
             "",
@@ -286,12 +298,12 @@ fn render_nav_html(
         };
 
         html.push_str(&format!(
-            "<a href=\"/articles/{}\" class=\"apn-item apn-next\" rel=\"next\">\
+            "<a href=\"{}\" class=\"apn-item apn-next\" rel=\"next\">\
                 <div class=\"apn-body\">{}{}<span class=\"apn-title\">{}</span></div>\
                 {}\
                 <span class=\"apn-arrow\" aria-hidden=\"true\">&rarr;</span>\
             </a>",
-            escape(&n.slug),
+            escape(&article_href(n)),
             label_part,
             "",
             escape(&n.title),
@@ -402,6 +414,21 @@ mod tests {
         assert!(res.composed_html().contains("rel=\"prev\""));
         assert!(res.composed_html().contains("rel=\"next\""));
         assert!(res.extra_css.contains(".apn"));
+    }
+
+    #[test]
+    fn test_links_use_the_url_the_host_provides() {
+        mock::reset();
+        let mut prev = sample_article("1", "First Post", "first-post");
+        prev.fields
+            .insert("url".to_string(), serde_json::json!("/cms/news/first-post"));
+        let ctx = page(Some(prev), None, "<p>Body</p>");
+
+        let res = PostNavigationPlugin.on_render_page(ctx).unwrap();
+        assert!(res
+            .composed_html()
+            .contains("href=\"/cms/news/first-post\""));
+        assert!(!res.composed_html().contains("/articles/first-post"));
     }
 
     #[test]

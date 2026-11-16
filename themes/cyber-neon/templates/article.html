@@ -20,7 +20,7 @@
   </div>
 
   <div class="ts-7">
-    <a href="{{ base_path }}/articles" class="cyber-card-link">&larr; {{ t("theme.cyber.return_archives") }}</a>
+    <a href="{{ articles_url }}" class="cyber-card-link">&larr; {{ t("theme.cyber.return_archives") }}</a>
   </div>
   {% if fields.tags %}<ul class="aegis-tags ts-8" aria-label="{{ t("tags.aria") }}">{% for tag in fields.tags %}<li><a class="ts-9" href="{{ tag.url }}" rel="tag">{{ tag.name }}</a></li>{% endfor %}</ul>{% endif %}
   {% if comments %}{% include "comments.html" %}{% endif %}

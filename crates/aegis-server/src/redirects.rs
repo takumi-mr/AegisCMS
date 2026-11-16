@@ -418,15 +418,20 @@ pub fn reserved_prefixes(config: &crate::config::AegisConfig) -> Vec<String> {
 /// コンテンツの種類ごとの、公開ページのパス（slug が変わったとき、旧 URL を新しい URL へ転送する対象）
 pub fn public_paths(
     config: &crate::config::AegisConfig,
+    schema_paths: &std::collections::HashMap<String, String>,
     content_type: &str,
     slug: &str,
 ) -> Vec<String> {
+    let custom = schema_paths.get(content_type);
     if content_type == "article" {
-        vec![format!("/articles/{}", slug), format!("/{}", slug)]
+        let prefix = custom.map_or("/articles", String::as_str);
+        vec![format!("{}/{}", prefix, slug), format!("/{}", slug)]
     } else if content_type == "page" {
         vec![format!("/{}", slug)]
     } else if content_type == config.commerce.product_type {
         vec![format!("/products/{}", slug)]
+    } else if let Some(prefix) = custom {
+        vec![format!("{}/{}", prefix, slug)]
     } else {
         Vec::new()
     }

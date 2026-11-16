@@ -21,6 +21,8 @@ fn item(slug: &str, author: Option<&str>) -> ContentSummary {
         author_id: author.map(str::to_string),
         published_at: Some("2026-10-22T09:30:00Z".to_string()),
         created_at: "2026-10-22T09:30:00Z".to_string(),
+        // ホストは一覧の要素に必ず公開ページの URL（`fields.url`）を入れる
+        fields: object(json!({ "url": format!("/articles/{}", slug) })),
         ..Default::default()
     }
 }

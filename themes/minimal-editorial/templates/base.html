@@ -17,7 +17,7 @@
       <a href="{{ base_path }}/" class="ed-brand">{{ site_title }}</a>
       <nav class="ed-nav">
         <a href="{{ base_path }}/" class="ed-nav-link">{{ t("theme.editorial.nav_journal") }}</a>
-        <a href="{{ base_path }}/articles" class="ed-nav-link">{{ t("theme.editorial.nav_archives") }}</a>
+        <a href="{{ articles_url }}" class="ed-nav-link">{{ t("theme.editorial.nav_archives") }}</a>
         {% if admin_url %}<a href="{{ admin_url }}" class="ed-admin-btn">{{ t("theme.editorial.nav_studio") }}</a>{% endif %}
       </nav>
     </div>

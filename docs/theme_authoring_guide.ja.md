@@ -120,7 +120,45 @@ themes/my-theme/
 | `"template"`      | テーマの `front.html`。ランディングページ向け。最新の記事が `items` に入るので、「お知らせ」の欄などに使える。テーマに無ければ `index.html` と同じ表示 | `/articles`                                                                                                                      |
 | `"page:<slug>"`   | 固定ページ（Admin Studio で編集できる。「ブランク LP」のレイアウトも使える）。ページが無い・非公開なら記事一覧                                         | `/articles`                                                                                                                      |
 
-`"posts"` 以外にするときは、テーマのナビゲーションの記事一覧へのリンクを `{{ base_path }}/articles` にしてください。
+`"posts"` 以外にするときは、テーマのナビゲーションの記事一覧へのリンクを `{{ articles_url }}` にしてください。
+
+### 3.1.1a 記事・カスタム型の URL（スキーマの `public_path`）
+
+スキーマ（`schemas/*.yaml`）に `public_path` を書くと、その型の公開ページの URL の先頭を決められます。
+
+```yaml
+# schemas/article.yaml: /articles を /news に変える
+content_type: article
+public_path: /news
+```
+
+```yaml
+# schemas/works.yaml: /works/{slug} に詳細ページを持たせる
+content_type: works
+public_path: /works
+```
+
+- `public_path: auto`（`true` でも可）と書くと、型名から `/<型名>` を決めます（`content_type: works` なら `/works`）。型を足すだけで URL とテンプレートの名前が決まるので、`news`・`blog`・`works` のように何個でも同じ書き方で増やせます。
+- 書かない型は公開しません（内部用のスキーマが、足しただけで公開されないようにするため）。
+- 省略したときは、`article` が `/articles`、`page` が `/{slug}`、ほかの型は公開ページを持ちません。`page` と `category` には付けられません。
+- 値は `/` と小文字・数字・`-`・`_` の 1 つの区切り（`/news`）だけです。`/api`・`/category`・`/tags`・`/products` など、サーバーが使っている名前や、ほかの型と同じ値は、起動時にエラーになります。
+- `article` に付けると、一覧と詳細が新しい URL になり、旧 `/articles`・`/articles/{slug}` は新しい URL へ 301 で転送します。フィード・サイトマップ・canonical・リダイレクトの対象も新しい URL に従います。
+- カスタム型には、記事と同じ形で次のページが付きます（お知らせを `/news`、ブログを `/blog` のように型を分けて使えます）。
+    - 一覧 `/works`（`?page=N` でページ送り）: テーマの `<content_type>_list.html`（例: `works_list.html`）、無ければ `index.html`。`title` は型の `label` です。
+    - フィード `/works/feed.xml`: 一覧の `<head>` に自動検出用の `<link>` を入れます。
+    - 詳細 `/works/{slug}`: テーマの `<content_type>.html`（例: `works.html`）、無ければ `article.html`。関連記事（`related_posts_limit`）、前後の記事、コメント（`[comments].content_types` に型名を入れたとき）も記事と同じ設定で出ます。
+    - サイトマップに一覧と詳細が入ります。
+    - 上の記事のトップ（`/`）、`/feed.xml`、カテゴリ・タグのページには、記事だけが載ります。
+- 変更はサーバーを再起動すると反映されます。
+
+テーマの中では URL を自分で組み立てず、サーバーが渡す値を使ってください。`public_path` を変えても、リンクが壊れません。
+
+| 書くもの                | 意味                                                                                                     |
+| ----------------------- | -------------------------------------------------------------------------------------------------------- |
+| `{{ item.fields.url }}` | 一覧（`items`）・関連記事（`related_articles`）・前後の記事（`prev_article` / `next_article`）のリンク先 |
+| `{{ articles_url }}`    | 記事一覧の URL（`/articles` または `public_path`）                                                       |
+
+どちらも `base_path` を含むので、前に `{{ base_path }}` を付けないでください。`{{ base_path }}/articles/{{ item.slug }}` と書く従来のテーマは、`public_path` を変えない間は動きます。
 
 ### 3.1.2 カテゴリの記事一覧とフィード
 
@@ -191,7 +229,7 @@ themes/my-theme/
   <header>
     <a href="{{ base_path }}/">{{ site_title }}</a>
     <nav>
-      <a href="{{ base_path }}/articles">Articles</a>
+      <a href="{{ articles_url }}">Articles</a>
     </nav>
   </header>
   <main>

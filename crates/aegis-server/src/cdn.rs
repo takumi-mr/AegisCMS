@@ -102,9 +102,14 @@ pub fn content_invalidation_tags(
 
     if content_type == "article" {
         tags.add_url("/");
-        tags.add_url("/articles");
+        tags.add_url(state.article_prefix());
         tags.add_url("/feed.xml");
-        tags.add_url(&format!("/articles/{}", slug));
+        tags.add_url(&format!("{}/{}", state.article_prefix(), slug));
+    } else if let Some(prefix) = state.public_paths.get(content_type) {
+        // 一覧・フィード・詳細
+        tags.add_url(prefix);
+        tags.add_url(&format!("{}/feed.xml", prefix));
+        tags.add_url(&format!("{}/{}", prefix, slug));
     }
     if content_type == state.config.commerce.product_type {
         tags.add_url("/products");
@@ -125,7 +130,9 @@ pub fn content_invalidation_tags(
         tags.add_dependency(content_type, old);
         tags.add_url(&format!("/{}", old));
         if content_type == "article" {
-            tags.add_url(&format!("/articles/{}", old));
+            tags.add_url(&format!("{}/{}", state.article_prefix(), old));
+        } else if let Some(prefix) = state.public_paths.get(content_type) {
+            tags.add_url(&format!("{}/{}", prefix, old));
         }
         if content_type == state.config.commerce.product_type {
             tags.add_url(&format!("/products/{}", old));

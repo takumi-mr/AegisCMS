@@ -199,8 +199,8 @@ pub async fn record_slug_change(
     old_slug: &str,
     new_slug: &str,
 ) {
-    let old = public_paths(&state.config, content_type, old_slug);
-    let new = public_paths(&state.config, content_type, new_slug);
+    let old = public_paths(&state.config, &state.public_paths, content_type, old_slug);
+    let new = public_paths(&state.config, &state.public_paths, content_type, new_slug);
     for (from, to) in old.into_iter().zip(new) {
         let id = uuid::Uuid::new_v4().to_string();
         let at = now();

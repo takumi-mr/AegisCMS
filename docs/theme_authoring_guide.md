@@ -120,7 +120,45 @@ Templates are written in [MiniJinja](https://docs.rs/minijinja) (Jinja2-compatib
 | `"template"`        | The theme's `front.html`. For landing pages. The latest articles go into `items`, so you can use them for a "news" section and the like. If the theme has none, the same display as `index.html` | `/articles`                                                                                                                                            |
 | `"page:<slug>"`     | A static page (editable in Admin Studio; the "Blank LP" layout can be used too). If the page does not exist or is unpublished, the article list                                                  | `/articles`                                                                                                                                            |
 
-When using anything other than `"posts"`, make the theme navigation's link to the article list `{{ base_path }}/articles`.
+When using anything other than `"posts"`, make the theme navigation's link to the article list `{{ articles_url }}`.
+
+### 3.1.1a URLs of Articles and Custom Types (the schema's `public_path`)
+
+Writing `public_path` in a schema (`schemas/*.yaml`) sets the URL prefix of that type's public pages.
+
+```yaml
+# schemas/article.yaml: change /articles to /news
+content_type: article
+public_path: /news
+```
+
+```yaml
+# schemas/works.yaml: give the type a detail page at /works/{slug}
+content_type: works
+public_path: /works
+```
+
+- `public_path: auto` (or `true`) takes the URL from the type name (`content_type: works` becomes `/works`). Adding a type is enough to fix its URL and its template names, so `news`, `blog`, `works`, and so on can be added in the same way.
+- A type without it is not published (so that an internal schema is never exposed just by being added).
+- When omitted, `article` is `/articles`, `page` is `/{slug}`, and other types have no public page. It cannot be set on `page` or `category`.
+- The value is a single segment made of `/` and lowercase letters, digits, `-`, and `_` (`/news`). Names the server already uses (`/api`, `/category`, `/tags`, `/products`, and so on) and a value shared with another type are errors at startup.
+- On `article`, the list and the details move to the new URL, and the old `/articles` and `/articles/{slug}` redirect to it with a 301. The feeds, the sitemap, canonical URLs, and slug-change redirects follow the new URL.
+- A custom type gets the same pages as articles (so you can split content into types, such as News at `/news` and Blog at `/blog`):
+    - The list `/works` (paged with `?page=N`): the theme's `<content_type>_list.html` (for example `works_list.html`), or `index.html` if there is none. `title` is the type's `label`.
+    - The feed `/works/feed.xml`: the list's `<head>` gets an auto-discovery `<link>`.
+    - The detail `/works/{slug}`: the theme's `<content_type>.html` (for example `works.html`), or `article.html` if there is none. Related articles (`related_posts_limit`), previous/next, and comments (when the type name is in `[comments].content_types`) follow the same settings as articles.
+    - The sitemap includes the list and the details.
+    - The top page (`/`), `/feed.xml`, and the category and tag pages list articles only.
+- A change takes effect after the server restarts.
+
+In a theme, do not build URLs yourself. Use the values the server passes, so that links keep working when `public_path` changes.
+
+| Write                   | Meaning                                                                                                                        |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| `{{ item.fields.url }}` | The link target in lists (`items`), related articles (`related_articles`), and previous/next (`prev_article` / `next_article`) |
+| `{{ articles_url }}`    | The URL of the article list (`/articles` or `public_path`)                                                                     |
+
+Both already include `base_path`, so do not put `{{ base_path }}` in front of them. Older themes that write `{{ base_path }}/articles/{{ item.slug }}` keep working as long as `public_path` is not changed.
 
 ### 3.1.2 A Category's Article List and Feeds
 
@@ -191,7 +229,7 @@ Paging (`pagination`): `page`, `per_page`, `total_items`, `total_pages`, `prev_u
   <header>
     <a href="{{ base_path }}/">{{ site_title }}</a>
     <nav>
-      <a href="{{ base_path }}/articles">Articles</a>
+      <a href="{{ articles_url }}">Articles</a>
     </nav>
   </header>
   <main>

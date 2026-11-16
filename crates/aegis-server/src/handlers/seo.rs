@@ -311,8 +311,9 @@ pub async fn get_sitemap_xml(State(state): State<Arc<AppState>>, headers: Header
     if let Some(schema) = schemas.get("article") {
         xml.push_str("  <url>\n");
         xml.push_str(&format!(
-            "    <loc>{}/articles</loc>\n",
-            escape_html(&base_url)
+            "    <loc>{}{}</loc>\n",
+            escape_html(&base_url),
+            escape_html(state.article_prefix())
         ));
         xml.push_str("    <changefreq>daily</changefreq>\n");
         xml.push_str("    <priority>0.8</priority>\n");
@@ -336,8 +337,9 @@ pub async fn get_sitemap_xml(State(state): State<Arc<AppState>>, headers: Header
                 }
                 xml.push_str("  <url>\n");
                 xml.push_str(&format!(
-                    "    <loc>{}/articles/{}</loc>\n",
+                    "    <loc>{}{}/{}</loc>\n",
                     escape_html(&base_url),
+                    escape_html(state.article_prefix()),
                     escape_html(&item.slug)
                 ));
                 let lastmod = format_lastmod(Some(&item.updated_at))
@@ -349,6 +351,75 @@ pub async fn get_sitemap_xml(State(state): State<Arc<AppState>>, headers: Header
                 xml.push_str("    <priority>0.7</priority>\n");
                 xml.push_str("  </url>\n");
             }
+        }
+    }
+
+    // `public_path` を持つカスタム型の詳細ページ（/works/{slug} など）
+    let mut custom_types: Vec<_> = state
+        .public_paths
+        .iter()
+        .filter(|(content_type, _)| content_type.as_str() != "article")
+        .collect();
+    custom_types.sort();
+    for (content_type, prefix) in custom_types {
+        let Some(schema) = schemas.get(content_type) else {
+            continue;
+        };
+        xml.push_str(
+            "  <url>
+",
+        );
+        xml.push_str(&format!(
+            "    <loc>{}{}</loc>
+",
+            escape_html(&base_url),
+            escape_html(prefix)
+        ));
+        xml.push_str(
+            "    <changefreq>daily</changefreq>
+",
+        );
+        xml.push_str(
+            "    <priority>0.7</priority>
+",
+        );
+        xml.push_str(
+            "  </url>
+",
+        );
+        let query = ContentListQuery {
+            status: Some("published".to_string()),
+            limit: Some(1000),
+            offset: 0,
+            ..Default::default()
+        };
+        let Ok(page) = state.db.list_published_contents_page(schema, &query).await else {
+            continue;
+        };
+        let now = chrono::Utc::now();
+        for item in page.records {
+            if !super::content::is_currently_published(
+                &item.status,
+                item.unpublish_at.as_deref(),
+                now,
+            ) {
+                continue;
+            }
+            xml.push_str("  <url>\n");
+            xml.push_str(&format!(
+                "    <loc>{}{}/{}</loc>\n",
+                escape_html(&base_url),
+                escape_html(prefix),
+                escape_html(&item.slug)
+            ));
+            if let Some(lm) = format_lastmod(Some(&item.updated_at))
+                .or_else(|| format_lastmod(item.published_at.as_deref()))
+            {
+                xml.push_str(&format!("    <lastmod>{}</lastmod>\n", lm));
+            }
+            xml.push_str("    <changefreq>weekly</changefreq>\n");
+            xml.push_str("    <priority>0.6</priority>\n");
+            xml.push_str("  </url>\n");
         }
     }
 

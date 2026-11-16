@@ -20,6 +20,8 @@ export interface SchemaDefinition {
   label: string;
   description?: string;
   fields: FieldDefinition[];
+  /** URL prefix of the public pages (e.g. `/news`). Unset: `/articles` for article, none for other types */
+  public_path?: string | null;
 }
 
 /** The stored content of one saved version (`GET .../versions/{revision}`) */

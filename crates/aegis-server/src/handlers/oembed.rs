@@ -51,12 +51,29 @@ fn site_path(url: &str, base: &str) -> Option<String> {
 }
 
 /// パスが指すコンテンツの（種類, スラッグ）の候補。先に見つかったものを使う
-fn candidates(path: &str) -> Vec<(&'static str, String)> {
+/// `schema_paths` はスキーマの `public_path`（コンテンツ型 → `/news` など）。記事の既定は `/articles`
+fn candidates(
+    path: &str,
+    schema_paths: &std::collections::HashMap<String, String>,
+) -> Vec<(String, String)> {
     let segments: Vec<&str> = path.split('/').filter(|s| !s.is_empty()).collect();
     match segments.as_slice() {
-        ["articles", slug] => vec![("article", slug.to_string())],
-        ["products", slug] => vec![("product", slug.to_string())],
-        [slug] => vec![("page", slug.to_string()), ("article", slug.to_string())],
+        [prefix, slug] => {
+            let prefix = format!("/{prefix}");
+            if let Some((content_type, _)) = schema_paths.iter().find(|(_, p)| **p == prefix) {
+                vec![(content_type.clone(), slug.to_string())]
+            } else if prefix == "/articles" && !schema_paths.contains_key("article") {
+                vec![("article".to_string(), slug.to_string())]
+            } else if prefix == "/products" {
+                vec![("product".to_string(), slug.to_string())]
+            } else {
+                Vec::new()
+            }
+        }
+        [slug] => vec![
+            ("page".to_string(), slug.to_string()),
+            ("article".to_string(), slug.to_string()),
+        ],
         _ => Vec::new(),
     }
 }
@@ -92,8 +109,8 @@ pub async fn get_oembed(
     };
 
     let now = chrono::Utc::now();
-    for (content_type, slug) in candidates(&path) {
-        let schema = state.schemas.read().await.get(content_type).cloned();
+    for (content_type, slug) in candidates(&path, &state.public_paths) {
+        let schema = state.schemas.read().await.get(&content_type).cloned();
         let Some(schema) = schema else { continue };
         let Ok(Some(record)) = state.db.get_published_content(&schema, &slug).await else {
             continue;
@@ -192,23 +209,26 @@ mod tests {
 
     #[test]
     fn candidates_follow_the_public_routes() {
+        let none = std::collections::HashMap::new();
+        let s = |a: &str, b: &str| (a.to_string(), b.to_string());
+        assert_eq!(candidates("/articles/a", &none), vec![s("article", "a")]);
+        assert_eq!(candidates("/products/p", &none), vec![s("product", "p")]);
         assert_eq!(
-            candidates("/articles/a"),
-            vec![("article", "a".to_string())]
+            candidates("/about", &none),
+            vec![s("page", "about"), s("article", "about")]
         );
-        assert_eq!(
-            candidates("/products/p"),
-            vec![("product", "p".to_string())]
-        );
-        assert_eq!(
-            candidates("/about"),
-            vec![
-                ("page", "about".to_string()),
-                ("article", "about".to_string())
-            ]
-        );
-        assert!(candidates("").is_empty());
-        assert!(candidates("/a/b/c").is_empty());
+        assert!(candidates("", &none).is_empty());
+        assert!(candidates("/a/b/c", &none).is_empty());
+        assert!(candidates("/news/a", &none).is_empty());
+
+        // スキーマの public_path: 記事は /news、カスタム型は /works（旧 /articles は記事の入口ではなくなる）
+        let custom = std::collections::HashMap::from([
+            ("article".to_string(), "/news".to_string()),
+            ("works".to_string(), "/works".to_string()),
+        ]);
+        assert_eq!(candidates("/news/a", &custom), vec![s("article", "a")]);
+        assert_eq!(candidates("/works/w", &custom), vec![s("works", "w")]);
+        assert!(candidates("/articles/a", &custom).is_empty());
     }
 
     #[test]

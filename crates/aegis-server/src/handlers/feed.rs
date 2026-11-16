@@ -65,7 +65,17 @@ pub async fn get_feed(State(state): State<Arc<AppState>>, headers: HeaderMap) ->
     let mut tags = CacheTags::new();
     tags.add_url("/feed.xml");
     let title = state.site().title;
-    build_feed(&state, &headers, &title, "/feed.xml", "/", None, tags).await
+    build_feed(
+        &state,
+        &headers,
+        "article",
+        &title,
+        "/feed.xml",
+        "/",
+        None,
+        tags,
+    )
+    .await
 }
 
 /// `GET /category/{slug}/feed.xml` — カテゴリの記事の Atom フィード
@@ -85,6 +95,7 @@ pub async fn get_category_feed(
     build_feed(
         &state,
         &headers,
+        "article",
         &title,
         &format!("/category/{}/feed.xml", category.slug),
         &format!("/category/{}", category.slug),
@@ -94,10 +105,44 @@ pub async fn get_category_feed(
     .await
 }
 
-/// フィードの XML を組み立てる。`self_path` はフィード、`alternate_path` は対応する HTML のページのパス
+/// `GET <public_path>/feed.xml` — `public_path` を持つカスタム型の Atom フィード
+pub async fn get_custom_feed(
+    state: Arc<AppState>,
+    content_type: String,
+    headers: HeaderMap,
+) -> Response {
+    let Some(prefix) = state.public_paths.get(&content_type).cloned() else {
+        return (StatusCode::NOT_FOUND, "Feed not found").into_response();
+    };
+    let label = {
+        let schemas = state.schemas.read().await;
+        match schemas.get(&content_type) {
+            Some(schema) => schema.label.clone(),
+            None => return (StatusCode::NOT_FOUND, "Feed not found").into_response(),
+        }
+    };
+    let mut tags = CacheTags::new();
+    tags.add_url(&format!("{}/feed.xml", prefix));
+    let title = format!("{}: {}", state.site().title, label);
+    build_feed(
+        &state,
+        &headers,
+        &content_type,
+        &title,
+        &format!("{}/feed.xml", prefix),
+        &prefix,
+        None,
+        tags,
+    )
+    .await
+}
+
+/// フィードの XML を組み立てる。`content_type` は載せるコンテンツの型。`self_path` はフィード、`alternate_path` は対応する HTML のページのパス
+#[allow(clippy::too_many_arguments)]
 pub(crate) async fn build_feed(
     state: &AppState,
     headers: &HeaderMap,
+    content_type: &str,
     title: &str,
     self_path: &str,
     alternate_path: &str,
@@ -105,12 +150,12 @@ pub(crate) async fn build_feed(
     mut tags: CacheTags,
 ) -> Response {
     tags.add_dependency("site", "global");
-    tags.add_dependency("collection", "article");
+    tags.add_dependency("collection", content_type);
 
     let base_url = public_base_url(state, headers);
     let article_schema = {
         let schemas = state.schemas.read().await;
-        schemas.get("article").cloned()
+        schemas.get(content_type).cloned()
     };
     let records = match article_schema {
         Some(schema) => {
@@ -133,8 +178,8 @@ pub(crate) async fn build_feed(
     let mut entries = String::new();
     let mut feed_updated: Option<String> = None;
     for record in &records {
-        tags.add_dependency("article", &record.id);
-        tags.add_dependency("article", &record.slug);
+        tags.add_dependency(content_type, &record.id);
+        tags.add_dependency(content_type, &record.slug);
 
         let updated = atom_date(Some(&record.updated_at))
             .or_else(|| atom_date(record.published_at.as_deref()))
@@ -167,15 +212,23 @@ pub(crate) async fn build_feed(
             escape_html(&record.title)
         ));
         entries.push_str(&format!(
-            "    <link rel=\"alternate\" type=\"text/html\" href=\"{}/articles/{}\"/>\n",
+            "    <link rel=\"alternate\" type=\"text/html\" href=\"{}{}\"/>\n",
             escape_html(&base_url),
-            escape_html(&record.slug)
+            escape_html(&crate::handlers::public::public_content_path(
+                state,
+                content_type,
+                &record.slug
+            ))
         ));
-        // スラッグを変えても同じ記事とわかるよう、ID は記事の ID の URL（/articles/{id} でも開ける）
+        // スラッグを変えても同じ記事とわかるよう、ID は記事の ID の URL（<接頭辞>/{id} でも開ける）
         entries.push_str(&format!(
-            "    <id>{}/articles/{}</id>\n",
+            "    <id>{}{}</id>\n",
             escape_html(&base_url),
-            escape_html(&record.id)
+            escape_html(&crate::handlers::public::public_content_path(
+                state,
+                content_type,
+                &record.id
+            ))
         ));
         if let Some(published) = published {
             entries.push_str(&format!("    <published>{}</published>\n", published));
