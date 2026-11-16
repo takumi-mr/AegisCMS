@@ -5,7 +5,7 @@
 <p align="center">
   <a href="https://github.com/takumi-mr/AegisCMS/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/takumi-mr/AegisCMS/actions/workflows/ci.yml/badge.svg"></a>
   <a href="https://github.com/takumi-mr/AegisCMS/releases/latest"><img alt="Release" src="https://img.shields.io/github/v/release/takumi-mr/AegisCMS?sort=semver"></a>
-  <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/github/license/takumi-mr/AegisCMS"></a>
+  <a href="#license"><img alt="License: MIT OR Apache-2.0" src="https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue"></a>
   <a href="https://github.com/takumi-mr/AegisCMS/pkgs/container/aegiscms"><img alt="Docker image" src="https://img.shields.io/badge/ghcr.io-aegiscms-2496ED?logo=docker&logoColor=white"></a>
   <img alt="Rust" src="https://img.shields.io/badge/Rust-2021-000000?logo=rust&logoColor=white">
   <img alt="WebAssembly plugins" src="https://img.shields.io/badge/plugins-WebAssembly-654FF0?logo=webassembly&logoColor=white">
@@ -82,7 +82,14 @@ AegisCMS is a single binary with a built-in database (SQLite), so a small server
 
 ## License
 
-[MIT](LICENSE)
+Licensed under either of
+
+- [MIT License](LICENSE-MIT)
+- [Apache License, Version 2.0](LICENSE-APACHE)
+
+at your option.
+
+Unless you explicitly state otherwise, any contribution intentionally submitted for inclusion in AegisCMS by you, as defined in the Apache-2.0 license, shall be dual licensed as above, without any additional terms or conditions.
 
 ---
 

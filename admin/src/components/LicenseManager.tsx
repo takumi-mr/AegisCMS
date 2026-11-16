@@ -69,7 +69,7 @@ export const LicenseManager: React.FC = () => {
               <ShieldCheck size={20} color="var(--accent-indigo-light, #818cf8)" />
               <span>{t('licenses.aegisLicenseTitle')}</span>
             </div>
-            <span className={`${styles.badge} ${styles.badgeSuccess}`}>MIT License</span>
+            <span className={`${styles.badge} ${styles.badgeSuccess}`}>MIT OR Apache-2.0</span>
           </div>
           <p className={styles.aegisCardText}>
             {t('licenses.aegisLicenseBody')}

@@ -2168,7 +2168,7 @@
     "title": "ライセンス情報",
     "description": "AegisCMS 本体および使用しているオープンソースソフトウェアのライセンス情報です。",
     "aegisLicenseTitle": "AegisCMS ライセンス",
-    "aegisLicenseBody": "AegisCMS は MIT ライセンスの下で公開されているオープンソースソフトウェアです。",
+    "aegisLicenseBody": "AegisCMS は MIT ライセンスまたは Apache License 2.0 のいずれかを選んで利用できるオープンソースソフトウェアです（デュアルライセンス）。",
     "searchPlaceholder": "パッケージ名やライセンスで検索...",
     "filterAll": "すべて",
     "filterRust": "バックエンド (Rust)",

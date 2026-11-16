@@ -2187,7 +2187,7 @@
     "title": "License Information",
     "description": "License information for AegisCMS and open-source third-party software.",
     "aegisLicenseTitle": "AegisCMS License",
-    "aegisLicenseBody": "AegisCMS is open-source software released under the MIT License.",
+    "aegisLicenseBody": "AegisCMS is open-source software dual-licensed under the MIT License or the Apache License 2.0, at your option.",
     "searchPlaceholder": "Search by package name or license...",
     "filterAll": "All",
     "filterRust": "Backend (Rust)",
