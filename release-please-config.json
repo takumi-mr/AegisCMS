@@ -177,6 +177,22 @@
         }
       ]
     },
+    "plugins/official-charts": {
+      "release-type": "simple",
+      "component": "plugin-official-charts",
+      "extra-files": [
+        {
+          "type": "toml",
+          "path": "Cargo.toml",
+          "jsonpath": "$.package.version"
+        },
+        {
+          "type": "json",
+          "path": "plugin.manifest.json",
+          "jsonpath": "$.version"
+        }
+      ]
+    },
     "plugins/official-code-enhancer": {
       "release-type": "simple",
       "component": "plugin-official-code-enhancer",

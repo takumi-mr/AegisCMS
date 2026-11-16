@@ -157,7 +157,7 @@ Q&A や補足の詳細に使います。HTML 標準の `<details>` / `<summary>`
 
 ## 4. プラグインのブロック
 
-Wasm プラグインは、本文に置けるブロックを足せます（作り方は [plugin_hooks.md 1.10](plugin_hooks.ja.md#110-render-blocks)）。公式プラグイン [`official-blocks`](../plugins/official-blocks) のボタン（`official-blocks/button`）・リンクカード（`official-blocks/link-card`）・動画（`official-blocks/video`。YouTube・Vimeo）・音声（`official-blocks/audio`）・ファイルのダウンロード（`official-blocks/file`）・地図（`official-blocks/map`。OpenStreetMap）・画像ギャラリー（`official-blocks/gallery`）・FAQ（`official-blocks/faq`）・手順（`official-blocks/steps`）・カラム（`official-blocks/columns`）・画像と文章（`official-blocks/media-text`）・キャプションつきの画像（`official-blocks/figure`）・タイムライン（`official-blocks/timeline`）・吹き出し（`official-blocks/chat`）・タブ（`official-blocks/tabs`）・数値（`official-blocks/stats`）・定義リスト（`official-blocks/definition-list`）・評価（`official-blocks/rating`。schema.org の Review つき）が例です。
+Wasm プラグインは、本文に置けるブロックを足せます（作り方は [plugin_hooks.md 1.10](plugin_hooks.ja.md#110-render-blocks)）。公式プラグイン [`official-blocks`](../plugins/official-blocks) のボタン（`official-blocks/button`）・リンクカード（`official-blocks/link-card`）・動画（`official-blocks/video`。YouTube・Vimeo）・音声（`official-blocks/audio`）・ファイルのダウンロード（`official-blocks/file`）・地図（`official-blocks/map`。OpenStreetMap）・画像ギャラリー（`official-blocks/gallery`）・FAQ（`official-blocks/faq`）・手順（`official-blocks/steps`）・カラム（`official-blocks/columns`）・画像と文章（`official-blocks/media-text`）・キャプションつきの画像（`official-blocks/figure`）・タイムライン（`official-blocks/timeline`）・吹き出し（`official-blocks/chat`）・タブ（`official-blocks/tabs`）・数値（`official-blocks/stats`）・定義リスト（`official-blocks/definition-list`）・評価（`official-blocks/rating`。schema.org の Review つき）や、公式プラグイン [`official-charts`](../plugins/official-charts) のグラフ（`official-charts/chart`。縦棒・積み上げ棒・横棒・折れ線・ドーナツ、複数系列対応）が例です。
 
 - 有効なプラグインのブロックは、Admin Studio のブロックの追加ボタンに並びます（`GET /api/v1/blocks`）。編集画面には、プラグインのマニフェストで宣言した入力欄のフォームが出ます。
 - 保存するのはブロック名と属性だけで、HTML は**表示のたびに**プラグインが作ります。プラグインを更新すると、保存し直さなくても表示が変わります。
@@ -189,6 +189,8 @@ Markdown では 1 行で書き、属性は JSON のオブジェクトです（�
 ::: official-blocks/columns {"items": [{"image": "/uploads/a.jpg", "title": "速い", "text": "ミリ秒で表示します。"}, {"image": "/uploads/b.jpg", "title": "安全", "text": "プラグインは Wasm の中で動きます。"}]}
 
 ::: official-blocks/media-text {"image": "/uploads/a.jpg", "alt": "焙煎機", "title": "毎週焙煎", "text": "届くのは焙煎したての豆です。", "side": "right"}
+
+::: official-charts/chart {"type": "bar", "title": "月別アクセス", "unit": "k", "series": "2025年, 2026年", "items": [{"label": "1月", "values": "120, 150"}, {"label": "2月", "values": "140, 185"}]}
 ```
 
 JSON として読めない行は、そのまま段落になります。
