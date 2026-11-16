@@ -5,6 +5,7 @@
     "providersFailed": "ログイン方法を取得できませんでした",
     "sessionFailed": "セッションを確認できませんでした",
     "schemasFailed": "スキーマを取得できませんでした",
+    "queriesFailed": "宣言的クエリを取得できませんでした",
     "contentNotFound": "コンテンツが見つかりません",
     "saveContentFailed": "コンテンツを保存できませんでした",
     "contentVersionsFailed": "コンテンツの版履歴を取得できませんでした",
@@ -1369,6 +1370,7 @@
       "audit": "監査ログ",
       "system": "システム",
       "tags": "タグ",
+      "queries": "クエリ",
       "redirects": "リダイレクト",
       "newsletter": "ニュースレター",
       "notices": "お知らせ",
@@ -2176,5 +2178,24 @@
     "noResults": "一致するライブラリが見つかりませんでした。",
     "viewLicenses": "ライセンス一覧を表示",
     "systemSectionNote": "使用しているオープンソースソフトウェアおよびライブラリのライセンス一覧を確認できます。"
+  },
+  "queries": {
+    "title": "宣言的クエリ",
+    "description": "queries/*.yaml で定義されたクエリの一覧と、サーバーが現在保持している結果の読み取り専用プレビューです。",
+    "timezone": "タイムゾーン: {{tz}}",
+    "refresh": "最新の状態にする",
+    "loadFailed": "クエリの取得に失敗しました",
+    "modeFilterAria": "クエリ種別フィルター",
+    "filterAll": "すべて",
+    "modeAggregate": "集計",
+    "modeList": "一覧",
+    "searchPlaceholder": "クエリ名やコンテンツ型で絞り込み...",
+    "emptyTitle": "宣言的クエリは定義されていません",
+    "emptyHint": "queries/ ディレクトリに *.yaml ファイルを配置してサーバーを再起動すると、ここに定義と結果が表示されます。",
+    "noResults": "一致するクエリが見つかりませんでした。",
+    "rowCount": "{{count}} 件",
+    "viewTable": "表",
+    "viewJson": "JSON",
+    "noRows": "現在の公開コンテンツに一致する結果はありません。"
   }
 }

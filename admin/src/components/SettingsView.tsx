@@ -16,6 +16,7 @@ import {
   Megaphone,
   Unlink,
   Scale,
+  Database,
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { ContentItem, SessionInfo, UserAccount, ContentSummary } from '../types';
@@ -37,6 +38,7 @@ import { ThemeManager } from './ThemeManager';
 import { UserManager } from './UserManager';
 import { BrokenLinksManager } from './BrokenLinksManager';
 import { LicenseManager } from './LicenseManager';
+import { QueryManager } from './QueryManager';
 import styles from './SettingsView.module.css';
 
 export type SettingsSection =
@@ -53,6 +55,7 @@ export type SettingsSection =
   | 'plugins'
   | 'categories'
   | 'tags'
+  | 'queries'
   | 'users'
   | 'audit'
   | 'licenses';
@@ -76,6 +79,7 @@ const SECTIONS: Array<{
   { id: 'plugins', icon: <Blocks size={16} /> },
   { id: 'categories', icon: <Tags size={16} /> },
   { id: 'tags', icon: <TagIcon size={16} /> },
+  { id: 'queries', icon: <Database size={16} /> },
   { id: 'users', icon: <Users size={16} />, visible: isAdmin },
   { id: 'audit', icon: <ScrollText size={16} />, visible: isAdmin },
   { id: 'licenses', icon: <Scale size={16} /> },
@@ -154,6 +158,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
           />
         )}
         {current === 'tags' && <TagManager canEdit={canEdit(session)} onShowToast={onShowToast} />}
+        {current === 'queries' && <QueryManager onShowToast={onShowToast} />}
         {current === 'users' && (
           <UserManager session={session} onSelfUpdated={onSelfUpdated} onShowToast={onShowToast} />
         )}

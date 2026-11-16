@@ -3,7 +3,7 @@
 **English** | [日本語](queries.ja.md)
 
 > [!NOTE]
-> Implemented (`query` in `aegis-schema`, `published_columns` in `aegis-db`, `queries` in `aegis-server`). For the remaining work, see [TODO.md](../TODO.md).
+> Implemented (`query` in `aegis-schema`, `published_columns` in `aegis-db`, `queries` in `aegis-server`, and "Settings › Queries" in Admin Studio).
 
 A mechanism for **aggregating and extracting, with conditions, the custom fields you added in a schema (`schemas/*.yaml`) and passing the results to themes and plugins**. Queries are declared in YAML, and only the server (host) runs them. No Rust source needs to change.
 
@@ -133,6 +133,7 @@ Indexes are **not created automatically** from query declarations. Write the ind
 
 - **Themes**: read as `queries.<name>` from the template global variable `queries`. The result does not depend on the page, so it is not put in `PageRenderContext`; the latest set held by the server is read (no need to rebuild the environment). A query with no such name is undefined, and subscript access on undefined (`queries.x[0]`) is a rendering error.
 - **Plugins**: it goes into `queries` in the input of `on_render_page`. Only the results of names written in the manifest's `capabilities.render_page.queries` are passed (empty if not written), and they are read-only (returned values are not reflected and are not visible to the next plugin). Plugins only read the result JSON and cannot touch the DB or query definitions. It is independent of `render_page.input`. `PageRenderContext` in the SDKs of all languages (Rust / AssemblyScript / TinyGo) has `queries`.
+- **Admin Studio (`GET /api/v1/queries`)**: in "Settings › Queries", you can inspect the list of defined queries (target type, conditions, aggregation items) and the current results held by the server (as a table or JSON; `viewer` role or higher). Definitions are edited in `queries/*.yaml` (read-only from the admin screen).
 - **`theme dev` / Theme Builder**: queries are not run (because no DB is used); the theme's `samples/queries.json` (query name → array of results) is put into `queries`. `--init-queries` can make a scaffold from the site's definitions and schemas ([theme_authoring_guide.md](theme_authoring_guide.md#theme-dev-check-quickly-without-a-db)). We do not take the approach of issuing real queries (connecting to the site's DB or server): data close to production would appear on the local screen, settings would increase, and checks for empty, zero-result, or long-string cases could not be made.
 - Result shape: aggregations are an array of rows (keys are the `group_by` output names and the `select` `as`). A list with `select` omitted has the same shape as the elements of the theme's list (`items`) (without the body).
 - Strings in results are values that users entered. Do not add `safe` in templates ([theme_authoring_guide.md 3.3](theme_authoring_guide.md)).
@@ -202,9 +203,9 @@ On the theme side:
 {% endfor %}
 ```
 
-## 8. Open Design Decisions
+## 8. Inspecting in Admin Studio
 
-- Whether to show the query list and a result preview in Admin Studio.
+- `GET /api/v1/queries` (`viewer` role or higher) returns `{ timezone, queries, total }`. Each item contains the query definition (`name`, `from`, `mode`, `where`, `group_by`, `select`, `order_by`, `limit`) and the current in-memory result (`rows`) held by the server without re-querying the DB. "Settings › Queries" in Admin Studio fetches this endpoint to preview the results as a table or JSON.
 
 ## 9. Notes on Use
 

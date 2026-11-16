@@ -1411,3 +1411,38 @@ export interface SetupResponse {
   sample_article_id?: string | null;
   sample_page_id?: string | null;
 }
+
+export interface QueryGroupBy {
+  field: string;
+  bucket?: 'day' | 'month' | 'year';
+  as?: string;
+}
+
+export interface QuerySelectItem {
+  fn: 'count' | 'sum' | 'avg' | 'min' | 'max';
+  field?: string;
+  as: string;
+}
+
+export interface QueryOrderBy {
+  field: string;
+  dir: 'asc' | 'desc';
+}
+
+export interface QueryItem {
+  name: string;
+  from: string;
+  mode: 'aggregate' | 'list';
+  where: Record<string, Record<string, unknown>>;
+  group_by: QueryGroupBy[];
+  select: QuerySelectItem[];
+  order_by: QueryOrderBy[];
+  limit?: number | null;
+  rows: Array<Record<string, unknown>>;
+}
+
+export interface QueriesResponse {
+  timezone: string;
+  queries: QueryItem[];
+  total: number;
+}

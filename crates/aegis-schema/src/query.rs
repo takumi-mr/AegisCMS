@@ -5,7 +5,7 @@
 
 use crate::definition::{FieldType, SchemaDefinition};
 use aegis_core::{AegisError, Result};
-use serde::{Deserialize, Deserializer};
+use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::Value;
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
@@ -28,7 +28,7 @@ impl Default for QueryLimits {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum AggFn {
     Count,
@@ -38,7 +38,7 @@ pub enum AggFn {
     Max,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Bucket {
     Day,
@@ -56,7 +56,7 @@ impl Bucket {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Direction {
     #[default]
@@ -77,34 +77,67 @@ fn keep_null_list<'de, D: Deserializer<'de>>(
 }
 
 /// 1 つの列に対する条件。書かれた演算子は AND で結ばれる
-#[derive(Debug, Clone, Default, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Condition {
-    #[serde(default, deserialize_with = "keep_null")]
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "keep_null"
+    )]
     pub eq: Option<Value>,
-    #[serde(default, deserialize_with = "keep_null")]
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "keep_null"
+    )]
     pub ne: Option<Value>,
-    #[serde(default, deserialize_with = "keep_null")]
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "keep_null"
+    )]
     pub gt: Option<Value>,
-    #[serde(default, deserialize_with = "keep_null")]
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "keep_null"
+    )]
     pub gte: Option<Value>,
-    #[serde(default, deserialize_with = "keep_null")]
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "keep_null"
+    )]
     pub lt: Option<Value>,
-    #[serde(default, deserialize_with = "keep_null")]
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "keep_null"
+    )]
     pub lte: Option<Value>,
-    #[serde(default, rename = "in", deserialize_with = "keep_null_list")]
+    #[serde(
+        default,
+        rename = "in",
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "keep_null_list"
+    )]
     pub in_list: Option<Vec<Value>>,
-    #[serde(default, deserialize_with = "keep_null")]
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "keep_null"
+    )]
     pub is_null: Option<Value>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct GroupBy {
     pub field: String,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub bucket: Option<Bucket>,
-    #[serde(default, rename = "as")]
+    #[serde(default, rename = "as", skip_serializing_if = "Option::is_none")]
     pub as_name: Option<String>,
 }
 
@@ -119,18 +152,18 @@ impl GroupBy {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct SelectItem {
     #[serde(rename = "fn")]
     pub func: AggFn,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub field: Option<String>,
     #[serde(rename = "as")]
     pub as_name: String,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct OrderBy {
     pub field: String,
@@ -138,7 +171,7 @@ pub struct OrderBy {
     pub dir: Direction,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct QueryDefinition {
     pub name: String,
@@ -151,7 +184,7 @@ pub struct QueryDefinition {
     pub select: Vec<SelectItem>,
     #[serde(default)]
     pub order_by: Vec<OrderBy>,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub limit: Option<usize>,
 }
 
@@ -204,7 +237,8 @@ fn err<T>(query: &str, msg: impl AsRef<str>) -> Result<T> {
 }
 
 /// 集計か、レコードの一覧か
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
 pub enum QueryMode {
     Aggregate,
     List,
