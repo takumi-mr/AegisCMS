@@ -344,6 +344,7 @@
             "type": "array"
           },
           "max_length": {
+            "nullable": true,
             "type": "integer"
           },
           "name": {
@@ -359,6 +360,7 @@
             "type": "boolean"
           },
           "target": {
+            "nullable": true,
             "type": "string"
           },
           "type": {
@@ -527,6 +529,7 @@
             "type": "string"
           },
           "description": {
+            "nullable": true,
             "type": "string"
           },
           "fields": {
@@ -609,6 +612,15 @@
             "description": "A category id, or `none` for uncategorized. Only for schemas with a `category_id` field (400 otherwise)",
             "in": "query",
             "name": "category",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "A tag slug or id",
+            "in": "query",
+            "name": "tag",
             "required": false,
             "schema": {
               "type": "string"
@@ -741,6 +753,9 @@
           "404": {
             "description": "Schema content_type not registered"
           },
+          "409": {
+            "description": "Another item of this content type already uses the slug"
+          },
           "422": {
             "description": "Rejected by an on-before-save plugin hook, or a JSON body that does not match the request type"
           }
@@ -752,6 +767,39 @@
       }
     },
     "/api/v1/contents/{content_type}/{slug}": {
+      "delete": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "content_type",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "The slug or the id of the content",
+            "in": "path",
+            "name": "slug",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Content deleted"
+          },
+          "404": {
+            "description": "Schema or content not found"
+          }
+        },
+        "summary": "Delete content by slug or id",
+        "tags": [
+          "Contents"
+        ]
+      },
       "get": {
         "parameters": [
           {
@@ -790,17 +838,80 @@
         "tags": [
           "Contents"
         ]
+      },
+      "put": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "content_type",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "The slug or the id of the content",
+            "in": "path",
+            "name": "slug",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateContentPayload"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BaseContentItem"
+                }
+              }
+            },
+            "description": "Content successfully updated"
+          },
+          "400": {
+            "description": "Invalid payload, validation failed or an on-before-save plugin hook failed"
+          },
+          "404": {
+            "description": "Schema or content not found"
+          },
+          "409": {
+            "description": "Another item of this content type already uses the slug"
+          },
+          "422": {
+            "description": "Rejected by an on-before-save plugin hook, or a JSON body that does not match the request type"
+          }
+        },
+        "summary": "Update content by slug or id",
+        "tags": [
+          "Contents"
+        ]
       }
     },
     "/api/v1/health": {
       "get": {
-        "description": "Check if AegisCMS core service is running. `system` and `version` are only returned to an `admin` session.",
+        "description": "Check if AegisCMS core service is running. `system`, `version` and `plugin_abi_version` are only returned to an `admin` session.",
         "responses": {
           "200": {
             "content": {
               "application/json": {
                 "schema": {
                   "properties": {
+                    "plugin_abi_version": {
+                      "example": 1,
+                      "type": "integer"
+                    },
                     "status": {
                       "example": "ok",
                       "type": "string"
@@ -843,10 +954,22 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "items": {
-                    "$ref": "#/components/schemas/SchemaDefinition"
+                  "properties": {
+                    "schemas": {
+                      "items": {
+                        "$ref": "#/components/schemas/SchemaDefinition"
+                      },
+                      "type": "array"
+                    },
+                    "total": {
+                      "type": "integer"
+                    }
                   },
-                  "type": "array"
+                  "required": [
+                    "schemas",
+                    "total"
+                  ],
+                  "type": "object"
                 }
               }
             },

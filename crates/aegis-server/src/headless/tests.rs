@@ -242,3 +242,50 @@ async fn test_public_openapi_lists_only_what_is_served() {
         .await;
     assert_eq!(status, StatusCode::NOT_MODIFIED);
 }
+
+#[tokio::test]
+async fn test_public_openapi_matches_live_responses() {
+    use std::collections::BTreeSet;
+
+    fn key_set(obj: &Value) -> BTreeSet<String> {
+        obj.as_object().unwrap().keys().cloned().collect()
+    }
+
+    let site = site(|_| {}).await;
+    site.put(record("hello", 1, "published", None)).await;
+
+    let spec = site.get_json("/api/v1/public/openapi.json").await;
+    let schemas = &spec["components"]["schemas"];
+
+    let list = site.get_json("/api/v1/public/contents/article").await;
+    let list_schema = &schemas["ArticleList"];
+    assert_eq!(key_set(&list), key_set(&list_schema["properties"]));
+    for req in list_schema["required"].as_array().unwrap() {
+        assert!(list.get(req.as_str().unwrap()).is_some());
+    }
+
+    let summary = &list["items"].as_array().unwrap()[0];
+    let summary_schema = &schemas["ArticleSummary"];
+    let summary_props = key_set(&summary_schema["properties"]);
+    for k in key_set(summary) {
+        assert!(summary_props.contains(&k), "unexpected summary key: {k}");
+    }
+    for req in summary_schema["required"].as_array().unwrap() {
+        assert!(summary.get(req.as_str().unwrap()).is_some());
+    }
+
+    let item = site
+        .get_json("/api/v1/public/contents/article/slug-hello?include=html")
+        .await;
+    let item_schema = &schemas["Article"];
+    let item_props = key_set(&item_schema["properties"]);
+    let item_keys = key_set(&item);
+    assert!(item_keys.contains("blocks"));
+    assert!(item_keys.contains("html"));
+    for k in &item_keys {
+        assert!(item_props.contains(k), "unexpected item key: {k}");
+    }
+    for req in item_schema["required"].as_array().unwrap() {
+        assert!(item.get(req.as_str().unwrap()).is_some());
+    }
+}
