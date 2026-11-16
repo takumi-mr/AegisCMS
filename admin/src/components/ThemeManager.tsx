@@ -272,7 +272,7 @@ export const ThemeManager: React.FC<ThemeManagerProps> = ({ session, onShowToast
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
                           <ShieldCheck size={13} />
-                          <span>{theme.license || 'MIT'}</span>
+                          <span>{theme.license || t('themes.licenseUnknown')}</span>
                         </div>
                       </div>
 

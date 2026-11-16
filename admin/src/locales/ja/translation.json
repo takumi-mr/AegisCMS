@@ -1240,6 +1240,7 @@
     "activateNeedsAdmin": "テーマの切り替えには admin ロールが必要です",
     "activating": "適用中...",
     "activate": "このテーマを使う",
+    "licenseUnknown": "ライセンス不明",
     "previewTitle": "サイトのレイアウトを確認",
     "marketTitle": "Aegis テーママーケットプレイス",
     "marketDescription": "コミュニティが検証したテーマを、分散型の Aegis レジストリから探して・インストールし・プレビューできます。",

@@ -60,7 +60,7 @@ themes/my-theme/
   "version": "1.0.0",
   "description": "The theme's description. Shown in Admin Studio's theme list.",
   "author": { "name": "Your Name", "url": "https://example.com" },
-  "license": "MIT",
+  "license": "MIT OR Apache-2.0",
   "preview_image": "preview.svg",
   "tags": ["light", "blog"],
   "homepage": "https://example.com/themes/my-theme",
