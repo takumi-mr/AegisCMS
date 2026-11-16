@@ -5,6 +5,7 @@
     "providersFailed": "Failed to fetch sign-in methods",
     "sessionFailed": "Failed to check the session",
     "schemasFailed": "Failed to fetch schemas",
+    "queriesFailed": "Failed to fetch declarative queries",
     "contentNotFound": "Content not found",
     "saveContentFailed": "Failed to save content",
     "contentVersionsFailed": "Failed to load content version history",
@@ -1387,6 +1388,7 @@
       "audit": "Audit Logs",
       "system": "System",
       "tags": "Tags",
+      "queries": "Queries",
       "redirects": "Redirects",
       "newsletter": "Newsletter",
       "notices": "Notices",
@@ -2195,5 +2197,24 @@
     "noResults": "No matching libraries found.",
     "viewLicenses": "View Licenses",
     "systemSectionNote": "View open-source software and library licenses used by AegisCMS."
+  },
+  "queries": {
+    "title": "Declarative Queries",
+    "description": "Read-only list of queries declared in queries/*.yaml and the current results held in server memory.",
+    "timezone": "Timezone: {{tz}}",
+    "refresh": "Refresh",
+    "loadFailed": "Failed to load queries",
+    "modeFilterAria": "Query mode filter",
+    "filterAll": "All",
+    "modeAggregate": "Aggregate",
+    "modeList": "List",
+    "searchPlaceholder": "Search by query name or content type...",
+    "emptyTitle": "No declarative queries defined",
+    "emptyHint": "Place *.yaml files under the queries/ directory and restart the server to compute and inspect them here.",
+    "noResults": "No matching queries found.",
+    "rowCount": "{{count}} rows",
+    "viewTable": "Table",
+    "viewJson": "JSON",
+    "noRows": "No rows returned for the current published content."
   }
 }

@@ -38,6 +38,9 @@ const handler: MockHandler = (req) => {
       },
     ] satisfies ThemeInfo[];
   }
+  if (req.path === '/queries') {
+    return { timezone: 'UTC', queries: [], total: 0 };
+  }
   return undefined;
 };
 
@@ -69,5 +72,6 @@ type Story = StoryObj<typeof meta>;
 export const SiteSettings: Story = {};
 export const Categories: Story = { args: { section: 'categories' } };
 export const Tags: Story = { args: { section: 'tags' } };
+export const Queries: Story = { args: { section: 'queries' } };
 export const Licenses: Story = { args: { section: 'licenses' } };
 export const ViewerSettings: Story = { args: { session: { ...session, role: 'viewer' } } };

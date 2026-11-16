@@ -34,6 +34,7 @@ pub fn router(config: &AegisConfig, state: Arc<AppState>) -> Router {
         .route("/api/v1/openapi.json", get(handlers::get_openapi_spec))
         .route("/api/v1/schemas", get(handlers::list_schemas))
         .route("/api/v1/schemas/{content_type}", get(handlers::get_schema))
+        .route("/api/v1/queries", get(crate::queries::list_queries))
         .route(
             "/api/v1/contents/{content_type}",
             get(handlers::list_content).post(handlers::create_content),

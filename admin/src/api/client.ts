@@ -57,6 +57,7 @@ import type {
   PreviewRequest,
   PreviewResult,
   ProductVariant,
+  QueriesResponse,
   Redirect,
   RefundOrderPayload,
   RegistrationPayload,
@@ -419,6 +420,10 @@ export const aegisApi = {
       i18n.t('api.schemasFailed')
     );
     return data.schemas || [];
+  },
+
+  async getQueries(): Promise<QueriesResponse> {
+    return request<QueriesResponse>('/queries', {}, i18n.t('api.queriesFailed'));
   },
 
   /**

@@ -144,6 +144,17 @@ impl QueryService {
         &self.definitions
     }
 
+    pub fn timezone(&self) -> &str {
+        &self.config.timezone
+    }
+
+    pub fn snapshot(&self) -> Arc<Map<String, Value>> {
+        self.handle
+            .read()
+            .unwrap_or_else(|e| e.into_inner())
+            .clone()
+    }
+
     /// 使う列の計画（クエリごとの和集合を、コンテンツの種類ごとにまとめたもの）
     fn plan(
         &self,
@@ -429,6 +440,42 @@ pub async fn content_changed(state: &AppState, content_type: &str) {
 /// 知らせを受け取ったとき（`cluster::handle`）
 pub async fn handle_event(state: &AppState, content_type: &str) {
     state.queries.refresh(state, Some(content_type)).await;
+}
+
+/// `GET /api/v1/queries`: 定義されたクエリの一覧と、サーバーが保持している現在の結果を返す（`viewer` 以上）
+pub async fn list_queries(
+    axum::extract::State(state): axum::extract::State<Arc<AppState>>,
+    _session: crate::auth::ViewerSession,
+) -> impl axum::response::IntoResponse {
+    let snapshot = state.queries.snapshot();
+    let queries: Vec<Value> = state
+        .queries
+        .definitions()
+        .iter()
+        .map(|def| {
+            let rows = snapshot
+                .get(&def.name)
+                .cloned()
+                .unwrap_or_else(|| Value::Array(Vec::new()));
+            json!({
+                "name": def.name,
+                "from": def.from,
+                "mode": def.mode(),
+                "where": def.conditions,
+                "group_by": def.group_by,
+                "select": def.select,
+                "order_by": def.order_by,
+                "limit": def.limit,
+                "rows": rows,
+            })
+        })
+        .collect();
+    let total = queries.len();
+    axum::Json(json!({
+        "timezone": state.queries.timezone(),
+        "queries": queries,
+        "total": total,
+    }))
 }
 
 #[cfg(test)]

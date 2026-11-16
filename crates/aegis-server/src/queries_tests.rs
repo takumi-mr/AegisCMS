@@ -178,6 +178,49 @@ async fn queries_follow_publication_and_render_in_the_theme() {
         &before,
         &state.queries.handle().read().unwrap()
     ));
+
+    // `GET /api/v1/queries`: 未認証は 401、viewer 以上でクエリ一覧と現在の結果を返す
+    use axum::body::Body;
+    use axum::http::{Request, StatusCode};
+    use tower::ServiceExt;
+
+    let app = crate::app::router(&state.config.clone(), state.clone());
+    let unauth = app
+        .clone()
+        .oneshot(Request::get("/api/v1/queries").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    assert_eq!(unauth.status(), StatusCode::UNAUTHORIZED);
+
+    let viewer_token = state
+        .sessions
+        .create_session("v1", "viewer", Default::default(), None)
+        .await
+        .unwrap()
+        .id;
+    let res = app
+        .oneshot(
+            Request::get("/api/v1/queries")
+                .header("authorization", format!("Bearer {viewer_token}"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::OK);
+    let bytes = axum::body::to_bytes(res.into_body(), 1 << 20)
+        .await
+        .unwrap();
+    let payload: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+    assert_eq!(payload["timezone"], "UTC");
+    assert_eq!(payload["total"], 2);
+    let queries = payload["queries"].as_array().unwrap();
+    assert_eq!(queries[0]["name"], "by_brand");
+    assert_eq!(queries[0]["mode"], "aggregate");
+    assert_eq!(queries[0]["rows"].as_array().unwrap().len(), 2);
+    assert_eq!(queries[1]["name"], "latest_sale");
+    assert_eq!(queries[1]["mode"], "list");
+    assert_eq!(queries[1]["rows"].as_array().unwrap().len(), 2);
 }
 
 #[tokio::test]
