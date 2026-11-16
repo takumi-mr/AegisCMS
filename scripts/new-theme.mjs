@@ -155,7 +155,7 @@ if (fromTheme) {
       name: 'AegisCMS Creator',
       url: 'https://example.com',
     },
-    license: 'MIT',
+    license: 'MIT OR Apache-2.0',
     preview_image: 'preview.svg',
     tags: ['clean', 'responsive', 'modern'],
     min_aegis_version: '0.1.0',

@@ -7,7 +7,7 @@
     "name": "NeoTokyo Creative Lab",
     "url": "https://aegiscms.dev/creators/neotokyo"
   },
-  "license": "MIT",
+  "license": "MIT OR Apache-2.0",
   "preview_image": "preview.svg",
   "tags": ["cyberpunk", "neon", "dark", "futuristic", "tech"],
   "homepage": "https://aegiscms.dev/themes/cyber-neon",

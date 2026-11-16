@@ -5,7 +5,7 @@
 <p align="center">
   <a href="https://github.com/takumi-mr/AegisCMS/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/takumi-mr/AegisCMS/actions/workflows/ci.yml/badge.svg"></a>
   <a href="https://github.com/takumi-mr/AegisCMS/releases/latest"><img alt="Release" src="https://img.shields.io/github/v/release/takumi-mr/AegisCMS?sort=semver"></a>
-  <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/github/license/takumi-mr/AegisCMS"></a>
+  <a href="#ライセンス"><img alt="License: MIT OR Apache-2.0" src="https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue"></a>
   <a href="https://github.com/takumi-mr/AegisCMS/pkgs/container/aegiscms"><img alt="Docker image" src="https://img.shields.io/badge/ghcr.io-aegiscms-2496ED?logo=docker&logoColor=white"></a>
   <img alt="Rust" src="https://img.shields.io/badge/Rust-2021-000000?logo=rust&logoColor=white">
   <img alt="WebAssembly plugins" src="https://img.shields.io/badge/plugins-WebAssembly-654FF0?logo=webassembly&logoColor=white">
@@ -79,7 +79,12 @@ AegisCMS は 1 つのバイナリで動き、データベース（SQLite）も�
 
 ## ライセンス
 
-[MIT](LICENSE)
+次のいずれかを選んで利用できます（デュアルライセンス）。
+
+- [MIT License](LICENSE-MIT)
+- [Apache License, Version 2.0](LICENSE-APACHE)
+
+特に明示しない限り、AegisCMS への取り込みを意図して提出されたコントリビューション（Apache-2.0 ライセンスの定義による）は、追加の条件なしに上記のデュアルライセンスで提供されるものとします。
 
 ---
 

@@ -117,4 +117,4 @@ The hooks above after `on_render_page` are declared in the manifest's `capabilit
 
 ## License
 
-Licensed under either of Apache License, Version 2.0 or MIT license at your option.
+Licensed under either of MIT license or Apache License, Version 2.0 at your option.

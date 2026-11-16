@@ -16,7 +16,9 @@ export const Default: Story = {
 
     // AegisCMS core license heading should be visible (matches either en or ja)
     await expect(canvas.getByText(/AegisCMS (License|ライセンス)/)).toBeVisible();
-    await expect(canvas.getByText('MIT License')).toBeVisible();
+    // Third-party packages can carry the same license text, so look inside the AegisCMS card only
+    const aegisCard = canvas.getByRole('region', { name: /AegisCMS (License|ライセンス)/ });
+    await expect(within(aegisCard).getByText('MIT OR Apache-2.0')).toBeVisible();
 
     // Default shows search input
     const searchInput = canvas.getByRole('searchbox');

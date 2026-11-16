@@ -7,7 +7,7 @@
     "name": "Maison Aegis Design",
     "url": "https://aegiscms.dev/creators/maison"
   },
-  "license": "MIT",
+  "license": "MIT OR Apache-2.0",
   "preview_image": "preview.svg",
   "tags": ["luxury", "dark", "emerald", "gold", "portfolio"],
   "homepage": "https://aegiscms.dev/themes/emerald-luxury",

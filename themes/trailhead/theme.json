@@ -7,7 +7,7 @@
     "name": "AegisCMS Core Team",
     "url": "https://aegiscms.dev"
   },
-  "license": "MIT",
+  "license": "MIT OR Apache-2.0",
   "preview_image": "preview.svg",
   "tags": ["light", "forum", "community", "green", "japanese"],
   "homepage": "https://aegiscms.dev/themes/trailhead",
