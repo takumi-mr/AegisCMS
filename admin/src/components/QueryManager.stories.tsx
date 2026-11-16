@@ -106,4 +106,3 @@ export const Empty: Story = {
     ).toBeVisible();
   },
 };
-
