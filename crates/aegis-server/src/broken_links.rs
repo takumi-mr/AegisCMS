@@ -248,14 +248,30 @@ async fn check_internal_link(
 
     let schemas = state.schemas.read().await;
 
-    // /articles/{slug}
-    if let Some(slug) = norm.strip_prefix("articles/") {
-        if let Some(schema) = schemas.get("article") {
-            if let Ok(Some(_)) = state.db.get_published_content(schema, slug).await {
-                return Ok(());
+    // /articles/{slug}（記事の `public_path` があればその接頭辞。旧 /articles も転送されるので有効とみなす）
+    let article_prefix = state.article_prefix().trim_start_matches('/');
+    for prefix in [article_prefix, "articles"] {
+        if let Some(slug) = norm.strip_prefix(prefix).and_then(|s| s.strip_prefix('/')) {
+            if let Some(schema) = schemas.get("article") {
+                if let Ok(Some(_)) = state.db.get_published_content(schema, slug).await {
+                    return Ok(());
+                }
             }
+            return Err((Some(404), "Article not found".to_string()));
         }
-        return Err((Some(404), "Article not found".to_string()));
+    }
+
+    // カスタムスキーマの詳細ページ（/works/{slug} など）
+    for (content_type, prefix) in state.public_paths.iter() {
+        let prefix = prefix.trim_start_matches('/');
+        if let Some(slug) = norm.strip_prefix(prefix).and_then(|s| s.strip_prefix('/')) {
+            if let Some(schema) = schemas.get(content_type) {
+                if let Ok(Some(_)) = state.db.get_published_content(schema, slug).await {
+                    return Ok(());
+                }
+            }
+            return Err((Some(404), "Content not found".to_string()));
+        }
     }
 
     // /category/{slug}

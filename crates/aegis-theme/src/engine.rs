@@ -83,6 +83,7 @@ impl minijinja::value::Object for QueriesObject {
 struct Globals {
     queries: QueriesHandle,
     base_path: String,
+    articles_path: String,
     admin_url: Option<String>,
     show_powered_by: bool,
     locale: String,
@@ -97,6 +98,8 @@ struct ThemeEngineInner {
     theme_templates_dir: Option<PathBuf>,
     dynamic_templates: HashMap<String, String>,
     base_path: String,
+    /// 記事一覧の URL のパス（`base_path` を除く。グローバル変数 `articles_url` は `base_path` 込み）
+    articles_path: String,
     /// 公開ページから Admin Studio へのリンク（グローバル変数 `admin_url`。空ならリンクを出さない）。
     /// `None` なら `{base_path}/admin/`
     admin_url: Option<String>,
@@ -135,6 +138,7 @@ impl ThemeEngine {
                 theme_templates_dir,
                 dynamic_templates: HashMap::new(),
                 base_path: String::new(),
+                articles_path: "/articles".to_string(),
                 admin_url: None,
                 show_powered_by: true,
                 locale: "en".to_string(),
@@ -150,6 +154,18 @@ impl ThemeEngine {
         {
             let mut inner = self.inner.write().unwrap();
             inner.base_path = base_path.to_string();
+            inner.environment = None;
+        }
+        self
+    }
+
+    /// 記事一覧の URL のパス（記事のスキーマの `public_path`。既定は `/articles`）。
+    /// テンプレートからはグローバル変数 `articles_url`（`base_path` 込み）として `{{ articles_url }}` のように使う。
+    /// 記事ごとのリンクは `{{ item.fields.url }}` を使う
+    pub fn with_articles_path(self, articles_path: &str) -> Self {
+        {
+            let mut inner = self.inner.write().unwrap();
+            inner.articles_path = articles_path.to_string();
             inner.environment = None;
         }
         self
@@ -501,6 +517,11 @@ impl ThemeEngine {
         inner.environment = None;
     }
 
+    /// この名前のテンプレートがあるか（テーマのもの、組み込み、登録済みの動的なもの）
+    pub fn has_template(&self, template_name: &str) -> bool {
+        self.environment().get_template(template_name).is_ok()
+    }
+
     /// テンプレートと PageRenderContext から HTML を描画する
     pub fn render(&self, template_name: &str, ctx: &PageRenderContext) -> Result<String> {
         let env = self.environment();
@@ -657,6 +678,7 @@ impl ThemeEngine {
             Globals {
                 queries: inner.queries.clone(),
                 base_path: inner.base_path.clone(),
+                articles_path: inner.articles_path.clone(),
                 admin_url: inner.admin_url.clone(),
                 show_powered_by: inner.show_powered_by,
                 locale: inner.locale.clone(),
@@ -678,6 +700,7 @@ impl ThemeEngine {
         let Globals {
             queries,
             base_path,
+            articles_path,
             admin_url,
             show_powered_by,
             locale,
@@ -741,6 +764,11 @@ impl ThemeEngine {
         env.add_global(
             "queries",
             minijinja::Value::from_object(QueriesObject(queries)),
+        );
+        // `base_path` と記事のスキーマの `public_path`（検証済み。URL で安全な文字のみ）から作る
+        env.add_global(
+            "articles_url",
+            minijinja::Value::from_safe_string(format!("{}{}", base_path, articles_path)),
         );
         env.add_global("base_path", minijinja::Value::from_safe_string(base_path));
         env.add_global("admin_url", minijinja::Value::from_safe_string(admin_url));
@@ -980,7 +1008,10 @@ mod tests {
                 author_id: Some("takumi".to_string()),
                 published_at: Some("2026-10-22".to_string()),
                 created_at: "2026-10-22".to_string(),
-                fields: HashMap::new(),
+                fields: HashMap::from([(
+                    "url".to_string(),
+                    serde_json::json!("/articles/first-post"),
+                )]),
                 relations: HashMap::new(),
             }],
             extra_css: "".to_string(),
@@ -992,7 +1023,11 @@ mod tests {
             ..Default::default()
         };
 
-        let html = engine.render("index.html", &ctx).expect("Render failed");
+        // `fields.url` は自動エスケープされる（`/` → `&#x2f;`。ブラウザは同じ URL として読む）
+        let html = engine
+            .render("index.html", &ctx)
+            .expect("Render failed")
+            .replace("&#x2f;", "/");
         assert!(html.contains("Test Aegis Site"));
         assert!(html.contains("First Post"));
         assert!(html.contains("/articles/first-post"));
@@ -1068,12 +1103,20 @@ mod tests {
             items: vec![ContentSummary {
                 title: "First Post".to_string(),
                 slug: "first-post".to_string(),
+                // 記事のリンクはホストが `fields.url`（`base_path` と `public_path` 込み）で渡す
+                fields: HashMap::from([(
+                    "url".to_string(),
+                    serde_json::json!("/cms/articles/first-post"),
+                )]),
                 ..Default::default()
             }],
             ..Default::default()
         };
 
-        let html = engine.render("index.html", &ctx).expect("Render failed");
+        let html = engine
+            .render("index.html", &ctx)
+            .expect("Render failed")
+            .replace("&#x2f;", "/");
         assert!(html.contains(r#"href="/cms/articles/first-post""#));
         assert!(html.contains(r#"href="/cms/admin/""#));
         assert!(html.contains(r#"href="/cms/""#));
@@ -1380,6 +1423,7 @@ mod tests {
             Globals {
                 queries: new_queries_handle(),
                 base_path: String::new(),
+                articles_path: "/articles".to_string(),
                 admin_url: None,
                 show_powered_by: true,
                 locale: "en".to_string(),

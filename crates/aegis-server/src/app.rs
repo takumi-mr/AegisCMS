@@ -567,8 +567,6 @@ pub fn router(config: &AegisConfig, state: Arc<AppState>) -> Router {
         .route("/feed.xml", get(handlers::get_feed))
         .route("/oembed", get(handlers::oembed::get_oembed))
         .route("/", get(handlers::render_index))
-        .route("/articles", get(handlers::render_articles))
-        .route("/articles/{slug}", get(handlers::render_article))
         .route("/category/{slug}", get(handlers::render_category))
         .route("/category/{slug}/feed.xml", get(handlers::get_category_feed))
         .route("/tags", get(handlers::render_tags_index))
@@ -621,6 +619,70 @@ pub fn router(config: &AegisConfig, state: Arc<AppState>) -> Router {
         .route("/wp-json", any(handlers::honeypot_trap))
         .route("/wp-json/{*path}", any(handlers::honeypot_trap))
         .route("/{slug}", get(handlers::render_page_or_slug));
+
+    // 記事の一覧・詳細。URL の先頭はスキーマの `public_path` で変えられる（既定は /articles）。
+    // 変えたときは、旧 /articles を新しい URL へ 301 で転送する
+    {
+        let prefix = state.article_prefix().to_string();
+        app = app
+            .route(&prefix, get(handlers::render_articles))
+            .route(&format!("{prefix}/{{slug}}"), get(handlers::render_article));
+        if prefix != "/articles" {
+            app = app
+                .route("/articles", get(handlers::redirect_legacy_article_list))
+                .route("/articles/{slug}", get(handlers::redirect_legacy_article));
+        }
+        // `public_path` を持つカスタム型の詳細ページ（/works/{slug} など）
+        for (content_type, prefix) in state
+            .public_paths
+            .iter()
+            .filter(|(content_type, _)| content_type.as_str() != "article")
+        {
+            let list_type = content_type.clone();
+            let feed_type = content_type.clone();
+            app = app
+                .route(
+                    prefix,
+                    get(
+                        move |axum::extract::State(state): axum::extract::State<Arc<AppState>>,
+                              axum::extract::Query(params): axum::extract::Query<
+                            handlers::public::IndexParams,
+                        >| {
+                            let content_type = list_type.clone();
+                            async move {
+                                handlers::render_custom_list(state, content_type, params.page).await
+                            }
+                        },
+                    ),
+                )
+                .route(
+                    &format!("{prefix}/feed.xml"),
+                    get(
+                        move |axum::extract::State(state): axum::extract::State<Arc<AppState>>,
+                              headers: axum::http::HeaderMap| {
+                            let content_type = feed_type.clone();
+                            async move {
+                                handlers::feed::get_custom_feed(state, content_type, headers).await
+                            }
+                        },
+                    ),
+                );
+            let content_type = content_type.clone();
+            app = app.route(
+                &format!("{prefix}/{{slug}}"),
+                get(
+                    move |axum::extract::State(state): axum::extract::State<Arc<AppState>>,
+                          axum::extract::Path(slug): axum::extract::Path<String>,
+                          headers: axum::http::HeaderMap| {
+                        let content_type = content_type.clone();
+                        async move {
+                            handlers::render_custom_detail(state, content_type, slug, headers).await
+                        }
+                    },
+                ),
+            );
+        }
+    }
 
     // サイトの機能が配信するスクリプト・スタイル（`/_<namespace>/...`。URL の `aegis` は応答時に接頭辞へ置き換わる）
     {

@@ -32,13 +32,13 @@
 <section>
   <div class="th-section-head">
     <h2>{{ t("theme.trailhead.news_title") }}</h2>
-    <a href="{{ base_path }}/articles">{{ t("theme.trailhead.all_news") }} &rarr;</a>
+    <a href="{{ articles_url }}">{{ t("theme.trailhead.all_news") }} &rarr;</a>
   </div>
   <div class="th-news">
     {% for item in items %}
     <article class="th-news-item">
       <span class="th-date">{{ item.published_at | date_short }}</span>
-      <h3><a href="{{ base_path }}/articles/{{ item.slug }}">{{ item.title }}</a></h3>
+      <h3><a href="{{ item.fields.url }}">{{ item.title }}</a></h3>
       <p>{{ item.excerpt | truncate(90) }}</p>
     </article>
     {% else %}

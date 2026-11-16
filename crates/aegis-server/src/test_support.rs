@@ -104,6 +104,10 @@ pub async fn test_app_state_with_db(
     ));
     let base_path = config.server.normalized_base_path().unwrap();
     let locale = config.theme.locale.clone();
+    let articles_path = schemas
+        .get("article")
+        .and_then(|s| s.public_path.clone())
+        .unwrap_or_else(|| "/articles".to_string());
     AppState::new(
         config,
         db.clone(),
@@ -118,6 +122,7 @@ pub async fn test_app_state_with_db(
         Arc::new(
             aegis_theme::ThemeEngine::new(std::path::Path::new("themes"), "default")
                 .with_base_path(&base_path)
+                .with_articles_path(&articles_path)
                 .with_locale(&locale),
         ),
     )

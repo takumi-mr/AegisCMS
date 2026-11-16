@@ -1115,6 +1115,12 @@ async fn run_server() -> anyhow::Result<()> {
                 aegis_theme::ThemeEngine::new(&config.paths.themes_dir, &config.theme.active)
                     .with_queries(query_service.handle())
                     .with_base_path(&base_path)
+                    .with_articles_path(
+                        schemas
+                            .get("article")
+                            .and_then(|s| s.public_path.as_deref())
+                            .unwrap_or("/articles"),
+                    )
                     .with_admin_url(&public_admin_url(&config, &base_path, &admin_path))
                     .with_template_reload(config.theme.reload_templates)
                     .with_powered_by(config.theme.show_powered_by)

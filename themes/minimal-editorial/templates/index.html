@@ -14,12 +14,12 @@
   <article class="ed-card">
     <div class="ed-card-tag">{{ item.content_type | upper }}</div>
     <h2 class="ed-card-title">
-      <a href="{{ base_path }}/articles/{{ item.slug }}">{{ item.title }}</a>
+      <a href="{{ item.fields.url }}">{{ item.title }}</a>
     </h2>
     <p class="ed-card-excerpt">{{ item.excerpt | truncate(150) }}</p>
     <div class="ed-card-footer">
       <span>{{ item.published_at | date_short }}</span>
-      <a href="{{ base_path }}/articles/{{ item.slug }}" class="ed-card-link">{{ t("theme.editorial.read_essay") }} &rarr;</a>
+      <a href="{{ item.fields.url }}" class="ed-card-link">{{ t("theme.editorial.read_essay") }} &rarr;</a>
     </div>
   </article>
   {% else %}

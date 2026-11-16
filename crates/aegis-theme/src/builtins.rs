@@ -362,7 +362,7 @@ pub const INDEX_TEMPLATE: &str = r#"{% extends "base.html" %}
           {% endif %}
         </div>
         <h3 class="aegis-s13">
-          <a class="aegis-s14" href="{{ base_path }}/articles/{{ item.slug }}">
+          <a class="aegis-s14" href="{{ item.fields.url }}">
             {{ item.title }}
           </a>
         </h3>
@@ -376,7 +376,7 @@ pub const INDEX_TEMPLATE: &str = r#"{% extends "base.html" %}
         <span class="aegis-s12">
           {% if item.author_id %}{{ t("author.by", name=item.author_id) }}{% else %}{{ t("author.team") }}{% endif %}
         </span>
-        <a class="aegis-s17" href="{{ base_path }}/articles/{{ item.slug }}">
+        <a class="aegis-s17" href="{{ item.fields.url }}">
           {{ t("read_story") }} &rarr;
         </a>
       </div>
@@ -478,7 +478,7 @@ pub const CATEGORY_TEMPLATE: &str = r#"{% extends "base.html" %}
     {% for item in items %}
     <li class="aegis-s29">
       {% if item.published_at %}<time class="aegis-s30" datetime="{{ item.published_at }}">{{ item.published_at | date_short }}</time>{% endif %}
-      <h2 class="aegis-s31"><a class="aegis-s32" href="{{ base_path }}/articles/{{ item.slug }}">{{ item.title }}</a></h2>
+      <h2 class="aegis-s31"><a class="aegis-s32" href="{{ item.fields.url }}">{{ item.title }}</a></h2>
       {% if item.excerpt %}<p class="aegis-s33">{{ item.excerpt }}</p>{% endif %}
     </li>
     {% else %}
@@ -712,7 +712,7 @@ pub const ARTICLE_TEMPLATE: &str = r#"{% extends "base.html" %}
     </h2>
     <div class="aegis-s71">
       {% for item in related_articles %}
-      <a class="aegis-s72" href="{{ base_path }}/articles/{{ item.slug }}">
+      <a class="aegis-s72" href="{{ item.fields.url }}">
         <h3 class="aegis-s73">
           {{ item.title }}
         </h3>
@@ -767,7 +767,7 @@ pub const PAGE_TEMPLATE: &str = r#"{% extends "base.html" %}
     </h2>
     <div class="aegis-s71">
       {% for item in related_articles %}
-      <a class="aegis-s72" href="{{ base_path }}/articles/{{ item.slug }}">
+      <a class="aegis-s72" href="{{ item.fields.url }}">
         <h3 class="aegis-s73">
           {{ item.title }}
         </h3>
@@ -1058,7 +1058,7 @@ pub const PRODUCT_TEMPLATE: &str = r##"{% extends "base.html" %}
     </h2>
     <div class="aegis-s71">
       {% for item in related_articles %}
-      <a class="aegis-s72" href="{{ base_path }}/articles/{{ item.slug }}">
+      <a class="aegis-s72" href="{{ item.fields.url }}">
         <h3 class="aegis-s73">
           {{ item.title }}
         </h3>

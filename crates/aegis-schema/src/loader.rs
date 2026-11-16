@@ -8,9 +8,12 @@ pub struct SchemaLoader;
 
 impl SchemaLoader {
     pub fn load_from_str(yaml_content: &str) -> Result<SchemaDefinition> {
-        serde_saphyr::from_str::<SchemaDefinition>(yaml_content)
+        let schema = serde_saphyr::from_str::<SchemaDefinition>(yaml_content)
             .map(SchemaDefinition::with_builtin_fields)
-            .map_err(|e| AegisError::Schema(format!("Failed to parse schema YAML: {}", e)))
+            .map(SchemaDefinition::resolve_public_path)
+            .map_err(|e| AegisError::Schema(format!("Failed to parse schema YAML: {}", e)))?;
+        schema.validate_public_path().map_err(AegisError::Schema)?;
+        Ok(schema)
     }
 
     pub fn load_from_file<P: AsRef<Path>>(path: P) -> Result<SchemaDefinition> {
@@ -45,6 +48,23 @@ impl SchemaLoader {
         }
 
         schemas.sort_by(|a, b| a.content_type.cmp(&b.content_type));
+        // 同じ URL を 2 つの型が使うと、片方の詳細ページが開けなくなる
+        let mut used: std::collections::HashMap<&str, &str> = std::collections::HashMap::new();
+        for schema in &schemas {
+            let path = match (schema.public_path.as_deref(), schema.content_type.as_str()) {
+                (Some(p), _) => Some(p),
+                (None, "article") => Some("/articles"),
+                _ => None,
+            };
+            if let Some(path) = path {
+                if let Some(other) = used.insert(path, schema.content_type.as_str()) {
+                    return Err(AegisError::Schema(format!(
+                        "schemas '{}' and '{}' use the same public_path '{}'",
+                        other, schema.content_type, path
+                    )));
+                }
+            }
+        }
         Ok(schemas)
     }
 }
@@ -108,6 +128,128 @@ mod tests {
         // 閲覧の制限が YAML の書き違いで外れない（型を変えられない）
         assert_eq!(schema.fields[1].field_type, FieldType::String);
         assert_eq!(schema.fields[2].field_type, FieldType::Integer);
+    }
+
+    #[test]
+    fn public_path_is_validated() {
+        let load = |ct: &str, path: &str| {
+            SchemaLoader::load_from_str(&format!(
+                "content_type: {ct}
+label: X
+public_path: \"{path}\"
+"
+            ))
+        };
+        assert_eq!(
+            load("article", "/news").unwrap().public_path.as_deref(),
+            Some("/news")
+        );
+        assert!(load("works", "/works-2024").is_ok());
+        // 1 つの区切りだけ・小文字と数字と -_ だけ
+        for bad in ["news", "/", "/a/b", "/News", "/new s", "/-x", "/news/"] {
+            assert!(load("works", bad).is_err(), "{bad} should be rejected");
+        }
+        // サーバーが先に使っている URL
+        for reserved in [
+            "/api",
+            "/category",
+            "/tags",
+            "/products",
+            "/uploads",
+            "/wp-admin",
+        ] {
+            assert!(load("works", reserved).is_err(), "{reserved} is reserved");
+        }
+        // 公開ページを別に持つ型には付けられない
+        assert!(load("page", "/p").is_err());
+        assert!(load("category", "/c").is_err());
+    }
+
+    #[test]
+    fn public_path_auto_uses_the_content_type_name() {
+        let load = |yaml: &str| SchemaLoader::load_from_str(yaml);
+        for value in ["auto", "true"] {
+            let schema = load(&format!(
+                "content_type: case_study
+label: C
+public_path: {value}
+"
+            ))
+            .unwrap();
+            assert_eq!(schema.public_path.as_deref(), Some("/case_study"));
+        }
+        let off = load(
+            "content_type: works
+label: W
+public_path: false
+",
+        )
+        .unwrap();
+        assert_eq!(off.public_path, None);
+        // 予約済みの名前や、公開ページを別に持つ型では使えない
+        assert!(load(
+            "content_type: tags
+label: T
+public_path: auto
+"
+        )
+        .is_err());
+        assert!(load(
+            "content_type: page
+label: P
+public_path: auto
+"
+        )
+        .is_err());
+        // 型名が URL に使えない文字を含むとき
+        assert!(load(
+            "content_type: Case.Study
+label: C
+public_path: auto
+"
+        )
+        .is_err());
+    }
+
+    #[test]
+    fn duplicate_public_paths_are_rejected() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(
+            dir.path().join("a.yaml"),
+            "content_type: works
+label: W
+public_path: /news
+",
+        )
+        .unwrap();
+        std::fs::write(
+            dir.path().join("b.yaml"),
+            "content_type: article
+label: A
+public_path: /news
+",
+        )
+        .unwrap();
+        let err = SchemaLoader::load_dir(dir.path()).unwrap_err().to_string();
+        assert!(err.contains("same public_path"), "{err}");
+
+        // 記事の既定の /articles を、ほかの型が取ることもできない
+        std::fs::write(
+            dir.path().join("b.yaml"),
+            "content_type: article
+label: A
+",
+        )
+        .unwrap();
+        std::fs::write(
+            dir.path().join("a.yaml"),
+            "content_type: works
+label: W
+public_path: /articles
+",
+        )
+        .unwrap();
+        assert!(SchemaLoader::load_dir(dir.path()).is_err());
     }
 
     #[test]

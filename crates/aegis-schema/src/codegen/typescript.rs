@@ -231,6 +231,7 @@ mod tests {
     #[test]
     fn test_generate_typescript() {
         let schema = SchemaDefinition {
+            public_path: None,
             content_type: "article".to_string(),
             label: "技術記事".to_string(),
             description: Some("技術ブログ記事".to_string()),

@@ -1872,6 +1872,7 @@ mod tests {
 
         // 1. スキーマ定義
         let category_schema = SchemaDefinition {
+            public_path: None,
             content_type: "category".to_string(),
             label: "カテゴリ".to_string(),
             description: None,
@@ -1904,6 +1905,7 @@ mod tests {
         };
 
         let article_schema = SchemaDefinition {
+            public_path: None,
             content_type: "article".to_string(),
             label: "技術記事".to_string(),
             description: None,

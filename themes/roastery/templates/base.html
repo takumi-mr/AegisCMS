@@ -21,7 +21,7 @@
       </a>
       <nav class="rs-nav" aria-label="Main">
         <a href="{{ base_path }}/products">{{ t("theme.roastery.nav_shop") }}</a>
-        <a href="{{ base_path }}/articles">{{ t("theme.roastery.nav_journal") }}</a>
+        <a href="{{ articles_url }}">{{ t("theme.roastery.nav_journal") }}</a>
         <a href="{{ base_path }}/about">{{ t("theme.roastery.nav_about") }}</a>
         <a href="{{ base_path }}/cart" class="rs-nav-cart">{{ t("theme.roastery.nav_cart") }}</a>
       </nav>
@@ -42,7 +42,7 @@
       </div>
       <nav class="rs-footer-links" aria-label="Footer">
         <a href="{{ base_path }}/products">{{ t("theme.roastery.footer_shop") }}</a>
-        <a href="{{ base_path }}/articles">{{ t("theme.roastery.footer_journal") }}</a>
+        <a href="{{ articles_url }}">{{ t("theme.roastery.footer_journal") }}</a>
         <a href="{{ base_path }}/about">{{ t("theme.roastery.footer_about") }}</a>
         <a href="{{ base_path }}/shipping">{{ t("theme.roastery.footer_shipping") }}</a>
         {% if admin_url %}<a href="{{ admin_url }}">{{ t("admin.studio") }}</a>{% endif %}

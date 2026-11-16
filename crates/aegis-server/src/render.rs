@@ -321,6 +321,20 @@ pub fn site_page_context(state: &AppState) -> PageRenderContext {
     }
 }
 
+/// 一覧・関連記事などの要素に、公開ページの URL（`fields.url`。`base_path` 込み）を入れる
+pub(crate) fn set_public_url(state: &AppState, item: &mut aegis_core::ContentSummary) {
+    let base = state
+        .config
+        .server
+        .normalized_base_path()
+        .unwrap_or_default();
+    let path = crate::handlers::public::public_content_path(state, &item.content_type, &item.slug);
+    item.fields.insert(
+        "url".to_string(),
+        serde_json::Value::String(format!("{base}{path}")),
+    );
+}
+
 /// Renders a full themed page: resolves relations, applies the plugins' `on-render-page`
 /// hook (a failing hook keeps the original context) and renders the theme template
 pub async fn render_page(
@@ -331,11 +345,7 @@ pub async fn render_page(
     let relations = resolve_page_relations(state, schema, &page.fields).await;
     let is_article = page.content_type == "article";
     let path = page.path.clone().unwrap_or_else(|| {
-        if is_article {
-            format!("/articles/{}", page.slug)
-        } else {
-            format!("/{}", page.slug)
-        }
+        crate::handlers::public::public_content_path(state, &page.content_type, &page.slug)
     });
     let excerpt = page.fields.get("excerpt").and_then(|v| v.as_str());
     let image = page
@@ -356,6 +366,17 @@ pub async fn render_page(
     // ので、本文を隠して見せる「クローキング」ではない（schema.org の `isAccessibleForFree`）
     if aegis_db::is_restricted(&page.fields) {
         extra_head.push_str(&restricted_json_ld(&page.title, is_article));
+    }
+
+    // 関連記事・前後の記事のリンク先。テーマは `{{ item.fields.url }}` で使う（`base_path` 込み）
+    let mut page = page;
+    for item in page
+        .related_articles
+        .iter_mut()
+        .chain(page.prev_article.iter_mut())
+        .chain(page.next_article.iter_mut())
+    {
+        set_public_url(state, item);
     }
 
     let mut ctx = PageRenderContext {

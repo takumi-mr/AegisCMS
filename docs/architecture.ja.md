@@ -203,6 +203,7 @@ AegisCMS の実装上の設計判断と、コードを変更するときに守�
 - トップページ（`/`）は `[theme].front_page` で記事一覧・テーマの `front.html`・固定ページを切り替える。設定値は起動時に検証する（`ThemeConfig::validate`）。サイトの構成はコードで管理する方針なので、Admin Studio の設定ではなく `aegis.toml` に置いた。`front.html` の組み込みは `index.html` を継承するだけなので、`"template"` にしてもテーマが対応していなければ表示は変わらない。
 - 固定ページを `/` に出すときは canonical・OGP の URL を `/` にし（`PageInput.path`）、そのページ自身の URL（`/{slug}`）でも同じ URL を指す。
 - 記事一覧・カテゴリの一覧・フィードは同じ取得処理（`list_published_articles`）を使う。カテゴリの絞り込みは記事のスキーマの `target: category.<フィールド>` の関係フィールドで行う。`category_id` の絞り込みとタグの絞り込みは SQL で行い（公開の記録の列・結びつきのテーブル）、それ以外のフィールドでの絞り込みだけは公開版を全件読んでから Rust 側で行う。
+- 公開ページの URL は `public_content_path` の 1 か所で決める。`public_path` を持つカスタム型の一覧・フィード・詳細も、記事と同じ処理（`render_article_list`・`feed::build_feed`・`render_content_detail`）に型名を渡して使い回す。スキーマの `public_path`（検証は `SchemaDefinition::validate_public_path`、重複は `SchemaLoader::load_dir`）は起動時に `AppState::public_paths` へ写し、同期で引けるようにしている（スキーマは起動後に変わらない）。ルートは `app::router` が起動時に `public_path` から登録する。**自由な書き換えルール（日付やカテゴリ入りの URL）は入れない**: URL が変わりやすく、旧 URL はリダイレクトで足りるため。テーマは `item.fields.url`（`render_article_list`・`render::set_public_url` が入れる。`base_path` 込み）と `articles_url` を使い、`/articles` を直書きしない。
 - フィードは Atom 1.0。エントリの `<id>` は記事の ID の URL（`/articles/{id}`。`get_published_content` はスラッグと ID のどちらでも引ける）にして、スラッグを変えても購読者に別の記事として届かないようにした。自動検出用の `<link>` は `render::build_extra_head` で全ページの `extra_head` に入れるので、テーマ側の対応は要らない。
 
 ### 3.7 On-demand Cache-Tag Purge (`aegis-cache/src/cdn.rs`, `aegis-server/src/cdn.rs`)

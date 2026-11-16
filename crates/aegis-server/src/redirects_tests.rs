@@ -284,16 +284,29 @@ fn test_encode_location() {
 #[test]
 fn test_public_paths_by_content_type() {
     let config = crate::config::AegisConfig::default();
+    let none = std::collections::HashMap::new();
     assert_eq!(
-        public_paths(&config, "article", "hello"),
+        public_paths(&config, &none, "article", "hello"),
         ["/articles/hello", "/hello"]
     );
-    assert_eq!(public_paths(&config, "page", "about"), ["/about"]);
+    assert_eq!(public_paths(&config, &none, "page", "about"), ["/about"]);
     assert_eq!(
-        public_paths(&config, &config.commerce.product_type, "mug"),
+        public_paths(&config, &none, &config.commerce.product_type, "mug"),
         ["/products/mug"]
     );
-    assert!(public_paths(&config, "category", "news").is_empty());
+    assert!(public_paths(&config, &none, "category", "news").is_empty());
+    assert!(public_paths(&config, &none, "works", "a").is_empty());
+
+    // スキーマの public_path があれば、記事の接頭辞が変わり、カスタム型にも公開ページができる
+    let custom = std::collections::HashMap::from([
+        ("article".to_string(), "/news".to_string()),
+        ("works".to_string(), "/works".to_string()),
+    ]);
+    assert_eq!(
+        public_paths(&config, &custom, "article", "hello"),
+        ["/news/hello", "/hello"]
+    );
+    assert_eq!(public_paths(&config, &custom, "works", "a"), ["/works/a"]);
 }
 
 #[test]

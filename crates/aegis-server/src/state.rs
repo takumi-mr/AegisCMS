@@ -36,6 +36,8 @@ pub struct AppState {
     /// ログイン失敗回数の制限（`[auth.login_rate_limit]`）
     pub login_limiter: Arc<LoginRateLimiter>,
     pub schemas: Arc<RwLock<HashMap<String, SchemaDefinition>>>,
+    /// スキーマの `public_path`（コンテンツ型 → `/news` など）。起動時に決まり、URL を作る側が同期で引く
+    pub public_paths: Arc<HashMap<String, String>>,
     /// 宣言的クエリ（`queries/*.yaml`。結果はテーマのグローバル変数 `queries`）
     pub queries: Arc<crate::queries::QueryService>,
     pub supervisor: Arc<RwLock<PluginSupervisor>>,
@@ -161,6 +163,10 @@ impl AppState {
     ) -> Self {
         let plugin_registry = Arc::new(PluginRegistry::new(None, config.plugins.enabled.clone()));
         let cdn = create_cdn_purger(&config.cdn).unwrap_or_else(|_| Arc::new(NoopCdnPurger));
+        let public_paths = schemas
+            .values()
+            .filter_map(|s| Some((s.content_type.clone(), s.public_path.clone()?)))
+            .collect();
         Self {
             config,
             db,
@@ -171,6 +177,7 @@ impl AppState {
             sessions,
             auth_provider,
             login_limiter,
+            public_paths: Arc::new(public_paths),
             schemas: Arc::new(RwLock::new(schemas)),
             queries: Arc::new(crate::queries::QueryService::empty(Default::default())),
             supervisor: Arc::new(RwLock::new(supervisor)),
@@ -212,6 +219,13 @@ impl AppState {
             #[cfg(feature = "analytics")]
             analytics: None,
         }
+    }
+
+    /// 記事の公開 URL の先頭（`/articles`、記事のスキーマの `public_path` があればそれ。`base_path` を除く）
+    pub fn article_prefix(&self) -> &str {
+        self.public_paths
+            .get("article")
+            .map_or("/articles", String::as_str)
     }
 
     /// 関連記事の推薦ストラテジーを差し替える

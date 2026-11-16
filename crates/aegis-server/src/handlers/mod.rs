@@ -85,7 +85,8 @@ pub use plugin::{
 };
 pub use preview::{preview_content, preview_frame};
 pub use public::{
-    render_article, render_articles, render_category, render_index, render_page_or_slug,
+    redirect_legacy_article, redirect_legacy_article_list, render_article, render_articles,
+    render_category, render_custom_detail, render_custom_list, render_index, render_page_or_slug,
 };
 pub use purchase::{
     admin_cancel_subscription, admin_grant_purchase, admin_refund_purchase, admin_revoke_purchase,
@@ -154,6 +155,8 @@ mod package_install_tests;
 mod password_reset_pages_tests;
 #[cfg(test)]
 mod product_reviews_tests;
+#[cfg(test)]
+mod public_path_tests;
 #[cfg(test)]
 mod purchase_tests;
 #[cfg(test)]

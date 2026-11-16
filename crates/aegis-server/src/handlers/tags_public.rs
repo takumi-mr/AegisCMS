@@ -385,6 +385,7 @@ pub async fn get_tag_feed(
     crate::handlers::feed::build_feed(
         &state,
         &headers,
+        "article",
         &title,
         &format!("/tags/{}/feed.xml", tag.slug),
         &format!("/tags/{}", tag.slug),

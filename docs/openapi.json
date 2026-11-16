@@ -540,6 +540,11 @@
           },
           "label": {
             "type": "string"
+          },
+          "public_path": {
+            "description": "URL prefix of the public pages, e.g. \"/news\" serves /news/{slug}. Default: /articles for article, none for other types",
+            "nullable": true,
+            "type": "string"
           }
         },
         "required": [

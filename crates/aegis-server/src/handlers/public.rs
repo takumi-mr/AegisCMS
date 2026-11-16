@@ -243,19 +243,25 @@ impl ArticleFilter {
 /// 公開ページのパス（`base_path` を除く）。コンテンツの種類ごとの公開ページの URL の決まりを 1 か所に置く
 pub(crate) fn public_content_path(state: &AppState, content_type: &str, slug: &str) -> String {
     match content_type {
-        "article" => format!("/articles/{}", slug),
+        "article" => format!("{}/{}", state.article_prefix(), slug),
         "page" => match state.config.theme.front_page() {
             FrontPage::Page(front) if front == slug => "/".to_string(),
             _ => format!("/{}", slug),
         },
         t if t == state.config.commerce.product_type => format!("/products/{}", slug),
-        _ => format!("/{}", slug),
+        // スキーマの `public_path`（`/works` など）があれば、その詳細ページ
+        t => match state.public_paths.get(t) {
+            Some(prefix) => format!("{}/{}", prefix, slug),
+            None => format!("/{}", slug),
+        },
     }
 }
 
 /// 記事一覧のページ（トップ・`/articles`・カテゴリ）ごとに違う部分
 struct ArticleListView {
-    template: &'static str,
+    template: String,
+    /// 並べるコンテンツの型（記事の一覧は `article`。`public_path` を持つカスタム型の一覧はその型）
+    schema_type: String,
     content_type: &'static str,
     title: String,
     slug: String,
@@ -273,12 +279,13 @@ struct ArticleListView {
 
 impl ArticleListView {
     /// 記事一覧（`index.html`）
-    fn index(path: &str, page: Option<u64>) -> Self {
+    fn index(state: &AppState, path: &str, page: Option<u64>) -> Self {
         let mut tags = crate::cdn::CacheTags::new();
         tags.add_url("/");
-        tags.add_url("/articles");
+        tags.add_url(state.article_prefix());
         Self {
-            template: "index.html",
+            template: "index.html".to_string(),
+            schema_type: "article".to_string(),
             content_type: "index",
             title: "Latest Stories".to_string(),
             slug: String::new(),
@@ -301,15 +308,15 @@ pub async fn render_index(
 ) -> Response {
     match state.config.theme.front_page() {
         FrontPage::Posts => {
-            render_article_list(&state, ArticleListView::index("/", params.page)).await
+            render_article_list(&state, ArticleListView::index(&state, "/", params.page)).await
         }
         FrontPage::Template => {
-            // 最新の記事を渡す。続きのページ送りは /articles に向ける
+            // 最新の記事を渡す。続きのページ送りは記事一覧（既定は /articles）に向ける
             let view = ArticleListView {
-                template: "front.html",
+                template: "front.html".to_string(),
                 content_type: "front",
                 title: String::new(),
-                ..ArticleListView::index("/articles", None)
+                ..ArticleListView::index(&state, state.article_prefix(), None)
             };
             render_article_list(&state, view).await
         }
@@ -320,18 +327,73 @@ pub async fn render_index(
                     "[theme].front_page: page '{}' is not published; showing the article list",
                     slug
                 );
-                render_article_list(&state, ArticleListView::index("/", params.page)).await
+                render_article_list(&state, ArticleListView::index(&state, "/", params.page)).await
             }
         },
     }
 }
 
-/// 記事一覧 (`/articles`、`?page=N` でページ送り)
+/// 記事一覧 (`/articles`。記事のスキーマの `public_path` があればその URL。`?page=N` でページ送り)
 pub async fn render_articles(
     State(state): State<Arc<AppState>>,
     Query(params): Query<IndexParams>,
 ) -> Response {
-    render_article_list(&state, ArticleListView::index("/articles", params.page)).await
+    render_article_list(
+        &state,
+        ArticleListView::index(&state, state.article_prefix(), params.page),
+    )
+    .await
+}
+
+/// `public_path` を持つカスタム型の一覧 (`/works` など、`?page=N` でページ送り)。
+/// テーマの `<content_type>_list.html`、なければ `index.html` で描画する
+pub async fn render_custom_list(
+    state: Arc<AppState>,
+    content_type: String,
+    page: Option<u64>,
+) -> Response {
+    let Some(prefix) = state.public_paths.get(&content_type).cloned() else {
+        return render_not_found(&state, "This page does not exist.").await;
+    };
+    let label = {
+        let schemas = state.schemas.read().await;
+        match schemas.get(&content_type) {
+            Some(schema) => schema.label.clone(),
+            None => return render_not_found(&state, "Content schema not found").await,
+        }
+    };
+    let base_path = state
+        .config
+        .server
+        .normalized_base_path()
+        .unwrap_or_default();
+    let mut tags = crate::cdn::CacheTags::new();
+    tags.add_url(&prefix);
+    let mut extra_head = render::site_page_context(&state).extra_head;
+    extra_head.push_str(&crate::handlers::feed::feed_link_tag(
+        &format!("{}: {}", state.site().title, label),
+        &format!("{}{}/feed.xml", base_path, prefix),
+    ));
+    let list_template = format!("{}_list.html", content_type);
+    let template = if state.theme.has_template(&list_template) {
+        list_template
+    } else {
+        "index.html".to_string()
+    };
+    let view = ArticleListView {
+        template,
+        schema_type: content_type,
+        content_type: "index",
+        title: label,
+        slug: String::new(),
+        fields: HashMap::new(),
+        path: prefix,
+        page: page.unwrap_or(1).max(1),
+        filter: None,
+        extra_head: Some(extra_head),
+        tags,
+    };
+    render_article_list(&state, view).await
 }
 
 /// カテゴリの記事一覧 (`/category/{slug}`、`?page=N` でページ送り)。記事のスキーマで `category` を
@@ -362,7 +424,8 @@ pub async fn render_category(
     ));
 
     let view = ArticleListView {
-        template: "category.html",
+        template: "category.html".to_string(),
+        schema_type: "article".to_string(),
         content_type: "category",
         title: category.title,
         slug: category.slug.clone(),
@@ -492,12 +555,18 @@ async fn render_article_list(state: &AppState, view: ArticleListView) -> Respons
     let mut items = Vec::new();
     let mut total_items = 0;
     let mut tags = view.tags;
+    let schema_type = view.schema_type.clone();
     tags.add_dependency("site", "global");
-    tags.add_dependency("collection", "article");
+    tags.add_dependency("collection", &schema_type);
 
+    let list_base_path = state
+        .config
+        .server
+        .normalized_base_path()
+        .unwrap_or_default();
     let article_schema = {
         let schemas = state.schemas.read().await;
-        schemas.get("article").cloned()
+        schemas.get(&schema_type).cloned()
     };
     if let Some(schema) = article_schema {
         let offset = (page - 1).saturating_mul(per_page);
@@ -515,15 +584,24 @@ async fn render_article_list(state: &AppState, view: ArticleListView) -> Respons
                     resolve_relations_for_records(&*state.db, &schemas, &schema, &fields).await
                 };
                 let ids: Vec<String> = content_page.records.iter().map(|r| r.id.clone()).collect();
-                let tag_lookup = TagLookup::load(state, "article", &ids).await;
+                let tag_lookup = TagLookup::load(state, &schema_type, &ids).await;
                 for (r, relations) in content_page.records.into_iter().zip(relations) {
-                    tags.add_dependency("article", &r.id);
-                    tags.add_dependency("article", &r.slug);
+                    tags.add_dependency(&schema_type, &r.id);
+                    tags.add_dependency(&schema_type, &r.slug);
                     crate::cdn::add_relation_tags(&mut tags, &relations);
                     let blocks: Vec<BlockNode> =
                         serde_json::from_str(&r.blocks_json).unwrap_or_default();
                     let mut fields = r.custom_fields;
                     tag_lookup.attach(&r.id, &mut fields, &mut tags);
+                    // テーマは `{{ item.fields.url }}` でリンクする（`base_path` 込み。URL の決まりはここで 1 か所）
+                    fields.insert(
+                        "url".to_string(),
+                        serde_json::Value::String(format!(
+                            "{}{}",
+                            list_base_path,
+                            public_content_path(state, &r.content_type, &r.slug)
+                        )),
+                    );
                     items.push(ContentSummary {
                         id: r.id,
                         content_type: r.content_type,
@@ -572,7 +650,7 @@ async fn render_article_list(state: &AppState, view: ArticleListView) -> Respons
 
     let site = render::site_page_context(state);
     let mut ctx = PageRenderContext {
-        template: view.template.to_string(),
+        template: view.template,
         content_type: view.content_type.to_string(),
         title: view.title,
         slug: view.slug,
@@ -600,42 +678,93 @@ async fn render_article_list(state: &AppState, view: ArticleListView) -> Respons
     crate::cdn::apply_cache_tags(state, resp, &tags)
 }
 
-/// 記事詳細ページ (/articles/{slug})
+/// 記事詳細ページ (/articles/{slug}。記事の `public_path` があればその接頭辞)
 pub async fn render_article(
     State(state): State<Arc<AppState>>,
     Path(slug): Path<String>,
     headers: HeaderMap,
 ) -> impl IntoResponse {
+    render_content_detail(&state, "article", slug, &headers).await
+}
+
+/// スキーマの `public_path` を持つカスタム型の詳細ページ（`/works/{slug}` など）。
+/// テーマの `<content_type>.html`、なければ `article.html` で描画する
+pub async fn render_custom_detail(
+    state: Arc<AppState>,
+    content_type: String,
+    slug: String,
+    headers: HeaderMap,
+) -> Response {
+    render_content_detail(&state, &content_type, slug, &headers).await
+}
+
+/// 旧 `/articles/{slug}` から、`public_path` で変えた記事の URL への 301。ブックマークや検索結果の URL を生かす
+pub async fn redirect_legacy_article(
+    State(state): State<Arc<AppState>>,
+    Path(slug): Path<String>,
+) -> Response {
+    moved_to_article_prefix(&state, Some(&slug))
+}
+
+/// 旧 `/articles`（一覧）から、`public_path` で変えた記事の一覧への 301
+pub async fn redirect_legacy_article_list(State(state): State<Arc<AppState>>) -> Response {
+    moved_to_article_prefix(&state, None)
+}
+
+fn moved_to_article_prefix(state: &AppState, slug: Option<&str>) -> Response {
+    let base = state
+        .config
+        .server
+        .normalized_base_path()
+        .unwrap_or_default();
+    let location = match slug {
+        Some(slug) => format!("{}{}/{}", base, state.article_prefix(), slug),
+        None => format!("{}{}", base, state.article_prefix()),
+    };
+    (
+        StatusCode::MOVED_PERMANENTLY,
+        [(axum::http::header::LOCATION, location)],
+    )
+        .into_response()
+}
+
+async fn render_content_detail(
+    state: &AppState,
+    content_type: &str,
+    slug: String,
+    headers: &HeaderMap,
+) -> Response {
+    let is_article = content_type == "article";
     let schema = {
         let schemas = state.schemas.read().await;
-        schemas.get("article").cloned()
+        schemas.get(content_type).cloned()
     };
 
     let schema = match schema {
         Some(s) => s,
-        None => return render_not_found(&state, "Article schema not found").await,
+        None => return render_not_found(state, "Content schema not found").await,
     };
 
     let maybe_record = match state.db.get_published_content(&schema, &slug).await {
         Ok(rec) => rec,
         Err(e) => {
             tracing::error!("Database error fetching article '{}': {}", slug, e);
-            return render_not_found(&state, "Error querying database").await;
+            return render_not_found(state, "Error querying database").await;
         }
     };
 
     let now = chrono::Utc::now();
     let record = match maybe_record {
         Some(r) if is_currently_published(&r.status, r.unpublish_at.as_deref(), now) => r,
-        _ => return render_not_found(&state, "The requested article is not published.").await,
+        _ => return render_not_found(state, "The requested article is not published.").await,
     };
 
     // 閲覧の制限（会員レベル）。見せない閲覧者には、本文を描画せず案内を出す
     let gate = access::gate(
-        &state,
-        &headers,
+        state,
+        headers,
         &record.custom_fields,
-        &format!("/articles/{}", record.slug),
+        &public_content_path(state, content_type, &record.slug),
         access::ContentRef {
             content_type: &record.content_type,
             id: &record.id,
@@ -648,7 +777,7 @@ pub async fn render_article(
     let content_html = match &gate {
         Gate::Denied { notice_html } => {
             access::teaser_with_notice(
-                &state,
+                state,
                 &record.custom_fields,
                 &record.blocks_json,
                 notice_html,
@@ -658,15 +787,15 @@ pub async fn render_article(
         _ => {
             let blocks: Vec<BlockNode> =
                 serde_json::from_str(&record.blocks_json).unwrap_or_default();
-            render::render_content_html(&state, &blocks).await
+            render::render_content_html(state, &blocks).await
         }
     };
 
     let mut tags = crate::cdn::CacheTags::new();
-    tags.add_url(&format!("/articles/{}", record.slug));
+    tags.add_url(&public_content_path(state, content_type, &record.slug));
     tags.add_dependency("site", "global");
-    tags.add_dependency("article", &record.id);
-    tags.add_dependency("article", &record.slug);
+    tags.add_dependency(content_type, &record.id);
+    tags.add_dependency(content_type, &record.slug);
     tags.add_dependency("comments", &record.id);
     crate::cdn::add_field_relation_tags(&mut tags, &schema, &record.custom_fields);
 
@@ -674,43 +803,48 @@ pub async fn render_article(
     let related_articles = if related_limit > 0 && !gate.is_denied() {
         state
             .related_strategy
-            .find_related(&state, &schema, &record, related_limit)
+            .find_related(state, &schema, &record, related_limit)
             .await
     } else {
         Vec::new()
     };
     for rel in &related_articles {
-        tags.add_dependency("article", &rel.id);
-        tags.add_dependency("article", &rel.slug);
+        tags.add_dependency(content_type, &rel.id);
+        tags.add_dependency(content_type, &rel.slug);
     }
 
     let (prev_article, next_article) = if gate.is_denied() {
         (None, None)
     } else {
-        find_adjacent_articles(&state, &schema, &record).await
+        find_adjacent_articles(state, &schema, &record).await
     };
     if let Some(ref prev) = prev_article {
-        tags.add_dependency("article", &prev.id);
-        tags.add_dependency("article", &prev.slug);
+        tags.add_dependency(content_type, &prev.id);
+        tags.add_dependency(content_type, &prev.slug);
     }
     if let Some(ref next) = next_article {
-        tags.add_dependency("article", &next.id);
-        tags.add_dependency("article", &next.slug);
+        tags.add_dependency(content_type, &next.id);
+        tags.add_dependency(content_type, &next.slug);
     }
 
     let comments = if gate.is_denied() {
         None
     } else {
-        comments::page_section(&state, "article", &record.id).await
+        comments::page_section(state, content_type, &record.id).await
     };
     let mut fields = record.custom_fields;
-    TagLookup::load(&state, "article", std::slice::from_ref(&record.id))
+    TagLookup::load(state, content_type, std::slice::from_ref(&record.id))
         .await
         .attach(&record.id, &mut fields, &mut tags);
 
+    let template = if is_article || state.theme.has_template(&format!("{}.html", content_type)) {
+        format!("{}.html", if is_article { "article" } else { content_type })
+    } else {
+        "article.html".to_string()
+    };
     let page = render::PageInput {
-        template: "article.html".to_string(),
-        content_type: "article".to_string(),
+        template,
+        content_type: content_type.to_string(),
         title: record.title,
         slug: record.slug,
         path: None,
@@ -724,11 +858,11 @@ pub async fn render_article(
         prev_article,
         next_article,
     };
-    let resp = themed_response(render::render_page(&state, &schema, page).await);
+    let resp = themed_response(render::render_page(state, &schema, page).await);
     if gate.is_restricted() {
         return access::make_private(resp);
     }
-    crate::cdn::apply_cache_tags(&state, resp, &tags)
+    crate::cdn::apply_cache_tags(state, resp, &tags)
 }
 
 /// Turns a rendered page (or a template error) into the HTTP response
@@ -906,7 +1040,7 @@ pub async fn render_page_or_slug(
 
                 let mut tags = crate::cdn::CacheTags::new();
                 tags.add_url(&format!("/{}", record.slug));
-                tags.add_url(&format!("/articles/{}", record.slug));
+                tags.add_url(&format!("{}/{}", state.article_prefix(), record.slug));
                 tags.add_dependency("site", "global");
                 tags.add_dependency("article", &record.id);
                 tags.add_dependency("article", &record.slug);
@@ -1029,6 +1163,7 @@ mod tests {
         let db = Arc::new(adapter);
 
         let article_schema = SchemaDefinition {
+            public_path: None,
             content_type: "article".to_string(),
             label: "Articles".to_string(),
             description: None,
@@ -1047,6 +1182,7 @@ mod tests {
         };
 
         let page_schema = SchemaDefinition {
+            public_path: None,
             content_type: "page".to_string(),
             label: "Pages".to_string(),
             description: None,
@@ -1258,7 +1394,9 @@ mod tests {
         let body_bytes = axum::body::to_bytes(resp.into_body(), 100_000)
             .await
             .unwrap();
-        let html = String::from_utf8(body_bytes.to_vec()).unwrap();
+        let html = String::from_utf8(body_bytes.to_vec())
+            .unwrap()
+            .replace("&#x2f;", "/");
 
         // 公開記事は含まれ、下書き記事は含まれないこと
         assert!(html.contains("Public Post Title"));
