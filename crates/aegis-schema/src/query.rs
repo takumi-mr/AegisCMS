@@ -500,7 +500,7 @@ fn check_value(q: &str, field: &str, op: &str, ty: FieldType, v: &Value) -> Resu
         (FieldType::String | FieldType::Relation, Value::String(_)) => true,
         (FieldType::Integer, Value::Number(n)) => n.is_i64() || n.is_u64(),
         (FieldType::Boolean, Value::Bool(_)) => true,
-        (FieldType::Timestamp, Value::String(s)) => chrono::DateTime::parse_from_rfc3339(s).is_ok(),
+        (FieldType::Timestamp, Value::String(s)) => aegis_core::time::parse_rfc3339(s).is_ok(),
         _ => false,
     };
     if ok {

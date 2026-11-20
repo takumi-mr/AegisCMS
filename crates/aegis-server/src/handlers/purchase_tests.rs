@@ -49,7 +49,7 @@ async fn mock_stripe() -> (String, Arc<Mutex<Vec<String>>>, Arc<Mutex<Vec<String
                     axum::Json(json!({
                         "id": id,
                         "status": "active",
-                        "current_period_end": chrono::Utc::now().timestamp() + 30 * 86_400,
+                        "current_period_end": jiff::Timestamp::now().as_second() + 30 * 86_400,
                         "cancel_at_period_end": false
                     }))
                 },
@@ -315,7 +315,7 @@ impl Site {
     async fn webhook(&self, event: Value, secret: &str) -> Reply {
         let body = event.to_string();
         let signature =
-            sign_webhook_payload(secret, body.as_bytes(), chrono::Utc::now().timestamp());
+            sign_webhook_payload(secret, body.as_bytes(), jiff::Timestamp::now().as_second());
         let request = Request::post("/api/v1/members/webhooks/stripe")
             .header("stripe-signature", signature)
             .body(Body::from(body))
@@ -751,7 +751,7 @@ fn subscription_event(kind: &str, stripe_id: &str, status: &str, cancel_at_end: 
             "status": status,
             "customer": "cus_1",
             "cancel_at_period_end": cancel_at_end,
-            "current_period_end": chrono::Utc::now().timestamp() + 60 * 86_400
+            "current_period_end": jiff::Timestamp::now().as_second() + 60 * 86_400
         }}
     })
 }

@@ -1,5 +1,6 @@
 //! お知らせバナー（`/api/v1/notices`、`admin`）。一覧・追加・変更・削除。仕組みは [`crate::notices`]
 
+use aegis_core::time::TimestampExt;
 use std::sync::Arc;
 
 use axum::{
@@ -7,7 +8,7 @@ use axum::{
     http::StatusCode,
     Json,
 };
-use chrono::Utc;
+use jiff::Timestamp;
 use serde::Serialize;
 use serde_json::json;
 
@@ -50,12 +51,12 @@ pub struct NoticeView {
 }
 
 fn view(notice: Notice) -> NoticeView {
-    let status = notice.status(Utc::now());
+    let status = notice.status(Timestamp::now());
     NoticeView { notice, status }
 }
 
 fn now() -> String {
-    Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Micros, true)
+    Timestamp::now().to_rfc3339_micros()
 }
 
 /// お知らせを変えて DB に保存し、メモリに反映して、ほかのサーバーに知らせる。サイト全体のキャッシュも消す

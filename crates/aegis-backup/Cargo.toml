@@ -15,7 +15,7 @@ aegis-schema = { path = "../aegis-schema" }
 aegis-db = { path = "../aegis-db" }
 aegis-storage = { path = "../aegis-storage" }
 
-chrono.workspace = true
+jiff.workspace = true
 hex.workspace = true
 serde.workspace = true
 serde_json.workspace = true

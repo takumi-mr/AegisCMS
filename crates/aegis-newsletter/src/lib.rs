@@ -12,6 +12,7 @@
 pub mod config;
 pub mod messages;
 
+use aegis_core::time::TimestampExt;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
@@ -25,7 +26,7 @@ use aegis_db::{
     DatabaseAdapter, NewsletterIssueRecord, NewsletterListQuery, NewsletterPage,
     NewsletterSubscriberRecord,
 };
-use chrono::{DateTime, SecondsFormat, Utc};
+use jiff::Timestamp;
 use serde::Serialize;
 use serde_json::json;
 
@@ -92,7 +93,7 @@ impl From<AegisError> for NewsletterError {
 pub type NewsletterResult<T> = std::result::Result<T, NewsletterError>;
 
 fn now() -> String {
-    Utc::now().to_rfc3339_opts(SecondsFormat::Micros, true)
+    Timestamp::now().to_rfc3339_micros()
 }
 
 /// ニュースレターの処理が使うサーバーの部品
@@ -217,8 +218,8 @@ fn escape_html(text: &str) -> String {
 
 /// `at`（RFC 3339）から `seconds` 秒以上たったか。読めない日時は「たった」とみなす
 fn older_than(at: &str, seconds: i64) -> bool {
-    DateTime::parse_from_rfc3339(at)
-        .map(|at| (Utc::now() - at.with_timezone(&Utc)).num_seconds() >= seconds)
+    aegis_core::time::parse_rfc3339(at)
+        .map(|at| (Timestamp::now() - at).as_secs() >= seconds)
         .unwrap_or(true)
 }
 
@@ -755,9 +756,8 @@ impl NewsletterService {
     }
 
     /// 確認されないまま古くなった確認待ちを消す
-    pub async fn clean_up(&self, now: DateTime<Utc>) -> u64 {
-        let cutoff = (now - chrono::Duration::days(PENDING_RETENTION_DAYS))
-            .to_rfc3339_opts(SecondsFormat::Micros, true);
+    pub async fn clean_up(&self, now: Timestamp) -> u64 {
+        let cutoff = (now - aegis_core::time::days(PENDING_RETENTION_DAYS)).to_rfc3339_micros();
         match self
             .deps
             .db
@@ -785,7 +785,7 @@ impl NewsletterService {
         let service = self.clone();
         tokio::spawn(async move {
             loop {
-                service.clean_up(Utc::now()).await;
+                service.clean_up(Timestamp::now()).await;
                 tokio::time::sleep(Duration::from_secs(24 * 60 * 60)).await;
             }
         });

@@ -108,7 +108,7 @@ pub async fn get_oembed(
         return error(StatusCode::NOT_FOUND, "Not a URL of this site");
     };
 
-    let now = chrono::Utc::now();
+    let now = jiff::Timestamp::now();
     for (content_type, slug) in candidates(&path, &state.public_paths) {
         let schema = state.schemas.read().await.get(&content_type).cloned();
         let Some(schema) = schema else { continue };

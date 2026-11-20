@@ -71,7 +71,7 @@ async fn nearest_published(
             )
             .await
             .ok()?;
-        let now = chrono::Utc::now();
+        let now = jiff::Timestamp::now();
         if let Some(found) = batch
             .iter()
             .find(|r| is_currently_published(&r.status, r.unpublish_at.as_deref(), now))
@@ -471,7 +471,7 @@ pub(crate) async fn find_category(
         .ok()
         .flatten()
         .filter(|r| {
-            is_currently_published(&r.status, r.unpublish_at.as_deref(), chrono::Utc::now())
+            is_currently_published(&r.status, r.unpublish_at.as_deref(), jiff::Timestamp::now())
         })?;
     let value = match target_field.as_str() {
         "id" => record.id.clone(),
@@ -753,7 +753,7 @@ async fn render_content_detail(
         }
     };
 
-    let now = chrono::Utc::now();
+    let now = jiff::Timestamp::now();
     let record = match maybe_record {
         Some(r) if is_currently_published(&r.status, r.unpublish_at.as_deref(), now) => r,
         _ => return render_not_found(state, "The requested article is not published.").await,
@@ -899,7 +899,7 @@ async fn render_fixed_page(
         .ok()
         .flatten()
         .filter(|r| {
-            is_currently_published(&r.status, r.unpublish_at.as_deref(), chrono::Utc::now())
+            is_currently_published(&r.status, r.unpublish_at.as_deref(), jiff::Timestamp::now())
         })?;
 
     let gate = access::gate(
@@ -1005,7 +1005,7 @@ pub async fn render_page_or_slug(
         schemas.get("article").cloned()
     };
 
-    let now = chrono::Utc::now();
+    let now = jiff::Timestamp::now();
     if let Some(schema) = article_schema {
         if let Ok(Some(record)) = state.db.get_published_content(&schema, &slug).await {
             if is_currently_published(&record.status, record.unpublish_at.as_deref(), now) {

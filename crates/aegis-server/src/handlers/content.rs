@@ -1,3 +1,4 @@
+use aegis_core::time::TimestampExt;
 use axum::{
     extract::{Path, Query, State},
     http::StatusCode,
@@ -120,22 +121,20 @@ fn resolve_publication(
     requested_at: Option<&str>,
     requested_unpublish_at: Option<&str>,
     current: Option<&ContentRecord>,
-    now: chrono::DateTime<chrono::Utc>,
+    now: jiff::Timestamp,
 ) -> Result<(String, Option<String>, Option<String>), ApiError> {
     let validate_unpublish = |unpub_str: Option<&str>,
-                              pub_dt: Option<chrono::DateTime<chrono::Utc>>|
+                              pub_dt: Option<jiff::Timestamp>|
      -> Result<Option<String>, ApiError> {
         let Some(raw) = unpub_str.map(str::trim).filter(|s| !s.is_empty()) else {
             return Ok(None);
         };
-        let unpub = chrono::DateTime::parse_from_rfc3339(raw)
-            .map_err(|e| {
-                api_error(
-                    StatusCode::BAD_REQUEST,
-                    format!("Invalid 'unpublish_at' '{}': {}", raw, e),
-                )
-            })?
-            .with_timezone(&chrono::Utc);
+        let unpub = aegis_core::time::parse_rfc3339(raw).map_err(|e| {
+            api_error(
+                StatusCode::BAD_REQUEST,
+                format!("Invalid 'unpublish_at' '{}': {}", raw, e),
+            )
+        })?;
 
         if let Some(pub_time) = pub_dt {
             if unpub <= pub_time {
@@ -145,9 +144,7 @@ fn resolve_publication(
                 ));
             }
         }
-        Ok(Some(
-            unpub.to_rfc3339_opts(chrono::SecondsFormat::Secs, true),
-        ))
+        Ok(Some(unpub.to_rfc3339_secs()))
     };
 
     let published = |requested_unpub: Option<&str>| -> Result<(String, Option<String>, Option<String>), ApiError> {
@@ -155,10 +152,8 @@ fn resolve_publication(
             // `pending` / `draft` over a live version keep the first publication date (a change under review)
             .filter(|c| matches!(c.status.as_str(), STATUS_PUBLISHED | STATUS_PENDING | "draft"))
             .and_then(|c| c.published_at.clone());
-        let pub_str = first.unwrap_or_else(|| now.to_rfc3339());
-        let pub_dt = chrono::DateTime::parse_from_rfc3339(&pub_str)
-            .ok()
-            .map(|dt| dt.with_timezone(&chrono::Utc));
+        let pub_str = first.unwrap_or_else(|| now.to_rfc3339_auto());
+        let pub_dt = aegis_core::time::parse_rfc3339(&pub_str).ok();
         let unpub = validate_unpublish(requested_unpub, pub_dt)?;
         Ok((
             STATUS_PUBLISHED.to_string(),
@@ -177,23 +172,17 @@ fn resolve_publication(
                     "Scheduled content needs 'published_at' (when to publish it)",
                 ));
             };
-            let at = chrono::DateTime::parse_from_rfc3339(requested)
-                .map_err(|e| {
-                    api_error(
-                        StatusCode::BAD_REQUEST,
-                        format!("Invalid 'published_at' '{}': {}", requested, e),
-                    )
-                })?
-                .with_timezone(&chrono::Utc);
+            let at = aegis_core::time::parse_rfc3339(requested).map_err(|e| {
+                api_error(
+                    StatusCode::BAD_REQUEST,
+                    format!("Invalid 'published_at' '{}': {}", requested, e),
+                )
+            })?;
             if at <= now {
                 published(requested_unpublish_at)
             } else {
                 let unpub = validate_unpublish(requested_unpublish_at, Some(at))?;
-                Ok((
-                    status,
-                    Some(at.to_rfc3339_opts(chrono::SecondsFormat::Secs, true)),
-                    unpub,
-                ))
+                Ok((status, Some(at.to_rfc3339_secs()), unpub))
             }
         }
         _ => Ok((status, None, None)),
@@ -701,8 +690,8 @@ pub async fn create_content(
     ensure_known_access(&state, &payload.fields)?;
     ensure_valid_purchase_price(&payload.fields)?;
     let id = Uuid::new_v4().to_string();
-    let now_at = chrono::Utc::now();
-    let now = now_at.to_rfc3339();
+    let now_at = jiff::Timestamp::now();
+    let now = now_at.to_rfc3339_auto();
     let author_id = payload.author_id.clone();
     let (status, published_at, unpublish_at) = resolve_publication(
         requested_status,
@@ -862,8 +851,8 @@ pub async fn update_content(
     };
 
     let publish_requested = payload.publish;
-    let now_at = chrono::Utc::now();
-    let now = now_at.to_rfc3339();
+    let now_at = jiff::Timestamp::now();
+    let now = now_at.to_rfc3339_auto();
     // Keeping a scheduled item as it is also keeps the time it is scheduled for
     let requested_at = payload.published_at.clone().or_else(|| {
         (status_omitted && requested_status == STATUS_SCHEDULED)
@@ -1021,7 +1010,7 @@ fn content_version_snapshot(
         content_id: record.id.clone(),
         revision: 0,
         snapshot_json,
-        created_at: chrono::Utc::now().to_rfc3339(),
+        created_at: jiff::Timestamp::now().to_rfc3339_auto(),
         created_by: actor.map(str::to_owned),
         change_note: note,
     })
@@ -1159,7 +1148,7 @@ pub async fn restore_content_version(
     restored.published_at = current.published_at.clone();
     restored.unpublish_at = current.unpublish_at.clone();
     restored.created_at = current.created_at.clone();
-    restored.updated_at = chrono::Utc::now().to_rfc3339();
+    restored.updated_at = jiff::Timestamp::now().to_rfc3339_auto();
     let restored_version = content_version_snapshot(
         &restored,
         Some(&session.user_id),
@@ -1607,13 +1596,13 @@ pub async fn get_content(
 pub fn is_currently_published(
     status: &str,
     unpublish_at: Option<&str>,
-    now: chrono::DateTime<chrono::Utc>,
+    now: jiff::Timestamp,
 ) -> bool {
     if status != STATUS_PUBLISHED {
         return false;
     }
     if let Some(unpub) = unpublish_at {
-        if let Ok(due) = chrono::DateTime::parse_from_rfc3339(unpub) {
+        if let Ok(due) = aegis_core::time::parse_rfc3339(unpub) {
             if due <= now {
                 return false;
             }
@@ -1772,7 +1761,7 @@ pub async fn upsert_variant(
         ));
     }
 
-    let now = chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
+    let now = jiff::Timestamp::now().to_rfc3339_secs();
     let variant_id = payload
         .id
         .filter(|s| !s.trim().is_empty())

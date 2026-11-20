@@ -223,6 +223,7 @@ mod tests {
     use crate::test_support::test_app_state;
     use aegis_auth::SessionData;
     use aegis_cache::{CdnProviderKind, RecordingCdnPurger};
+    use aegis_core::time::TimestampExt;
     use aegis_runtime::PluginSupervisor;
     use axum::extract::{Path, Query, State};
     use axum::http::HeaderMap;
@@ -491,8 +492,10 @@ mod tests {
         assert!(deleted_tags.contains(&"url-about".to_string()));
 
         // 5. 予約公開と予約非公開によるパージ
-        let future_pub = (chrono::Utc::now() + chrono::Duration::minutes(10)).to_rfc3339();
-        let future_unpub = (chrono::Utc::now() + chrono::Duration::minutes(20)).to_rfc3339();
+        let future_pub =
+            (jiff::Timestamp::now() + jiff::SignedDuration::from_mins(10)).to_rfc3339_auto();
+        let future_unpub =
+            (jiff::Timestamp::now() + jiff::SignedDuration::from_mins(20)).to_rfc3339_auto();
         let _ = create_content(
             State(state.clone()),
             editor(),
@@ -517,17 +520,22 @@ mod tests {
         assert!(take_tags(&purger).is_empty());
 
         // 15分後にスケジューラ実行 -> 公開されてパージされる
-        let pub_count =
-            publish_due_contents(&state, chrono::Utc::now() + chrono::Duration::minutes(15)).await;
+        let pub_count = publish_due_contents(
+            &state,
+            jiff::Timestamp::now() + jiff::SignedDuration::from_mins(15),
+        )
+        .await;
         assert_eq!(pub_count, 1);
         let sched_pub_tags = take_tags(&purger);
         assert!(sched_pub_tags.contains(&"article-scheduled-post".to_string()));
         assert!(sched_pub_tags.contains(&"url-articles-scheduled-post".to_string()));
 
         // 25分後にスケジューラ実行 -> 非公開化されてパージされる
-        let unpub_count =
-            unpublish_due_contents(&state, chrono::Utc::now() + chrono::Duration::minutes(25))
-                .await;
+        let unpub_count = unpublish_due_contents(
+            &state,
+            jiff::Timestamp::now() + jiff::SignedDuration::from_mins(25),
+        )
+        .await;
         assert_eq!(unpub_count, 1);
         let sched_unpub_tags = take_tags(&purger);
         assert!(sched_unpub_tags.contains(&"article-scheduled-post".to_string()));

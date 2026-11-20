@@ -7,7 +7,7 @@ use aegis_db::{
 };
 use aegis_headless::{get, list, HeadlessConfig, HeadlessError, ListParams};
 use aegis_schema::{SchemaDefinition, SchemaLoader};
-use chrono::{DateTime, Utc};
+use jiff::Timestamp;
 use serde_json::{json, Value};
 
 const ARTICLE: &str = r#"
@@ -28,10 +28,8 @@ fields:
 
 const CATEGORY: &str = "content_type: category\nlabel: Category\n";
 
-fn now() -> DateTime<Utc> {
-    DateTime::parse_from_rfc3339("2026-11-05T12:00:00Z")
-        .unwrap()
-        .with_timezone(&Utc)
+fn now() -> Timestamp {
+    aegis_core::time::parse_rfc3339("2026-11-05T12:00:00Z").unwrap()
 }
 
 fn record(

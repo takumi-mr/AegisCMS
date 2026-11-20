@@ -28,7 +28,7 @@ use aegis_core::{
     Result,
 };
 use aegis_db::{NotificationQueueStorage, NotificationRelease, QueuedNotification};
-use chrono::{DateTime, Utc};
+use jiff::Timestamp;
 use serde_json::json;
 
 pub use audit::AuditNotificationSink;
@@ -336,7 +336,7 @@ impl NotificationService {
                 "The notification queue is not configured".to_string(),
             ));
         };
-        let now = format_audit_timestamp(&Utc::now());
+        let now = format_audit_timestamp(&Timestamp::now());
         let mut items = Vec::new();
         for (message, channels) in self.messages(event) {
             let json = serde_json::to_string(&message)
@@ -381,7 +381,7 @@ impl NotificationService {
                 service.process_queue().await;
                 if last_prune.is_none_or(|at| at.elapsed() >= QUEUE_PRUNE_INTERVAL) {
                     last_prune = Some(tokio::time::Instant::now());
-                    service.prune_queue(queue.as_ref(), Utc::now()).await;
+                    service.prune_queue(queue.as_ref(), Timestamp::now()).await;
                 }
                 tokio::select! {
                     _ = tokio::time::sleep(poll) => {}
@@ -399,7 +399,7 @@ impl NotificationService {
         let mut attempted = 0;
         // 取り出しても権利を取れないもの（ほかのサーバーが送っている）は次から外れるので、回数は念のため
         for _ in 0..100 {
-            let now = Utc::now();
+            let now = Timestamp::now();
             let due = match queue
                 .due_notifications(&format_audit_timestamp(&now), QUEUE_BATCH)
                 .await
@@ -413,7 +413,7 @@ impl NotificationService {
             let count = due.len();
             let mut tasks = tokio::task::JoinSet::new();
             for item in due {
-                let lease = now + chrono::Duration::from_std(QUEUE_LEASE).unwrap_or_default();
+                let lease = now + jiff::SignedDuration::try_from(QUEUE_LEASE).unwrap_or_default();
                 match queue
                     .claim_notification(
                         &item.id,
@@ -467,7 +467,7 @@ impl NotificationService {
             ))),
             (Ok(message), Some(channel)) => channel.send(message).await,
         };
-        let now = Utc::now();
+        let now = Timestamp::now();
         let outcome = match result {
             Ok(Delivered::Skipped) => None,
             Ok(Delivered::Sent) => Some(Ok(())),
@@ -491,7 +491,7 @@ impl NotificationService {
                     delay,
                     e
                 );
-                let next = now + chrono::Duration::from_std(delay).unwrap_or_default();
+                let next = now + jiff::SignedDuration::try_from(delay).unwrap_or_default();
                 self.release(
                     queue,
                     &item,
@@ -540,8 +540,8 @@ impl NotificationService {
         item: &QueuedNotification,
         status: &str,
         attempts: u32,
-        next_attempt_at: DateTime<Utc>,
-        now: DateTime<Utc>,
+        next_attempt_at: Timestamp,
+        now: Timestamp,
         error: &SendError,
     ) {
         let release = NotificationRelease {
@@ -562,12 +562,12 @@ impl NotificationService {
     }
 
     /// 送れなかった通知のうち、`retention_days` より古いものを消す
-    async fn prune_queue(&self, queue: &dyn NotificationQueueStorage, now: DateTime<Utc>) {
+    async fn prune_queue(&self, queue: &dyn NotificationQueueStorage, now: Timestamp) {
         let days = self.inner.config.queue.retention_days;
         if days == 0 {
             return;
         }
-        let cutoff = now - chrono::Duration::days(i64::from(days));
+        let cutoff = now - aegis_core::time::days(i64::from(days));
         match queue
             .delete_failed_notifications_before(&format_audit_timestamp(&cutoff))
             .await

@@ -843,7 +843,7 @@ async fn change_status(router: &Router, auth: &str, args: &Value, change: Change
             Change::Publish => {
                 if let Some(at) = str_arg(args, "publish_at") {
                     // 予約公開: 日時になると自動で公開される
-                    if chrono::DateTime::parse_from_rfc3339(at).is_err() {
+                    if aegis_core::time::parse_rfc3339(at).is_err() {
                         return Err(
                             "publish_at must be an RFC 3339 date and time, e.g. 2030-01-31T09:00:00+09:00"
                                 .into(),

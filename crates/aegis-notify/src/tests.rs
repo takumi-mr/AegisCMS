@@ -653,7 +653,7 @@ async fn queued_notifications_are_retried_and_kept_when_they_fail() {
     assert_eq!(failed.len(), 1);
     assert_eq!(failed[0].attempts, 1);
     assert_eq!(*rejected.calls.lock().unwrap(), 1);
-    let now = aegis_core::format_audit_timestamp(&chrono::Utc::now());
+    let now = aegis_core::format_audit_timestamp(&jiff::Timestamp::now());
     assert!(db.retry_notification(&failed[0].id, &now).await.unwrap());
     service.process_queue().await;
     assert_eq!(rejected.sent().len(), 1);

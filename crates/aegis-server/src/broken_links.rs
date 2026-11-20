@@ -3,6 +3,7 @@
 //! 公開中の記事・固定ページ等に含まれる内部・外部リンクを走査・検証し、
 //! リンク切れレポートを生成・保持します。
 
+use aegis_core::time::TimestampExt;
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
@@ -13,7 +14,7 @@ use aegis_ast::BlockNode;
 use aegis_ast::HtmlRenderer;
 use aegis_core::{AegisError, Result};
 use aegis_db::ContentListQuery;
-use chrono::Utc;
+use jiff::Timestamp;
 use serde::{Deserialize, Serialize};
 
 use crate::ssrf::{is_public_ip, PublicOnlyResolver};
@@ -184,7 +185,7 @@ impl BrokenLinksService {
 
         let broken_count = broken_items.len();
         Ok(BrokenLinksReport {
-            last_scanned_at: Some(Utc::now().to_rfc3339()),
+            last_scanned_at: Some(Timestamp::now().to_rfc3339_auto()),
             total_links_checked,
             broken_count,
             items: broken_items,

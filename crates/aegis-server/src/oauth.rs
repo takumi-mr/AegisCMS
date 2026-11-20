@@ -12,6 +12,7 @@
 //! 許す範囲（scope）はロールの上限に対応する: `content:read` は viewer、`content:draft` は contributor
 //! （どちらも持ち主のロールを超えない）。公開・削除はどのスコープにも含めない。
 
+use aegis_core::time::TimestampExt;
 use std::net::SocketAddr;
 use std::sync::Arc;
 
@@ -461,7 +462,7 @@ pub async fn register(
             "grant_types": ["authorization_code", "refresh_token"],
             "response_types": ["code"],
             "token_endpoint_auth_method": "none",
-            "client_id_issued_at": chrono::Utc::now().timestamp(),
+            "client_id_issued_at": jiff::Timestamp::now().as_second(),
         }),
     )
 }
@@ -1385,8 +1386,8 @@ async fn redeem_refresh(state: &AppState, form: &TokenForm) -> Result<Granted, T
             "The refresh token was issued to another client",
         ));
     }
-    let expired = chrono::DateTime::parse_from_rfc3339(&record.expires_at)
-        .map(|at| at < chrono::Utc::now())
+    let expired = aegis_core::time::parse_rfc3339(&record.expires_at)
+        .map(|at| at < jiff::Timestamp::now())
         .unwrap_or(true);
     if expired {
         return Err(TokenError::grant("The refresh token has expired"));
@@ -1433,12 +1434,12 @@ async fn issue_tokens(
         let _ = state.db.delete_api_token(&granted.username, old).await;
     }
     // 期限が切れた OAuth のトークンは片付ける。上限の数に溜まらないように
-    let now = chrono::Utc::now();
+    let now = jiff::Timestamp::now();
     for old in existing.iter().filter(|t| {
         t.name.starts_with("OAuth: ")
             && t.expires_at
                 .as_deref()
-                .and_then(|at| chrono::DateTime::parse_from_rfc3339(at).ok())
+                .and_then(|at| aegis_core::time::parse_rfc3339(at).ok())
                 .is_some_and(|at| at < now)
     }) {
         let _ = state.db.delete_api_token(&granted.username, &old.id).await;
@@ -1481,9 +1482,8 @@ async fn issue_tokens(
         uuid::Uuid::new_v4().simple(),
         uuid::Uuid::new_v4().simple()
     );
-    let created = now.to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
-    let expires = (now + chrono::Duration::days(i64::from(REFRESH_TOKEN_DAYS)))
-        .to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
+    let created = now.to_rfc3339_secs();
+    let expires = (now + aegis_core::time::days(i64::from(REFRESH_TOKEN_DAYS))).to_rfc3339_secs();
     let _ = state.db.delete_expired_oauth_refresh(&created).await;
     let stored = state
         .db

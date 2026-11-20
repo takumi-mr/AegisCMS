@@ -3,6 +3,7 @@
 //! `aegis-comments` のモデレーション機構の共有、ステマ規制対応（低評価を理由に非承認としない方針と非承認理由の記録）、
 //! 運営者の1段返信、および JSON-LD AggregateRating 向けの集計を提供する。
 
+use aegis_core::time::TimestampExt;
 use std::sync::Arc;
 
 use aegis_audit::AuditService;
@@ -12,7 +13,7 @@ use aegis_core::{
     NotificationEvent, Notifier, OrderLine, Recipient, Result,
 };
 use aegis_db::{DatabaseAdapter, ReviewAggregateStats, ReviewListQuery, ReviewPage, ReviewRecord};
-use chrono::{SecondsFormat, Utc};
+use jiff::Timestamp;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use uuid::Uuid;
@@ -121,7 +122,7 @@ impl JsonLdAggregateRating {
 }
 
 fn now() -> String {
-    Utc::now().to_rfc3339_opts(SecondsFormat::Secs, true)
+    Timestamp::now().to_rfc3339_secs()
 }
 
 fn hash_token(token: &str) -> String {

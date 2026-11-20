@@ -117,7 +117,7 @@ pub async fn track_event(
                     user_agent: &user_agent,
                     ip: &ip,
                 },
-                chrono::Utc::now(),
+                jiff::Timestamp::now(),
             )
             .await;
     }
@@ -153,12 +153,12 @@ pub async fn get_summary(
     };
     let to = params
         .to
-        .unwrap_or_else(|| chrono::Utc::now().format("%Y-%m-%d").to_string());
+        .unwrap_or_else(|| jiff::Timestamp::now().strftime("%Y-%m-%d").to_string());
     let from = match params.from {
         Some(from) => from,
-        None => match chrono::NaiveDate::parse_from_str(&to, "%Y-%m-%d") {
-            Ok(day) => (day - chrono::Duration::days(29))
-                .format("%Y-%m-%d")
+        None => match jiff::civil::Date::strptime("%Y-%m-%d", &to) {
+            Ok(day) => (day - jiff::Span::new().days(29))
+                .strftime("%Y-%m-%d")
                 .to_string(),
             Err(_) => to.clone(),
         },
@@ -197,12 +197,12 @@ pub async fn export_csv(
     };
     let to = params
         .to
-        .unwrap_or_else(|| chrono::Utc::now().format("%Y-%m-%d").to_string());
+        .unwrap_or_else(|| jiff::Timestamp::now().strftime("%Y-%m-%d").to_string());
     let from = match params.from {
         Some(from) => from,
-        None => match chrono::NaiveDate::parse_from_str(&to, "%Y-%m-%d") {
-            Ok(day) => (day - chrono::Duration::days(29))
-                .format("%Y-%m-%d")
+        None => match jiff::civil::Date::strptime("%Y-%m-%d", &to) {
+            Ok(day) => (day - jiff::Span::new().days(29))
+                .strftime("%Y-%m-%d")
                 .to_string(),
             Err(_) => to.clone(),
         },

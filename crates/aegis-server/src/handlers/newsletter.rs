@@ -606,7 +606,7 @@ async fn issue_content(
             )
         })?
         .filter(|r| {
-            is_currently_published(&r.status, r.unpublish_at.as_deref(), chrono::Utc::now())
+            is_currently_published(&r.status, r.unpublish_at.as_deref(), jiff::Timestamp::now())
         })
         .ok_or_else(|| {
             api_error(

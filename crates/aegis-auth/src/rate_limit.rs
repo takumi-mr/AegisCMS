@@ -1,6 +1,6 @@
 use super::config::LoginRateLimitConfig;
 use aegis_core::{CacheBackend, Result};
-use chrono::Utc;
+use jiff::Timestamp;
 use sha2::{Digest, Sha256};
 use std::sync::Arc;
 
@@ -84,7 +84,7 @@ impl LoginRateLimiter {
 
     /// ロック中なら残り時間の最も長いロックを返す
     pub async fn check(&self, username: &str, ip: Option<&str>) -> Result<Option<LoginLockout>> {
-        let now = Utc::now().timestamp();
+        let now = Timestamp::now().as_second();
         let mut lockout: Option<LoginLockout> = None;
         // 回数の上限は実行時に変わる（Admin Studio の上書き）ので、ここでは上限の値に関わらず、
         // 置かれているロックのキーをすべて見る（上限が 0 でも、ハニーポットなどが置いたロックは効く）
@@ -139,7 +139,7 @@ impl LoginRateLimiter {
             if count < max_failures {
                 continue;
             }
-            let until = Utc::now().timestamp() + lockout_secs as i64;
+            let until = Timestamp::now().as_second() + lockout_secs as i64;
             self.cache
                 .set(
                     &Self::lock_key(scope, &id),
@@ -192,7 +192,7 @@ impl LoginRateLimiter {
     /// ロック期間（秒）を返す。
     pub async fn lock_ip(&self, ip: &str, duration_secs: Option<u64>) -> Result<u64> {
         let lockout_secs = duration_secs.unwrap_or(self.config.lockout_secs.max(1));
-        let until = Utc::now().timestamp() + lockout_secs as i64;
+        let until = Timestamp::now().as_second() + lockout_secs as i64;
         self.cache
             .set(
                 &Self::lock_key(LockScope::Ip, ip),

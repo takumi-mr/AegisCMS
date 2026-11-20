@@ -1,6 +1,7 @@
 use crate::error::Result;
+use crate::time::TimestampExt;
 use async_trait::async_trait;
-use chrono::{DateTime, SecondsFormat, Utc};
+use jiff::Timestamp;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -469,7 +470,7 @@ impl AuditEvent {
     pub fn new(action: AuditAction, outcome: AuditOutcome) -> Self {
         Self {
             id: Uuid::new_v4().to_string(),
-            occurred_at: format_audit_timestamp(&Utc::now()),
+            occurred_at: format_audit_timestamp(&Timestamp::now()),
             action,
             outcome,
             actor: None,
@@ -509,14 +510,14 @@ impl AuditEvent {
 }
 
 /// 監査ログ用のタイムスタンプ表現に正規化する
-pub fn format_audit_timestamp(ts: &DateTime<Utc>) -> String {
-    ts.to_rfc3339_opts(SecondsFormat::Micros, true)
+pub fn format_audit_timestamp(ts: &Timestamp) -> String {
+    ts.to_rfc3339_micros()
 }
 
 /// RFC 3339 文字列をパースし、監査ログ用のタイムスタンプ表現に正規化する
 pub fn normalize_audit_timestamp(value: &str) -> std::result::Result<String, String> {
-    DateTime::parse_from_rfc3339(value)
-        .map(|dt| format_audit_timestamp(&dt.with_timezone(&Utc)))
+    crate::time::parse_rfc3339(value)
+        .map(|dt| format_audit_timestamp(&dt))
         .map_err(|e| format!("Invalid RFC 3339 timestamp '{}': {}", value, e))
 }
 

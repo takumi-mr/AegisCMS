@@ -326,7 +326,7 @@ pub async fn get_sitemap_xml(State(state): State<Arc<AppState>>, headers: Header
             ..Default::default()
         };
         if let Ok(page) = state.db.list_published_contents_page(schema, &query).await {
-            let now = chrono::Utc::now();
+            let now = jiff::Timestamp::now();
             for item in page.records {
                 if !super::content::is_currently_published(
                     &item.status,
@@ -396,7 +396,7 @@ pub async fn get_sitemap_xml(State(state): State<Arc<AppState>>, headers: Header
         let Ok(page) = state.db.list_published_contents_page(schema, &query).await else {
             continue;
         };
-        let now = chrono::Utc::now();
+        let now = jiff::Timestamp::now();
         for item in page.records {
             if !super::content::is_currently_published(
                 &item.status,
@@ -432,7 +432,7 @@ pub async fn get_sitemap_xml(State(state): State<Arc<AppState>>, headers: Header
             ..Default::default()
         };
         if let Ok(page) = state.db.list_published_contents_page(schema, &query).await {
-            let now = chrono::Utc::now();
+            let now = jiff::Timestamp::now();
             for item in page.records {
                 if !super::content::is_currently_published(
                     &item.status,
@@ -494,7 +494,7 @@ pub async fn get_sitemap_xml(State(state): State<Arc<AppState>>, headers: Header
                 ..Default::default()
             };
             if let Ok(page) = state.db.list_published_contents_page(schema, &query).await {
-                let now = chrono::Utc::now();
+                let now = jiff::Timestamp::now();
                 for item in page.records {
                     if !super::content::is_currently_published(
                         &item.status,
@@ -531,7 +531,7 @@ pub async fn get_sitemap_xml(State(state): State<Arc<AppState>>, headers: Header
             ..Default::default()
         };
         if let Ok(page) = state.db.list_published_contents_page(schema, &query).await {
-            let now = chrono::Utc::now();
+            let now = jiff::Timestamp::now();
             for item in page.records {
                 if !super::content::is_currently_published(
                     &item.status,

@@ -24,8 +24,8 @@ dependencies = [
  "aegis-cache",
  "aegis-core",
  "aegis-db",
- "chrono",
  "hex",
+ "jiff",
  "serde",
  "serde_json",
  "sha2 0.10.9",
@@ -53,7 +53,7 @@ dependencies = [
  "aegis-core",
  "aegis-db",
  "async-trait",
- "chrono",
+ "jiff",
  "serde",
  "serde_json",
  "tokio",
@@ -71,10 +71,10 @@ dependencies = [
  "async-trait",
  "axum",
  "base64 0.23.1",
- "chrono",
  "flate2",
  "getrandom 0.4.3",
  "hex",
+ "jiff",
  "jsonwebtoken",
  "p256",
  "quick-xml",
@@ -99,8 +99,8 @@ dependencies = [
  "aegis-db",
  "aegis-schema",
  "aegis-storage",
- "chrono",
  "hex",
+ "jiff",
  "serde",
  "serde_json",
  "sha2 0.10.9",
@@ -153,7 +153,7 @@ dependencies = [
  "aegis-runtime",
  "aegis-schema",
  "async-trait",
- "chrono",
+ "jiff",
  "serde",
  "serde_json",
  "sha2 0.10.9",
@@ -178,10 +178,10 @@ dependencies = [
  "aegis-runtime",
  "aegis-schema",
  "async-trait",
- "chrono",
  "hex",
  "hmac 0.12.1",
  "http",
+ "jiff",
  "reqwest",
  "serde",
  "serde_json",
@@ -206,7 +206,7 @@ dependencies = [
  "aegis-db",
  "async-trait",
  "axum",
- "chrono",
+ "jiff",
  "serde",
  "serde_json",
  "thiserror 2.0.21",
@@ -222,8 +222,8 @@ version = "0.10.0"
 dependencies = [
  "async-trait",
  "base64 0.23.1",
- "chrono",
  "hex",
+ "jiff",
  "ring",
  "semver",
  "serde",
@@ -244,6 +244,7 @@ dependencies = [
  "async-trait",
  "chrono",
  "chrono-tz",
+ "jiff",
  "serde",
  "serde-saphyr",
  "serde_json",
@@ -263,7 +264,7 @@ dependencies = [
  "aegis-core",
  "aegis-db",
  "async-trait",
- "chrono",
+ "jiff",
  "serde",
  "serde_json",
  "thiserror 2.0.21",
@@ -283,7 +284,7 @@ dependencies = [
  "aegis-schema",
  "async-trait",
  "base64 0.23.1",
- "chrono",
+ "jiff",
  "serde",
  "serde_json",
  "sha2 0.10.9",
@@ -300,8 +301,8 @@ dependencies = [
  "aegis-cache",
  "aegis-core",
  "aegis-db",
- "chrono",
  "hex",
+ "jiff",
  "serde",
  "serde_json",
  "sha2 0.10.9",
@@ -321,7 +322,7 @@ dependencies = [
  "aegis-db",
  "async-trait",
  "axum",
- "chrono",
+ "jiff",
  "serde",
  "serde_json",
  "thiserror 2.0.21",
@@ -339,7 +340,7 @@ dependencies = [
  "aegis-core",
  "aegis-db",
  "async-trait",
- "chrono",
+ "jiff",
  "lettre",
  "minijinja",
  "serde",
@@ -561,7 +562,7 @@ dependencies = [
  "aegis-ast",
  "aegis-core",
  "async-trait",
- "chrono",
+ "jiff",
  "serde",
  "serde_json",
  "sha2 0.10.9",
@@ -579,7 +580,6 @@ name = "aegis-schema"
 version = "0.10.0"
 dependencies = [
  "aegis-core",
- "chrono",
  "serde",
  "serde-saphyr",
  "serde_json",
@@ -594,7 +594,7 @@ name = "aegis-search"
 version = "0.10.0"
 dependencies = [
  "aegis-ast",
- "chrono",
+ "jiff",
  "serde",
  "serde_json",
  "tantivy",
@@ -641,6 +641,7 @@ dependencies = [
  "clap",
  "hex",
  "hmac 0.12.1",
+ "jiff",
  "redis",
  "reqwest",
  "ring",
@@ -671,9 +672,9 @@ version = "0.10.0"
 dependencies = [
  "aegis-core",
  "async-trait",
- "chrono",
  "hex",
  "hmac 0.12.1",
+ "jiff",
  "reqwest",
  "serde",
  "sha2 0.10.9",
@@ -688,7 +689,7 @@ version = "0.10.0"
 dependencies = [
  "aegis-core",
  "aegis-db",
- "chrono",
+ "jiff",
  "serde",
  "thiserror 2.0.21",
  "tokio",
@@ -2790,6 +2791,41 @@ dependencies = [
 ]
 
 [[package]]
+name = "jiff"
+version = "1.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ed5d126d72eb017f10b302e73bdeca446bea405ee449af4d9e7866d6b082d83e"
+dependencies = [
+ "jiff-core",
+ "jiff-static",
+ "log",
+ "portable-atomic",
+ "portable-atomic-util",
+ "serde_core",
+]
+
+[[package]]
+name = "jiff-core"
+version = "1.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b6b46a105a9874634dd96231021526bf24ca04955a5998c59a9c7666e634b7b8"
+dependencies = [
+ "log",
+]
+
+[[package]]
+name = "jiff-static"
+version = "1.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c0127e9bde3c6130d6169e7d8d68676e4be69c4bf7573c308b6f960a5089c428"
+dependencies = [
+ "jiff-core",
+ "proc-macro2",
+ "quote",
+ "syn 3.0.9",
+]
+
+[[package]]
 name = "jni"
 version = "0.21.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3581,6 +3617,21 @@ dependencies = [
  "fdeflate",
  "flate2",
  "miniz_oxide 0.8.9",
+]
+
+[[package]]
+name = "portable-atomic"
+version = "1.15.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "05c8b63e8d9609db387f0324918f81d68fe27748f084ef092fb35954d0539a85"
+
+[[package]]
+name = "portable-atomic-util"
+version = "0.2.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "10ab3eb7f3becc3a1cbc4f2c6f20267996cfc1a6467a873763411b136a122715"
+dependencies = [
+ "portable-atomic",
 ]
 
 [[package]]

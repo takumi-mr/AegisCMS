@@ -1,3 +1,4 @@
+use aegis_core::time::TimestampExt;
 use aegis_core::{
     guess_content_type, AegisError, Result, StorageBackend, StorageMeta, StorageObject,
 };
@@ -123,10 +124,11 @@ impl StorageBackend for LocalStorageBackend {
                     let metadata = entry.metadata().await.map_err(|e| {
                         AegisError::Database(format!("Failed to stat storage entry: {}", e))
                     })?;
-                    let last_modified = metadata.modified().ok().map(|t| {
-                        chrono::DateTime::<chrono::Utc>::from(t)
-                            .to_rfc3339_opts(chrono::SecondsFormat::Secs, true)
-                    });
+                    let last_modified = metadata
+                        .modified()
+                        .ok()
+                        .and_then(|t| jiff::Timestamp::try_from(t).ok())
+                        .map(|t| t.to_rfc3339_secs());
                     objects.push(StorageObject {
                         url: self.public_url(&key),
                         size: metadata.len(),

@@ -1,3 +1,4 @@
+use aegis_core::time::TimestampExt;
 use std::collections::HashMap;
 use std::path::Path;
 
@@ -166,7 +167,7 @@ pub async fn run_init(config: &AegisConfig, options: InitOptions) -> anyhow::Res
     let mut sample_page_id = None;
 
     if options.create_sample_data {
-        let now = chrono::Utc::now().to_rfc3339();
+        let now = jiff::Timestamp::now().to_rfc3339_auto();
 
         // 1. Sample Article (if 'article' schema exists)
         if let Some(article_schema) = schemas.get("article") {

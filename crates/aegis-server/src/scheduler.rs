@@ -1,13 +1,14 @@
 //! コンテンツの予約公開。`status: "scheduled"` のコンテンツを、`published_at` の日時になったら
 //! `published` にする（監査ログ `content.publish`、著者への通知 `content.published`）
 
+use aegis_core::time::TimestampExt;
 use std::sync::Arc;
 use std::time::Duration;
 
 use aegis_core::{AuditAction, AuditEvent, AuditOutcome, NotificationEvent, Recipient};
 use aegis_db::{ContentListQuery, ContentRecord};
 use aegis_schema::SchemaDefinition;
-use chrono::{DateTime, Utc};
+use jiff::Timestamp;
 use serde_json::json;
 
 use crate::handlers::content::STATUS_SCHEDULED;
@@ -17,7 +18,7 @@ use crate::state::AppState;
 const PUBLISH_INTERVAL: Duration = Duration::from_secs(30);
 
 /// `now` までに予約日時を迎えたコンテンツをすべてのスキーマで公開し、公開した件数を返す
-pub async fn publish_due_contents(state: &AppState, now: DateTime<Utc>) -> usize {
+pub async fn publish_due_contents(state: &AppState, now: Timestamp) -> usize {
     let schemas: Vec<SchemaDefinition> = state.schemas.read().await.values().cloned().collect();
     let query = ContentListQuery {
         status: Some(STATUS_SCHEDULED.to_string()),
@@ -40,7 +41,7 @@ pub async fn publish_due_contents(state: &AppState, now: DateTime<Utc>) -> usize
             let Some(at) = record.published_at.as_deref() else {
                 continue;
             };
-            match DateTime::parse_from_rfc3339(at) {
+            match aegis_core::time::parse_rfc3339(at) {
                 Ok(due) if due <= now => {}
                 Ok(_) => continue,
                 Err(e) => {
@@ -58,7 +59,7 @@ pub async fn publish_due_contents(state: &AppState, now: DateTime<Utc>) -> usize
                 crate::handlers::redirects::live_slug(state, &schema, &record.id).await;
             let result = state
                 .db
-                .publish_scheduled_content(&schema, &record.id, at, &now.to_rfc3339())
+                .publish_scheduled_content(&schema, &record.id, at, &now.to_rfc3339_auto())
                 .await;
             // 公開版の slug が変わったら、旧 URL からの転送を残す
             if matches!(result, Ok(true)) {
@@ -152,7 +153,7 @@ pub async fn publish_due_contents(state: &AppState, now: DateTime<Utc>) -> usize
 }
 
 /// `now` までに非公開日時（`unpublish_at`）を迎えた公開中コンテンツをすべてのスキーマでアーカイブ化し、非公開化した件数を返す
-pub async fn unpublish_due_contents(state: &AppState, now: DateTime<Utc>) -> usize {
+pub async fn unpublish_due_contents(state: &AppState, now: Timestamp) -> usize {
     let schemas: Vec<SchemaDefinition> = state.schemas.read().await.values().cloned().collect();
     let query = ContentListQuery {
         status: Some("published".to_string()),
@@ -175,7 +176,7 @@ pub async fn unpublish_due_contents(state: &AppState, now: DateTime<Utc>) -> usi
             let Some(at) = record.unpublish_at.as_deref() else {
                 continue;
             };
-            match DateTime::parse_from_rfc3339(at) {
+            match aegis_core::time::parse_rfc3339(at) {
                 Ok(due) if due <= now => {}
                 Ok(_) => continue,
                 Err(e) => {
@@ -191,7 +192,7 @@ pub async fn unpublish_due_contents(state: &AppState, now: DateTime<Utc>) -> usi
 
             let result = state
                 .db
-                .unpublish_scheduled_content(&schema, &record.id, at, &now.to_rfc3339())
+                .unpublish_scheduled_content(&schema, &record.id, at, &now.to_rfc3339_auto())
                 .await;
             let mut details = json!({
                 "content_type": record.content_type,
@@ -294,7 +295,7 @@ pub fn spawn_publish_task(state: Arc<AppState>) {
         let mut interval = tokio::time::interval(PUBLISH_INTERVAL);
         loop {
             interval.tick().await;
-            let now = Utc::now();
+            let now = Timestamp::now();
             match publish_due_contents(&state, now).await {
                 0 => {}
                 n => tracing::info!("Published {} scheduled content(s)", n),
@@ -390,11 +391,11 @@ mod tests {
         );
 
         // 予約日時の前は公開しない
-        let before: DateTime<Utc> = "2099-01-01T18:04:04Z".parse().unwrap();
+        let before: Timestamp = "2099-01-01T18:04:04Z".parse().unwrap();
         assert_eq!(publish_due_contents(&state, before).await, 0);
         assert_eq!(status_of(&state, "later").await.0, "scheduled");
 
-        let due: DateTime<Utc> = "2099-01-01T18:04:05Z".parse().unwrap();
+        let due: Timestamp = "2099-01-01T18:04:05Z".parse().unwrap();
         assert_eq!(publish_due_contents(&state, due).await, 1);
         assert_eq!(
             status_of(&state, "later").await,
@@ -467,7 +468,7 @@ mod tests {
         .unwrap();
         assert_eq!(draft.published_at, None);
 
-        let now: DateTime<Utc> = "2099-02-01T00:00:00Z".parse().unwrap();
+        let now: Timestamp = "2099-02-01T00:00:00Z".parse().unwrap();
         assert_eq!(publish_due_contents(&state, now).await, 0);
         assert_eq!(status_of(&state, "a").await.0, "scheduled");
         assert_eq!(status_of(&state, "b").await.0, "draft");
@@ -542,7 +543,7 @@ mod tests {
         );
 
         // 期日前は非公開化されない
-        let before: DateTime<Utc> = "2099-01-09T23:59:59Z".parse().unwrap();
+        let before: Timestamp = "2099-01-09T23:59:59Z".parse().unwrap();
         assert_eq!(unpublish_due_contents(&state, before).await, 0);
         let schema = state.schemas.read().await["article"].clone();
         let record = state
@@ -554,7 +555,7 @@ mod tests {
         assert_eq!(record.status, "published");
 
         // 期日到来でアーカイブ化される
-        let due: DateTime<Utc> = "2099-01-10T00:00:00Z".parse().unwrap();
+        let due: Timestamp = "2099-01-10T00:00:00Z".parse().unwrap();
         assert_eq!(unpublish_due_contents(&state, due).await, 1);
         let record = state
             .db
@@ -672,11 +673,11 @@ mod tests {
         .unwrap();
 
         // Nothing before the date
-        let before: DateTime<Utc> = "2099-02-28T23:59:59Z".parse().unwrap();
+        let before: Timestamp = "2099-02-28T23:59:59Z".parse().unwrap();
         assert_eq!(publish_due_contents(&state, before).await, 0);
         assert!(notifier.take().is_empty());
 
-        let due: DateTime<Utc> = "2099-03-01T00:00:00Z".parse().unwrap();
+        let due: Timestamp = "2099-03-01T00:00:00Z".parse().unwrap();
         assert_eq!(publish_due_contents(&state, due).await, 1);
         let events = notifier.take();
         assert_eq!(events.len(), 1);
@@ -695,7 +696,7 @@ mod tests {
         assert_eq!(publish_due_contents(&state, due).await, 0);
         assert!(notifier.take().is_empty());
 
-        let end: DateTime<Utc> = "2099-03-31T00:00:00Z".parse().unwrap();
+        let end: Timestamp = "2099-03-31T00:00:00Z".parse().unwrap();
         assert_eq!(unpublish_due_contents(&state, end).await, 1);
         let events = notifier.take();
         assert_eq!(events.len(), 1);
@@ -713,7 +714,7 @@ mod tests {
         )
         .await
         .unwrap();
-        let due: DateTime<Utc> = "2099-04-01T00:00:00Z".parse().unwrap();
+        let due: Timestamp = "2099-04-01T00:00:00Z".parse().unwrap();
         assert_eq!(publish_due_contents(&state, due).await, 1);
         assert!(notifier.take().is_empty());
     }
@@ -752,12 +753,12 @@ mod tests {
         .unwrap();
 
         // 予約日時前はフックは呼ばれない
-        let before: DateTime<Utc> = "2099-05-01T11:59:59Z".parse().unwrap();
+        let before: Timestamp = "2099-05-01T11:59:59Z".parse().unwrap();
         assert_eq!(publish_due_contents(&state, before).await, 0);
         assert!(published_items.lock().unwrap().is_empty());
 
         // 予約日時に公開され、フックが呼ばれる
-        let due: DateTime<Utc> = "2099-05-01T12:00:00Z".parse().unwrap();
+        let due: Timestamp = "2099-05-01T12:00:00Z".parse().unwrap();
         assert_eq!(publish_due_contents(&state, due).await, 1);
 
         let items = published_items.lock().unwrap().clone();
@@ -801,7 +802,7 @@ mod tests {
         .await
         .unwrap();
 
-        let due: DateTime<Utc> = "2099-06-01T00:00:00Z".parse().unwrap();
+        let due: Timestamp = "2099-06-01T00:00:00Z".parse().unwrap();
         // 公開自体は成功する
         assert_eq!(publish_due_contents(&state, due).await, 1);
         assert_eq!(status_of(&state, "important-news").await.0, "published");

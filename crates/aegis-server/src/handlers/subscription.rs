@@ -8,6 +8,7 @@
 //! 契約の状態は、Stripe の通知（Webhook）が決める。ここのテーブルはその写しで、
 //! 有効なレベルは、手動で付けたレベルと契約中のプランのレベルの高いほう。
 
+use aegis_core::time::TimestampExt;
 use axum::{
     extract::{Query, State},
     http::{HeaderMap, StatusCode},
@@ -34,18 +35,15 @@ const GRACE_DAYS: i64 = 3;
 
 /// 契約が、いま閲覧の権利を与えているか。契約中（`active`）か、支払いに失敗していても期間の終わりまで
 /// （`past_due`）。期間の終わりを過ぎて通知が届かないままなら、猶予のあとで外れる
-pub fn grants_access(
-    subscription: &SubscriptionRecord,
-    now: chrono::DateTime<chrono::Utc>,
-) -> bool {
+pub fn grants_access(subscription: &SubscriptionRecord, now: jiff::Timestamp) -> bool {
     if subscription.member_id.is_none() {
         return false;
     }
     if subscription.status != SUBSCRIPTION_ACTIVE && subscription.status != SUBSCRIPTION_PAST_DUE {
         return false;
     }
-    chrono::DateTime::parse_from_rfc3339(&subscription.current_period_end)
-        .map(|end| end + chrono::Duration::days(GRACE_DAYS) > now)
+    aegis_core::time::parse_rfc3339(&subscription.current_period_end)
+        .map(|end| end + aegis_core::time::days(GRACE_DAYS) > now)
         .unwrap_or(false)
 }
 
@@ -54,7 +52,7 @@ pub async fn granted_levels(state: &AppState, member_id: &str) -> Vec<String> {
     if !crate::handlers::access::purchase_enabled(state) {
         return Vec::new();
     }
-    let now = chrono::Utc::now();
+    let now = jiff::Timestamp::now();
     state
         .db
         .list_member_subscriptions(member_id)
@@ -76,7 +74,7 @@ fn view(subscription: &SubscriptionRecord, state: &AppState) -> Value {
         "status": subscription.status,
         "current_period_end": subscription.current_period_end,
         "cancel_at_period_end": subscription.cancel_at_period_end,
-        "active": grants_access(subscription, chrono::Utc::now()),
+        "active": grants_access(subscription, jiff::Timestamp::now()),
         "created_at": subscription.created_at,
     })
 }
@@ -235,7 +233,7 @@ async fn start_subscription(
         .list_member_subscriptions(&member.id)
         .await
         .map_err(internal)?;
-    let now = chrono::Utc::now();
+    let now = jiff::Timestamp::now();
     if existing.iter().any(|s| grants_access(s, now)) {
         return Err(api_error(
             StatusCode::CONFLICT,
@@ -394,7 +392,9 @@ fn period_end(subscription: &Value) -> Option<String> {
     let ts = subscription["current_period_end"]
         .as_i64()
         .or_else(|| subscription["items"]["data"][0]["current_period_end"].as_i64())?;
-    chrono::DateTime::from_timestamp(ts, 0).map(|t| t.to_rfc3339())
+    jiff::Timestamp::from_second(ts)
+        .ok()
+        .map(|t| t.to_rfc3339_auto())
 }
 
 async fn record(
@@ -526,7 +526,7 @@ async fn start_from_checkout(
     ) else {
         return Ok(());
     };
-    let now = chrono::Utc::now().to_rfc3339();
+    let now = jiff::Timestamp::now().to_rfc3339_auto();
     let customer = session["customer"].as_str().unwrap_or_default().to_string();
     let cancel_at_period_end = remote["cancel_at_period_end"].as_bool().unwrap_or(false);
 
@@ -624,7 +624,7 @@ async fn sync_subscription(
     if record_now == before {
         return Ok(());
     }
-    record_now.updated_at = chrono::Utc::now().to_rfc3339();
+    record_now.updated_at = jiff::Timestamp::now().to_rfc3339_auto();
     state
         .db
         .update_subscription(&record_now)
@@ -674,7 +674,7 @@ pub async fn cancel_now(
     }
     let mut updated = subscription.clone();
     updated.status = SUBSCRIPTION_CANCELLED.to_string();
-    updated.updated_at = chrono::Utc::now().to_rfc3339();
+    updated.updated_at = jiff::Timestamp::now().to_rfc3339_auto();
     state
         .db
         .update_subscription(&updated)
@@ -731,9 +731,7 @@ mod tests {
 
     #[test]
     fn access_follows_the_status_and_the_period() {
-        let now = chrono::DateTime::parse_from_rfc3339("2026-11-10T00:00:00Z")
-            .unwrap()
-            .with_timezone(&chrono::Utc);
+        let now = aegis_core::time::parse_rfc3339("2026-11-10T00:00:00Z").unwrap();
         let future = "2026-12-01T00:00:00Z";
         assert!(grants_access(&record("active", future), now));
         assert!(grants_access(&record("past_due", future), now));

@@ -66,6 +66,7 @@ axum = { version = "0.8", features = ["macros", "multipart"] }
 base64 = "0.23"
 chrono = { version = "0.4.45", features = ["serde"] }
 chrono-tz = "0.10"
+jiff = { version = "1.0", default-features = false, features = ["std", "serde"] }
 clap = { version = "4.6", features = ["derive", "env"] }
 flate2 = "1.1"
 futures-util = "0.3.34"

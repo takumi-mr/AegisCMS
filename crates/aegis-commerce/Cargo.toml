@@ -18,7 +18,7 @@ aegis-audit = { path = "../aegis-audit" }
 aegis-auth = { path = "../aegis-auth" }
 aegis-comments = { path = "../aegis-comments" }
 async-trait.workspace = true
-chrono.workspace = true
+jiff.workspace = true
 hex.workspace = true
 hmac.workspace = true
 http.workspace = true

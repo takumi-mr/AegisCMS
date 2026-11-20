@@ -291,7 +291,7 @@ pub async fn render_product(
     let Some(schema) = product_schema(&state).await else {
         return render_not_found(&state, "This site has no products.").await;
     };
-    let now = chrono::Utc::now();
+    let now = jiff::Timestamp::now();
     let record = match state.db.get_published_content(&schema, &slug).await {
         Ok(Some(record))
             if crate::handlers::content::is_currently_published(

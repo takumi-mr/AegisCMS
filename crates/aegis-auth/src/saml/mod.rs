@@ -14,6 +14,7 @@ mod dsig;
 pub mod mock;
 mod xml;
 
+use aegis_core::time::TimestampExt;
 use aegis_core::{
     AegisError, AuthCredentials, AuthIdentity, AuthProvider, AuthRedirect, CacheBackend, Result,
 };
@@ -21,7 +22,7 @@ use aegis_db::DatabaseAdapter;
 use async_trait::async_trait;
 use base64::engine::general_purpose::STANDARD;
 use base64::Engine;
-use chrono::{DateTime, Utc};
+use jiff::Timestamp;
 use serde_json::{json, Map, Value};
 use std::collections::HashMap;
 use std::io::Write;
@@ -68,15 +69,13 @@ fn escape(value: &str) -> String {
         .replace('"', "&quot;")
 }
 
-fn parse_instant(value: &str) -> Result<DateTime<Utc>> {
-    DateTime::parse_from_rfc3339(value)
-        .map(|t| t.with_timezone(&Utc))
-        .map_err(|_| invalid(format!("invalid time '{}'", value)))
+fn parse_instant(value: &str) -> Result<Timestamp> {
+    aegis_core::time::parse_rfc3339(value).map_err(|_| invalid(format!("invalid time '{}'", value)))
 }
 
 /// `NotBefore` / `NotOnOrAfter` of an element, with the leeway
-fn check_period(element: &Element, now: DateTime<Utc>) -> Result<()> {
-    let leeway = chrono::Duration::seconds(LEEWAY_SECS);
+fn check_period(element: &Element, now: Timestamp) -> Result<()> {
+    let leeway = jiff::SignedDuration::from_secs(LEEWAY_SECS);
     if let Some(not_before) = element.attr("NotBefore") {
         if now + leeway < parse_instant(not_before)? {
             return Err(invalid(format!("<{}> is not yet valid", element.name)));
@@ -295,7 +294,7 @@ impl SamlAuthProvider {
 
     /// Checks a verified response and assertion (SAML Profiles 4.1.4.2–3)
     fn check_assertion(&self, response: &Element, assertion: &Element) -> Result<VerifiedLogin> {
-        let now = Utc::now();
+        let now = Timestamp::now();
         let idp = self.config.idp_entity_id.trim();
         if response.attr("Version") != Some("2.0") || assertion.attr("Version") != Some("2.0") {
             return Err(invalid("not a SAML 2.0 message"));
@@ -507,7 +506,7 @@ impl AuthProvider for SamlAuthProvider {
             p = NS_PROTOCOL,
             a = NS_ASSERTION,
             id = id,
-            now = Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true),
+            now = Timestamp::now().to_rfc3339_secs(),
             dest = escape(&self.config.idp_sso_url),
             acs = escape(&self.config.acs_url),
             post = BINDING_POST,
@@ -649,8 +648,7 @@ mod tests {
     }
 
     fn instant(offset_secs: i64) -> String {
-        (Utc::now() + chrono::Duration::seconds(offset_secs))
-            .to_rfc3339_opts(chrono::SecondsFormat::Secs, true)
+        (Timestamp::now() + jiff::SignedDuration::from_secs(offset_secs)).to_rfc3339_secs()
     }
 
     #[tokio::test]

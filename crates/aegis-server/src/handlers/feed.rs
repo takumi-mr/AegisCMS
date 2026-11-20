@@ -1,5 +1,6 @@
 //! Atom フィード: 新しい記事（`/feed.xml`）と、カテゴリごとの記事（`/category/{slug}/feed.xml`）
 
+use aegis_core::time::TimestampExt;
 use axum::{
     extract::{Path, State},
     http::{header, HeaderMap, StatusCode},
@@ -51,13 +52,13 @@ pub(crate) fn public_base_url(state: &AppState, headers: &HeaderMap) -> String {
 /// 保存されている日時を Atom の日時（RFC 3339、UTC）にする。読めなければ `None`
 fn atom_date(value: Option<&str>) -> Option<String> {
     let value = value?.trim();
-    let parsed = chrono::DateTime::parse_from_rfc3339(value)
-        .map(|d| d.with_timezone(&chrono::Utc))
+    let parsed = aegis_core::time::parse_rfc3339(value)
         .or_else(|_| {
-            chrono::NaiveDateTime::parse_from_str(value, "%Y-%m-%d %H:%M:%S").map(|d| d.and_utc())
+            jiff::civil::DateTime::strptime("%Y-%m-%d %H:%M:%S", value)
+                .and_then(|d| jiff::tz::TimeZone::UTC.to_timestamp(d))
         })
         .ok()?;
-    Some(parsed.to_rfc3339_opts(chrono::SecondsFormat::Secs, true))
+    Some(parsed.to_rfc3339_secs())
 }
 
 /// `GET /feed.xml` — 新しい記事の Atom フィード
@@ -169,7 +170,7 @@ pub(crate) async fn build_feed(
         }
         None => Vec::new(),
     };
-    let now = chrono::Utc::now();
+    let now = jiff::Timestamp::now();
     let records: Vec<_> = records
         .into_iter()
         .filter(|r| is_currently_published(&r.status, r.unpublish_at.as_deref(), now))
@@ -183,7 +184,7 @@ pub(crate) async fn build_feed(
 
         let updated = atom_date(Some(&record.updated_at))
             .or_else(|| atom_date(record.published_at.as_deref()))
-            .unwrap_or_else(|| now.to_rfc3339_opts(chrono::SecondsFormat::Secs, true));
+            .unwrap_or_else(|| now.to_rfc3339_secs());
         let published = atom_date(record.published_at.as_deref())
             .or_else(|| atom_date(Some(&record.created_at)));
         // RFC 3339 の UTC 表記どうしなので、文字列の比較で新しい方がわかる
@@ -247,8 +248,7 @@ pub(crate) async fn build_feed(
         entries.push_str("  </entry>\n");
     }
 
-    let updated =
-        feed_updated.unwrap_or_else(|| now.to_rfc3339_opts(chrono::SecondsFormat::Secs, true));
+    let updated = feed_updated.unwrap_or_else(|| now.to_rfc3339_secs());
     let alternate_url = format!("{}{}", base_url, alternate_path);
     let mut xml = String::from("<?xml version=\"1.0\" encoding=\"utf-8\"?>\n");
     // 本文の相対 URL（/uploads/... など）はサイトの URL を基準に解決させる

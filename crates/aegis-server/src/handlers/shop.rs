@@ -452,19 +452,19 @@ pub async fn sales_report(
     Query(params): Query<SalesReportParams>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     commerce(&state)?;
-    let start = chrono::NaiveDate::parse_from_str(&params.start, "%Y-%m-%d")
+    let start = jiff::civil::Date::strptime("%Y-%m-%d", &params.start)
         .map_err(|_| api_error(StatusCode::BAD_REQUEST, "start must be YYYY-MM-DD"))?;
-    let end = chrono::NaiveDate::parse_from_str(&params.end, "%Y-%m-%d")
+    let end = jiff::civil::Date::strptime("%Y-%m-%d", &params.end)
         .map_err(|_| api_error(StatusCode::BAD_REQUEST, "end must be YYYY-MM-DD"))?;
-    if end < start || (end - start).num_days() > 366 {
+    if end < start || i64::from((end - start).get_days()) > 366 {
         return Err(api_error(
             StatusCode::BAD_REQUEST,
             "Invalid report date range (maximum 367 days)",
         ));
     }
     let exclusive_end = end
-        .succ_opt()
-        .ok_or_else(|| api_error(StatusCode::BAD_REQUEST, "Invalid end date"))?;
+        .tomorrow()
+        .map_err(|_| api_error(StatusCode::BAD_REQUEST, "Invalid end date"))?;
     let start = format!("{}T00:00:00Z", start);
     let exclusive_end = format!("{}T00:00:00Z", exclusive_end);
     let rows = state

@@ -208,7 +208,7 @@ pub async fn upload_file(
         )
     })?;
 
-    let now = chrono::Utc::now();
+    let now = jiff::Timestamp::now();
     let original_name = file_name.unwrap_or_else(|| "file.bin".to_string());
     let clean_original_name = original_name
         .replace(['/', '\\', ' '], "_")
@@ -219,7 +219,7 @@ pub async fn upload_file(
         validate_storage_key(&key)?;
         key
     } else {
-        let date_folder = now.format("%Y/%m").to_string();
+        let date_folder = now.strftime("%Y/%m").to_string();
         let uid = Uuid::new_v4().to_string();
         format!("{}/{}-{}", date_folder, &uid[..8], clean_original_name)
     };
@@ -462,6 +462,7 @@ pub async fn delete_object(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use aegis_core::time::TimestampExt;
 
     #[test]
     fn test_active_content_is_recognized_whatever_the_spelling() {
@@ -682,7 +683,7 @@ mod tests {
     }
     async fn save_article(state: &Arc<AppState>, slug: &str, blocks_json: String) {
         let schema = state.schemas.read().await["article"].clone();
-        let now = chrono::Utc::now().to_rfc3339();
+        let now = jiff::Timestamp::now().to_rfc3339_auto();
         let record = ContentRecord {
             id: Uuid::new_v4().to_string(),
             content_type: "article".to_string(),

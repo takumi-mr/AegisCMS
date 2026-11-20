@@ -17,7 +17,9 @@ use std::time::Duration;
 
 use aegis_core::CacheBackend;
 use aegis_db::{AnalyticsCount, AnalyticsTotal, DatabaseAdapter};
-use chrono::{DateTime, NaiveDate, Utc};
+use jiff::civil::Date;
+use jiff::Span;
+use jiff::Timestamp;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
@@ -157,8 +159,8 @@ fn short_hash(parts: &[&str]) -> String {
     hex::encode(&hasher.finalize()[..12])
 }
 
-fn parse_day(value: &str) -> Option<NaiveDate> {
-    NaiveDate::parse_from_str(value.trim(), "%Y-%m-%d").ok()
+fn parse_day(value: &str) -> Option<Date> {
+    Date::strptime("%Y-%m-%d", value.trim()).ok()
 }
 
 impl AnalyticsService {
@@ -233,7 +235,7 @@ impl AnalyticsService {
     }
 
     /// ページ表示を 1 回数える（書き込みは [`flush`](Self::flush) でまとめて行う）
-    pub async fn track(&self, view: PageView<'_>, now: DateTime<Utc>) -> TrackOutcome {
+    pub async fn track(&self, view: PageView<'_>, now: Timestamp) -> TrackOutcome {
         if agent::is_bot(view.user_agent) {
             return TrackOutcome::Bot;
         }
@@ -243,7 +245,7 @@ impl AnalyticsService {
         if self.config.excludes(&path) {
             return TrackOutcome::Excluded;
         }
-        let day = now.format("%Y-%m-%d").to_string();
+        let day = now.strftime("%Y-%m-%d").to_string();
         let salt = self.daily_salt(&day).await;
         let visitor = short_hash(&[&salt, view.ip, view.user_agent, view.host]);
         let new_visitor = self
@@ -351,7 +353,7 @@ impl AnalyticsService {
         ip: &str,
         user_agent: &str,
         host: &str,
-        now: DateTime<Utc>,
+        now: Timestamp,
     ) -> TrackOutcome {
         if agent::is_bot(user_agent) {
             return TrackOutcome::Bot;
@@ -364,7 +366,7 @@ impl AnalyticsService {
             .chars()
             .take(aegis_db::analytics::ANALYTICS_VALUE_MAX_CHARS)
             .collect();
-        let day = now.format("%Y-%m-%d").to_string();
+        let day = now.strftime("%Y-%m-%d").to_string();
         let salt = self.daily_salt(&day).await;
         let visitor = short_hash(&[&salt, ip, user_agent, host]);
         let new_on_query = self
@@ -458,12 +460,12 @@ impl AnalyticsService {
     }
 
     /// 保存期間（`retention_days`）を過ぎた集計を消す
-    pub async fn apply_retention(&self, now: DateTime<Utc>) {
+    pub async fn apply_retention(&self, now: Timestamp) {
         if self.config.retention_days == 0 {
             return;
         }
-        let cutoff = (now - chrono::Duration::days(i64::from(self.config.retention_days)))
-            .format("%Y-%m-%d")
+        let cutoff = (now - aegis_core::time::days(i64::from(self.config.retention_days)))
+            .strftime("%Y-%m-%d")
             .to_string();
         match self.db.delete_analytics_before(&cutoff).await {
             Ok(0) => {}
@@ -482,8 +484,8 @@ impl AnalyticsService {
             loop {
                 tokio::time::sleep(interval).await;
                 service.flush().await;
-                let now = Utc::now();
-                let today = now.format("%Y-%m-%d").to_string();
+                let now = Timestamp::now();
+                let today = now.strftime("%Y-%m-%d").to_string();
                 if last_retention.as_deref() != Some(today.as_str()) {
                     service.apply_retention(now).await;
                     last_retention = Some(today);
@@ -504,13 +506,13 @@ impl AnalyticsService {
         if from_day > to_day {
             return Err(SummaryError::InvalidRange);
         }
-        if (to_day - from_day).num_days() >= MAX_RANGE_DAYS {
+        if i64::from((to_day - from_day).get_days()) >= MAX_RANGE_DAYS {
             return Err(SummaryError::RangeTooLong);
         }
         self.flush().await;
         let (from, to) = (
-            from_day.format("%Y-%m-%d").to_string(),
-            to_day.format("%Y-%m-%d").to_string(),
+            from_day.strftime("%Y-%m-%d").to_string(),
+            to_day.strftime("%Y-%m-%d").to_string(),
         );
         let db = &self.db;
         let rows = db
@@ -520,7 +522,7 @@ impl AnalyticsService {
         let mut by_day: BTreeMap<String, DailyPoint> = BTreeMap::new();
         let mut day = from_day;
         while day <= to_day {
-            let key = day.format("%Y-%m-%d").to_string();
+            let key = day.strftime("%Y-%m-%d").to_string();
             by_day.insert(
                 key.clone(),
                 DailyPoint {
@@ -528,9 +530,9 @@ impl AnalyticsService {
                     ..DailyPoint::default()
                 },
             );
-            match day.succ_opt() {
-                Some(next) => day = next,
-                None => break,
+            match day.tomorrow() {
+                Ok(next) => day = next,
+                Err(_) => break,
             }
         }
         for row in rows {
@@ -570,11 +572,11 @@ impl AnalyticsService {
         let visitors: u64 = daily.iter().map(|d| d.visitors).sum();
 
         // 前期間（同じ日数分だけ遡った直前期間）の集計
-        let num_days = (to_day - from_day).num_days() + 1;
-        let prev_to_day = from_day - chrono::Duration::days(1);
-        let prev_from_day = prev_to_day - chrono::Duration::days(num_days - 1);
-        let prev_from = prev_from_day.format("%Y-%m-%d").to_string();
-        let prev_to = prev_to_day.format("%Y-%m-%d").to_string();
+        let num_days = i64::from((to_day - from_day).get_days()) + 1;
+        let prev_to_day = from_day - Span::new().days(1);
+        let prev_from_day = prev_to_day - Span::new().days(num_days - 1);
+        let prev_from = prev_from_day.strftime("%Y-%m-%d").to_string();
+        let prev_to = prev_to_day.strftime("%Y-%m-%d").to_string();
 
         let prev_rows = db
             .list_analytics_daily(DIMENSION_SITE, &prev_from, &prev_to)
@@ -601,8 +603,8 @@ impl AnalyticsService {
         });
 
         Ok(AnalyticsSummary {
-            from: from_day.format("%Y-%m-%d").to_string(),
-            to: to_day.format("%Y-%m-%d").to_string(),
+            from: from_day.strftime("%Y-%m-%d").to_string(),
+            to: to_day.strftime("%Y-%m-%d").to_string(),
             pageviews,
             visitors,
             daily,

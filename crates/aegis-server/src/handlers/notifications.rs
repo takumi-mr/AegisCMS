@@ -292,7 +292,7 @@ pub async fn retry_queued_notification(
         .await
         .map_err(|e| internal("Failed to read a queued notification", e))?
         .ok_or_else(|| api_error(StatusCode::NOT_FOUND, "Notification not found"))?;
-    let now = aegis_core::format_audit_timestamp(&chrono::Utc::now());
+    let now = aegis_core::format_audit_timestamp(&jiff::Timestamp::now());
     let retried = state
         .db
         .retry_notification(&id, &now)

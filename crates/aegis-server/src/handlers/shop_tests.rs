@@ -711,8 +711,11 @@ async fn test_stripe_checkout_and_webhooks() {
 
     let webhook = |event: Value, secret: &str| {
         let body = event.to_string();
-        let signature =
-            stripe::sign_webhook_payload(secret, body.as_bytes(), chrono::Utc::now().timestamp());
+        let signature = stripe::sign_webhook_payload(
+            secret,
+            body.as_bytes(),
+            jiff::Timestamp::now().as_second(),
+        );
         let request = Request::post("/api/v1/shop/webhooks/stripe")
             .header("stripe-signature", signature)
             .body(Body::from(body))

@@ -5,7 +5,6 @@
 
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use base64::Engine;
-use chrono::DateTime;
 use serde::{Deserialize, Serialize};
 
 use crate::error::HeadlessError;
@@ -66,7 +65,7 @@ impl Cursor {
         }
         let bytes = URL_SAFE_NO_PAD.decode(raw).map_err(|_| invalid())?;
         let cursor: Cursor = serde_json::from_slice(&bytes).map_err(|_| invalid())?;
-        let valid_time = DateTime::parse_from_rfc3339(&cursor.created_at).is_ok();
+        let valid_time = aegis_core::time::parse_rfc3339(&cursor.created_at).is_ok();
         if !valid_time || cursor.id.is_empty() || cursor.id.chars().count() > MAX_VALUE_CHARS {
             return Err(invalid());
         }

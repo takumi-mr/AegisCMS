@@ -1,3 +1,4 @@
+use aegis_core::time::TimestampExt;
 use std::sync::Arc;
 
 use axum::extract::State;
@@ -18,7 +19,7 @@ pub async fn health_check(
 ) -> impl IntoResponse {
     let mut body = json!({
         "status": "ok",
-        "timestamp": chrono::Utc::now().to_rfc3339()
+        "timestamp": jiff::Timestamp::now().to_rfc3339_auto()
     });
     if is_admin(&state, &headers).await {
         body["system"] = json!("AegisCMS");

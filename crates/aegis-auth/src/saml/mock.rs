@@ -6,6 +6,7 @@ use super::dsig::{ALG_ENVELOPED, ALG_EXC_C14N, NS_DSIG};
 use super::xml::parse;
 use super::{NS_ASSERTION, NS_PROTOCOL};
 use crate::config::SamlConfig;
+use aegis_core::time::TimestampExt;
 use base64::engine::general_purpose::STANDARD;
 use base64::Engine;
 use rsa::pkcs8::{EncodePublicKey, LineEnding};
@@ -72,8 +73,7 @@ fn escape(value: &str) -> String {
 }
 
 fn instant(offset_secs: i64) -> String {
-    (chrono::Utc::now() + chrono::Duration::seconds(offset_secs))
-        .to_rfc3339_opts(chrono::SecondsFormat::Secs, true)
+    (jiff::Timestamp::now() + jiff::SignedDuration::from_secs(offset_secs)).to_rfc3339_secs()
 }
 
 impl MockSamlIdp {

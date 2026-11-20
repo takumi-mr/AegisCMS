@@ -1,6 +1,7 @@
+use aegis_core::time::TimestampExt;
 use aegis_core::{CacheBackend, Result};
 use aegis_db::DatabaseAdapter;
-use chrono::{Duration, Utc};
+use jiff::Timestamp;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -53,15 +54,15 @@ impl SessionService {
     ) -> Result<SessionData> {
         let ttl = ttl_secs.unwrap_or(self.default_ttl_secs);
         let id = format!("ses_{}", Uuid::new_v4().simple());
-        let now = Utc::now();
-        let expires = now + Duration::seconds(ttl as i64);
+        let now = Timestamp::now();
+        let expires = now + jiff::SignedDuration::from_secs(ttl as i64);
 
         let session = SessionData {
             id: id.clone(),
             user_id: user_id.to_string(),
             role: role.to_string(),
-            created_at: now.to_rfc3339(),
-            expires_at: expires.to_rfc3339(),
+            created_at: now.to_rfc3339_auto(),
+            expires_at: expires.to_rfc3339_auto(),
             metadata,
         };
 
@@ -81,7 +82,7 @@ impl SessionService {
     /// New sessions created after this timestamp will remain valid.
     pub async fn revoke_user_sessions(&self, user_id: &str) -> Result<()> {
         let key = Self::revocation_key(user_id);
-        let now = Utc::now().to_rfc3339();
+        let now = Timestamp::now().to_rfc3339_auto();
         self.cache
             .set(&key, &now, Some(self.default_ttl_secs))
             .await?;
@@ -93,8 +94,8 @@ impl SessionService {
         let key = Self::revocation_key(&session.user_id);
         if let Some(revoked_at_str) = self.cache.get(&key).await? {
             match (
-                chrono::DateTime::parse_from_rfc3339(&revoked_at_str),
-                chrono::DateTime::parse_from_rfc3339(&session.created_at),
+                aegis_core::time::parse_rfc3339(&revoked_at_str),
+                aegis_core::time::parse_rfc3339(&session.created_at),
             ) {
                 (Ok(revoked_at), Ok(created_at)) => Ok(created_at <= revoked_at),
                 _ => Ok(true),
