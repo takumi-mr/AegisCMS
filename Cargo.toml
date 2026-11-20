@@ -117,7 +117,6 @@ sqlx = { version = "0.9", features = [
     "sqlite",
     "postgres",
     "mysql",
-    "chrono",
     "uuid",
     "json",
 ] }
