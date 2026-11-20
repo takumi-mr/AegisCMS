@@ -106,7 +106,7 @@ impl TagLookup {
 /// 公開中のコンテンツ（`listed_types`）を種類ごとに読む。`tag_id` があればそのタグが付いたものだけ
 /// （DB が絞る。サイトの全件ではなく、タグの付いた分だけを読む）
 async fn published_records(state: &AppState, tag_id: Option<&str>) -> Vec<ContentRecord> {
-    let now = chrono::Utc::now();
+    let now = jiff::Timestamp::now();
     let mut out = Vec::new();
     for content_type in listed_types(state) {
         let schema = state.schemas.read().await.get(&content_type).cloned();

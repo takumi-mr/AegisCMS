@@ -1,7 +1,7 @@
 use super::*;
 use aegis_cache::MemoryCacheBackend;
 use aegis_db::SqliteAdapter;
-use chrono::TimeZone;
+use jiff::Timestamp;
 
 const DESKTOP: &str =
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120 Safari/537.36";
@@ -14,8 +14,10 @@ async fn service(config: AnalyticsConfig) -> AnalyticsService {
     AnalyticsService::new(config, Arc::new(db), Arc::new(MemoryCacheBackend::new()))
 }
 
-fn at(day: u32, hour: u32) -> DateTime<Utc> {
-    Utc.with_ymd_and_hms(2026, 10, day, hour, 0, 0).unwrap()
+fn at(day: u32, hour: u32) -> Timestamp {
+    format!("2026-10-{day:02}T{hour:02}:00:00Z")
+        .parse()
+        .unwrap()
 }
 
 fn view<'a>(path: &'a str, referrer: &'a str, ua: &'a str, ip: &'a str) -> PageView<'a> {

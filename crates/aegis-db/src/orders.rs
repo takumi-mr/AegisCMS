@@ -536,7 +536,7 @@ macro_rules! impl_order_storage {
                 sqlx::query(&$crate::orders::build_order_payment_update($ph))
                     .bind(payment_ref)
                     .bind(expires_at)
-                    .bind(chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true))
+                    .bind(aegis_core::time::TimestampExt::to_rfc3339_secs(&jiff::Timestamp::now()))
                     .bind(id)
                     .execute(&self.pool)
                     .await
@@ -551,7 +551,7 @@ macro_rules! impl_order_storage {
             ) -> aegis_core::Result<()> {
                 sqlx::query(&$crate::orders::build_order_transaction_id_update($ph))
                     .bind(transaction_id)
-                    .bind(chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true))
+                    .bind(aegis_core::time::TimestampExt::to_rfc3339_secs(&jiff::Timestamp::now()))
                     .bind(id)
                     .execute(&self.pool)
                     .await

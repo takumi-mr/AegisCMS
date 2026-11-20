@@ -1,6 +1,7 @@
 //! リダイレクト（`/api/v1/redirects`、`admin`）。規則の一覧・追加・変更・削除と、コンテンツの slug を変えたときの
 //! 自動の規則。仕組みと規則は [`crate::redirects`]
 
+use aegis_core::time::TimestampExt;
 use std::sync::Arc;
 
 use axum::{
@@ -50,7 +51,7 @@ fn internal_error(context: &str, e: impl std::fmt::Display) -> ApiError {
 }
 
 fn now() -> String {
-    chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Micros, true)
+    jiff::Timestamp::now().to_rfc3339_micros()
 }
 
 /// 規則を変えて DB に保存し、メモリに反映して、ほかのサーバーに知らせる。保存に失敗したらメモリは変えない

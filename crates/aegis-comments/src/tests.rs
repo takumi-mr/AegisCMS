@@ -1,3 +1,4 @@
+use jiff::Timestamp;
 use std::sync::Mutex;
 
 use aegis_cache::MemoryCacheBackend;
@@ -821,13 +822,13 @@ async fn test_targets_and_closing() {
     assert_eq!(f.target.id, "a1");
     assert_eq!(f.target.label, "Articles");
 
-    let published: DateTime<Utc> = "2026-10-01T00:00:00Z".parse().unwrap();
+    let published: Timestamp = "2026-10-01T00:00:00Z".parse().unwrap();
     assert!(f
         .service
-        .is_open(&f.target, published + chrono::Duration::days(29)));
+        .is_open(&f.target, published + aegis_core::time::days(29)));
     assert!(!f
         .service
-        .is_open(&f.target, published + chrono::Duration::days(30)));
+        .is_open(&f.target, published + aegis_core::time::days(30)));
 }
 
 #[tokio::test]
@@ -848,7 +849,7 @@ async fn test_comments_can_be_closed_per_content() {
     assert!(closed.comments_closed);
     let target = f.service.target("article", "hello").await.unwrap();
     assert!(target.comments_closed);
-    assert!(!f.service.is_open(&target, Utc::now()));
+    assert!(!f.service.is_open(&target, Timestamp::now()));
     assert!(matches!(
         f.service
             .submit(&target, request("Taro", "Second"), &client("192.0.2.2"))
@@ -876,7 +877,7 @@ async fn test_comments_can_be_closed_per_content() {
         .unwrap();
     assert!(!reopened.comments_closed);
     let target = f.service.target("article", "hello").await.unwrap();
-    assert!(f.service.is_open(&target, Utc::now()));
+    assert!(f.service.is_open(&target, Timestamp::now()));
     f.service
         .submit(&target, request("Taro", "Second"), &client("192.0.2.2"))
         .await

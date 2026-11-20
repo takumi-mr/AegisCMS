@@ -5,6 +5,7 @@ pub mod config;
 #[cfg(test)]
 mod tests;
 
+use aegis_core::time::TimestampExt;
 use std::sync::Arc;
 
 use aegis_audit::AuditService;
@@ -17,7 +18,7 @@ use aegis_db::{
     DatabaseAdapter, ForumCategoryRecord, ForumPostRecord, ForumReportRecord, ForumThreadRecord,
     PostListQuery, ThreadListQuery,
 };
-use chrono::{SecondsFormat, Utc};
+use jiff::Timestamp;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use uuid::Uuid;
@@ -162,7 +163,7 @@ fn rate_identifier(author: Option<&Author>, ip: Option<&str>) -> String {
 }
 
 fn now() -> String {
-    Utc::now().to_rfc3339_opts(SecondsFormat::Micros, true)
+    Timestamp::now().to_rfc3339_micros()
 }
 
 /// 掲示板サービスの依存コンポーネント

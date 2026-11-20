@@ -1,3 +1,4 @@
+use jiff::Timestamp;
 use std::sync::Mutex;
 
 use aegis_cache::MemoryCacheBackend;
@@ -394,10 +395,10 @@ async fn test_retention_deletes_old_messages() {
         .submit("default", &valid(), &client("203.0.113.1"))
         .await
         .unwrap();
-    assert_eq!(f.service.apply_retention(Utc::now()).await, 0);
+    assert_eq!(f.service.apply_retention(Timestamp::now()).await, 0);
     assert_eq!(
         f.service
-            .apply_retention(Utc::now() + chrono::Duration::days(31))
+            .apply_retention(Timestamp::now() + aegis_core::time::days(31))
             .await,
         1
     );
@@ -593,8 +594,8 @@ async fn test_retention_removes_attachments() {
         .await
         .unwrap();
     assert_eq!(f.storage.0.lock().unwrap().len(), 1);
-    assert_eq!(f.service.apply_retention(Utc::now()).await, 0);
-    let later = Utc::now() + chrono::Duration::days(31);
+    assert_eq!(f.service.apply_retention(Timestamp::now()).await, 0);
+    let later = Timestamp::now() + aegis_core::time::days(31);
     assert_eq!(f.service.apply_retention(later).await, 1);
     assert!(f.storage.0.lock().unwrap().is_empty());
 }

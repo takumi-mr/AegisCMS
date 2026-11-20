@@ -12,7 +12,7 @@ workspace = true
 [dependencies]
 aegis-core = { path = "../aegis-core" }
 aegis-db = { path = "../aegis-db" }
-chrono.workspace = true
+jiff.workspace = true
 hex.workspace = true
 serde.workspace = true
 serde_json.workspace = true

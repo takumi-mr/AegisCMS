@@ -16,6 +16,7 @@
 pub mod config;
 pub mod moderation;
 
+use aegis_core::time::TimestampExt;
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
@@ -27,7 +28,7 @@ use aegis_core::{
 use aegis_db::{CommentListQuery, CommentRecord, DatabaseAdapter};
 use aegis_runtime::PluginSupervisor;
 use aegis_schema::SchemaDefinition;
-use chrono::{DateTime, SecondsFormat, Utc};
+use jiff::Timestamp;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use tokio::sync::RwLock;
@@ -83,7 +84,7 @@ pub type CommentResult<T> = std::result::Result<T, CommentError>;
 
 /// 投稿日時（RFC 3339 UTC、マイクロ秒まで）。同じ秒の投稿もスレッドで投稿順に並ぶよう細かくする
 fn now() -> String {
-    Utc::now().to_rfc3339_opts(SecondsFormat::Micros, true)
+    Timestamp::now().to_rfc3339_micros()
 }
 
 /// コンテンツの公開ページの URL を作る（`content_type`, `slug` → 絶対 URL。作れなければ空）
@@ -366,7 +367,11 @@ impl CommentService {
             .get_content(&schema, slug_or_id)
             .await?
             .ok_or_else(not_found)?;
-        if !is_currently_published(&record.status, record.unpublish_at.as_deref(), Utc::now()) {
+        if !is_currently_published(
+            &record.status,
+            record.unpublish_at.as_deref(),
+            Timestamp::now(),
+        ) {
             return Err(not_found());
         }
         let closed = self
@@ -388,7 +393,7 @@ impl CommentService {
     }
 
     /// 新しいコメントを受け付けているか（コンテンツごとの切り替えと `close_after_days`）
-    pub fn is_open(&self, target: &CommentTarget, now: DateTime<Utc>) -> bool {
+    pub fn is_open(&self, target: &CommentTarget, now: Timestamp) -> bool {
         if target.comments_closed {
             return false;
         }
@@ -398,12 +403,11 @@ impl CommentService {
         let Some(published) = target
             .published_at
             .as_deref()
-            .and_then(|p| DateTime::parse_from_rfc3339(p).ok())
+            .and_then(|p| aegis_core::time::parse_rfc3339(p).ok())
         else {
             return true;
         };
-        now < published.with_timezone(&Utc)
-            + chrono::Duration::days(i64::from(self.config.close_after_days))
+        now < published + aegis_core::time::days(i64::from(self.config.close_after_days))
     }
 
     /// テーマのコメント欄（承認済みのコメントをスレッドの順に）。`post_url` は投稿先
@@ -426,7 +430,7 @@ impl CommentService {
             .await?;
         Ok(CommentSection {
             content_id: target.id.clone(),
-            open: self.is_open(target, Utc::now()),
+            open: self.is_open(target, Timestamp::now()),
             count: page.total,
             items: thread(page.comments, self.config.max_depth, &|email| {
                 self.config.avatar_url(email)
@@ -454,7 +458,7 @@ impl CommentService {
             moderation::normalize_email(&request.email).map_err(CommentError::Invalid)?;
         let body = moderation::normalize_body(&request.body, self.config.max_length)
             .map_err(CommentError::Invalid)?;
-        if !self.is_open(target, Utc::now()) {
+        if !self.is_open(target, Timestamp::now()) {
             return Err(CommentError::Closed);
         }
         let held = Submitted {
@@ -1420,10 +1424,10 @@ fn checked_ids(ids: &[String]) -> CommentResult<Vec<String>> {
 }
 
 /// 公開中か（`published` で、`unpublish_at` を迎えていない）
-fn is_currently_published(status: &str, unpublish_at: Option<&str>, now: DateTime<Utc>) -> bool {
+fn is_currently_published(status: &str, unpublish_at: Option<&str>, now: Timestamp) -> bool {
     status == "published"
         && unpublish_at
-            .and_then(|u| DateTime::parse_from_rfc3339(u).ok())
+            .and_then(|u| aegis_core::time::parse_rfc3339(u).ok())
             .is_none_or(|due| due > now)
 }
 

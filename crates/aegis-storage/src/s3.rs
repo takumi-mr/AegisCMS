@@ -1,4 +1,5 @@
 use crate::config::S3StorageConfig;
+use aegis_core::time::TimestampExt;
 use aegis_core::{
     guess_content_type, AegisError, Result, StorageBackend, StorageMeta, StorageObject,
 };
@@ -84,11 +85,8 @@ fn parse_list_objects_response(xml: &str) -> Result<ListObjectsPage> {
             .and_then(|s| s.trim().parse().ok())
             .unwrap_or(0);
         let last_modified = xml_tag(entry, "LastModified").map(|s| {
-            chrono::DateTime::parse_from_rfc3339(s.trim())
-                .map(|t| {
-                    t.with_timezone(&chrono::Utc)
-                        .to_rfc3339_opts(chrono::SecondsFormat::Secs, true)
-                })
+            aegis_core::time::parse_rfc3339(s.trim())
+                .map(|t| t.to_rfc3339_secs())
                 .unwrap_or_else(|_| s.trim().to_string())
         });
         page.objects.push((key, size, last_modified));
@@ -163,9 +161,9 @@ impl S3StorageBackend {
         payload_hash: &str,
         content_type: Option<&str>,
     ) -> HeaderMap {
-        let now = chrono::Utc::now();
-        let amz_date = now.format("%Y%m%dT%H%M%SZ").to_string();
-        let date_stamp = now.format("%Y%m%d").to_string();
+        let now = jiff::Timestamp::now();
+        let amz_date = now.strftime("%Y%m%dT%H%M%SZ").to_string();
+        let date_stamp = now.strftime("%Y%m%d").to_string();
 
         let mut headers = HeaderMap::new();
         headers.insert("host", HeaderValue::from_str(host).unwrap());

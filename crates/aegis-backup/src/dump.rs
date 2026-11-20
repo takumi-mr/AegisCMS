@@ -1,3 +1,4 @@
+use aegis_core::time::TimestampExt;
 use std::collections::{BTreeMap, HashMap};
 use std::io::{Seek, Write};
 use std::path::Path;
@@ -10,7 +11,7 @@ use aegis_db::{
     OrderListQuery, PostListQuery, ReviewListQuery, TagListQuery, ThreadListQuery,
 };
 use aegis_schema::SchemaDefinition;
-use chrono::{SecondsFormat, Utc};
+use jiff::Timestamp;
 use serde::{Deserialize, Serialize};
 
 use crate::manifest::{
@@ -136,7 +137,7 @@ pub async fn dump_to_writer<W: Write + Seek>(
     let manifest = BackupManifest {
         format_version: FORMAT_VERSION,
         aegis_version: env!("CARGO_PKG_VERSION").to_string(),
-        created_at: Utc::now().to_rfc3339_opts(SecondsFormat::Secs, true),
+        created_at: Timestamp::now().to_rfc3339_secs(),
         database: db_section,
         storage: storage_section,
     };

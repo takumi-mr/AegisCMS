@@ -1,3 +1,4 @@
+use aegis_core::time::TimestampExt;
 use std::collections::{HashMap, HashSet};
 use std::str::FromStr;
 
@@ -1102,7 +1103,7 @@ impl DatabaseAdapter for SqliteAdapter {
             .bind(provider)
             .bind(subject)
             .bind(username)
-            .bind(chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true))
+            .bind(jiff::Timestamp::now().to_rfc3339_secs())
             .execute(&self.pool)
             .await
             .map_err(|e| AegisError::Database(e.to_string()))?;
@@ -1149,7 +1150,7 @@ impl DatabaseAdapter for SqliteAdapter {
         sqlx::query(&build_setting_upsert(|i| format!("?{}", i), false))
             .bind(name)
             .bind(value)
-            .bind(chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true))
+            .bind(jiff::Timestamp::now().to_rfc3339_secs())
             .execute(&self.pool)
             .await
             .map_err(|e| AegisError::Database(e.to_string()))?;

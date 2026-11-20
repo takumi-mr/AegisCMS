@@ -198,7 +198,7 @@ pub async fn list_contents(
             category: query.category,
             tag: query.tag,
         },
-        chrono::Utc::now(),
+        jiff::Timestamp::now(),
     )
     .await;
     drop(schemas);
@@ -236,7 +236,7 @@ pub async fn get_content(
         &schemas,
         &content_type,
         &slug,
-        chrono::Utc::now(),
+        jiff::Timestamp::now(),
     )
     .await;
     drop(schemas);

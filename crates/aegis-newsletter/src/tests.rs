@@ -1,3 +1,5 @@
+use aegis_core::time::TimestampExt;
+use jiff::Timestamp;
 use std::collections::HashMap;
 use std::sync::Mutex;
 
@@ -277,7 +279,7 @@ async fn test_a_pending_address_gets_a_fresh_link_after_a_minute() {
             .unwrap()
             .unwrap();
     subscriber.updated_at =
-        (Utc::now() - chrono::Duration::minutes(5)).to_rfc3339_opts(SecondsFormat::Micros, true);
+        (Timestamp::now() - jiff::SignedDuration::from_mins(5)).to_rfc3339_micros();
     f.db.update_newsletter_subscriber(&subscriber)
         .await
         .unwrap();
@@ -303,7 +305,7 @@ async fn test_an_expired_confirmation_link_does_not_work() {
             .unwrap()
             .unwrap();
     subscriber.updated_at =
-        (Utc::now() - chrono::Duration::hours(2)).to_rfc3339_opts(SecondsFormat::Micros, true);
+        (Timestamp::now() - jiff::SignedDuration::from_hours(2)).to_rfc3339_micros();
     f.db.update_newsletter_subscriber(&subscriber)
         .await
         .unwrap();
@@ -723,11 +725,10 @@ async fn test_old_unconfirmed_sign_ups_are_cleaned_up() {
                 .await
                 .unwrap()
                 .unwrap();
-        s.updated_at = (Utc::now() - chrono::Duration::days(days))
-            .to_rfc3339_opts(SecondsFormat::Micros, true);
+        s.updated_at = (Timestamp::now() - aegis_core::time::days(days)).to_rfc3339_micros();
         f.db.update_newsletter_subscriber(&s).await.unwrap();
     }
-    assert_eq!(f.service.clean_up(Utc::now()).await, 1);
+    assert_eq!(f.service.clean_up(Timestamp::now()).await, 1);
     assert!(f
         .db
         .get_newsletter_subscriber_by_email("old@example.com")

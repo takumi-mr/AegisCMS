@@ -16,7 +16,7 @@ pub use origin::AuditOrigin;
 use aegis_core::{
     format_audit_timestamp, AuditAction, AuditEvent, AuditOutcome, AuditSink, Result,
 };
-use chrono::{DateTime, Utc};
+use jiff::Timestamp;
 use serde_json::json;
 use std::sync::Arc;
 use std::time::Duration;
@@ -140,11 +140,11 @@ impl AuditService {
 
     /// `now` から保持日数より前の監査ログを削除し、削除件数を返す。
     /// 1 件以上削除した場合は、削除したこと自体を `audit.purge` イベントとして記録する
-    pub async fn purge_expired(&self, now: DateTime<Utc>) -> Result<u64> {
+    pub async fn purge_expired(&self, now: Timestamp) -> Result<u64> {
         let (Some(days), Some(db)) = (self.retention_days(), self.reader.as_ref()) else {
             return Ok(0);
         };
-        let cutoff = format_audit_timestamp(&(now - chrono::Duration::days(i64::from(days))));
+        let cutoff = format_audit_timestamp(&(now - aegis_core::time::days(i64::from(days))));
         let deleted = db.delete_audit_events_before(&cutoff).await?;
         if deleted > 0 {
             tracing::info!(
@@ -189,7 +189,7 @@ impl AuditService {
             interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
             loop {
                 interval.tick().await;
-                if let Err(e) = service.purge_expired(Utc::now()).await {
+                if let Err(e) = service.purge_expired(Timestamp::now()).await {
                     tracing::error!("Failed to purge expired audit events: {}", e);
                 }
             }
@@ -282,9 +282,7 @@ mod tests {
             db.insert_audit_event(&event_at(ts)).await.unwrap();
         }
 
-        let now = DateTime::parse_from_rfc3339("2026-10-21T12:00:00Z")
-            .unwrap()
-            .with_timezone(&Utc);
+        let now = aegis_core::time::parse_rfc3339("2026-10-21T12:00:00Z").unwrap();
         assert_eq!(service.purge_expired(now).await.unwrap(), 2);
 
         let remaining = db
@@ -333,7 +331,7 @@ mod tests {
         db.insert_audit_event(&event_at("2000-01-01T00:00:00.000000Z"))
             .await
             .unwrap();
-        assert_eq!(service.purge_expired(Utc::now()).await.unwrap(), 0);
+        assert_eq!(service.purge_expired(Timestamp::now()).await.unwrap(), 0);
     }
 
     #[tokio::test]

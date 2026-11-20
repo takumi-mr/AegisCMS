@@ -184,7 +184,7 @@ pub async fn rebuild(state: &AppState) {
         return;
     };
     let _turn = search.write.lock().await;
-    let now = chrono::Utc::now();
+    let now = jiff::Timestamp::now();
     let mut docs = Vec::new();
     for content_type in &search.content_types {
         let schema = state.schemas.read().await.get(content_type).cloned();
@@ -281,7 +281,7 @@ pub async fn refresh(state: &AppState, content_type: &str, id: &str) {
         },
         None => None,
     };
-    let now = chrono::Utc::now();
+    let now = jiff::Timestamp::now();
     let is_pub = record
         .as_ref()
         .filter(|r| r.id == id)
@@ -545,7 +545,7 @@ pub async fn render_search_page(
                                 &ip,
                                 user_agent,
                                 host,
-                                chrono::Utc::now(),
+                                jiff::Timestamp::now(),
                             )
                             .await;
                     }

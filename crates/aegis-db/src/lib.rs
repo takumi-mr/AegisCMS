@@ -24,6 +24,7 @@ pub mod tags;
 pub mod test_support;
 pub mod variants;
 
+use aegis_core::time::TimestampExt;
 use aegis_core::{AegisError, AuditActor, AuditEvent, AuditQuery, Result};
 
 use aegis_schema::{FieldDefinition, FieldType, SchemaDefinition};
@@ -199,7 +200,7 @@ pub async fn ensure_publication<D: DatabaseAdapter + ?Sized>(
         revision: 0,
         snapshot_json: serde_json::to_string(record)
             .map_err(|e| AegisError::Database(e.to_string()))?,
-        created_at: chrono::Utc::now().to_rfc3339(),
+        created_at: jiff::Timestamp::now().to_rfc3339_auto(),
         created_by: None,
         change_note: Some("Initial published snapshot".into()),
     };

@@ -1,5 +1,6 @@
 //! リダイレクトの API と、404 のときの転送、slug を変えたときの自動の規則の結合テスト（実際のルーターを通す）
 
+use aegis_core::time::TimestampExt;
 use std::sync::Arc;
 
 use aegis_db::ContentRecord;
@@ -436,7 +437,7 @@ async fn test_rules_are_saved_and_loaded_again() {
 async fn test_a_scheduled_publication_with_a_new_slug_keeps_a_redirect() {
     let site = site(|_| {}).await;
     site.publish_article("hello", "published").await;
-    let due = chrono::Utc::now() + chrono::Duration::hours(1);
+    let due = jiff::Timestamp::now() + jiff::SignedDuration::from_hours(1);
     let scheduled = site
         .send(
             "PUT",
@@ -445,7 +446,7 @@ async fn test_a_scheduled_publication_with_a_new_slug_keeps_a_redirect() {
                 "title": "Hello",
                 "slug": "hello-later",
                 "status": "scheduled",
-                "published_at": due.to_rfc3339(),
+                "published_at": due.to_rfc3339_auto(),
                 "blocks": [{ "name": "core/paragraph", "text": "Body" }]
             })),
             Some(&site.editor),
@@ -456,9 +457,11 @@ async fn test_a_scheduled_publication_with_a_new_slug_keeps_a_redirect() {
     assert_eq!(site.get("/articles/hello").await.status, StatusCode::OK);
     assert_eq!(site.list().await["total"], 0);
 
-    let published =
-        crate::scheduler::publish_due_contents(&site.state, due + chrono::Duration::minutes(1))
-            .await;
+    let published = crate::scheduler::publish_due_contents(
+        &site.state,
+        due + jiff::SignedDuration::from_mins(1),
+    )
+    .await;
     assert_eq!(published, 1);
     assert_eq!(
         site.get("/articles/hello-later").await.status,

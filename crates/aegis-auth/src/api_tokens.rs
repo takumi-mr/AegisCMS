@@ -6,11 +6,12 @@
 //!   上限にできない（ユーザー管理・設定・トークンの発行は人間のセッションだけ）
 //! - 持ち主が無効化・削除されたら、トークンも使えなくなる
 
+use aegis_core::time::TimestampExt;
 use std::collections::HashMap;
 
 use aegis_core::{AegisError, Result};
 use aegis_db::{ApiTokenRecord, DatabaseAdapter};
-use chrono::{DateTime, Duration, SecondsFormat, Utc};
+use jiff::Timestamp;
 use sha2::{Digest, Sha256};
 use uuid::Uuid;
 
@@ -52,12 +53,12 @@ fn generate_token() -> String {
     )
 }
 
-fn now() -> DateTime<Utc> {
-    Utc::now()
+fn now() -> Timestamp {
+    Timestamp::now()
 }
 
-fn format_time(t: DateTime<Utc>) -> String {
-    t.to_rfc3339_opts(SecondsFormat::Secs, true)
+fn format_time(t: Timestamp) -> String {
+    t.to_rfc3339_secs()
 }
 
 /// トークンに許すロール（`admin` は不可）
@@ -141,7 +142,7 @@ pub async fn issue_api_token(db: &dyn DatabaseAdapter, new: NewApiToken) -> Resu
         created_at: format_time(created),
         expires_at: new
             .expires_in_days
-            .map(|d| format_time(created + Duration::days(d as i64))),
+            .map(|d| format_time(created + aegis_core::time::days(d as i64))),
         last_used_at: None,
     };
     db.insert_api_token(&record).await?;
@@ -162,7 +163,7 @@ pub async fn resolve_api_token(
     };
     let current = now();
     if let Some(expires) = &record.expires_at {
-        match DateTime::parse_from_rfc3339(expires) {
+        match aegis_core::time::parse_rfc3339(expires) {
             Ok(t) if t > current => {}
             _ => return Ok(None),
         }
@@ -182,8 +183,8 @@ pub async fn resolve_api_token(
     let role = crate::role_name(level).to_string();
 
     let stale = match &record.last_used_at {
-        Some(t) => DateTime::parse_from_rfc3339(t)
-            .map(|t| (current - t.with_timezone(&Utc)).num_seconds() >= TOUCH_INTERVAL_SECS)
+        Some(t) => aegis_core::time::parse_rfc3339(t)
+            .map(|t| (current - t).as_secs() >= TOUCH_INTERVAL_SECS)
             .unwrap_or(true),
         None => true,
     };
@@ -209,7 +210,7 @@ pub async fn resolve_api_token(
         created_at: format_time(current),
         expires_at: record
             .expires_at
-            .unwrap_or_else(|| format_time(current + Duration::days(1))),
+            .unwrap_or_else(|| format_time(current + aegis_core::time::days(1))),
         metadata,
     }))
 }

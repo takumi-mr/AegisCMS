@@ -3,6 +3,7 @@
 //! ショップ・掲示板などが共通で使う。注文やレビューなど、機能ごとのデータは扱わない
 //! （退会のときの後始末は、呼び出す側が `delete_account` の前に行う）。
 
+use aegis_core::time::TimestampExt;
 use std::sync::Arc;
 
 use aegis_audit::AuditService;
@@ -16,7 +17,7 @@ use aegis_core::{
 use aegis_db::{DatabaseAdapter, MemberRecord};
 
 use crate::config::{MemberRegistration, MembersConfig};
-use chrono::{SecondsFormat, Utc};
+use jiff::Timestamp;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use uuid::Uuid;
@@ -213,12 +214,11 @@ impl From<MemberRecord> for MemberResponse {
 }
 
 fn now() -> String {
-    Utc::now().to_rfc3339_opts(SecondsFormat::Secs, true)
+    Timestamp::now().to_rfc3339_secs()
 }
 
 fn future_timestamp(seconds: u64) -> String {
-    (Utc::now() + chrono::Duration::seconds(seconds as i64))
-        .to_rfc3339_opts(SecondsFormat::Secs, true)
+    (Timestamp::now() + jiff::SignedDuration::from_secs(seconds as i64)).to_rfc3339_secs()
 }
 
 fn normalize_email(email: &str) -> String {
@@ -665,7 +665,7 @@ impl MemberService {
             name: record.name.clone(),
             created_at: now(),
             expires_at: future_timestamp(self.session_ttl_secs),
-            issued_at_micros: Utc::now().timestamp_micros(),
+            issued_at_micros: Timestamp::now().as_microsecond(),
         };
         let session_json =
             serde_json::to_string(&session).map_err(|e| AegisError::Internal(e.to_string()))?;
@@ -681,7 +681,7 @@ impl MemberService {
     /// （キャッシュが Redis でも、全サーバーで効く。印は最長のセッションの有効期間だけ残す）
     pub async fn revoke_sessions(&self, member_id: &str) -> Result<()> {
         let key = format!("{}{}", REVOKED_PREFIX, member_id);
-        let revoked_at = Utc::now().timestamp_micros();
+        let revoked_at = Timestamp::now().as_microsecond();
         self.cache
             .set(&key, &revoked_at.to_string(), Some(self.session_ttl_secs))
             .await?;

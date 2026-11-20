@@ -8,6 +8,7 @@
 //! 金額と通貨は、記事の `purchase_price` と `[members.purchase].currency` だけから作る。
 //! リクエストの値は使わない。権利は、入金の通知で金額・通貨が合ったときだけ付く。
 
+use aegis_core::time::TimestampExt;
 use axum::{
     body::Bytes,
     extract::{Query, State},
@@ -169,7 +170,7 @@ async fn start_purchase(
         .await
         .map_err(internal)?
         .filter(|r| {
-            is_currently_published(&r.status, r.unpublish_at.as_deref(), chrono::Utc::now())
+            is_currently_published(&r.status, r.unpublish_at.as_deref(), jiff::Timestamp::now())
         })
         .ok_or_else(not_for_sale)?;
     // 単独購入は、閲覧が制限されていて、価格のある記事だけ
@@ -232,7 +233,7 @@ async fn start_purchase(
             )
         })?;
 
-    let now = chrono::Utc::now().to_rfc3339();
+    let now = jiff::Timestamp::now().to_rfc3339_auto();
     let purchase = PurchaseRecord {
         id: purchase_id,
         member_id: Some(member.id.clone()),
@@ -570,7 +571,7 @@ async fn mark_paid(
             .map_err(internal)?,
         None => false,
     };
-    let now = chrono::Utc::now().to_rfc3339();
+    let now = jiff::Timestamp::now().to_rfc3339_auto();
     transition(
         state,
         audit,
@@ -607,7 +608,7 @@ pub async fn transition(
     } else {
         "payment_webhook"
     };
-    let now = chrono::Utc::now().to_rfc3339();
+    let now = jiff::Timestamp::now().to_rfc3339_auto();
     let changed = state
         .db
         .transition_purchase(&purchase.id, from, to, paid_at, transaction_id, &now)
@@ -709,7 +710,7 @@ pub async fn admin_grant_purchase(
             "already_purchased",
         ));
     }
-    let now = chrono::Utc::now().to_rfc3339();
+    let now = jiff::Timestamp::now().to_rfc3339_auto();
     let purchase = PurchaseRecord {
         id: uuid::Uuid::new_v4().to_string(),
         member_id: Some(member_id.clone()),

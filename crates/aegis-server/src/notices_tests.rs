@@ -1,4 +1,4 @@
-use chrono::TimeZone;
+use jiff::Timestamp;
 
 use super::*;
 
@@ -17,8 +17,10 @@ fn input(message: &str) -> NoticeInput {
     }
 }
 
-fn at(day: u32, hour: u32) -> DateTime<Utc> {
-    Utc.with_ymd_and_hms(2026, 12, day, hour, 0, 0).unwrap()
+fn at(day: u32, hour: u32) -> Timestamp {
+    format!("2026-12-{day:02}T{hour:02}:00:00Z")
+        .parse()
+        .unwrap()
 }
 
 fn add(list: &mut NoticeList, message: &str) -> Notice {

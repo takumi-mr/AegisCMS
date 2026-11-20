@@ -1,5 +1,6 @@
 use super::host_state::PluginHostState;
 use super::result_cache::{ResultCache, ResultCacheStats};
+use aegis_core::time::TimestampExt;
 use aegis_core::{AegisError, PluginManifest, Result};
 use std::sync::Arc;
 use tokio::sync::{OwnedSemaphorePermit, Semaphore};
@@ -271,7 +272,7 @@ impl WasmEngine {
                                 logs.push(super::host_state::PluginLogEntry {
                                     level: level_str.to_string(),
                                     message: msg.into_owned(),
-                                    timestamp: chrono::Utc::now().to_rfc3339(),
+                                    timestamp: jiff::Timestamp::now().to_rfc3339_auto(),
                                 });
                             }
                         }

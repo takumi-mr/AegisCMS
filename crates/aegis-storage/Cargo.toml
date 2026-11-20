@@ -12,7 +12,7 @@ workspace = true
 [dependencies]
 aegis-core = { path = "../aegis-core" }
 async-trait.workspace = true
-chrono.workspace = true
+jiff.workspace = true
 hex.workspace = true
 hmac.workspace = true
 reqwest = { workspace = true, features = ["stream"] }

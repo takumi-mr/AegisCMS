@@ -768,7 +768,7 @@ mod tests {
             ("wrong issuer", json!({ "iss": "https://evil.example" })),
             (
                 "expired",
-                json!({ "exp": chrono::Utc::now().timestamp() - 3600 }),
+                json!({ "exp": jiff::Timestamp::now().as_second() - 3600 }),
             ),
             ("wrong nonce", json!({ "nonce": "replayed" })),
             ("other azp", json!({ "azp": "another-client" })),
@@ -795,7 +795,7 @@ mod tests {
                 "iss": setup.idp.issuer(),
                 "aud": CLIENT_ID,
                 "sub": "u-123",
-                "exp": chrono::Utc::now().timestamp() + 300,
+                "exp": jiff::Timestamp::now().as_second() + 300,
                 "nonce": MockIdp::nonce(&url),
             }),
             &jsonwebtoken::EncodingKey::from_secret(b"test-secret").unwrap(),

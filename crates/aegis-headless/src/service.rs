@@ -4,7 +4,7 @@ use std::collections::{BTreeSet, HashMap};
 
 use aegis_db::{ContentListQuery, ContentRecord, ResolvedRelation};
 use aegis_schema::SchemaDefinition;
-use chrono::{DateTime, Utc};
+use jiff::Timestamp;
 use serde::Serialize;
 use serde_json::Value;
 use sha2::{Digest, Sha256};
@@ -49,14 +49,14 @@ pub struct Delivered<T> {
 
 /// 公開中か。状態が `published` で、公開期間（`unpublish_at`）を過ぎていない。
 /// スケジューラのアーカイブ化を待たずに、リクエスト時に確かめる。読めない日時は公開していないものとして扱う
-fn is_live(record: &ContentRecord, now: DateTime<Utc>) -> bool {
+fn is_live(record: &ContentRecord, now: Timestamp) -> bool {
     if record.status != "published" {
         return false;
     }
     match &record.unpublish_at {
         None => true,
-        Some(raw) => DateTime::parse_from_rfc3339(raw)
-            .map(|at| at.with_timezone(&Utc) > now)
+        Some(raw) => aegis_core::time::parse_rfc3339(raw)
+            .map(|at| at > now)
             .unwrap_or(false),
     }
 }
@@ -134,7 +134,7 @@ pub async fn list<S: PublishedSource + ?Sized>(
     schemas: &HashMap<String, SchemaDefinition>,
     content_type: &str,
     params: &ListParams,
-    now: DateTime<Utc>,
+    now: Timestamp,
 ) -> Result<Delivered<ListResponse>, HeadlessError> {
     let schema = schema_for(config, schemas, content_type)?;
     let query = params.validate(config.max_page_size)?;
@@ -230,7 +230,7 @@ pub async fn get<S: PublishedSource + ?Sized>(
     schemas: &HashMap<String, SchemaDefinition>,
     content_type: &str,
     slug_or_id: &str,
-    now: DateTime<Utc>,
+    now: Timestamp,
 ) -> Result<Delivered<Value>, HeadlessError> {
     let schema = schema_for(config, schemas, content_type)?;
     let record = source

@@ -10,7 +10,7 @@ use std::time::Duration;
 
 use aegis_cache::{BusMessage, BusSubscription};
 use aegis_db::DatabaseAdapter;
-use chrono::{DateTime, Utc};
+use jiff::Timestamp;
 use serde::{Deserialize, Serialize};
 
 use crate::state::AppState;
@@ -117,7 +117,7 @@ struct Heartbeat {
     id: String,
     /// 書き直すたびに増やす（時計がずれていても、動いているかを値の変化で確かめられる）
     beat: u64,
-    at: DateTime<Utc>,
+    at: Timestamp,
 }
 
 /// `[cache].backend = "memory"` のサーバーが同じ DB で 1 台だけ動くようにする
@@ -133,7 +133,7 @@ impl SingleServerGuard {
     pub async fn acquire(db: Arc<dyn DatabaseAdapter>, interval: Duration) -> anyhow::Result<Self> {
         let id = uuid::Uuid::new_v4().to_string();
         if let Some(other) = read(db.as_ref()).await? {
-            let age = (Utc::now() - other.at).to_std().unwrap_or_default();
+            let age = Duration::try_from(Timestamp::now() - other.at).unwrap_or_default();
             if age < interval * 3 {
                 tracing::info!(
                     "Another server with [cache].backend = \"memory\" was running on this database {:?} ago; checking whether it still is",
@@ -153,7 +153,7 @@ impl SingleServerGuard {
         let mut heartbeat = Heartbeat {
             id: id.clone(),
             beat: 0,
-            at: Utc::now(),
+            at: Timestamp::now(),
         };
         write(db.as_ref(), &heartbeat).await?;
         let task_db = db.clone();
@@ -169,7 +169,7 @@ impl SingleServerGuard {
                     Err(e) => tracing::warn!("Could not read {}: {}", INSTANCE_SETTING, e),
                 }
                 heartbeat.beat += 1;
-                heartbeat.at = Utc::now();
+                heartbeat.at = Timestamp::now();
                 if let Err(e) = write(task_db.as_ref(), &heartbeat).await {
                     tracing::warn!("Could not write {}: {}", INSTANCE_SETTING, e);
                 }

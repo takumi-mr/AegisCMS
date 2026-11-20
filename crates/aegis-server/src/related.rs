@@ -85,7 +85,7 @@ impl RelatedArticlesStrategy for TagCategoryRelatedStrategy {
         // 2. 候補を、全件を読まずに必要な分だけ引く（公開中のもの。重複は 1 件にまとめる）
         //    - タグが一致した記事: 上で受け取った分（ID で 1 件ずつ）
         //    - 同じカテゴリの新しい記事、新しい記事: それぞれ `limit` + 1 件（自分自身を除く分）
-        let now = chrono::Utc::now();
+        let now = jiff::Timestamp::now();
         let mut candidates: HashMap<String, ContentRecord> = HashMap::new();
         let mut keep = |record: ContentRecord| {
             if record.id != current_record.id

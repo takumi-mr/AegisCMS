@@ -175,8 +175,8 @@ fn build_schema() -> (Schema, Fields) {
 /// 公開日時（RFC 3339）の UNIX 秒。無いか読めなければ 0
 fn published_timestamp(published_at: Option<&str>) -> i64 {
     published_at
-        .and_then(|value| chrono::DateTime::parse_from_rfc3339(value).ok())
-        .map(|time| time.timestamp())
+        .and_then(|value| value.parse::<jiff::Timestamp>().ok())
+        .map(|time| time.as_second())
         .unwrap_or(0)
 }
 

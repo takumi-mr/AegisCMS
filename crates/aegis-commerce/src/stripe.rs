@@ -189,9 +189,9 @@ impl PaymentProvider for StripePaymentProvider {
         let expires_at = order
             .expires_at
             .as_deref()
-            .and_then(|at| chrono::DateTime::parse_from_rfc3339(at).ok())
-            .map(|at| at.timestamp())
-            .unwrap_or_else(|| chrono::Utc::now().timestamp() + 3600);
+            .and_then(|at| aegis_core::time::parse_rfc3339(at).ok())
+            .map(|at| at.as_second())
+            .unwrap_or_else(|| jiff::Timestamp::now().as_second() + 3600);
         let response = self
             .client
             .post(format!("{}/v1/checkout/sessions", self.api_base))
@@ -236,7 +236,7 @@ impl PaymentProvider for StripePaymentProvider {
             &self.webhook_secret,
             signature,
             body,
-            chrono::Utc::now().timestamp(),
+            jiff::Timestamp::now().as_second(),
         )?;
         let event: Value = serde_json::from_slice(body)
             .map_err(|e| AegisError::Validation(format!("Invalid Stripe event: {}", e)))?;
@@ -366,7 +366,7 @@ pub fn verify_webhook_event(secret: &str, headers: &HeaderMap, body: &[u8]) -> R
         .get("stripe-signature")
         .and_then(|v| v.to_str().ok())
         .ok_or_else(|| AegisError::Authentication("Missing Stripe-Signature".to_string()))?;
-    verify_signature(secret, signature, body, chrono::Utc::now().timestamp())?;
+    verify_signature(secret, signature, body, jiff::Timestamp::now().as_second())?;
     serde_json::from_slice(body)
         .map_err(|e| AegisError::Validation(format!("Invalid Stripe event: {}", e)))
 }

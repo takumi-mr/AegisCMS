@@ -50,6 +50,7 @@ clap.workspace = true
 uuid.workspace = true
 chrono.workspace = true
 chrono-tz.workspace = true
+jiff.workspace = true
 anyhow.workspace = true
 toml.workspace = true
 thiserror.workspace = true

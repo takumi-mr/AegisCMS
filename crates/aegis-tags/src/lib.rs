@@ -9,11 +9,12 @@
 
 pub mod config;
 
+use aegis_core::time::TimestampExt;
 use std::sync::Arc;
 
 use aegis_core::AegisError;
 use aegis_db::{DatabaseAdapter, TagListQuery, TagPage, TagRecord};
-use chrono::{SecondsFormat, Utc};
+use jiff::Timestamp;
 use uuid::Uuid;
 
 pub use config::TagsConfig;
@@ -57,7 +58,7 @@ pub struct TagService {
 }
 
 fn now() -> String {
-    Utc::now().to_rfc3339_opts(SecondsFormat::Secs, true)
+    Timestamp::now().to_rfc3339_secs()
 }
 
 /// 名前から slug の候補を作る（半角英数字を小文字にして、それ以外の並びを `-` にする）。作れなければ空

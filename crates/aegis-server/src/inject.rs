@@ -42,7 +42,7 @@ async fn parts(state: &AppState) -> Parts {
     let body_end = crate::consent::body_html(state);
     let (notice_head, body_start) = {
         let list = state.notices.read().await;
-        let active = list.active(chrono::Utc::now());
+        let active = list.active(jiff::Timestamp::now());
         (
             crate::notices::head_html(&state.config, !active.is_empty()),
             crate::notices::body_html(state, &active),

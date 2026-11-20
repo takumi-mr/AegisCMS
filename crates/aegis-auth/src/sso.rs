@@ -2,6 +2,7 @@
 //! linked to the IdP's subject, or creates and links one when `auto_create_users` is set, and keeps
 //! the account's role and profile in sync with what the IdP sends.
 
+use aegis_core::time::TimestampExt;
 use aegis_core::{AegisError, Result};
 use aegis_db::{DatabaseAdapter, UserRecord};
 use std::collections::HashMap;
@@ -170,7 +171,7 @@ impl AccountPolicy<'_> {
             user.role = role;
             user.email = profile.email.or(user.email);
             user.display_name = profile.display_name.or(user.display_name);
-            user.updated_at = chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
+            user.updated_at = jiff::Timestamp::now().to_rfc3339_secs();
             db.update_user(&user).await?;
         }
         Ok(user)

@@ -17,6 +17,7 @@ pub mod config;
 pub mod form;
 pub mod messages;
 
+use aegis_core::time::TimestampExt;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
@@ -28,7 +29,7 @@ use aegis_core::{
     StorageBackend,
 };
 use aegis_db::{ContactListQuery, ContactMessageRecord, DatabaseAdapter};
-use chrono::{DateTime, SecondsFormat, Utc};
+use jiff::Timestamp;
 use serde::Serialize;
 use serde_json::json;
 
@@ -74,7 +75,7 @@ impl From<AegisError> for ContactError {
 pub type ContactResult<T> = std::result::Result<T, ContactError>;
 
 fn now() -> String {
-    Utc::now().to_rfc3339_opts(SecondsFormat::Micros, true)
+    Timestamp::now().to_rfc3339_micros()
 }
 
 /// 問い合わせの処理が使うサーバーの部品
@@ -633,12 +634,12 @@ impl ContactService {
     }
 
     /// 保存期間（`retention_days`）を過ぎた問い合わせを消す
-    pub async fn apply_retention(&self, now: DateTime<Utc>) -> u64 {
+    pub async fn apply_retention(&self, now: Timestamp) -> u64 {
         if self.config.retention_days == 0 {
             return 0;
         }
-        let cutoff = (now - chrono::Duration::days(i64::from(self.config.retention_days)))
-            .to_rfc3339_opts(SecondsFormat::Micros, true);
+        let cutoff = (now - aegis_core::time::days(i64::from(self.config.retention_days)))
+            .to_rfc3339_micros();
         let expired = self
             .deps
             .db
@@ -677,7 +678,7 @@ impl ContactService {
         let service = self.clone();
         tokio::spawn(async move {
             loop {
-                service.apply_retention(Utc::now()).await;
+                service.apply_retention(Timestamp::now()).await;
                 tokio::time::sleep(Duration::from_secs(24 * 60 * 60)).await;
             }
         });

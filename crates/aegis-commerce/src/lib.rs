@@ -11,6 +11,7 @@ pub mod payment;
 pub mod review;
 pub mod stripe;
 
+use aegis_core::time::TimestampExt;
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -20,8 +21,8 @@ use aegis_core::{
     ShippingAddress,
 };
 use aegis_schema::{FieldType, SchemaDefinition};
-use chrono::{SecondsFormat, Utc};
 pub use config::{CommerceConfig, ManualPaymentConfig, PaymentProviderKind, StripeConfig};
+use jiff::Timestamp;
 pub use review::{
     JsonLdAggregateRating, PublicReview, ReviewAuthor, ReviewService, ReviewSubmission,
     REVIEW_SETTINGS_PREFIX,
@@ -144,11 +145,11 @@ pub struct CommerceService {
 }
 
 fn now() -> String {
-    Utc::now().to_rfc3339_opts(SecondsFormat::Secs, true)
+    Timestamp::now().to_rfc3339_secs()
 }
 
 fn after(seconds: i64) -> String {
-    (Utc::now() + chrono::Duration::seconds(seconds)).to_rfc3339_opts(SecondsFormat::Secs, true)
+    (Timestamp::now() + jiff::SignedDuration::from_secs(seconds)).to_rfc3339_secs()
 }
 
 pub fn hash_token(token: &str) -> String {
@@ -163,7 +164,7 @@ fn order_number() -> String {
         .iter()
         .map(|b| ALPHABET[(*b as usize) % ALPHABET.len()] as char)
         .collect();
-    format!("{}-{}", Utc::now().format("%y%m%d"), suffix)
+    format!("{}-{}", Timestamp::now().strftime("%y%m%d"), suffix)
 }
 
 fn valid_email(email: &str) -> bool {
@@ -878,7 +879,7 @@ impl CommerceService {
             format!("manual-{}", Uuid::new_v4().simple())
         };
 
-        let now = Utc::now().to_rfc3339_opts(SecondsFormat::Secs, true);
+        let now = Timestamp::now().to_rfc3339_secs();
         let mut refunds: Vec<OrderRefundRecord> =
             serde_json::from_str(&order.refunds_json).unwrap_or_default();
         // 取り消し済みの注文は取り消し時に在庫を戻しているため戻さない。
@@ -1081,7 +1082,7 @@ impl CommerceService {
                 let mut refunds: Vec<OrderRefundRecord> =
                     serde_json::from_str(&order.refunds_json).unwrap_or_default();
                 if !refunds.iter().any(|r| r.refund_ref == *refund_ref) {
-                    let now = Utc::now().to_rfc3339_opts(SecondsFormat::Secs, true);
+                    let now = Timestamp::now().to_rfc3339_secs();
                     let refund_entry_id = format!("ref-{}", Uuid::new_v4().simple());
                     refunds.push(OrderRefundRecord {
                         id: refund_entry_id,

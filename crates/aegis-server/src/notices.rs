@@ -10,9 +10,10 @@
 //! - 閉じた記録はブラウザーの `localStorage` に残す（`/_aegis/notices.js`）。お知らせを編集すると版（`updated_at`）が
 //!   変わるので、閉じた人にもう一度出る
 
+use aegis_core::time::TimestampExt;
 use aegis_core::{AegisError, PageRenderContext, Result};
 use aegis_db::DatabaseAdapter;
-use chrono::{DateTime, SecondsFormat, Utc};
+use jiff::Timestamp;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 
@@ -143,13 +144,8 @@ fn normalize_time(
     let Some(text) = value.as_deref().map(str::trim).filter(|t| !t.is_empty()) else {
         return Ok(None);
     };
-    DateTime::parse_from_rfc3339(text)
-        .map(|t| {
-            Some(
-                t.with_timezone(&Utc)
-                    .to_rfc3339_opts(SecondsFormat::Micros, true),
-            )
-        })
+    aegis_core::time::parse_rfc3339(text)
+        .map(|t| Some(t.to_rfc3339_micros()))
         .map_err(|_| {
             invalid(
                 field,
@@ -221,14 +217,13 @@ impl NoticeInput {
 }
 
 impl Notice {
-    pub fn status(&self, now: DateTime<Utc>) -> NoticeStatus {
+    pub fn status(&self, now: Timestamp) -> NoticeStatus {
         if !self.enabled {
             return NoticeStatus::Disabled;
         }
         let parse = |t: &Option<String>| {
             t.as_deref()
-                .and_then(|t| DateTime::parse_from_rfc3339(t).ok())
-                .map(|t| t.with_timezone(&Utc))
+                .and_then(|t| aegis_core::time::parse_rfc3339(t).ok())
         };
         if parse(&self.start_at).is_some_and(|start| now < start) {
             return NoticeStatus::Scheduled;
@@ -343,7 +338,7 @@ impl NoticeList {
     }
 
     /// 今表示するお知らせ（期間内で有効なもの。作った順に [`MAX_SHOWN`] 件まで）
-    pub fn active(&self, now: DateTime<Utc>) -> Vec<&Notice> {
+    pub fn active(&self, now: Timestamp) -> Vec<&Notice> {
         self.items
             .iter()
             .filter(|n| n.status(now) == NoticeStatus::Active)

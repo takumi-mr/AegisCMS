@@ -113,7 +113,7 @@ pub(crate) async fn store_frame(
     // `v` は、同じ URL でも読み直させるための値
     Ok(format!(
         "/preview/frame/{key}?v={}",
-        chrono::Utc::now().timestamp_millis()
+        jiff::Timestamp::now().as_millisecond()
     ))
 }
 

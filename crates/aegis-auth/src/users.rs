@@ -1,5 +1,6 @@
+use aegis_core::time::TimestampExt;
 use aegis_core::{AegisError, Result};
-use chrono::{SecondsFormat, Utc};
+use jiff::Timestamp;
 use uuid::Uuid;
 
 use super::password::hash_password;
@@ -17,7 +18,7 @@ pub struct NewUser {
 }
 
 pub(crate) fn now() -> String {
-    Utc::now().to_rfc3339_opts(SecondsFormat::Secs, true)
+    Timestamp::now().to_rfc3339_secs()
 }
 
 pub(crate) fn validate_role(role: &str) -> Result<()> {
