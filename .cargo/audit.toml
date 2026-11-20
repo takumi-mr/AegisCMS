@@ -1,10 +1,6 @@
 # cargo-audit の設定（`task audit`・.github/workflows/security-audit.yml）。
 #
-# 下の 1 件は、2026-11-14 の時点で未解消のもの。無視しているのではなく、CI を止めずに
-# 「新しく出た警告」だけを検知するための一時的な除外で、解消するまで TODO.md で追跡する。
-# 解消したらここから消す。新しい警告をここに足すときは、理由を必ず書く
+# 現在、除外する警告はない。新しい警告をここに足すときは、理由を必ず書き、
+# 解消するまで TODO.md で追跡する。解消したらここから消す
 [advisories]
-ignore = [
-    # sqlx 0.9 が束ねる SQLite（libsqlite3-sys 0.37）。修正は libsqlite3-sys 0.39 以上で、sqlx の更新待ち
-    "RUSTSEC-2026-0459",
-]
+ignore = []
