@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.0](https://github.com/takumi-mr/AegisCMS/compare/plugin-official-post-navigation-v0.2.2...plugin-official-post-navigation-v0.3.0) (2026-11-21)
+
+
+### Features
+
+* **server:** add schema-level public_path for article and custom type URLs ([#383](https://github.com/takumi-mr/AegisCMS/issues/383)) ([fb7f36b](https://github.com/takumi-mr/AegisCMS/commit/fb7f36b6ff68e1bcec4a9c31be5eb7ff3e9136ae))
+
 ## [0.2.2](https://github.com/takumi-mr/AegisCMS/compare/plugin-official-post-navigation-v0.2.1...plugin-official-post-navigation-v0.2.2) (2026-11-15)
 
 
