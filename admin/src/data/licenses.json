@@ -29,11 +29,11 @@
       "description": "Mirror of Rust's allocator API"
     },
     {
-      "name": "android_system_properties",
-      "version": "0.1.6",
+      "name": "annotate-snippets",
+      "version": "0.12.18",
       "license": "MIT OR Apache-2.0",
-      "repository": "https://github.com/nical/android_system_properties",
-      "description": "Minimal Android system properties wrapper"
+      "repository": "https://github.com/rust-lang/annotate-snippets-rs",
+      "description": "Format diagnostic reports, including highlighting snippets of text"
     },
     {
       "name": "anstream",
@@ -106,8 +106,15 @@
       "description": "Pure Rust implementation of the Argon2 password hashing function with support\nfor the Argon2d, Argon2i, and Argon2id algorithmic variants\n"
     },
     {
+      "name": "arraydeque",
+      "version": "0.5.1",
+      "license": "MIT/Apache-2.0",
+      "repository": "https://github.com/andylokandy/arraydeque",
+      "description": "A ring buffer with a fixed capacity, which can be stored on the stack."
+    },
+    {
       "name": "async-lock",
-      "version": "3.4.2",
+      "version": "3.5.0",
       "license": "Apache-2.0 OR MIT",
       "repository": "https://github.com/smol-rs/async-lock",
       "description": "Async synchronization primitives"
@@ -181,13 +188,6 @@
       "license": "Apache-2.0",
       "repository": "https://github.com/Xuanwo/backon",
       "description": "Make retry like a built-in feature provided by Rust."
-    },
-    {
-      "name": "base16ct",
-      "version": "0.2.0",
-      "license": "Apache-2.0 OR MIT",
-      "repository": "https://github.com/RustCrypto/formats/tree/master/base16ct",
-      "description": "Pure Rust implementation of Base16 a.k.a hexadecimal (RFC 4648) which avoids\nany usages of data-dependent branches/LUTs and thereby provides portable\n\"best effort\" constant-time operation and embedded-friendly no_std support\n"
     },
     {
       "name": "base16ct",
@@ -310,7 +310,7 @@
     },
     {
       "name": "cc",
-      "version": "1.10.0",
+      "version": "1.11.1",
       "license": "MIT OR Apache-2.0",
       "repository": "https://github.com/rust-lang/cc-rs",
       "description": "A build-time dependency for Cargo build scripts to assist in invoking the native\nC compiler to compile native C code into a static archive to be linked into Rust\ncode.\n"
@@ -349,13 +349,6 @@
       "license": "MIT OR Apache-2.0",
       "repository": "https://github.com/RustCrypto/stream-ciphers",
       "description": "The ChaCha20 stream cipher (RFC 8439) implemented in pure Rust using traits\nfrom the RustCrypto `cipher` crate, with optional architecture-specific\nhardware acceleration (AVX2, SSE2). Additionally provides the ChaCha8, ChaCha12,\nXChaCha20, XChaCha12 and XChaCha8 stream ciphers, and also optional\nrand_core-compatible RNGs based on those ciphers.\n"
-    },
-    {
-      "name": "chrono",
-      "version": "0.4.45",
-      "license": "MIT OR Apache-2.0",
-      "repository": "https://github.com/chronotope/chrono",
-      "description": "Date and time library for Rust"
     },
     {
       "name": "clap",
@@ -422,13 +415,6 @@
     },
     {
       "name": "const-oid",
-      "version": "0.9.6",
-      "license": "Apache-2.0 OR MIT",
-      "repository": "https://github.com/RustCrypto/formats/tree/master/const-oid",
-      "description": "Const-friendly implementation of the ISO/IEC Object Identifier (OID) standard\nas defined in ITU X.660, with support for BER/DER encoding/decoding as well as\nheapless no_std (i.e. embedded) support\n"
-    },
-    {
-      "name": "const-oid",
       "version": "0.10.2",
       "license": "Apache-2.0 OR MIT",
       "repository": "https://github.com/RustCrypto/formats",
@@ -492,91 +478,91 @@
     },
     {
       "name": "cranelift-assembler-x64",
-      "version": "0.137.0",
+      "version": "0.137.3",
       "license": "Apache-2.0 WITH LLVM-exception",
       "repository": null,
       "description": "A Cranelift-specific x64 assembler"
     },
     {
       "name": "cranelift-assembler-x64-meta",
-      "version": "0.137.0",
+      "version": "0.137.3",
       "license": "Apache-2.0 WITH LLVM-exception",
       "repository": null,
       "description": "Generate a Cranelift-specific assembler for x64 instructions"
     },
     {
       "name": "cranelift-bforest",
-      "version": "0.137.0",
+      "version": "0.137.3",
       "license": "Apache-2.0 WITH LLVM-exception",
       "repository": "https://github.com/bytecodealliance/wasmtime",
       "description": "A forest of B+-trees"
     },
     {
       "name": "cranelift-bitset",
-      "version": "0.137.0",
+      "version": "0.137.3",
       "license": "Apache-2.0 WITH LLVM-exception",
       "repository": "https://github.com/bytecodealliance/wasmtime",
       "description": "Various bitset stuff for use inside Cranelift"
     },
     {
       "name": "cranelift-codegen",
-      "version": "0.137.0",
+      "version": "0.137.3",
       "license": "Apache-2.0 WITH LLVM-exception",
       "repository": "https://github.com/bytecodealliance/wasmtime",
       "description": "Low-level code generator library"
     },
     {
       "name": "cranelift-codegen-meta",
-      "version": "0.137.0",
+      "version": "0.137.3",
       "license": "Apache-2.0 WITH LLVM-exception",
       "repository": "https://github.com/bytecodealliance/wasmtime",
       "description": "Metaprogram for cranelift-codegen code generator library"
     },
     {
       "name": "cranelift-codegen-shared",
-      "version": "0.137.0",
+      "version": "0.137.3",
       "license": "Apache-2.0 WITH LLVM-exception",
       "repository": "https://github.com/bytecodealliance/wasmtime",
       "description": "For code shared between cranelift-codegen-meta and cranelift-codegen"
     },
     {
       "name": "cranelift-control",
-      "version": "0.137.0",
+      "version": "0.137.3",
       "license": "Apache-2.0 WITH LLVM-exception",
       "repository": "https://github.com/bytecodealliance/wasmtime",
       "description": "White-box fuzz testing framework"
     },
     {
       "name": "cranelift-entity",
-      "version": "0.137.0",
+      "version": "0.137.3",
       "license": "Apache-2.0 WITH LLVM-exception",
       "repository": "https://github.com/bytecodealliance/wasmtime",
       "description": "Data structures using entity references as mapping keys"
     },
     {
       "name": "cranelift-frontend",
-      "version": "0.137.0",
+      "version": "0.137.3",
       "license": "Apache-2.0 WITH LLVM-exception",
       "repository": "https://github.com/bytecodealliance/wasmtime",
       "description": "Cranelift IR builder helper"
     },
     {
       "name": "cranelift-isle",
-      "version": "0.137.0",
+      "version": "0.137.3",
       "license": "Apache-2.0 WITH LLVM-exception",
       "repository": "https://github.com/bytecodealliance/wasmtime/tree/main/cranelift/isle",
       "description": "ISLE: Instruction Selection and Lowering Expressions. A domain-specific language for instruction selection in Cranelift."
     },
     {
       "name": "cranelift-native",
-      "version": "0.137.0",
+      "version": "0.137.3",
       "license": "Apache-2.0 WITH LLVM-exception",
       "repository": "https://github.com/bytecodealliance/wasmtime",
       "description": "Support for targeting the host with Cranelift"
     },
     {
       "name": "cranelift-srcgen",
-      "version": "0.137.0",
+      "version": "0.137.3",
       "license": "Apache-2.0 WITH LLVM-exception",
       "repository": "https://github.com/bytecodealliance/wasmtime",
       "description": "Helper functions for generating Rust and ISLE files"
@@ -597,7 +583,7 @@
     },
     {
       "name": "crc32fast",
-      "version": "1.5.3",
+      "version": "1.5.4",
       "license": "MIT OR Apache-2.0",
       "repository": "https://github.com/srijs/rust-crc32fast",
       "description": "Fast, SIMD-accelerated CRC32 (IEEE) checksum computation"
@@ -646,14 +632,7 @@
     },
     {
       "name": "crypto-bigint",
-      "version": "0.5.5",
-      "license": "Apache-2.0 OR MIT",
-      "repository": "https://github.com/RustCrypto/crypto-bigint",
-      "description": "Pure Rust implementation of a big integer library which has been designed from\nthe ground-up for use in cryptographic applications. Provides constant-time,\nno_std-friendly implementations of modern formulas using const generics.\n"
-    },
-    {
-      "name": "crypto-bigint",
-      "version": "0.7.10",
+      "version": "0.7.11",
       "license": "Apache-2.0 OR MIT",
       "repository": "https://github.com/RustCrypto/crypto-bigint",
       "description": "Pure Rust implementation of a big integer library which has been designed from the ground-up for use\nin cryptographic applications. Provides constant-time, `no_std`/`no_alloc`-friendly implementations\nof modern formulas using const generics. Also includes optional support for heap-backed integers.\n"
@@ -673,6 +652,13 @@
       "description": "Common traits used by cryptographic algorithms"
     },
     {
+      "name": "crypto-primes",
+      "version": "0.7.2",
+      "license": "Apache-2.0 OR MIT",
+      "repository": "https://github.com/entropyxyz/crypto-primes",
+      "description": "Random prime number generation and primality checking library"
+    },
+    {
       "name": "cssparser",
       "version": "0.36.0",
       "license": "MPL-2.0",
@@ -688,14 +674,14 @@
     },
     {
       "name": "ctutils",
-      "version": "0.4.6",
+      "version": "0.4.8",
       "license": "Apache-2.0 OR MIT",
       "repository": "https://github.com/RustCrypto/utils",
       "description": "Constant-time utility library with selection and equality testing support targeting cryptographic\napplications. Supports `const fn` where appropriate. Built on the `cmov` crate which provides\narchitecture-specific predication intrinsics. Heavily inspired by the `subtle` crate.\n"
     },
     {
       "name": "curve25519-dalek",
-      "version": "4.1.3",
+      "version": "5.0.0",
       "license": "BSD-3-Clause",
       "repository": "https://github.com/dalek-cryptography/curve25519-dalek/tree/main/curve25519-dalek",
       "description": "A pure-Rust implementation of group operations on ristretto255 and Curve25519"
@@ -741,13 +727,6 @@
       "license": "Apache-2.0",
       "repository": "https://github.com/getsentry/rust-debugid",
       "description": "Common reusable types for implementing the sentry.io protocol."
-    },
-    {
-      "name": "der",
-      "version": "0.7.10",
-      "license": "Apache-2.0 OR MIT",
-      "repository": "https://github.com/RustCrypto/formats/tree/master/der",
-      "description": "Pure Rust embedded-friendly implementation of the Distinguished Encoding Rules\n(DER) for Abstract Syntax Notation One (ASN.1) as described in ITU X.690 with\nfull support for heapless no_std targets\n"
     },
     {
       "name": "der",
@@ -856,13 +835,6 @@
     },
     {
       "name": "ecdsa",
-      "version": "0.16.9",
-      "license": "Apache-2.0 OR MIT",
-      "repository": "https://github.com/RustCrypto/signatures/tree/master/ecdsa",
-      "description": "Pure Rust implementation of the Elliptic Curve Digital Signature Algorithm\n(ECDSA) as specified in FIPS 186-4 (Digital Signature Standard), providing\nRFC6979 deterministic signatures as well as support for added entropy\n"
-    },
-    {
-      "name": "ecdsa",
       "version": "0.17.0",
       "license": "Apache-2.0 OR MIT",
       "repository": "https://github.com/RustCrypto/signatures",
@@ -870,14 +842,14 @@
     },
     {
       "name": "ed25519",
-      "version": "2.2.3",
+      "version": "3.0.0",
       "license": "Apache-2.0 OR MIT",
-      "repository": "https://github.com/RustCrypto/signatures/tree/master/ed25519",
+      "repository": "https://github.com/RustCrypto/signatures",
       "description": "Edwards Digital Signature Algorithm (EdDSA) over Curve25519 (as specified in RFC 8032)\nsupport library providing signature type definitions and PKCS#8 private key\ndecoding/encoding support\n"
     },
     {
       "name": "ed25519-dalek",
-      "version": "2.2.0",
+      "version": "3.0.0",
       "license": "BSD-3-Clause",
       "repository": "https://github.com/dalek-cryptography/curve25519-dalek/tree/main/ed25519-dalek",
       "description": "Fast and efficient ed25519 EdDSA key generations, signing, and verification in pure Rust."
@@ -888,13 +860,6 @@
       "license": "MIT OR Apache-2.0",
       "repository": "https://github.com/rayon-rs/either",
       "description": "The enum `Either` with variants `Left` and `Right` is a general purpose sum type with two cases.\n"
-    },
-    {
-      "name": "elliptic-curve",
-      "version": "0.13.8",
-      "license": "Apache-2.0 OR MIT",
-      "repository": "https://github.com/RustCrypto/traits/tree/master/elliptic-curve",
-      "description": "General purpose Elliptic Curve Cryptography (ECC) support, including types\nand traits for representing various elliptic curve forms, scalars, points,\nand public/secret keys composed thereof.\n"
     },
     {
       "name": "elliptic-curve",
@@ -912,7 +877,7 @@
     },
     {
       "name": "email-encoding",
-      "version": "0.4.2",
+      "version": "0.4.3",
       "license": "MIT OR Apache-2.0",
       "repository": "https://github.com/lettre/email-encoding",
       "description": "Low level email encoding RFCs implementations"
@@ -933,10 +898,17 @@
     },
     {
       "name": "encoding_rs",
-      "version": "0.8.42",
+      "version": "0.8.44",
       "license": "(Apache-2.0 OR MIT) AND BSD-3-Clause",
       "repository": "https://github.com/hsivonen/encoding_rs",
       "description": "A Gecko-oriented implementation of the Encoding Standard"
+    },
+    {
+      "name": "encoding_rs_io",
+      "version": "0.1.8",
+      "license": "MIT OR Apache-2.0",
+      "repository": "https://github.com/BurntSushi/encoding_rs_io",
+      "description": "Streaming transcoding for encoding_rs"
     },
     {
       "name": "equivalent",
@@ -1003,13 +975,6 @@
     },
     {
       "name": "ff",
-      "version": "0.13.1",
-      "license": "MIT/Apache-2.0",
-      "repository": "https://github.com/zkcrypto/ff",
-      "description": "Library for building and interfacing with finite fields"
-    },
-    {
-      "name": "ff",
       "version": "0.14.0",
       "license": "MIT/Apache-2.0",
       "repository": "https://github.com/zkcrypto/ff",
@@ -1017,7 +982,7 @@
     },
     {
       "name": "fiat-crypto",
-      "version": "0.2.9",
+      "version": "0.3.0",
       "license": "MIT OR Apache-2.0 OR BSD-1-Clause",
       "repository": "https://github.com/mit-plv/fiat-crypto",
       "description": "Fiat-crypto generated Rust"
@@ -1045,7 +1010,7 @@
     },
     {
       "name": "flate2",
-      "version": "1.1.10",
+      "version": "1.1.11",
       "license": "MIT OR Apache-2.0",
       "repository": "https://github.com/rust-lang/flate2-rs",
       "description": "DEFLATE compression and decompression exposed as Read/BufRead/Write streams.\nSupports miniz_oxide and multiple zlib implementations. Supports zlib, gzip,\nand raw deflate streams.\n"
@@ -1205,11 +1170,11 @@
       "description": "A library for reading and writing the DWARF debugging format."
     },
     {
-      "name": "group",
-      "version": "0.13.0",
-      "license": "MIT/Apache-2.0",
-      "repository": "https://github.com/zkcrypto/group",
-      "description": "Elliptic curve group traits and utilities"
+      "name": "granit-parser",
+      "version": "2.1.0",
+      "license": "MIT OR Apache-2.0",
+      "repository": "https://github.com/bourumir-wyngs/granit-parser",
+      "description": "A YAML parser with comment, tag and style support, written in pure Rust"
     },
     {
       "name": "group",
@@ -1252,13 +1217,6 @@
       "license": "MIT OR Apache-2.0",
       "repository": "https://github.com/KokaKiwi/rust-hex",
       "description": "Encoding and decoding data into/from hexadecimal representation."
-    },
-    {
-      "name": "hkdf",
-      "version": "0.12.4",
-      "license": "MIT OR Apache-2.0",
-      "repository": "https://github.com/RustCrypto/KDFs/",
-      "description": "HMAC-based Extract-and-Expand Key Derivation Function (HKDF)"
     },
     {
       "name": "hkdf",
@@ -1364,20 +1322,6 @@
       "license": "MIT",
       "repository": "https://github.com/hyperium/hyper-util",
       "description": "hyper utilities"
-    },
-    {
-      "name": "iana-time-zone",
-      "version": "0.1.65",
-      "license": "MIT OR Apache-2.0",
-      "repository": "https://github.com/strawlab/iana-time-zone",
-      "description": "get the IANA time zone for the current system"
-    },
-    {
-      "name": "iana-time-zone-haiku",
-      "version": "0.1.2",
-      "license": "MIT OR Apache-2.0",
-      "repository": "https://github.com/strawlab/iana-time-zone",
-      "description": "iana-time-zone support crate for Haiku OS"
     },
     {
       "name": "icu_collections",
@@ -1520,6 +1464,34 @@
       "description": "Rust bindings for ittapi"
     },
     {
+      "name": "jiff",
+      "version": "1.0.1",
+      "license": "Unlicense OR MIT",
+      "repository": "https://github.com/BurntSushi/jiff",
+      "description": "A date-time library that encourages you to jump into the pit of success.\n\nThis library is heavily inspired by the Temporal project.\n"
+    },
+    {
+      "name": "jiff-core",
+      "version": "1.0.1",
+      "license": "Unlicense OR MIT",
+      "repository": "https://github.com/BurntSushi/jiff",
+      "description": "Low level datetime primitives for the Jiff library."
+    },
+    {
+      "name": "jiff-static",
+      "version": "1.0.1",
+      "license": "Unlicense OR MIT",
+      "repository": "https://github.com/BurntSushi/jiff",
+      "description": "Create static TimeZone values for Jiff (useful in core-only environments)."
+    },
+    {
+      "name": "jiff-tzdb",
+      "version": "1.0.0",
+      "license": "Unlicense OR MIT",
+      "repository": "https://github.com/BurntSushi/jiff",
+      "description": "The entire Time Zone Database embedded into your binary."
+    },
+    {
       "name": "jni",
       "version": "0.21.1",
       "license": "MIT/Apache-2.0",
@@ -1556,14 +1528,14 @@
     },
     {
       "name": "js-sys",
-      "version": "0.3.106",
+      "version": "0.3.107",
       "license": "MIT OR Apache-2.0",
       "repository": "https://github.com/wasm-bindgen/wasm-bindgen/tree/master/crates/js-sys",
       "description": "Bindings for all JS global objects and functions in all JS environments like\nNode.js and browsers, built on `#[wasm_bindgen]` using the `wasm-bindgen` crate.\n"
     },
     {
       "name": "jsonwebtoken",
-      "version": "11.1.0",
+      "version": "12.0.0",
       "license": "MIT",
       "repository": "https://github.com/Keats/jsonwebtoken",
       "description": "Create and decode JWTs in a strongly typed way."
@@ -1584,7 +1556,7 @@
     },
     {
       "name": "lettre",
-      "version": "0.11.23",
+      "version": "0.11.24",
       "license": "MIT",
       "repository": "https://github.com/lettre/lettre",
       "description": "Email client"
@@ -1619,7 +1591,7 @@
     },
     {
       "name": "libsqlite3-sys",
-      "version": "0.30.1",
+      "version": "0.40.0",
       "license": "MIT",
       "repository": "https://github.com/rusqlite/rusqlite",
       "description": "Native bindings to the libsqlite3 library"
@@ -1647,7 +1619,7 @@
     },
     {
       "name": "log",
-      "version": "0.4.34",
+      "version": "0.4.35",
       "license": "MIT OR Apache-2.0",
       "repository": "https://github.com/rust-lang/log",
       "description": "A lightweight logging facade for Rust\n"
@@ -1738,7 +1710,7 @@
     },
     {
       "name": "mime",
-      "version": "0.3.17",
+      "version": "0.3.18",
       "license": "MIT OR Apache-2.0",
       "repository": "https://github.com/hyperium/mime",
       "description": "Strongly Typed Mimes"
@@ -1752,7 +1724,7 @@
     },
     {
       "name": "minijinja",
-      "version": "3.0.4",
+      "version": "3.0.5",
       "license": "Apache-2.0",
       "repository": "https://github.com/mitsuhiko/minijinja",
       "description": "a powerful template engine for Rust with minimal dependencies"
@@ -1828,6 +1800,13 @@
       "description": "Rust friendly bindings to *nix APIs"
     },
     {
+      "name": "nohash-hasher",
+      "version": "0.2.0",
+      "license": "Apache-2.0 OR MIT",
+      "repository": "https://github.com/paritytech/nohash-hasher",
+      "description": "An implementation of `std::hash::Hasher` which does not hash at all."
+    },
+    {
       "name": "nom",
       "version": "7.1.3",
       "license": "MIT",
@@ -1863,13 +1842,6 @@
       "description": "Big integer implementation for Rust"
     },
     {
-      "name": "num-bigint-dig",
-      "version": "0.8.6",
-      "license": "MIT/Apache-2.0",
-      "repository": "https://github.com/dignifiedquire/num-bigint",
-      "description": "Big integer implementation for Rust"
-    },
-    {
       "name": "num-conv",
       "version": "0.2.2",
       "license": "MIT OR Apache-2.0",
@@ -1884,18 +1856,25 @@
       "description": "Integer traits and functions"
     },
     {
-      "name": "num-iter",
-      "version": "0.1.46",
-      "license": "MIT OR Apache-2.0",
-      "repository": "https://github.com/rust-num/num-iter",
-      "description": "External iterators for generic mathematics"
-    },
-    {
       "name": "num-traits",
       "version": "0.2.19",
       "license": "MIT OR Apache-2.0",
       "repository": "https://github.com/rust-num/num-traits",
       "description": "Numeric traits for generic mathematics"
+    },
+    {
+      "name": "objc2-core-foundation",
+      "version": "0.3.2",
+      "license": "Zlib OR Apache-2.0 OR MIT",
+      "repository": "https://github.com/madsmtm/objc2",
+      "description": "Bindings to the CoreFoundation framework"
+    },
+    {
+      "name": "objc2-system-configuration",
+      "version": "0.3.2",
+      "license": "Zlib OR Apache-2.0 OR MIT",
+      "repository": "https://github.com/madsmtm/objc2",
+      "description": "Bindings to the SystemConfiguration framework"
     },
     {
       "name": "object",
@@ -1948,13 +1927,6 @@
     },
     {
       "name": "p256",
-      "version": "0.13.2",
-      "license": "Apache-2.0 OR MIT",
-      "repository": "https://github.com/RustCrypto/elliptic-curves/tree/master/p256",
-      "description": "Pure Rust implementation of the NIST P-256 (a.k.a. secp256r1, prime256v1)\nelliptic curve as defined in SP 800-186, with support for ECDH, ECDSA\nsigning/verification, and general purpose curve arithmetic\n"
-    },
-    {
-      "name": "p256",
       "version": "0.14.0",
       "license": "Apache-2.0 OR MIT",
       "repository": "https://github.com/RustCrypto/elliptic-curves",
@@ -1962,9 +1934,9 @@
     },
     {
       "name": "p384",
-      "version": "0.13.1",
+      "version": "0.14.0",
       "license": "Apache-2.0 OR MIT",
-      "repository": "https://github.com/RustCrypto/elliptic-curves/tree/master/p384",
+      "repository": "https://github.com/RustCrypto/elliptic-curves",
       "description": "Pure Rust implementation of the NIST P-384 (a.k.a. secp384r1) elliptic curve\nas defined in SP 800-186 with support for ECDH, ECDSA signing/verification,\nand general purpose curve arithmetic support.\n"
     },
     {
@@ -1997,17 +1969,10 @@
     },
     {
       "name": "pem",
-      "version": "3.0.6",
+      "version": "4.0.0",
       "license": "MIT",
       "repository": "https://github.com/jcreekmore/pem-rs.git",
       "description": "Parse and encode PEM-encoded data."
-    },
-    {
-      "name": "pem-rfc7468",
-      "version": "0.7.0",
-      "license": "Apache-2.0 OR MIT",
-      "repository": "https://github.com/RustCrypto/formats/tree/master/pem-rfc7468",
-      "description": "PEM Encoding (RFC 7468) for PKIX, PKCS, and CMS Structures, implementing a\nstrict subset of the original Privacy-Enhanced Mail encoding intended\nspecifically for use with cryptographic keys, certificates, and other messages.\nProvides a no_std-friendly, constant-time implementation suitable for use with\ncryptographic private keys.\n"
     },
     {
       "name": "pem-rfc7468",
@@ -2081,17 +2046,10 @@
     },
     {
       "name": "pkcs1",
-      "version": "0.7.5",
+      "version": "0.8.0",
       "license": "Apache-2.0 OR MIT",
-      "repository": "https://github.com/RustCrypto/formats/tree/master/pkcs1",
+      "repository": "https://github.com/RustCrypto/formats",
       "description": "Pure Rust implementation of Public-Key Cryptography Standards (PKCS) #1:\nRSA Cryptography Specifications Version 2.2 (RFC 8017)\n"
-    },
-    {
-      "name": "pkcs8",
-      "version": "0.10.2",
-      "license": "Apache-2.0 OR MIT",
-      "repository": "https://github.com/RustCrypto/formats/tree/master/pkcs8",
-      "description": "Pure Rust implementation of Public-Key Cryptography Standards (PKCS) #8:\nPrivate-Key Information Syntax Specification (RFC 5208), with additional\nsupport for PKCS#8v2 asymmetric key packages (RFC 5958)\n"
     },
     {
       "name": "pkcs8",
@@ -2113,6 +2071,20 @@
       "license": "MIT OR Apache-2.0",
       "repository": "https://github.com/image-rs/image-png",
       "description": "PNG decoding and encoding library in pure Rust"
+    },
+    {
+      "name": "portable-atomic",
+      "version": "1.15.0",
+      "license": "Apache-2.0 OR MIT",
+      "repository": "https://github.com/taiki-e/portable-atomic",
+      "description": "Portable atomic types including support for 128-bit atomics, atomic float, etc.\n"
+    },
+    {
+      "name": "portable-atomic-util",
+      "version": "0.2.8",
+      "license": "Apache-2.0 OR MIT",
+      "repository": "https://github.com/taiki-e/portable-atomic-util",
+      "description": "Synchronization primitives built with portable-atomic.\n"
     },
     {
       "name": "postcard",
@@ -2165,13 +2137,6 @@
     },
     {
       "name": "primeorder",
-      "version": "0.13.6",
-      "license": "Apache-2.0 OR MIT",
-      "repository": "https://github.com/RustCrypto/elliptic-curves/tree/master/primeorder",
-      "description": "Pure Rust implementation of complete addition formulas for prime order elliptic\ncurves (Renes-Costello-Batina 2015). Generic over field elements and curve\nequation coefficients\n"
-    },
-    {
-      "name": "primeorder",
       "version": "0.14.0",
       "license": "Apache-2.0 OR MIT",
       "repository": "https://github.com/RustCrypto/elliptic-curves",
@@ -2186,14 +2151,14 @@
     },
     {
       "name": "pulley-interpreter",
-      "version": "50.0.0",
+      "version": "50.0.3",
       "license": "Apache-2.0 WITH LLVM-exception",
       "repository": "https://github.com/bytecodealliance/wasmtime/tree/main/pulley",
       "description": "The Pulley interpreter, its bytecode definition, encoder, decoder, and etc..."
     },
     {
       "name": "pulley-macros",
-      "version": "50.0.0",
+      "version": "50.0.3",
       "license": "Apache-2.0 WITH LLVM-exception",
       "repository": "https://github.com/bytecodealliance/wasmtime/tree/main/pulley/macros",
       "description": "Internal pulley macros"
@@ -2277,13 +2242,6 @@
     },
     {
       "name": "rand",
-      "version": "0.8.8",
-      "license": "MIT OR Apache-2.0",
-      "repository": "https://github.com/rust-random/rand",
-      "description": "Random number generators and other randomness functionality.\n"
-    },
-    {
-      "name": "rand",
       "version": "0.9.5",
       "license": "MIT OR Apache-2.0",
       "repository": "https://github.com/rust-random/rand",
@@ -2295,13 +2253,6 @@
       "license": "MIT OR Apache-2.0",
       "repository": "https://github.com/rust-random/rand",
       "description": "Random number generators and other randomness functionality.\n"
-    },
-    {
-      "name": "rand_chacha",
-      "version": "0.3.1",
-      "license": "MIT OR Apache-2.0",
-      "repository": "https://github.com/rust-random/rand",
-      "description": "ChaCha random number generator\n"
     },
     {
       "name": "rand_chacha",
@@ -2354,7 +2305,7 @@
     },
     {
       "name": "redis",
-      "version": "1.8.0",
+      "version": "1.8.1",
       "license": "BSD-3-Clause",
       "repository": "https://github.com/redis-rs/redis-rs",
       "description": "Redis driver for Rust."
@@ -2410,13 +2361,6 @@
     },
     {
       "name": "rfc6979",
-      "version": "0.4.0",
-      "license": "Apache-2.0 OR MIT",
-      "repository": "https://github.com/RustCrypto/signatures/tree/master/rfc6979",
-      "description": "Pure Rust implementation of RFC6979: Deterministic Usage of the\nDigital Signature Algorithm (DSA) and Elliptic Curve Digital Signature Algorithm (ECDSA)\n"
-    },
-    {
-      "name": "rfc6979",
       "version": "0.6.0",
       "license": "Apache-2.0 OR MIT",
       "repository": "https://github.com/RustCrypto/signatures",
@@ -2438,7 +2382,7 @@
     },
     {
       "name": "rsa",
-      "version": "0.9.10",
+      "version": "0.10.0",
       "license": "MIT OR Apache-2.0",
       "repository": "https://github.com/RustCrypto/RSA",
       "description": "Pure Rust RSA implementation"
@@ -2557,13 +2501,6 @@
     },
     {
       "name": "sec1",
-      "version": "0.7.3",
-      "license": "Apache-2.0 OR MIT",
-      "repository": "https://github.com/RustCrypto/formats/tree/master/sec1",
-      "description": "Pure Rust implementation of SEC1: Elliptic Curve Cryptography encoding formats\nincluding ASN.1 DER-serialized private keys as well as the\nElliptic-Curve-Point-to-Octet-String encoding\n"
-    },
-    {
-      "name": "sec1",
       "version": "0.8.1",
       "license": "Apache-2.0 OR MIT",
       "repository": "https://github.com/RustCrypto/formats",
@@ -2647,11 +2584,11 @@
       "description": "`x-www-form-urlencoded` meets Serde"
     },
     {
-      "name": "serde_yaml",
-      "version": "0.9.34+deprecated",
+      "name": "serde-saphyr",
+      "version": "2.1.1",
       "license": "MIT OR Apache-2.0",
-      "repository": "https://github.com/dtolnay/serde-yaml",
-      "description": "YAML data format for Serde"
+      "repository": "https://github.com/bourumir-wyngs/serde-saphyr",
+      "description": "YAML (de)serializer for Serde, emphasizing panic-free parsing, fast builds and good error reporting. Supports properties, include, tag and comment capture"
     },
     {
       "name": "serde-tuple-vec-map",
@@ -2725,13 +2662,6 @@
     },
     {
       "name": "signature",
-      "version": "2.2.0",
-      "license": "Apache-2.0 OR MIT",
-      "repository": "https://github.com/RustCrypto/traits/tree/master/signature",
-      "description": "Traits for cryptographic signature algorithms (e.g. ECDSA, Ed25519)"
-    },
-    {
-      "name": "signature",
       "version": "3.0.0",
       "license": "Apache-2.0 OR MIT",
       "repository": "https://github.com/RustCrypto/traits",
@@ -2802,13 +2732,6 @@
     },
     {
       "name": "spki",
-      "version": "0.7.3",
-      "license": "Apache-2.0 OR MIT",
-      "repository": "https://github.com/RustCrypto/formats/tree/master/spki",
-      "description": "X.509 Subject Public Key Info (RFC5280) describing public keys as well as their\nassociated AlgorithmIdentifiers (i.e. OIDs)\n"
-    },
-    {
-      "name": "spki",
       "version": "0.8.1",
       "license": "Apache-2.0 OR MIT",
       "repository": "https://github.com/RustCrypto/formats",
@@ -2816,49 +2739,49 @@
     },
     {
       "name": "sqlx",
-      "version": "0.9.0",
+      "version": "0.9.1",
       "license": "MIT OR Apache-2.0",
       "repository": "https://github.com/launchbadge/sqlx",
       "description": "🧰 The Rust SQL Toolkit. An async, pure Rust SQL crate featuring compile-time checked queries without a DSL. Supports PostgreSQL, MySQL, and SQLite."
     },
     {
       "name": "sqlx-core",
-      "version": "0.9.0",
+      "version": "0.9.1",
       "license": "MIT OR Apache-2.0",
       "repository": "https://github.com/launchbadge/sqlx",
       "description": "Core of SQLx, the rust SQL toolkit. Not intended to be used directly."
     },
     {
       "name": "sqlx-macros",
-      "version": "0.9.0",
+      "version": "0.9.1",
       "license": "MIT OR Apache-2.0",
       "repository": "https://github.com/launchbadge/sqlx",
       "description": "Macros for SQLx, the rust SQL toolkit. Not intended to be used directly."
     },
     {
       "name": "sqlx-macros-core",
-      "version": "0.9.0",
+      "version": "0.9.1",
       "license": "MIT OR Apache-2.0",
       "repository": "https://github.com/launchbadge/sqlx",
       "description": "Macro support core for SQLx, the Rust SQL toolkit. Not intended to be used directly."
     },
     {
       "name": "sqlx-mysql",
-      "version": "0.9.0",
+      "version": "0.9.1",
       "license": "MIT OR Apache-2.0",
       "repository": "https://github.com/launchbadge/sqlx",
       "description": "MySQL driver implementation for SQLx. Not for direct use; see the `sqlx` crate for details."
     },
     {
       "name": "sqlx-postgres",
-      "version": "0.9.0",
+      "version": "0.9.1",
       "license": "MIT OR Apache-2.0",
       "repository": "https://github.com/launchbadge/sqlx",
       "description": "PostgreSQL driver implementation for SQLx. Not for direct use; see the `sqlx` crate for details."
     },
     {
       "name": "sqlx-sqlite",
-      "version": "0.9.0",
+      "version": "0.9.1",
       "license": "MIT OR Apache-2.0",
       "repository": "https://github.com/launchbadge/sqlx",
       "description": "SQLite driver implementation for SQLx. Not for direct use; see the `sqlx` crate for details."
@@ -3110,7 +3033,7 @@
     },
     {
       "name": "toml",
-      "version": "1.1.8+spec-1.1.0",
+      "version": "1.2.0+spec-1.1.0",
       "license": "MIT OR Apache-2.0",
       "repository": "https://github.com/toml-rs/toml",
       "description": "A native Rust encoder and decoder of TOML-formatted files and streams. Provides\nimplementations of the standard Serialize/Deserialize traits for TOML data to\nfacilitate deserializing and serializing Rust structures.\n"
@@ -3131,7 +3054,7 @@
     },
     {
       "name": "toml_writer",
-      "version": "1.1.3+spec-1.1.0",
+      "version": "1.2.0+spec-1.1.0",
       "license": "MIT OR Apache-2.0",
       "repository": "https://github.com/toml-rs/toml",
       "description": "A low-level interface for writing out TOML\n"
@@ -3285,8 +3208,8 @@
     },
     {
       "name": "unicode-properties",
-      "version": "0.1.4",
-      "license": "MIT/Apache-2.0",
+      "version": "0.1.5",
+      "license": "(MIT OR Apache-2.0) AND Unicode-3.0",
       "repository": "https://github.com/unicode-rs/unicode-properties",
       "description": "Query character Unicode properties according to\nUAX #44 and UTR #51.\n"
     },
@@ -3296,13 +3219,6 @@
       "license": "MIT OR Apache-2.0",
       "repository": "https://github.com/unicode-rs/unicode-width",
       "description": "Determine displayed width of `char` and `str` types\naccording to Unicode Standard Annex #11 rules.\n"
-    },
-    {
-      "name": "unsafe-libyaml",
-      "version": "0.2.11",
-      "license": "MIT",
-      "repository": "https://github.com/dtolnay/unsafe-libyaml",
-      "description": "libyaml transpiled to rust by c2rust"
     },
     {
       "name": "untrusted",
@@ -3326,8 +3242,15 @@
       "description": "URL library for Rust, based on the WHATWG URL Standard"
     },
     {
+      "name": "utf_types",
+      "version": "1.0.0",
+      "license": "Apache-2.0 OR MIT",
+      "repository": "https://github.com/hsivonen/utf_types",
+      "description": "Types for UTF-8 and UTF-16 code units and code unit sequences"
+    },
+    {
       "name": "utf8_iter",
-      "version": "1.0.4",
+      "version": "1.1.0",
       "license": "Apache-2.0 OR MIT",
       "repository": "https://github.com/hsivonen/utf8_iter",
       "description": "Iterator by char over potentially-invalid UTF-8 in &[u8]"
@@ -3404,35 +3327,35 @@
     },
     {
       "name": "wasm-bindgen",
-      "version": "0.2.129",
+      "version": "0.2.130",
       "license": "MIT OR Apache-2.0",
       "repository": "https://github.com/wasm-bindgen/wasm-bindgen",
       "description": "Easy support for interacting between JS and Rust.\n"
     },
     {
       "name": "wasm-bindgen-futures",
-      "version": "0.4.79",
+      "version": "0.4.80",
       "license": "MIT OR Apache-2.0",
       "repository": "https://github.com/wasm-bindgen/wasm-bindgen/tree/master/crates/futures",
       "description": "Bridging the gap between Rust Futures and JavaScript Promises"
     },
     {
       "name": "wasm-bindgen-macro",
-      "version": "0.2.129",
+      "version": "0.2.130",
       "license": "MIT OR Apache-2.0",
       "repository": "https://github.com/wasm-bindgen/wasm-bindgen/tree/master/crates/macro",
       "description": "Definition of the `#[wasm_bindgen]` attribute, an internal dependency\n"
     },
     {
       "name": "wasm-bindgen-macro-support",
-      "version": "0.2.129",
+      "version": "0.2.130",
       "license": "MIT OR Apache-2.0",
       "repository": "https://github.com/wasm-bindgen/wasm-bindgen/tree/main/crates/macro-support",
       "description": "Implementation APIs for the `#[wasm_bindgen]` attribute"
     },
     {
       "name": "wasm-bindgen-shared",
-      "version": "0.2.129",
+      "version": "0.2.130",
       "license": "MIT OR Apache-2.0",
       "repository": "https://github.com/wasm-bindgen/wasm-bindgen/tree/master/crates/shared",
       "description": "Shared support between wasm-bindgen and wasm-bindgen cli, an internal\ndependency.\n"
@@ -3453,7 +3376,7 @@
     },
     {
       "name": "wasm-encoder",
-      "version": "0.262.0",
+      "version": "0.263.0",
       "license": "Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT",
       "repository": "https://github.com/bytecodealliance/wasm-tools/tree/main/crates/wasm-encoder",
       "description": "A low-level WebAssembly encoder.\n"
@@ -3481,7 +3404,7 @@
     },
     {
       "name": "wasmparser",
-      "version": "0.262.0",
+      "version": "0.263.0",
       "license": "Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT",
       "repository": "https://github.com/bytecodealliance/wasm-tools/tree/main/crates/wasmparser",
       "description": "A simple event-driven library for parsing WebAssembly binary files.\n"
@@ -3495,112 +3418,112 @@
     },
     {
       "name": "wasmtime",
-      "version": "50.0.0",
+      "version": "50.0.3",
       "license": "Apache-2.0 WITH LLVM-exception",
       "repository": "https://github.com/bytecodealliance/wasmtime",
       "description": "High-level API to expose the Wasmtime runtime"
     },
     {
       "name": "wasmtime-environ",
-      "version": "50.0.0",
+      "version": "50.0.3",
       "license": "Apache-2.0 WITH LLVM-exception",
       "repository": "https://github.com/bytecodealliance/wasmtime",
       "description": "Standalone environment support for WebAssembly code in Cranelift"
     },
     {
       "name": "wasmtime-internal-cache",
-      "version": "50.0.0",
+      "version": "50.0.3",
       "license": "Apache-2.0 WITH LLVM-exception",
       "repository": "https://github.com/bytecodealliance/wasmtime",
       "description": "INTERNAL: Support for automatic module caching with Wasmtime"
     },
     {
       "name": "wasmtime-internal-component-macro",
-      "version": "50.0.0",
+      "version": "50.0.3",
       "license": "Apache-2.0 WITH LLVM-exception",
       "repository": "https://github.com/bytecodealliance/wasmtime",
       "description": "INTERNAL: Macros for deriving component interface types from Rust types"
     },
     {
       "name": "wasmtime-internal-component-util",
-      "version": "50.0.0",
+      "version": "50.0.3",
       "license": "Apache-2.0 WITH LLVM-exception",
       "repository": "https://github.com/bytecodealliance/wasmtime",
       "description": "INTERNAL: Utility types and functions to support the component model in Wasmtime"
     },
     {
       "name": "wasmtime-internal-core",
-      "version": "50.0.0",
+      "version": "50.0.3",
       "license": "Apache-2.0 WITH LLVM-exception",
       "repository": null,
       "description": "INTERNAL: Wasmtime's core utilities and helpers with minimal dependencies"
     },
     {
       "name": "wasmtime-internal-cranelift",
-      "version": "50.0.0",
+      "version": "50.0.3",
       "license": "Apache-2.0 WITH LLVM-exception",
       "repository": "https://github.com/bytecodealliance/wasmtime",
       "description": "INTERNAL: Integration between Cranelift and Wasmtime"
     },
     {
       "name": "wasmtime-internal-fiber",
-      "version": "50.0.0",
+      "version": "50.0.3",
       "license": "Apache-2.0 WITH LLVM-exception",
       "repository": "https://github.com/bytecodealliance/wasmtime",
       "description": "INTERNAL: Fiber support for Wasmtime"
     },
     {
       "name": "wasmtime-internal-jit-debug",
-      "version": "50.0.0",
+      "version": "50.0.3",
       "license": "Apache-2.0 WITH LLVM-exception",
       "repository": "https://github.com/bytecodealliance/wasmtime",
       "description": "INTERNAL: JIT debug interfaces support for Wasmtime"
     },
     {
       "name": "wasmtime-internal-jit-icache-coherence",
-      "version": "50.0.0",
+      "version": "50.0.3",
       "license": "Apache-2.0 WITH LLVM-exception",
       "repository": "https://github.com/bytecodealliance/wasmtime",
       "description": "INTERNAL: Utilities for JIT icache maintenance"
     },
     {
       "name": "wasmtime-internal-unwinder",
-      "version": "50.0.0",
+      "version": "50.0.3",
       "license": "Apache-2.0 WITH LLVM-exception",
       "repository": "https://github.com/bytecodealliance/wasmtime",
       "description": "INTERNAL: Wasmtime's unwind format and unwinder"
     },
     {
       "name": "wasmtime-internal-versioned-export-macros",
-      "version": "50.0.0",
+      "version": "50.0.3",
       "license": "Apache-2.0 WITH LLVM-exception",
       "repository": "https://github.com/bytecodealliance/wasmtime",
       "description": "INTERNAL: Macros for defining versioned exports in Wasmtime"
     },
     {
       "name": "wasmtime-internal-wit-bindgen",
-      "version": "50.0.0",
+      "version": "50.0.3",
       "license": "Apache-2.0 WITH LLVM-exception",
       "repository": "https://github.com/bytecodealliance/wasmtime",
       "description": "INTERNAL: `*.wit` support for the `wasmtime` crate's macros"
     },
     {
       "name": "wast",
-      "version": "262.0.0",
+      "version": "263.0.0",
       "license": "Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT",
       "repository": "https://github.com/bytecodealliance/wasm-tools/tree/main/crates/wast",
       "description": "Customizable Rust parsers for the WebAssembly Text formats WAT and WAST\n"
     },
     {
       "name": "wat",
-      "version": "1.262.0",
+      "version": "1.263.0",
       "license": "Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT",
       "repository": "https://github.com/bytecodealliance/wasm-tools/tree/main/crates/wat",
       "description": "Rust parser for the WebAssembly Text format, WAT\n"
     },
     {
       "name": "web-sys",
-      "version": "0.3.106",
+      "version": "0.3.107",
       "license": "MIT OR Apache-2.0",
       "repository": "https://github.com/wasm-bindgen/wasm-bindgen/tree/master/crates/web-sys",
       "description": "Bindings for all Web APIs, a procedurally generated crate from WebIDL\n"
@@ -3767,46 +3690,11 @@
       "description": "Import lib for Windows"
     },
     {
-      "name": "windows-core",
-      "version": "0.62.2",
-      "license": "MIT OR Apache-2.0",
-      "repository": "https://github.com/microsoft/windows-rs",
-      "description": "Core type support for COM and Windows"
-    },
-    {
-      "name": "windows-implement",
-      "version": "0.60.2",
-      "license": "MIT OR Apache-2.0",
-      "repository": "https://github.com/microsoft/windows-rs",
-      "description": "The implement macro for the Windows crates"
-    },
-    {
-      "name": "windows-interface",
-      "version": "0.59.3",
-      "license": "MIT OR Apache-2.0",
-      "repository": "https://github.com/microsoft/windows-rs",
-      "description": "The interface macro for the Windows crates"
-    },
-    {
       "name": "windows-link",
       "version": "0.2.1",
       "license": "MIT OR Apache-2.0",
       "repository": "https://github.com/microsoft/windows-rs",
       "description": "Linking for Windows"
-    },
-    {
-      "name": "windows-result",
-      "version": "0.4.1",
-      "license": "MIT OR Apache-2.0",
-      "repository": "https://github.com/microsoft/windows-rs",
-      "description": "Windows error handling"
-    },
-    {
-      "name": "windows-strings",
-      "version": "0.5.1",
-      "license": "MIT OR Apache-2.0",
-      "repository": "https://github.com/microsoft/windows-rs",
-      "description": "Windows string types"
     },
     {
       "name": "windows-sys",
@@ -3852,7 +3740,7 @@
     },
     {
       "name": "winnow",
-      "version": "1.0.4",
+      "version": "1.0.5",
       "license": "MIT",
       "repository": "https://github.com/winnow-rs/winnow",
       "description": "A byte-oriented, zero-copy, parser combinators library"
@@ -3985,7 +3873,7 @@
     },
     {
       "name": "zip",
-      "version": "9.1.3",
+      "version": "9.4.1",
       "license": "MIT",
       "repository": "https://github.com/zip-rs/zip2",
       "description": "Library to support the reading and writing of zip files."
@@ -4013,14 +3901,14 @@
     },
     {
       "name": "zstd",
-      "version": "0.13.3",
-      "license": "MIT",
+      "version": "0.13.4",
+      "license": "BSD-3-Clause",
       "repository": "https://github.com/gyscos/zstd-rs",
       "description": "Binding for the zstd compression library."
     },
     {
       "name": "zstd-safe",
-      "version": "7.3.0",
+      "version": "7.4.0",
       "license": "BSD-3-Clause",
       "repository": "https://github.com/gyscos/zstd-rs",
       "description": "Safe low-level bindings for the zstd compression library."
@@ -4036,7 +3924,7 @@
   "npm": [
     {
       "name": "@babel/runtime",
-      "version": "7.29.10",
+      "version": "7.29.13",
       "license": "MIT",
       "repository": null,
       "usedIn": "admin"
@@ -4225,31 +4113,17 @@
     },
     {
       "name": "i18next",
-      "version": "26.5.11",
+      "version": "26.7.2",
       "license": "MIT",
       "repository": null,
       "usedIn": "admin"
     },
     {
       "name": "lucide-react",
-      "version": "1.63.0",
+      "version": "1.70.0",
       "license": "ISC",
       "repository": null,
       "usedIn": "admin"
-    },
-    {
-      "name": "lucide-react",
-      "version": "1.64.0",
-      "license": "ISC",
-      "repository": null,
-      "usedIn": "theme-builder"
-    },
-    {
-      "name": "lucide-react",
-      "version": "1.66.0",
-      "license": "ISC",
-      "repository": null,
-      "usedIn": "plugin-builder"
     },
     {
       "name": "react",
@@ -4267,7 +4141,7 @@
     },
     {
       "name": "react-i18next",
-      "version": "17.1.9",
+      "version": "17.1.13",
       "license": "MIT",
       "repository": null,
       "usedIn": "admin"
