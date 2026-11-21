@@ -184,6 +184,8 @@ tasks:
     desc: 依存クレートおよび npm パッケージのサードパーティライセンス一覧を再生成 (scripts/generate-licenses.mjs)
     cmds:
       - node scripts/generate-licenses.mjs
+      # 生成した JSON は整形されていない。admin の format:check に通るように整える
+      - npx --prefix admin prettier --write admin/src/data/licenses.json
 
   check:
     desc: PR・コミット前の全検証チェックを一括実行 (fmt, prettier, md, clippy, oxlint, test, test:admin, test:storybook, admin:build, theme-builder)
