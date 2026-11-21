@@ -236,6 +236,7 @@ site_description = "Next-Generation High-Performance Secure CMS with Sandboxed W
 # favicon = "/uploads/favicon.png"  # optional: favicon (a path starting with / or an http(s) URL)
 # custom_css = ":root { --accent: #10b981; }" # optional: global custom CSS
 posts_per_page = 10        # articles per page of the article list (paged with ?page=N)
+# latest_types = ["article"]  # types listed on the top page, /feed.xml, and the category and tag pages (default: articles only; types with a public_path can be added)
 related_posts_limit = 4    # maximum number of related articles on an article detail page (default: 4, 0 hides them)
 front_page = "posts"       # top page: "posts" (article list) / "template" (the theme's front.html) / "page:<slug>" (a static page)
 reload_templates = false   # true reloads templates on every render (for theme development)

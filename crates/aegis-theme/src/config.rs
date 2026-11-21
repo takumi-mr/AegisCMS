@@ -24,6 +24,11 @@ pub struct ThemeConfig {
     /// `"page:<slug>"`（固定ページ）。`"posts"` 以外では記事一覧は `/articles` だけになる
     #[serde(default = "default_front_page")]
     pub front_page: String,
+    /// トップページ（`/`）・`/feed.xml`・カテゴリ・タグのページ・そのフィードに並べるコンテンツの型
+    /// （既定: `["article"]`）。記事以外は、スキーマに `public_path` を持つ型だけ指定できる。
+    /// 新しい順に混ぜて並べる。記事の一覧（`/articles`）と各型の一覧は、その型だけを並べる
+    #[serde(default = "default_latest_types")]
+    pub latest_types: Vec<String>,
     /// `true` でテンプレートをリクエストごとに読み直す（テーマ開発用）。
     /// `false`（既定）ではコンパイル済みのテンプレートを再利用し、テーマの切り替え時に読み直す
     #[serde(default)]
@@ -54,6 +59,10 @@ fn default_posts_per_page() -> u64 {
 
 fn default_related_posts_limit() -> usize {
     4
+}
+
+fn default_latest_types() -> Vec<String> {
+    vec!["article".to_string()]
 }
 
 fn default_show_powered_by() -> bool {
@@ -114,6 +123,20 @@ impl ThemeConfig {
                 self.locale
             )));
         }
+        if self.latest_types.is_empty() {
+            return Err(aegis_core::AegisError::Config(
+                "[theme].latest_types must list at least one content type".to_string(),
+            ));
+        }
+        let mut seen = std::collections::HashSet::new();
+        for content_type in &self.latest_types {
+            if content_type.is_empty() || !seen.insert(content_type.as_str()) {
+                return Err(aegis_core::AegisError::Config(format!(
+                    "[theme].latest_types has an empty or duplicate entry (\"{}\")",
+                    content_type
+                )));
+            }
+        }
         if self.related_posts_limit > 50 {
             return Err(aegis_core::AegisError::Config(format!(
                 "[theme].related_posts_limit must be between 0 and 50 (got {})",
@@ -139,6 +162,7 @@ impl Default for ThemeConfig {
             posts_per_page: default_posts_per_page(),
             related_posts_limit: default_related_posts_limit(),
             front_page: default_front_page(),
+            latest_types: default_latest_types(),
             reload_templates: false,
             locale: default_locale(),
             show_powered_by: default_show_powered_by(),
@@ -164,6 +188,19 @@ mod tests {
             ..ThemeConfig::default()
         };
         assert!(invalid.validate().is_err());
+    }
+
+    #[test]
+    fn test_latest_types_validation() {
+        assert_eq!(ThemeConfig::default().latest_types, vec!["article"]);
+        let with = |types: &[&str]| ThemeConfig {
+            latest_types: types.iter().map(|t| t.to_string()).collect(),
+            ..ThemeConfig::default()
+        };
+        assert!(with(&["article", "news"]).validate().is_ok());
+        assert!(with(&[]).validate().is_err());
+        assert!(with(&["article", "article"]).validate().is_err());
+        assert!(with(&[""]).validate().is_err());
     }
 
     #[test]
