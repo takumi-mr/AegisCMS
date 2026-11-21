@@ -183,6 +183,17 @@ export function ExportModal({ isOpen, hasDirtyFiles, onClose }: ExportModalProps
                     ))}
                   </div>
                 )}
+
+                {validation.warnings.length > 0 && (
+                  <div className="validation-warnings">
+                    <p className="warning-title">{t('export.warningsTitle')}</p>
+                    {validation.warnings.map((warning, i) => (
+                      <p key={i} className="warning-item">
+                        {warning}
+                      </p>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
           </section>

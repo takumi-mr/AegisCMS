@@ -70,6 +70,8 @@ export interface PackageValidationResult {
   signed: boolean;
   public_key: string | null;
   errors: string[];
+  /** エラーではないが直したほうがよい点（`/articles` の直書きなど） */
+  warnings: string[];
 }
 
 /** `POST /__dev/api/package/sign` */

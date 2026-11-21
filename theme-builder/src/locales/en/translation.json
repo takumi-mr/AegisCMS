@@ -103,6 +103,7 @@
     "digitalSignature": "Digital Signature (signature.json):",
     "signedValid": "Valid signature present",
     "unsigned": "Unsigned (optional)",
+    "warningsTitle": "Warnings (the theme still works, but fix these)",
     "signatureTitle": "Package Signing (Ed25519)",
     "signedBadge": "Signed",
     "signatureDesc": "Generates Ed25519 signature from hashes of all theme files (except signature.json).",

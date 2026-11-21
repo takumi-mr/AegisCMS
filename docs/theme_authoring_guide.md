@@ -158,7 +158,7 @@ In a theme, do not build URLs yourself. Use the values the server passes, so tha
 | `{{ item.fields.url }}` | The link target in lists (`items`), related articles (`related_articles`), and previous/next (`prev_article` / `next_article`) |
 | `{{ articles_url }}`    | The URL of the article list (`/articles` or `public_path`)                                                                     |
 
-Both already include `base_path`, so do not put `{{ base_path }}` in front of them. Older themes that write `{{ base_path }}/articles/{{ item.slug }}` keep working as long as `public_path` is not changed.
+Both already include `base_path`, so do not put `{{ base_path }}` in front of them. Older themes that write `{{ base_path }}/articles/{{ item.slug }}` keep working as long as `public_path` is not changed. After it is changed, those links go through a 301 redirect. On a site where the article `public_path` is changed, the startup log warns when the active theme hard-codes the link (`templates/index.html:12 links to /articles directly …`). The package validation of `theme dev` (the export screen of Theme Builder) shows it as a warning too.
 
 ### 3.1.2 A Category's Article List and Feeds
 

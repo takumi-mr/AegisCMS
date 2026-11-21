@@ -418,6 +418,24 @@ async fn run_notify_command(config: &AegisConfig, action: NotifyCommand) -> anyh
     Ok(())
 }
 
+/// 記事の `public_path` を変えているのに、有効なテーマが `/articles` を直接書いていたら、起動時に注意を出す
+/// （そのリンクは 301 を経由する。`{{ item.fields.url }}`・`{{ articles_url }}` を使えば経由しない）
+fn warn_hardcoded_article_links(state: &AppState) {
+    let prefix = state.article_prefix();
+    if prefix == "/articles" {
+        return;
+    }
+    let theme_dir = state.theme.themes_dir().join(state.theme.active_theme());
+    for found in aegis_theme::hardcoded_article_paths(&theme_dir) {
+        tracing::warn!(
+            "Theme '{}': {} (the article public_path is {})",
+            state.theme.active_theme(),
+            found.message(),
+            prefix
+        );
+    }
+}
+
 async fn run_plugin_command(config: &AegisConfig, action: PluginCommand) -> anyhow::Result<()> {
     match action {
         PluginCommand::List => {
@@ -1182,6 +1200,7 @@ async fn run_server() -> anyhow::Result<()> {
                 audit,
                 theme_engine,
             );
+            warn_hardcoded_article_links(&app_state);
             app_state.plugin_settings = plugin_settings;
             app_state.queries = query_service.clone();
             app_state
