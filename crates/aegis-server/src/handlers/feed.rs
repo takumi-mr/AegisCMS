@@ -9,7 +9,7 @@ use axum::{
 use std::sync::Arc;
 
 use crate::handlers::content::is_currently_published;
-use crate::handlers::public::{find_category, list_published_articles, ArticleFilter};
+use crate::handlers::public::{find_category, list_published_latest, ArticleFilter};
 use crate::render;
 use crate::state::AppState;
 use aegis_ast::renderer::escape_html;
@@ -66,10 +66,11 @@ pub async fn get_feed(State(state): State<Arc<AppState>>, headers: HeaderMap) ->
     let mut tags = CacheTags::new();
     tags.add_url("/feed.xml");
     let title = state.site().title;
+    let types = state.config.theme.latest_types.clone();
     build_feed(
         &state,
         &headers,
-        "article",
+        &types,
         &title,
         "/feed.xml",
         "/",
@@ -93,10 +94,11 @@ pub async fn get_category_feed(
     tags.add_dependency("category", &category.id);
     tags.add_dependency("category", &category.slug);
     let title = format!("{}: {}", state.site().title, category.title);
+    let types = state.config.theme.latest_types.clone();
     build_feed(
         &state,
         &headers,
-        "article",
+        &types,
         &title,
         &format!("/category/{}/feed.xml", category.slug),
         &format!("/category/{}", category.slug),
@@ -128,7 +130,7 @@ pub async fn get_custom_feed(
     build_feed(
         &state,
         &headers,
-        &content_type,
+        std::slice::from_ref(&content_type),
         &title,
         &format!("{}/feed.xml", prefix),
         &prefix,
@@ -138,12 +140,13 @@ pub async fn get_custom_feed(
     .await
 }
 
-/// フィードの XML を組み立てる。`content_type` は載せるコンテンツの型。`self_path` はフィード、`alternate_path` は対応する HTML のページのパス
+/// フィードの XML を組み立てる。`content_types` は載せるコンテンツの型（複数なら新しい順に混ぜる）。
+/// `self_path` はフィード、`alternate_path` は対応する HTML のページのパス
 #[allow(clippy::too_many_arguments)]
 pub(crate) async fn build_feed(
     state: &AppState,
     headers: &HeaderMap,
-    content_type: &str,
+    content_types: &[String],
     title: &str,
     self_path: &str,
     alternate_path: &str,
@@ -151,24 +154,17 @@ pub(crate) async fn build_feed(
     mut tags: CacheTags,
 ) -> Response {
     tags.add_dependency("site", "global");
-    tags.add_dependency("collection", content_type);
+    for content_type in content_types {
+        tags.add_dependency("collection", content_type);
+    }
 
     let base_url = public_base_url(state, headers);
-    let article_schema = {
-        let schemas = state.schemas.read().await;
-        schemas.get(content_type).cloned()
-    };
-    let records = match article_schema {
-        Some(schema) => {
-            match list_published_articles(state, &schema, filter, FEED_ENTRIES, 0).await {
-                Ok(page) => page.records,
-                Err(e) => {
-                    tracing::error!("Failed to list articles for {}: {}", self_path, e);
-                    Vec::new()
-                }
-            }
+    let records = match list_published_latest(state, content_types, filter, FEED_ENTRIES, 0).await {
+        Ok(page) => page.records,
+        Err(e) => {
+            tracing::error!("Failed to list articles for {}: {}", self_path, e);
+            Vec::new()
         }
-        None => Vec::new(),
     };
     let now = jiff::Timestamp::now();
     let records: Vec<_> = records
@@ -179,6 +175,7 @@ pub(crate) async fn build_feed(
     let mut entries = String::new();
     let mut feed_updated: Option<String> = None;
     for record in &records {
+        let content_type = record.content_type.as_str();
         tags.add_dependency(content_type, &record.id);
         tags.add_dependency(content_type, &record.slug);
 

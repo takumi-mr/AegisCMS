@@ -1045,6 +1045,7 @@ async fn run_server() -> anyhow::Result<()> {
                 schemas.len(),
                 config.paths.schemas_dir
             );
+            handlers::public::validate_latest_types(&config.theme, &schemas)?;
 
             // 2. DB初期化とマイグレーション
             let db_adapter = aegis_db::create_database_adapter(&config.database).await?;

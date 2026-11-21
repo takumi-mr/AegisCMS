@@ -260,8 +260,9 @@ pub(crate) fn public_content_path(state: &AppState, content_type: &str, slug: &s
 /// 記事一覧のページ（トップ・`/articles`・カテゴリ）ごとに違う部分
 struct ArticleListView {
     template: String,
-    /// 並べるコンテンツの型（記事の一覧は `article`。`public_path` を持つカスタム型の一覧はその型）
-    schema_type: String,
+    /// 並べるコンテンツの型（記事の一覧は `article`、`public_path` を持つカスタム型の一覧はその型、
+    /// トップ・カテゴリは `[theme].latest_types`。複数なら新しい順に混ぜる）
+    schema_types: Vec<String>,
     content_type: &'static str,
     title: String,
     slug: String,
@@ -278,14 +279,14 @@ struct ArticleListView {
 }
 
 impl ArticleListView {
-    /// 記事一覧（`index.html`）
+    /// 新着の一覧（`index.html`。並べる型は `[theme].latest_types`）
     fn index(state: &AppState, path: &str, page: Option<u64>) -> Self {
         let mut tags = crate::cdn::CacheTags::new();
         tags.add_url("/");
         tags.add_url(state.article_prefix());
         Self {
             template: "index.html".to_string(),
-            schema_type: "article".to_string(),
+            schema_types: state.config.theme.latest_types.clone(),
             content_type: "index",
             title: "Latest Stories".to_string(),
             slug: String::new(),
@@ -338,11 +339,11 @@ pub async fn render_articles(
     State(state): State<Arc<AppState>>,
     Query(params): Query<IndexParams>,
 ) -> Response {
-    render_article_list(
-        &state,
-        ArticleListView::index(&state, state.article_prefix(), params.page),
-    )
-    .await
+    let view = ArticleListView {
+        schema_types: vec!["article".to_string()],
+        ..ArticleListView::index(&state, state.article_prefix(), params.page)
+    };
+    render_article_list(&state, view).await
 }
 
 /// `public_path` を持つカスタム型の一覧 (`/works` など、`?page=N` でページ送り)。
@@ -382,7 +383,7 @@ pub async fn render_custom_list(
     };
     let view = ArticleListView {
         template,
-        schema_type: content_type,
+        schema_types: vec![content_type],
         content_type: "index",
         title: label,
         slug: String::new(),
@@ -425,7 +426,7 @@ pub async fn render_category(
 
     let view = ArticleListView {
         template: "category.html".to_string(),
-        schema_type: "article".to_string(),
+        schema_types: state.config.theme.latest_types.clone(),
         content_type: "category",
         title: category.title,
         slug: category.slug.clone(),
@@ -548,79 +549,200 @@ pub(crate) async fn list_published_articles(
     })
 }
 
-/// 公開中の記事の一覧ページを描画する
+/// `[theme].latest_types` の検証。記事以外は、スキーマに `public_path`（公開ページ）を持つ型だけ指定できる
+pub(crate) fn validate_latest_types(
+    theme: &aegis_theme::ThemeConfig,
+    schemas: &HashMap<String, SchemaDefinition>,
+) -> aegis_core::Result<()> {
+    for content_type in &theme.latest_types {
+        let Some(schema) = schemas.get(content_type) else {
+            return Err(aegis_core::AegisError::Config(format!(
+                "[theme].latest_types: no schema for content type '{}'",
+                content_type
+            )));
+        };
+        if content_type != "article" && schema.public_path.is_none() {
+            return Err(aegis_core::AegisError::Config(format!(
+                "[theme].latest_types: '{}' has no public_path (only types with public pages can be listed)",
+                content_type
+            )));
+        }
+    }
+    Ok(())
+}
+
+/// 絞り込み（カテゴリ）を、この型に掛けられるか。その関係フィールドを持たない型は、そのカテゴリに属さない
+pub(crate) fn filter_applies(filter: Option<&ArticleFilter>, schema: &SchemaDefinition) -> bool {
+    match filter {
+        Some(ArticleFilter::Field(name, _)) => {
+            name == "category_id" || schema.fields.iter().any(|f| &f.name == name)
+        }
+        _ => true,
+    }
+}
+
+/// 公開中のコンテンツを、`types`（複数なら型を横断して）新しい順に 1 ページ分取得する。
+/// 型が 1 つなら `list_published_articles` と同じ（DB がページ送りまで行う）。複数なら、型ごとに
+/// 先頭から `offset + limit` 件までを読んで混ぜる
+pub(crate) async fn list_published_latest(
+    state: &AppState,
+    types: &[String],
+    filter: Option<&ArticleFilter>,
+    limit: u64,
+    offset: u64,
+) -> aegis_core::Result<ContentPage> {
+    let schemas: Vec<SchemaDefinition> = {
+        let all = state.schemas.read().await;
+        types
+            .iter()
+            .filter_map(|t| all.get(t))
+            .filter(|s| filter_applies(filter, s))
+            .cloned()
+            .collect()
+    };
+    let [first, rest @ ..] = schemas.as_slice() else {
+        return Ok(ContentPage {
+            records: Vec::new(),
+            total: 0,
+        });
+    };
+    if rest.is_empty() {
+        return list_published_articles(state, first, filter, limit, offset).await;
+    }
+    let window = offset.saturating_add(limit);
+    let mut total = 0;
+    let mut records = Vec::new();
+    for schema in &schemas {
+        let page = list_published_articles(state, schema, filter, window, 0).await?;
+        total += page.total;
+        records.extend(page.records);
+    }
+    // DB の並び（作成日時、同じなら ID の新しい順）と同じ
+    records.sort_by(|a, b| {
+        b.created_at
+            .cmp(&a.created_at)
+            .then_with(|| b.id.cmp(&a.id))
+    });
+    Ok(ContentPage {
+        records: records
+            .into_iter()
+            .skip(usize::try_from(offset).unwrap_or(usize::MAX))
+            .take(usize::try_from(limit).unwrap_or(usize::MAX))
+            .collect(),
+        total,
+    })
+}
+
+/// 一覧の 1 件ずつをテンプレートに渡す形にする。関係とタグは、型ごとにまとめて引く（並びは元のまま）
+async fn summarize_records(
+    state: &AppState,
+    records: Vec<aegis_db::ContentRecord>,
+    tags: &mut crate::cdn::CacheTags,
+) -> Vec<ContentSummary> {
+    let base_path = state
+        .config
+        .server
+        .normalized_base_path()
+        .unwrap_or_default();
+    let mut content_types: Vec<String> = Vec::new();
+    for r in &records {
+        if !content_types.contains(&r.content_type) {
+            content_types.push(r.content_type.clone());
+        }
+    }
+    let mut relations: Vec<HashMap<String, aegis_db::ResolvedRelation>> =
+        vec![HashMap::new(); records.len()];
+    let mut tag_lookups: HashMap<String, TagLookup> = HashMap::new();
+    for content_type in &content_types {
+        let indexes: Vec<usize> = records
+            .iter()
+            .enumerate()
+            .filter(|(_, r)| &r.content_type == content_type)
+            .map(|(i, _)| i)
+            .collect();
+        {
+            let schemas = state.schemas.read().await;
+            if let Some(schema) = schemas.get(content_type) {
+                let fields: Vec<_> = indexes.iter().map(|&i| &records[i].custom_fields).collect();
+                let resolved =
+                    resolve_relations_for_records(&*state.db, &schemas, schema, &fields).await;
+                for (&i, rel) in indexes.iter().zip(resolved) {
+                    relations[i] = rel;
+                }
+            }
+        }
+        let ids: Vec<String> = indexes.iter().map(|&i| records[i].id.clone()).collect();
+        tag_lookups.insert(
+            content_type.clone(),
+            TagLookup::load(state, content_type, &ids).await,
+        );
+    }
+
+    let mut items = Vec::with_capacity(records.len());
+    for (r, relations) in records.into_iter().zip(relations) {
+        tags.add_dependency(&r.content_type, &r.id);
+        tags.add_dependency(&r.content_type, &r.slug);
+        crate::cdn::add_relation_tags(tags, &relations);
+        let blocks: Vec<BlockNode> = serde_json::from_str(&r.blocks_json).unwrap_or_default();
+        let mut fields = r.custom_fields;
+        if let Some(lookup) = tag_lookups.get(&r.content_type) {
+            lookup.attach(&r.id, &mut fields, tags);
+        }
+        // テーマは `{{ item.fields.url }}` でリンクする（`base_path` 込み。URL の決まりはここで 1 か所）
+        fields.insert(
+            "url".to_string(),
+            serde_json::Value::String(format!(
+                "{}{}",
+                base_path,
+                public_content_path(state, &r.content_type, &r.slug)
+            )),
+        );
+        items.push(ContentSummary {
+            id: r.id,
+            content_type: r.content_type,
+            title: r.title,
+            slug: r.slug,
+            excerpt: access::summary_excerpt(&fields, &blocks, 140),
+            author_id: r.author_id,
+            published_at: r.published_at,
+            created_at: r.created_at,
+            fields,
+            relations: relations
+                .iter()
+                .map(|(name, rel)| (name.clone(), render::relation_summary(rel)))
+                .collect(),
+        });
+    }
+    items
+}
+
+/// 公開中のコンテンツの一覧ページを描画する
 async fn render_article_list(state: &AppState, view: ArticleListView) -> Response {
     let per_page = state.config.theme.posts_per_page.max(1);
     let page = view.page;
     let mut items = Vec::new();
     let mut total_items = 0;
     let mut tags = view.tags;
-    let schema_type = view.schema_type.clone();
     tags.add_dependency("site", "global");
-    tags.add_dependency("collection", &schema_type);
+    for content_type in &view.schema_types {
+        tags.add_dependency("collection", content_type);
+    }
 
-    let list_base_path = state
-        .config
-        .server
-        .normalized_base_path()
-        .unwrap_or_default();
-    let article_schema = {
-        let schemas = state.schemas.read().await;
-        schemas.get(&schema_type).cloned()
-    };
-    if let Some(schema) = article_schema {
-        let offset = (page - 1).saturating_mul(per_page);
-        match list_published_articles(state, &schema, view.filter.as_ref(), per_page, offset).await
-        {
-            Ok(content_page) => {
-                total_items = content_page.total;
-                let relations = {
-                    let schemas = state.schemas.read().await;
-                    let fields: Vec<_> = content_page
-                        .records
-                        .iter()
-                        .map(|r| &r.custom_fields)
-                        .collect();
-                    resolve_relations_for_records(&*state.db, &schemas, &schema, &fields).await
-                };
-                let ids: Vec<String> = content_page.records.iter().map(|r| r.id.clone()).collect();
-                let tag_lookup = TagLookup::load(state, &schema_type, &ids).await;
-                for (r, relations) in content_page.records.into_iter().zip(relations) {
-                    tags.add_dependency(&schema_type, &r.id);
-                    tags.add_dependency(&schema_type, &r.slug);
-                    crate::cdn::add_relation_tags(&mut tags, &relations);
-                    let blocks: Vec<BlockNode> =
-                        serde_json::from_str(&r.blocks_json).unwrap_or_default();
-                    let mut fields = r.custom_fields;
-                    tag_lookup.attach(&r.id, &mut fields, &mut tags);
-                    // テーマは `{{ item.fields.url }}` でリンクする（`base_path` 込み。URL の決まりはここで 1 か所）
-                    fields.insert(
-                        "url".to_string(),
-                        serde_json::Value::String(format!(
-                            "{}{}",
-                            list_base_path,
-                            public_content_path(state, &r.content_type, &r.slug)
-                        )),
-                    );
-                    items.push(ContentSummary {
-                        id: r.id,
-                        content_type: r.content_type,
-                        title: r.title,
-                        slug: r.slug,
-                        excerpt: access::summary_excerpt(&fields, &blocks, 140),
-                        author_id: r.author_id,
-                        published_at: r.published_at,
-                        created_at: r.created_at,
-                        fields,
-                        relations: relations
-                            .iter()
-                            .map(|(name, rel)| (name.clone(), render::relation_summary(rel)))
-                            .collect(),
-                    });
-                }
-            }
-            Err(e) => tracing::error!("Failed to list articles for {}: {}", view.path, e),
+    let offset = (page - 1).saturating_mul(per_page);
+    match list_published_latest(
+        state,
+        &view.schema_types,
+        view.filter.as_ref(),
+        per_page,
+        offset,
+    )
+    .await
+    {
+        Ok(content_page) => {
+            total_items = content_page.total;
+            items = summarize_records(state, content_page.records, &mut tags).await;
         }
+        Err(e) => tracing::error!("Failed to list articles for {}: {}", view.path, e),
     }
 
     let total_pages = total_items.div_ceil(per_page).max(1);
