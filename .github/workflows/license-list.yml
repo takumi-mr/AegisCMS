@@ -1,0 +1,69 @@
+name: License List
+
+# サードパーティライセンスの一覧（THIRD_PARTY_LICENSES.md と Admin Studio のライセンス画面が読む
+# admin/src/data/licenses.json）が、いまの依存と合っているかを調べる。
+# 依存（Cargo.lock・package-lock.json）を変えたのに、`task licenses:generate` で一覧を作り直し
+# 忘れると落ちる。
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "Cargo.lock"
+      - "**/Cargo.toml"
+      - "admin/package-lock.json"
+      - "theme-builder/package-lock.json"
+      - "plugin-builder/package-lock.json"
+      - "scripts/generate-licenses.mjs"
+      - "THIRD_PARTY_LICENSES.md"
+      - "admin/src/data/licenses.json"
+      - ".github/workflows/license-list.yml"
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "Cargo.lock"
+      - "**/Cargo.toml"
+      - "admin/package-lock.json"
+      - "theme-builder/package-lock.json"
+      - "plugin-builder/package-lock.json"
+      - "scripts/generate-licenses.mjs"
+      - "THIRD_PARTY_LICENSES.md"
+      - "admin/src/data/licenses.json"
+      - ".github/workflows/license-list.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  license-list:
+    name: License list is up to date
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      # 生成した JSON を整える Prettier は admin のもの（`task licenses:generate` と同じ）
+      - name: Install admin dependencies
+        run: npm --prefix admin ci --ignore-scripts
+
+      - name: Regenerate the license list
+        run: |
+          node scripts/generate-licenses.mjs
+          npx --prefix admin prettier --write admin/src/data/licenses.json
+
+      - name: Fail if the list changed
+        run: |
+          if ! git diff --exit-code --stat -- THIRD_PARTY_LICENSES.md admin/src/data/licenses.json; then
+            echo "::error::The license list is out of date. Run 'task licenses:generate' and commit THIRD_PARTY_LICENSES.md and admin/src/data/licenses.json."
+            exit 1
+          fi

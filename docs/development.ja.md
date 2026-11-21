@@ -64,6 +64,7 @@ AegisCMS の開発環境、検証、ビルド、CI、Docker イメージにつ�
 | `docker-ci`   | Docker イメージをビルド（上の 2 つと並列。GitHub Actions キャッシュ `type=gha`、プロファイル `ci-release`） |
 
 - `docker-ci` はビルドできるかの検証なので、LTO を省いた `ci-release` プロファイル（`--build-arg CARGO_PROFILE=ci-release`。最適化レベルは release と同じ）でビルドする。本番 release プロファイルは `lto = "thin"` / `codegen-units = 16`（Thin LTO）を採用しており、Fat LTO に比べてリンク・最適化時間を大幅に短縮しつつ本番同等の実行速度を維持する。
+- ライセンス一覧（`THIRD_PARTY_LICENSES.md` と `admin/src/data/licenses.json`）は、`license-list.yml` が依存の変更（`Cargo.lock`・`Cargo.toml`・`package-lock.json`）のたびに作り直して、差分があれば落とします。依存を変えたら `task licenses:generate` を実行してコミットします。
 - dev / test プロファイルのデバッグ情報は `line-tables-only`（バックトレースの行番号は残る）。フルのデバッグ情報だと `aegis-server` のテストバイナリの PDB が約 500 MB になる（`line-tables-only` で約 200 MB。Windows で `aegis-server` を変えたときの再ビルドが約 10 秒 → 6.5 秒）。デバッガで変数を見たいときは `CARGO_PROFILE_DEV_DEBUG=true` で上書きする（依存も再ビルドされる）。
 
 ---
