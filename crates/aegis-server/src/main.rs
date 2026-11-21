@@ -40,6 +40,7 @@ mod oauth_tests;
 mod plugin_dev;
 mod plugin_host;
 mod plugin_registry;
+mod public_paths;
 mod queries;
 #[cfg(test)]
 mod queries_tests;
@@ -1054,7 +1055,7 @@ async fn run_server() -> anyhow::Result<()> {
 
             // 1. スキーマ読み込み
             let schemas_vec = SchemaLoader::load_dir(&config.paths.schemas_dir)?;
-            let schemas: HashMap<String, _> = schemas_vec
+            let mut schemas: HashMap<String, _> = schemas_vec
                 .into_iter()
                 .map(|s| (s.content_type.clone(), s))
                 .collect();
@@ -1063,11 +1064,20 @@ async fn run_server() -> anyhow::Result<()> {
                 schemas.len(),
                 config.paths.schemas_dir
             );
-            handlers::public::validate_latest_types(&config.theme, &schemas)?;
 
             // 2. DB初期化とマイグレーション
             let db_adapter = aegis_db::create_database_adapter(&config.database).await?;
             db_adapter.run_migrations(&schemas).await?;
+            // Admin Studio で変えた公開 URL の先頭（`public_path`）をスキーマに当てる
+            let public_path_files = match db_adapter.list_settings().await {
+                Ok(settings) => public_paths::apply_overrides(&mut schemas, &settings),
+                Err(e) => {
+                    tracing::warn!("Could not read the public path settings: {}", e);
+                    HashMap::new()
+                }
+            };
+            // 上書きを当てたあとで検査する（Admin Studio で公開 URL を付けた型も `latest_types` に入れられる）
+            handlers::public::validate_latest_types(&config.theme, &schemas)?;
             if db_adapter.list_users().await?.is_empty() {
                 tracing::warn!(
                     "No user accounts exist, so nobody can log in. Create one with: aegis-server user add <username> --role admin"
@@ -1203,6 +1213,7 @@ async fn run_server() -> anyhow::Result<()> {
             );
             warn_hardcoded_article_links(&app_state);
             app_state.plugin_settings = plugin_settings;
+            app_state.public_path_files = Arc::new(public_path_files);
             app_state.queries = query_service.clone();
             app_state
                 .supervisor

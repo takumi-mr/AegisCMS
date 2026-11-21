@@ -114,7 +114,9 @@
     "revokePurchaseFailed": "Failed to revoke access",
     "refundPurchaseFailed": "Failed to refund the purchase",
     "cancelSubscriptionFailed": "Failed to cancel the subscription",
-    "contentVersionFailed": "Failed to load the content version"
+    "contentVersionFailed": "Failed to load the content version",
+    "publicPathsFailed": "Failed to load the public URLs",
+    "updatePublicPathFailed": "Failed to save the public URL"
   },
   "audit": {
     "forbidden": "This session does not have the \"admin\" role required to read audit logs.",
@@ -1379,6 +1381,7 @@
     "sectionsAria": "Settings sections",
     "sections": {
       "site": "Site",
+      "public-paths": "Public URLs",
       "seo": "SEO & Bot",
       "headers": "Headers",
       "notifications": "Notifications",
@@ -2217,5 +2220,28 @@
     "viewTable": "Table",
     "viewJson": "JSON",
     "noRows": "No rows returned for the current published content."
+  },
+  "publicPaths": {
+    "title": "Public URLs",
+    "description": "The first part of the URL of each content type's public pages (for example /news). It is saved here and applied when the server restarts; the schema file (schemas/*.yaml) is not changed.",
+    "loadFailed": "Failed to load the public URLs",
+    "saved": "Saved the public URL of {{label}}. Restart the server to apply it.",
+    "reset": "Went back to the schema file's value for {{label}}",
+    "saveFailed": "Failed to save the public URL",
+    "restartNotice": "Restart the server to apply the saved URLs.",
+    "running": "In use now: {{value}}",
+    "notPublic": "No public pages",
+    "pending": "After restart: {{value}}",
+    "pendingNone": "After restart: no public pages",
+    "fileValue": "Schema file: {{value}}",
+    "fileNone": "The schema file has no public_path, so there are no public pages.",
+    "inputAria": "Public URL of {{label}}",
+    "save": "Save",
+    "saving": "Saving…",
+    "resetButton": "Use the schema file's value",
+    "resetAria": "Use the schema file's value for {{label}}",
+    "hint": "Write one segment such as /news (a-z, 0-9, - and _), or \"auto\" to use /<type name>. Leave it empty to use the schema file's value.",
+    "articleHint": "When the article URL changes, the old /articles pages are redirected (301) to the new one. A theme that writes /articles directly goes through that redirect.",
+    "empty": "There are no content types to set."
   }
 }

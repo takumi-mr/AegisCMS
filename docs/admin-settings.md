@@ -14,6 +14,16 @@ Changes here take effect right away, without restarting the server. For settings
 
 The **name** of the site and its **favicon** (the small icon in the browser tab). For the favicon, choose an image from the media library, upload one, or enter a URL. Saving an empty value returns to the value in the server's configuration file.
 
+### Public URLs
+
+The first part of the URL of each content type's public pages (for example, moving articles from `/articles` to `/news`). For each type, write one segment (`/news`: lowercase letters, digits, `-`, and `_`), or `auto` (`/<type name>`). A type that has no public pages can be given one too (the pages appear). A value that another type already uses, or a name the server uses (such as `/api`), cannot be saved.
+
+- A saved value goes into the database and **takes effect when the server restarts**. The schema file (`schemas/*.yaml`) is not changed. The screen shows three values: "in use now", "after restart", and "schema file".
+- Clearing it ("Use the schema file's value") removes the override and uses the file's value.
+- When the article URL changes, the old `/articles` is redirected (301) to the new URL. The specification is in [3.1.1a of theme_authoring_guide.md](theme_authoring_guide.md#311a-urls-of-articles-and-custom-types-the-schemas-public_path).
+- `page`, `category`, and the product type are not listed, because their public URLs are fixed.
+- The API is `GET /api/v1/public-paths` and `PUT /api/v1/public-paths/{content_type}` (admin only). Changes are recorded in the audit log as `site.update`.
+
 ### SEO & Bot
 
 How search engines and crawlers see the site. Changes apply immediately to public pages, `/robots.txt` and `/sitemap.xml`.

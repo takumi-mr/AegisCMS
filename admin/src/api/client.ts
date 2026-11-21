@@ -69,6 +69,7 @@ import type {
   SeoSettings,
   SessionInfo,
   ShopConfig,
+  PublicPathEntry,
   SiteSettings,
   SystemSettingsResponse,
   SetupPayload,
@@ -1512,6 +1513,23 @@ export const aegisApi = {
         body: JSON.stringify(settings),
       },
       i18n.t('api.updateSiteSettingsFailed')
+    );
+  },
+
+  async getPublicPaths(): Promise<PublicPathEntry[]> {
+    return request('/public-paths', {}, i18n.t('api.publicPathsFailed'));
+  },
+
+  /** null (or an empty string) removes the override and goes back to the schema file's value */
+  async updatePublicPath(contentType: string, publicPath: string | null): Promise<PublicPathEntry> {
+    return request(
+      `/public-paths/${encodeURIComponent(contentType)}`,
+      {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ public_path: publicPath }),
+      },
+      i18n.t('api.updatePublicPathFailed')
     );
   },
 
