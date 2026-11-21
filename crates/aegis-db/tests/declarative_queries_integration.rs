@@ -14,7 +14,7 @@ use aegis_db::{
     PostgresAdapter, SqliteAdapter,
 };
 use aegis_schema::{QueryDefinition, QueryLimits, SchemaDefinition, SchemaLoader};
-use chrono_tz::Tz;
+use jiff::tz::TimeZone;
 use serde_json::{json, Value};
 
 fn product_schema() -> SchemaDefinition {
@@ -149,7 +149,7 @@ async fn run_declarative_queries_test<A: DatabaseAdapter>(adapter: &A) -> Result
     let plan1 = PublishedColumnsPlan::build(
         &[by_brand.clone(), by_month.clone(), cheap_sale.clone()],
         std::slice::from_ref(&schema),
-        Tz::UTC,
+        TimeZone::UTC,
     );
     adapter.configure_published_columns(plan1).await?;
 
@@ -205,7 +205,7 @@ async fn run_declarative_queries_test<A: DatabaseAdapter>(adapter: &A) -> Result
             with_discount.clone(),
         ],
         std::slice::from_ref(&schema),
-        Tz::UTC,
+        TimeZone::UTC,
     );
     adapter.configure_published_columns(plan2).await?;
     assert_eq!(rows(adapter, &no_discount).await?, json!([{"n": 3}]));
@@ -228,7 +228,7 @@ async fn run_declarative_queries_test<A: DatabaseAdapter>(adapter: &A) -> Result
                 with_discount.clone(),
             ],
             std::slice::from_ref(&schema),
-            Tz::UTC,
+            TimeZone::UTC,
         ))
         .await?;
     // 追加は「定義が同じ」なので作り直されず、公開操作の書き込みで入っている
@@ -246,7 +246,7 @@ async fn run_declarative_queries_test<A: DatabaseAdapter>(adapter: &A) -> Result
                 with_discount.clone(),
             ],
             std::slice::from_ref(&schema),
-            Tz::Asia__Tokyo,
+            TimeZone::get("Asia/Tokyo").unwrap(),
         ))
         .await?;
     assert_eq!(
@@ -272,7 +272,7 @@ select: [{ fn: count, as: n }]
                 since_feb.clone(),
             ],
             std::slice::from_ref(&schema),
-            Tz::Asia__Tokyo,
+            TimeZone::get("Asia/Tokyo").unwrap(),
         ))
         .await?;
     assert_eq!(rows(adapter, &since_feb).await?, json!([{"n": 3}]));
@@ -305,7 +305,7 @@ select: [{ fn: count, as: n }]
             since_feb.clone(),
         ],
         std::slice::from_ref(&schema),
-        Tz::Asia__Tokyo,
+        TimeZone::get("Asia/Tokyo").unwrap(),
     );
     adapter
         .configure_published_columns(PublishedColumnsPlan::default())

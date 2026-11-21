@@ -71,7 +71,7 @@ impl QueriesConfig {
         if !(1..=1000).contains(&self.max_in_items) {
             return bad("max_in_items", "between 1 and 1000");
         }
-        if self.timezone.parse::<chrono_tz::Tz>().is_err() {
+        if jiff::tz::TimeZone::get(&self.timezone).is_err() {
             return Err(AegisError::Config(format!(
                 "[queries].timezone {:?} is not an IANA time zone name (e.g. \"UTC\", \"Asia/Tokyo\")",
                 self.timezone
@@ -81,8 +81,8 @@ impl QueriesConfig {
     }
 
     /// 設定のタイムゾーン（検証済みでなければ UTC）
-    pub fn tz(&self) -> chrono_tz::Tz {
-        self.timezone.parse().unwrap_or(chrono_tz::Tz::UTC)
+    pub fn tz(&self) -> jiff::tz::TimeZone {
+        jiff::tz::TimeZone::get(&self.timezone).unwrap_or(jiff::tz::TimeZone::UTC)
     }
 
     pub fn limits(&self) -> QueryLimits {
@@ -519,7 +519,7 @@ mod tests {
             ..Default::default()
         };
         assert!(tokyo.validate().is_ok());
-        assert_eq!(tokyo.tz(), chrono_tz::Tz::Asia__Tokyo);
+        assert_eq!(tokyo.tz().iana_name(), Some("Asia/Tokyo"));
         let limits = QueriesConfig {
             max_limit: 50,
             max_in_items: 7,
