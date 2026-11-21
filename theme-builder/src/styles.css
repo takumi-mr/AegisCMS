@@ -869,6 +869,17 @@ main {
   color: var(--muted);
 }
 
+.validation-warnings {
+  margin-top: 0.5rem;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.validation-warnings .warning-title {
+  font-weight: 600;
+  color: #b45309;
+}
+
 .pubkey-box {
   background: var(--surface-2);
   padding: 0.5rem 0.75rem;

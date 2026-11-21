@@ -171,7 +171,7 @@ latest_types = ["article", "works"]   # 記事と works をまとめて新着に
 | `{{ item.fields.url }}` | 一覧（`items`）・関連記事（`related_articles`）・前後の記事（`prev_article` / `next_article`）のリンク先 |
 | `{{ articles_url }}`    | 記事一覧の URL（`/articles` または `public_path`）                                                       |
 
-どちらも `base_path` を含むので、前に `{{ base_path }}` を付けないでください。`{{ base_path }}/articles/{{ item.slug }}` と書く従来のテーマは、`public_path` を変えない間は動きます。
+どちらも `base_path` を含むので、前に `{{ base_path }}` を付けないでください。`{{ base_path }}/articles/{{ item.slug }}` と書く従来のテーマは、`public_path` を変えない間は動きます。変えたあとは、そのリンクが 301 を経由します。記事の `public_path` を変えているサイトでは、有効なテーマに直書きがあると起動時のログに注意が出ます（`templates/index.html:12 links to /articles directly …`）。`theme dev` のパッケージ検証（Theme Builder の書き出し画面）にも注意として出ます。
 
 ### 3.1.2 カテゴリの記事一覧とフィード
 
