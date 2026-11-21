@@ -17,6 +17,7 @@ import {
   Unlink,
   Scale,
   Database,
+  Link2,
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { ContentItem, SessionInfo, UserAccount, ContentSummary } from '../types';
@@ -31,6 +32,7 @@ import { NotificationManager } from './NotificationManager';
 import { PluginManager } from './PluginManager';
 import { RedirectManager } from './RedirectManager';
 import { SeoManager } from './SeoManager';
+import { PublicPathManager } from './PublicPathManager';
 import { SiteManager } from './SiteManager';
 import { SystemManager } from './SystemManager';
 import { TagManager } from './TagManager';
@@ -43,6 +45,7 @@ import styles from './SettingsView.module.css';
 
 export type SettingsSection =
   | 'site'
+  | 'public-paths'
   | 'system'
   | 'seo'
   | 'headers'
@@ -67,6 +70,7 @@ const SECTIONS: Array<{
   visible?: (session: SessionInfo) => boolean;
 }> = [
   { id: 'site', icon: <Globe size={16} />, visible: isAdmin },
+  { id: 'public-paths', icon: <Link2 size={16} />, visible: isAdmin },
   { id: 'system', icon: <SlidersHorizontal size={16} />, visible: isAdmin },
   { id: 'seo', icon: <Search size={16} />, visible: isAdmin },
   { id: 'headers', icon: <ShieldCheck size={16} />, visible: isAdmin },
@@ -135,6 +139,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 
       <div className={styles.content}>
         {current === 'site' && <SiteManager onShowToast={onShowToast} />}
+        {current === 'public-paths' && <PublicPathManager onShowToast={onShowToast} />}
         {current === 'system' && (
           <SystemManager
             onShowToast={onShowToast}

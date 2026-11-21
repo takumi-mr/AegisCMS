@@ -53,6 +53,9 @@ pub struct AppState {
     pub plugin_settings: Arc<std::sync::RwLock<HashMap<String, HashMap<String, String>>>>,
     /// Admin Studio から変更したサイト名・favicon（`[theme]` より優先。DB の `_aegis_settings`）
     pub site: Arc<std::sync::RwLock<SiteOverrides>>,
+    /// スキーマファイルの `public_path`（Admin Studio の上書きを当てる前の値。型名 → 値）。
+    /// 起動時に記録する。無い型は、いま動いている値と同じ
+    pub public_path_files: Arc<HashMap<String, Option<String>>>,
     /// Admin Studio から変更した SEO & Bot 設定（DB の `_aegis_settings`）
     pub seo: Arc<std::sync::RwLock<SeoOverrides>>,
     /// Admin Studio から変更した共通ヘッダーおよび防御ヘッダー設定（DB の `_aegis_settings`）
@@ -188,6 +191,7 @@ impl AppState {
             related_strategy: Arc::new(crate::related::TagCategoryRelatedStrategy::new()),
             plugin_settings: Arc::new(std::sync::RwLock::new(HashMap::new())),
             site: Arc::new(std::sync::RwLock::new(SiteOverrides::default())),
+            public_path_files: Arc::new(HashMap::new()),
             seo: Arc::new(std::sync::RwLock::new(SeoOverrides::default())),
             headers: Arc::new(std::sync::RwLock::new(HeaderOverrides::default())),
             redirects: Arc::new(tokio::sync::RwLock::new(

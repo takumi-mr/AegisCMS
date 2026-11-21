@@ -114,7 +114,9 @@
     "revokePurchaseFailed": "権利を取り消せませんでした",
     "refundPurchaseFailed": "返金できませんでした",
     "cancelSubscriptionFailed": "契約を解約できませんでした",
-    "contentVersionFailed": "コンテンツの版を取得できませんでした"
+    "contentVersionFailed": "コンテンツの版を取得できませんでした",
+    "publicPathsFailed": "公開 URL の取得に失敗しました",
+    "updatePublicPathFailed": "公開 URL の保存に失敗しました"
   },
   "audit": {
     "forbidden": "このセッションには監査ログの閲覧に必要な admin ロールがありません。",
@@ -1361,6 +1363,7 @@
     "sectionsAria": "設定の項目",
     "sections": {
       "site": "サイト",
+      "public-paths": "公開 URL",
       "seo": "SEO & Bot",
       "headers": "ヘッダー",
       "notifications": "通知",
@@ -2198,5 +2201,28 @@
     "viewTable": "表",
     "viewJson": "JSON",
     "noRows": "現在の公開コンテンツに一致する結果はありません。"
+  },
+  "publicPaths": {
+    "title": "公開 URL",
+    "description": "コンテンツの型ごとの、公開ページの URL の先頭（例: /news）。ここに保存し、サーバーの再起動で反映します。スキーマのファイル（schemas/*.yaml）は書き換えません。",
+    "loadFailed": "公開 URL の取得に失敗しました",
+    "saved": "{{label}}の公開 URL を保存しました。反映するにはサーバーを再起動してください。",
+    "reset": "{{label}}を、スキーマのファイルの値に戻しました",
+    "saveFailed": "公開 URL の保存に失敗しました",
+    "restartNotice": "保存した URL を反映するには、サーバーを再起動してください。",
+    "running": "現在使用中: {{value}}",
+    "notPublic": "公開ページなし",
+    "pending": "再起動後: {{value}}",
+    "pendingNone": "再起動後: 公開ページなし",
+    "fileValue": "スキーマのファイル: {{value}}",
+    "fileNone": "スキーマのファイルに public_path が無いので、公開ページはありません。",
+    "inputAria": "{{label}}の公開 URL",
+    "save": "保存",
+    "saving": "保存中…",
+    "resetButton": "スキーマのファイルの値に戻す",
+    "resetAria": "{{label}}をスキーマのファイルの値に戻す",
+    "hint": "/news のような 1 つの区切り（a-z・0-9・-・_）か、/<型名> にする \"auto\" を書きます。空にするとスキーマのファイルの値を使います。",
+    "articleHint": "記事の URL を変えると、旧 /articles のページは新しい URL へ 301 で転送されます。/articles を直接書いたテーマのリンクは、その転送を経由します。",
+    "empty": "設定できるコンテンツの型がありません。"
   }
 }

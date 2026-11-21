@@ -23,6 +23,7 @@ pub mod password_reset;
 pub mod plugin;
 pub mod preview;
 pub mod public;
+pub mod public_paths;
 pub mod purchase;
 pub mod redirects;
 pub mod registration;
@@ -88,6 +89,7 @@ pub use public::{
     redirect_legacy_article, redirect_legacy_article_list, render_article, render_articles,
     render_category, render_custom_detail, render_custom_list, render_index, render_page_or_slug,
 };
+pub use public_paths::{list_public_paths, update_public_path};
 pub use purchase::{
     admin_cancel_subscription, admin_grant_purchase, admin_refund_purchase, admin_revoke_purchase,
     create_purchase, list_my_purchases, start_purchase_page,

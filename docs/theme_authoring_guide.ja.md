@@ -149,7 +149,7 @@ public_path: /works
     - 詳細 `/works/{slug}`: テーマの `<content_type>.html`（例: `works.html`）、無ければ `article.html`。関連記事（`related_posts_limit`）、前後の記事、コメント（`[comments].content_types` に型名を入れたとき）も記事と同じ設定で出ます。
     - サイトマップに一覧と詳細が入ります。
     - 上の記事のトップ（`/`）、`/feed.xml`、カテゴリ・タグのページには、記事だけが載ります。
-- 変更はサーバーを再起動すると反映されます。
+- 変更はサーバーを再起動すると反映されます。YAML のほかに、Admin Studio の「設定」の「公開 URL」からも変えられます（DB に保存し、起動時に YAML の値より優先します。YAML は書き換えません。空にすると YAML の値に戻ります。[admin-settings.ja.md](admin-settings.ja.md#公開-url)）。
 
 テーマの中では URL を自分で組み立てず、サーバーが渡す値を使ってください。`public_path` を変えても、リンクが壊れません。
 

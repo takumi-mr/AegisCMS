@@ -618,6 +618,22 @@ export interface SiteSettings {
   };
 }
 
+/** The URL prefix of one content type's public pages (`GET /api/v1/public-paths`) */
+export interface PublicPathEntry {
+  content_type: string;
+  label: string;
+  /** What the server uses now (null: no public pages) */
+  running: string | null;
+  /** The schema file's value (an article without one is `/articles`) */
+  file: string | null;
+  /** Set in Admin Studio, or null to use the schema file's value */
+  override: string | null;
+  /** What is used after the next restart */
+  configured: string | null;
+  /** `configured` differs from `running` */
+  restart_required: boolean;
+}
+
 /** SEO and crawler settings (`GET` / `PUT /api/v1/seo`) */
 export interface SeoSettings {
   robots_txt: string | null;

@@ -149,7 +149,7 @@ public_path: /works
     - The detail `/works/{slug}`: the theme's `<content_type>.html` (for example `works.html`), or `article.html` if there is none. Related articles (`related_posts_limit`), previous/next, and comments (when the type name is in `[comments].content_types`) follow the same settings as articles.
     - The sitemap includes the list and the details.
     - The top page (`/`), `/feed.xml`, and the category and tag pages list articles only.
-- A change takes effect after the server restarts.
+- A change takes effect after the server restarts. Besides the YAML, the URL can be changed in Admin Studio under "Settings" > "Public URLs" (saved in the database and applied at startup in preference to the YAML value; the YAML is not rewritten; clearing it goes back to the YAML value; [admin-settings.md](admin-settings.md#public-urls)).
 
 In a theme, do not build URLs yourself. Use the values the server passes, so that links keep working when `public_path` changes.
 

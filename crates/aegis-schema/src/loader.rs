@@ -48,9 +48,14 @@ impl SchemaLoader {
         }
 
         schemas.sort_by(|a, b| a.content_type.cmp(&b.content_type));
-        // 同じ URL を 2 つの型が使うと、片方の詳細ページが開けなくなる
+        Self::check_public_paths(&schemas)?;
+        Ok(schemas)
+    }
+
+    /// 同じ URL を 2 つの型が使うと、片方の詳細ページが開けなくなる。記事の既定（`/articles`）も数える
+    pub fn check_public_paths(schemas: &[SchemaDefinition]) -> Result<()> {
         let mut used: std::collections::HashMap<&str, &str> = std::collections::HashMap::new();
-        for schema in &schemas {
+        for schema in schemas {
             let path = match (schema.public_path.as_deref(), schema.content_type.as_str()) {
                 (Some(p), _) => Some(p),
                 (None, "article") => Some("/articles"),
@@ -65,7 +70,7 @@ impl SchemaLoader {
                 }
             }
         }
-        Ok(schemas)
+        Ok(())
     }
 }
 
