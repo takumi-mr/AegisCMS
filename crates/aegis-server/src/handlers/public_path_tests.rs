@@ -161,6 +161,10 @@ async fn sitemap_and_feed_follow_the_public_path() {
 
 /// お知らせ（`news`）とブログ（`blog`）を別の型にして、それぞれの URL に一覧・フィード・詳細を持たせる
 async fn split_site() -> Arc<AppState> {
+    split_site_with(AegisConfig::default()).await
+}
+
+async fn split_site_with(config: AegisConfig) -> Arc<AppState> {
     let make = |ct: &str, label: &str, path: &str| {
         schema(serde_json::json!({
             "content_type": ct, "label": label, "public_path": path, "fields": []
@@ -168,7 +172,7 @@ async fn split_site() -> Arc<AppState> {
     };
     let state = Arc::new(
         crate::test_support::test_app_state(
-            AegisConfig::default(),
+            config,
             PluginSupervisor::new(),
             vec![make("news", "News", "/news"), make("blog", "Blog", "/blog")],
         )
@@ -250,4 +254,187 @@ async fn custom_detail_has_adjacent_and_related_of_its_own_type() {
     // 関連記事（既定で表示）に同じ型の別のお知らせが出て、リンクは /news/{slug}
     assert!(html.contains(r#"href="/news/n1""#), "{}", html);
     assert!(html.contains(r#"href="/news/n3""#), "{}", html);
+}
+
+fn mixed_config(per_page: u64) -> AegisConfig {
+    let mut config = AegisConfig::default();
+    config.theme.latest_types = vec!["news".to_string(), "blog".to_string()];
+    config.theme.posts_per_page = per_page;
+    config
+}
+
+#[tokio::test]
+async fn latest_types_mix_custom_types_on_the_top_page_and_feed() {
+    let state = split_site_with(mixed_config(10)).await;
+
+    // トップは、指定した型を新しい順に混ぜる（b1 が最新、続いて n3・n2・n1）
+    let (status, _, top) = get(&state, "/").await;
+    assert_eq!(status, StatusCode::OK);
+    let at = |needle: &str| {
+        top.find(needle)
+            .unwrap_or_else(|| panic!("{needle}: {top}"))
+    };
+    assert!(at("/blog/b1") < at("/news/n3"), "{}", top);
+    assert!(at("/news/n3") < at("/news/n2") && at("/news/n2") < at("/news/n1"));
+
+    // サイト全体のフィードにも、両方の型が入る（リンクは型ごとの URL）
+    let (status, _, feed) = get(&state, "/feed.xml").await;
+    assert_eq!(status, StatusCode::OK);
+    assert!(
+        feed.contains("/blog/b1") && feed.contains("/news/n1"),
+        "{}",
+        feed
+    );
+
+    // 各型の一覧は、その型だけのまま
+    let (_, _, news) = get(&state, "/news").await;
+    assert!(
+        news.contains("/news/n1") && !news.contains("/blog/b1"),
+        "{}",
+        news
+    );
+}
+
+#[tokio::test]
+async fn mixed_latest_types_paginate_across_types() {
+    let state = split_site_with(mixed_config(2)).await;
+
+    let (_, _, first) = get(&state, "/").await;
+    assert!(
+        first.contains("/blog/b1") && first.contains("/news/n3"),
+        "{}",
+        first
+    );
+    assert!(!first.contains("/news/n2"), "{}", first);
+    assert!(first.contains(r#"href="/?page=2" rel="next""#), "{}", first);
+
+    let (_, _, second) = get(&state, "/?page=2").await;
+    assert!(
+        second.contains("/news/n2") && second.contains("/news/n1"),
+        "{}",
+        second
+    );
+    assert!(
+        !second.contains("/blog/b1") && !second.contains("/news/n3"),
+        "{}",
+        second
+    );
+
+    let (status, _, _) = get(&state, "/?page=3").await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+}
+
+#[tokio::test]
+async fn the_top_page_lists_only_articles_unless_latest_types_says_otherwise() {
+    // 既定は記事だけ。`works` があっても、トップとフィードには載らない
+    let state = site().await;
+    let (_, _, top) = get(&state, "/").await;
+    assert!(top.contains("/news/hello"), "{}", top);
+    assert!(!top.contains("/works/case-one"), "{}", top);
+    let (_, _, feed) = get(&state, "/feed.xml").await;
+    assert!(!feed.contains("/works/"), "{}", feed);
+
+    let mut config = AegisConfig::default();
+    config.theme.latest_types = vec!["article".to_string(), "works".to_string()];
+    let state = {
+        let article = schema(serde_json::json!({
+            "content_type": "article", "label": "Articles", "public_path": "/news", "fields": []
+        }));
+        let works = schema(serde_json::json!({
+            "content_type": "works", "label": "Works", "public_path": "/works", "fields": []
+        }));
+        let state = Arc::new(
+            crate::test_support::test_app_state(
+                config,
+                PluginSupervisor::new(),
+                vec![article, works],
+            )
+            .await,
+        );
+        for (content_type, slug) in [("article", "hello"), ("works", "case-one")] {
+            let schema = state.schemas.read().await[content_type].clone();
+            state
+                .db
+                .insert_content(
+                    &schema,
+                    &ContentRecord {
+                        id: format!("{content_type}-{slug}"),
+                        content_type: content_type.to_string(),
+                        title: format!("Title of {slug}"),
+                        slug: slug.to_string(),
+                        status: "published".to_string(),
+                        blocks_json: "[]".to_string(),
+                        author_id: None,
+                        published_at: Some("2026-10-01T00:00:00Z".to_string()),
+                        unpublish_at: None,
+                        created_at: "2026-10-01T00:00:00Z".to_string(),
+                        updated_at: "2026-10-01T00:00:00Z".to_string(),
+                        custom_fields: Default::default(),
+                    },
+                )
+                .await
+                .unwrap();
+        }
+        state
+    };
+    let (_, _, top) = get(&state, "/").await;
+    assert!(
+        top.contains("/news/hello") && top.contains("/works/case-one"),
+        "{}",
+        top
+    );
+}
+
+#[test]
+fn latest_types_must_be_public_types() {
+    let schemas = |defs: Vec<serde_json::Value>| -> std::collections::HashMap<_, _> {
+        defs.into_iter()
+            .map(|d| {
+                let s = schema(d);
+                (s.content_type.clone(), s)
+            })
+            .collect()
+    };
+    let known = schemas(vec![
+        serde_json::json!({"content_type": "article", "label": "A", "fields": []}),
+        serde_json::json!({"content_type": "works", "label": "W", "public_path": "/works", "fields": []}),
+        serde_json::json!({"content_type": "memo", "label": "M", "fields": []}),
+    ]);
+    let check = |types: &[&str]| {
+        let mut theme = aegis_theme::ThemeConfig::default();
+        theme.latest_types = types.iter().map(|t| t.to_string()).collect();
+        super::public::validate_latest_types(&theme, &known)
+    };
+    // 記事は `public_path` が無くても公開される。カスタム型は `public_path` が要る
+    assert!(check(&["article", "works"]).is_ok());
+    assert!(check(&["memo"])
+        .unwrap_err()
+        .to_string()
+        .contains("public_path"));
+    assert!(check(&["missing"])
+        .unwrap_err()
+        .to_string()
+        .contains("no schema"));
+}
+
+#[test]
+fn a_category_filter_skips_types_without_that_field() {
+    use super::public::{filter_applies, ArticleFilter};
+
+    let plain = schema(serde_json::json!({"content_type": "plain", "label": "P", "fields": []}));
+    let topical = schema(serde_json::json!({
+        "content_type": "topical", "label": "T",
+        "fields": [{"name": "topic_id", "label": "Topic", "type": "string"}]
+    }));
+    let category = ArticleFilter::Field("category_id".to_string(), "c1".to_string());
+    let topic = ArticleFilter::Field("topic_id".to_string(), "t1".to_string());
+    // `category_id` は全型に組み込み。それ以外のフィールドは、持つ型だけ
+    assert!(filter_applies(Some(&category), &plain));
+    assert!(!filter_applies(Some(&topic), &plain));
+    assert!(filter_applies(Some(&topic), &topical));
+    assert!(filter_applies(
+        Some(&ArticleFilter::Tag("x".to_string())),
+        &plain
+    ));
+    assert!(filter_applies(None, &plain));
 }

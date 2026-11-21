@@ -35,6 +35,12 @@ fn listed_types(state: &AppState) -> Vec<String> {
     if state.commerce.is_some() {
         types.push(state.config.commerce.product_type.clone());
     }
+    // `[theme].latest_types` に入れたカスタム型（記事のように新着に並ぶ型）にも、タグのページが付く
+    for content_type in &state.config.theme.latest_types {
+        if !types.contains(content_type) {
+            types.push(content_type.clone());
+        }
+    }
     types
 }
 
@@ -382,10 +388,11 @@ pub async fn get_tag_feed(
     cache_tags.add_dependency("tag", &tag.id);
     cache_tags.add_dependency("tag", &tag.slug);
     let title = format!("{}: {}", state.site().title, tag.name);
+    let types = state.config.theme.latest_types.clone();
     crate::handlers::feed::build_feed(
         &state,
         &headers,
-        "article",
+        &types,
         &title,
         &format!("/tags/{}/feed.xml", tag.slug),
         &format!("/tags/{}", tag.slug),

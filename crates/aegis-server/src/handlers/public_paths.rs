@@ -162,6 +162,18 @@ pub async fn update_public_path(
     };
     validation.map_err(|e| error(StatusCode::BAD_REQUEST, &e))?;
 
+    // `[theme].latest_types` に入れた型は公開ページが要る（外すと、再起動で起動時の検査に落ちる）
+    if content_type != "article"
+        && state.config.theme.latest_types.contains(&content_type)
+        && next.is_none()
+        && file_value(&state, &content_type).is_none()
+    {
+        return Err(error(
+            StatusCode::BAD_REQUEST,
+            "This content type is listed in [theme].latest_types, so it needs a public URL",
+        ));
+    }
+
     let previous = override_value(&settings, &content_type);
     let actor = Some(AuditActor {
         user_id: session.user_id,
@@ -357,6 +369,32 @@ mod tests {
         let (status, _) = update(&state, "missing", Some("/x")).await.unwrap_err();
         assert_eq!(status, StatusCode::NOT_FOUND);
         assert!(state.db.list_settings().await.unwrap().is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_a_type_in_latest_types_keeps_its_public_url() {
+        let mut config = AegisConfig::default();
+        config.theme.latest_types = vec!["article".to_string(), "memo".to_string()];
+        let state = Arc::new(
+            crate::test_support::test_app_state(
+                config,
+                PluginSupervisor::new(),
+                vec![schema("article", None), schema("memo", None)],
+            )
+            .await,
+        );
+
+        // 設定する分にはよい。空にして、ファイルにも無い状態に戻すのは、起動できなくなるので断る
+        let _ = update(&state, "memo", Some("/memo")).await.unwrap();
+        let (status, body) = update(&state, "memo", None).await.unwrap_err();
+        assert_eq!(status, StatusCode::BAD_REQUEST);
+        assert!(body.0["error"].as_str().unwrap().contains("latest_types"));
+        assert_eq!(
+            state.db.list_settings().await.unwrap()["public_path.memo"],
+            "/memo"
+        );
+        // 記事は、書かなくても既定の /articles がある
+        assert!(update(&state, "article", None).await.is_ok());
     }
 
     #[tokio::test]

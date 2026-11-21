@@ -1352,6 +1352,8 @@ struct PackageValidationResult {
     signed: bool,
     public_key: Option<String>,
     errors: Vec<String>,
+    /// エラーではないが直したほうがよい点（`/articles` の直書きなど）
+    warnings: Vec<String>,
 }
 
 /// `GET /__dev/api/package/validate` — テーマパッケージとしての適合性を検証する
@@ -1385,6 +1387,10 @@ async fn api_package_validate(State(state): State<DevState>) -> Json<PackageVali
 
     let ok = errors.is_empty();
     let signed = signature_key.is_some();
+    let warnings = aegis_theme::hardcoded_article_paths(&state.dir)
+        .iter()
+        .map(aegis_theme::HardcodedArticlePath::message)
+        .collect();
 
     Json(PackageValidationResult {
         ok,
@@ -1392,6 +1398,7 @@ async fn api_package_validate(State(state): State<DevState>) -> Json<PackageVali
         signed,
         public_key: signature_key,
         errors,
+        warnings,
     })
 }
 
@@ -2099,6 +2106,31 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_package_validate_warns_about_hardcoded_article_links() {
+        let tmp = theme_dir();
+        std::fs::write(
+            tmp.path().join("mytheme/templates/card.html"),
+            "<div>
+  <a href=\"/articles/{{ item.slug }}\">{{ item.title }}</a>
+</div>
+",
+        )
+        .unwrap();
+        let (app, _) = app(&tmp);
+
+        let (status, text) = send(&app, "GET", "/__dev/api/package/validate", &[], None).await;
+        assert_eq!(status, StatusCode::OK);
+        let val: Value = serde_json::from_str(&text).unwrap();
+        // 警告は、パッケージとしての適否（ok）には影響しない
+        assert_eq!(val["ok"], true);
+        let warnings = val["warnings"].as_array().unwrap();
+        assert_eq!(warnings.len(), 1);
+        let message = warnings[0].as_str().unwrap();
+        assert!(message.contains("templates/card.html:2"), "{message}");
+        assert!(message.contains("articles_url"), "{message}");
+    }
+
+    #[tokio::test]
     async fn test_package_validate_sign_and_export() {
         let tmp = theme_dir();
         let (app, _) = app(&tmp);
@@ -2110,6 +2142,7 @@ mod tests {
         assert_eq!(val["ok"], true);
         assert_eq!(val["signed"], false);
         assert!(val["public_key"].is_null());
+        assert_eq!(val["warnings"], json!([]));
 
         // 2. 自動鍵生成で署名
         let (status, text) = send(

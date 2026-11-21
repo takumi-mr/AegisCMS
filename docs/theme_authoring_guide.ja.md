@@ -148,8 +148,21 @@ public_path: /works
     - フィード `/works/feed.xml`: 一覧の `<head>` に自動検出用の `<link>` を入れます。
     - 詳細 `/works/{slug}`: テーマの `<content_type>.html`（例: `works.html`）、無ければ `article.html`。関連記事（`related_posts_limit`）、前後の記事、コメント（`[comments].content_types` に型名を入れたとき）も記事と同じ設定で出ます。
     - サイトマップに一覧と詳細が入ります。
-    - 上の記事のトップ（`/`）、`/feed.xml`、カテゴリ・タグのページには、記事だけが載ります。
+    - トップ（`/`）、`/feed.xml`、カテゴリ・タグのページ（とそのフィード）には、既定では記事だけが載ります。ほかの型も混ぜたいときは、下の `[theme].latest_types` に型名を並べます。
 - 変更はサーバーを再起動すると反映されます。YAML のほかに、Admin Studio の「設定」の「公開 URL」からも変えられます（DB に保存し、起動時に YAML の値より優先します。YAML は書き換えません。空にすると YAML の値に戻ります。[admin-settings.ja.md](admin-settings.ja.md#公開-url)）。
+
+`[theme]` の `latest_types` に型名を並べると、トップ・`/feed.xml`・カテゴリ・タグのページ・それぞれのフィードに、その型を新しい順に混ぜて載せます（既定は `["article"]`）。
+
+```toml
+[theme]
+latest_types = ["article", "works"]   # 記事と works をまとめて新着に並べる
+```
+
+- 記事以外は、スキーマに `public_path` を持つ型だけ指定できます（スキーマが無い型・`public_path` が無い型は起動時にエラー）。
+- 記事の一覧（`/articles` など）と、各型の一覧・フィード（`/works`・`/works/feed.xml`）は、その型だけを載せます。
+- カテゴリのページには、そのカテゴリを指す関係フィールド（`category_id` は全型に組み込み）を持つ型が載ります。
+- テーマの中では、`{{ item.content_type }}` で型を見分け、リンクは `{{ item.fields.url }}` を使います。
+- 型を混ぜると、型ごとに先頭から（ページ番号 × `posts_per_page`）件まで読んで並べ替えます。ページが深くなるほど読む件数が増えます。
 
 テーマの中では URL を自分で組み立てず、サーバーが渡す値を使ってください。`public_path` を変えても、リンクが壊れません。
 
@@ -158,7 +171,7 @@ public_path: /works
 | `{{ item.fields.url }}` | 一覧（`items`）・関連記事（`related_articles`）・前後の記事（`prev_article` / `next_article`）のリンク先 |
 | `{{ articles_url }}`    | 記事一覧の URL（`/articles` または `public_path`）                                                       |
 
-どちらも `base_path` を含むので、前に `{{ base_path }}` を付けないでください。`{{ base_path }}/articles/{{ item.slug }}` と書く従来のテーマは、`public_path` を変えない間は動きます。
+どちらも `base_path` を含むので、前に `{{ base_path }}` を付けないでください。`{{ base_path }}/articles/{{ item.slug }}` と書く従来のテーマは、`public_path` を変えない間は動きます。変えたあとは、そのリンクが 301 を経由します。記事の `public_path` を変えているサイトでは、有効なテーマに直書きがあると起動時のログに注意が出ます（`templates/index.html:12 links to /articles directly …`）。`theme dev` のパッケージ検証（Theme Builder の書き出し画面）にも注意として出ます。
 
 ### 3.1.2 カテゴリの記事一覧とフィード
 

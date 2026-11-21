@@ -148,8 +148,21 @@ public_path: /works
     - The feed `/works/feed.xml`: the list's `<head>` gets an auto-discovery `<link>`.
     - The detail `/works/{slug}`: the theme's `<content_type>.html` (for example `works.html`), or `article.html` if there is none. Related articles (`related_posts_limit`), previous/next, and comments (when the type name is in `[comments].content_types`) follow the same settings as articles.
     - The sitemap includes the list and the details.
-    - The top page (`/`), `/feed.xml`, and the category and tag pages list articles only.
+    - The top page (`/`), `/feed.xml`, and the category and tag pages (and their feeds) list articles only by default. To mix in other types, list them in `[theme].latest_types` (below).
 - A change takes effect after the server restarts. Besides the YAML, the URL can be changed in Admin Studio under "Settings" > "Public URLs" (saved in the database and applied at startup in preference to the YAML value; the YAML is not rewritten; clearing it goes back to the YAML value; [admin-settings.md](admin-settings.md#public-urls)).
+
+Listing type names in `[theme].latest_types` puts those types, mixed newest first, on the top page, `/feed.xml`, the category and tag pages, and their feeds (default: `["article"]`).
+
+```toml
+[theme]
+latest_types = ["article", "works"]   # list articles and works together as the latest items
+```
+
+- Besides `article`, only types whose schema has a `public_path` can be listed (a type with no schema, or no `public_path`, is an error at startup).
+- The article list (`/articles` and so on) and each type's own list and feed (`/works`, `/works/feed.xml`) show that type only.
+- A category page shows the types that have the relation field pointing at that category (`category_id` is built into every type).
+- In a theme, tell the types apart with `{{ item.content_type }}` and link with `{{ item.fields.url }}`.
+- When types are mixed, each type is read from the start up to (page number x `posts_per_page`) items and then sorted, so deeper pages read more items.
 
 In a theme, do not build URLs yourself. Use the values the server passes, so that links keep working when `public_path` changes.
 
@@ -158,7 +171,7 @@ In a theme, do not build URLs yourself. Use the values the server passes, so tha
 | `{{ item.fields.url }}` | The link target in lists (`items`), related articles (`related_articles`), and previous/next (`prev_article` / `next_article`) |
 | `{{ articles_url }}`    | The URL of the article list (`/articles` or `public_path`)                                                                     |
 
-Both already include `base_path`, so do not put `{{ base_path }}` in front of them. Older themes that write `{{ base_path }}/articles/{{ item.slug }}` keep working as long as `public_path` is not changed.
+Both already include `base_path`, so do not put `{{ base_path }}` in front of them. Older themes that write `{{ base_path }}/articles/{{ item.slug }}` keep working as long as `public_path` is not changed. After it is changed, those links go through a 301 redirect. On a site where the article `public_path` is changed, the startup log warns when the active theme hard-codes the link (`templates/index.html:12 links to /articles directly …`). The package validation of `theme dev` (the export screen of Theme Builder) shows it as a warning too.
 
 ### 3.1.2 A Category's Article List and Feeds
 

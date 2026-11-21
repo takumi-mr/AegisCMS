@@ -103,6 +103,7 @@
     "digitalSignature": "デジタル署名 (signature.json):",
     "signedValid": "有効な署名あり",
     "unsigned": "未署名（オプショナル）",
+    "warningsTitle": "注意（テーマは動きますが、直してください）",
     "signatureTitle": "パッケージ署名 (Ed25519)",
     "signedBadge": "署名済み",
     "signatureDesc": "テーマの全ファイル（signature.json を除く）のハッシュから Ed25519 署名を生成します。",
