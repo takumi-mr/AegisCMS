@@ -271,6 +271,24 @@ Other templates extend `base.html`.
 {% endblock %}
 ```
 
+### 3.5 Splitting Templates into Parts (Toolbar, Side Menu, FAB)
+
+The template engine (minijinja) supports `{% include %}`, `{% macro %}` and `{% from "x.html" import name %}`. Put a repeated or large piece of markup in its own file in `templates/`, and call it from `base.html` or any other template. A part sees the same variables as the template that includes it. A part is looked up in the same order as other templates (the theme's `templates/`, then the built-in ones).
+
+```html
+{% include "toolbar.html" %}
+{% from "macros.html" import post_card %}
+{{ post_card(item) }}
+```
+
+The bundled sample theme `themes/app-shell` shows an app-like layout made only this way: a fixed top toolbar, a side menu that becomes a drawer on a narrow screen, and a floating action button with a small speed dial. It needs no JavaScript.
+
+- The open/closed state is kept by `<input type="checkbox">`. A `<label for="...">` toggles it, and the CSS reads it with `:checked` and the sibling selector (`~`). The checkboxes must come **before** the parts in `base.html`.
+- The FAB's items are plain links (`<a href="#top">`), and `scroll-behavior: smooth` makes them smooth.
+- Mark the current page in the menu with `content_type` (`{% if content_type == 'tag' %} is-active{% endif %}`).
+- The menu links are written by hand in `sidebar.html`. There is no menu editor.
+- For motion that CSS cannot do, put a script in `assets/*.js` ([6a](#6a-how-to-write-scripts-do-not-write-inline)).
+
 ## 4. Writing CSS
 
 ### 4.1 Put Colors in CSS Variables and Define `--accent`

@@ -271,6 +271,24 @@ latest_types = ["article", "works"]   # 記事と works をまとめて新着に
 {% endblock %}
 ```
 
+### 3.5 テンプレートを部品に分ける（ツールバー・サイドメニュー・FAB）
+
+テンプレートエンジン（minijinja）は `{% include %}`・`{% macro %}`・`{% from "x.html" import name %}` に対応しています。繰り返す部分や大きな部分は `templates/` に別のファイルとして置き、`base.html` や他のテンプレートから呼び出します。部品からは、読み込んだテンプレートと同じ変数が見えます。部品の探し方は、ほかのテンプレートと同じ（テーマの `templates/`、なければ組み込み）です。
+
+```html
+{% include "toolbar.html" %}
+{% from "macros.html" import post_card %}
+{{ post_card(item) }}
+```
+
+同梱のサンプルテーマ `themes/app-shell` は、この仕組みだけで作ったアプリ風のレイアウトです。上に固定のツールバー、狭い画面ではドロワーになるサイドメニュー、小さなスピードダイヤルを開く浮遊ボタン（FAB）があります。JavaScript は使いません。
+
+- 開閉の状態は `<input type="checkbox">` が持ちます。`<label for="...">` で切り替え、CSS が `:checked` と兄弟セレクター（`~`）で読み取ります。チェックボックスは `base.html` で部品より**前**に置きます。
+- FAB の項目は普通のリンク（`<a href="#top">`）です。`scroll-behavior: smooth` でなめらかに動きます。
+- メニューの現在地は `content_type` で決めます（`{% if content_type == 'tag' %} is-active{% endif %}`）。
+- メニューのリンクは `sidebar.html` に手で書きます。メニューの編集機能はありません。
+- CSS だけでは足りない動きは、`assets/*.js` にスクリプトを置きます（[6a](#6a-スクリプトの書き方インラインを書かない)）。
+
 ## 4. CSS の書き方
 
 ### 4.1 色は CSS 変数にまとめ、`--accent` を定義する

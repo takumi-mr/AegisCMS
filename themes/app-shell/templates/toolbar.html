@@ -1,0 +1,12 @@
+{#- The top toolbar. The label opens the side menu on a narrow screen. -#}
+<header class="shell-toolbar">
+  <label for="shell-nav" class="shell-menu-btn" title="{{ t("theme.shell.menu") }}">
+    <span class="shell-burger" aria-hidden="true"></span>
+    <span class="shell-sr">{{ t("theme.shell.menu") }}</span>
+  </label>
+  <a href="{{ base_path }}/" class="shell-brand">{{ site_title }}</a>
+  <nav class="shell-toolbar-links" aria-label="{{ t("theme.shell.primary") }}">
+    <a href="{{ base_path }}/tags">{{ t("tags.title") }}</a>
+    {% if admin_url %}<a href="{{ admin_url }}" class="shell-pill">{{ t("admin.studio") }}</a>{% endif %}
+  </nav>
+</header>

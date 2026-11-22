@@ -539,6 +539,7 @@ fn test_built_in_templates_and_bundled_themes_have_no_inline_code() {
         "roastery",
         "trailhead",
         "wordpress-classic",
+        "app-shell",
     ] {
         engines.push((
             theme_id.to_string(),
@@ -581,6 +582,7 @@ fn test_bundled_themes_render_in_both_locales() {
         "roastery",
         "trailhead",
         "wordpress-classic",
+        "app-shell",
     ];
 
     for theme_id in bundled {
