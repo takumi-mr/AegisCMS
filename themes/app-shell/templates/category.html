@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+
+{% block content %}
+<header class="shell-heading">
+  <h1>{{ title }}</h1>
+  {% if fields.description %}<p>{{ fields.description }}</p>{% endif %}
+</header>
+{% include "loop.html" %}
+{% endblock %}

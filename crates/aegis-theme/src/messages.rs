@@ -602,6 +602,12 @@ const MESSAGES: &[(&str, &str, &str)] = &[
     ),
     ("theme.lux.404_action", "Return to Atelier Entrance", "アトリエのエントランスへ戻る"),
 
+    // --- 同梱テーマ: app-shell ---
+    ("theme.shell.menu", "Menu", "メニュー"),
+    ("theme.shell.primary", "Main navigation", "メインナビゲーション"),
+    ("theme.shell.actions", "Quick actions", "クイック操作"),
+    ("theme.shell.top", "Back to top", "ページの先頭へ"),
+
     // --- 同梱テーマ: minimal-editorial ---
     ("theme.editorial.nav_journal", "Journal", "ジャーナル"),
     ("theme.editorial.nav_archives", "Archives", "アーカイブ"),

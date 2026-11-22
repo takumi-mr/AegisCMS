@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+
+{% block content %}
+<article class="shell-article">
+  <header class="shell-heading">
+    <h1>{{ title }}</h1>
+    <p class="shell-card-meta">
+      {% if published_at %}<time datetime="{{ published_at }}">{{ published_at | date_short }}</time>{% endif %}
+      {% if author %} &middot; {{ author }}{% endif %}
+      {% if relations and relations.category_id %} &middot; <a href="{{ base_path }}/category/{{ relations.category_id.slug }}">{{ relations.category_id.title }}</a>{% endif %}
+    </p>
+  </header>
+  <div class="shell-prose">{{ content_html | safe }}</div>
+  {% if fields.tags %}<p class="shell-tags">{% for tag in fields.tags %}<a href="{{ tag.url }}">{{ tag.name }}</a>{% endfor %}</p>{% endif %}
+</article>
+{% if comments %}{% include "comments.html" %}{% endif %}
+{% endblock %}

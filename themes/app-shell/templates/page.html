@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+
+{% block content %}
+<article class="shell-article">
+  <header class="shell-heading"><h1>{{ title }}</h1></header>
+  <div class="shell-prose">{{ content_html | safe }}</div>
+</article>
+{% if comments %}{% include "comments.html" %}{% endif %}
+{% endblock %}

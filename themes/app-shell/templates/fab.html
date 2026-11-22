@@ -1,0 +1,15 @@
+{#- The floating action button. The label opens a small speed dial. The two items are plain links. -#}
+<div class="shell-fab">
+  <a href="#top" class="shell-fab-mini" title="{{ t("theme.shell.top") }}">
+    <span aria-hidden="true">&uarr;</span>
+    <span class="shell-sr">{{ t("theme.shell.top") }}</span>
+  </a>
+  <a href="{{ base_path }}/" class="shell-fab-mini" title="{{ t("nav.home") }}">
+    <span aria-hidden="true">&#8962;</span>
+    <span class="shell-sr">{{ t("nav.home") }}</span>
+  </a>
+  <label for="shell-fab" class="shell-fab-main" title="{{ t("theme.shell.actions") }}">
+    <span class="shell-fab-plus" aria-hidden="true"></span>
+    <span class="shell-sr">{{ t("theme.shell.actions") }}</span>
+  </label>
+</div>

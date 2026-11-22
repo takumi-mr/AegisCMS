@@ -1,0 +1,12 @@
+{#- The side menu. The links are written here by hand (there is no menu editor).
+    The active link is decided from content_type, the kind of the page being shown. -#}
+<label for="shell-nav" class="shell-scrim" aria-hidden="true"></label>
+<aside class="shell-sidebar" aria-label="{{ t("theme.shell.primary") }}">
+  {% if site_description %}<p class="shell-sidebar-note">{{ site_description }}</p>{% endif %}
+  <nav>
+    <a href="{{ base_path }}/" class="shell-nav-link{% if content_type == 'index' %} is-active{% endif %}">{{ t("nav.home") }}</a>
+    <a href="{{ base_path }}/tags" class="shell-nav-link{% if content_type == 'tag' %} is-active{% endif %}">{{ t("tags.title") }}</a>
+    {% if content_type == 'category' %}<span class="shell-nav-link is-active">{{ title }}</span>{% endif %}
+    {% if admin_url %}<a href="{{ admin_url }}" class="shell-nav-link">{{ t("admin.studio") }}</a>{% endif %}
+  </nav>
+</aside>

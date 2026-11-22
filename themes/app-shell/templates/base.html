@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="{{ locale }}">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% if title %}{{ title }} | {% endif %}{{ site_title }}</title>
+  <meta name="description" content="{% if site_description %}{{ site_description }}{% else %}{{ site_title }}{% endif %}">
+  <link rel="stylesheet" href="{{ base_path }}/theme/assets/style.css">
+  {% if extra_css %}
+  {{ extra_css | inline_style }}
+  {% endif %}
+  {{ extra_head | safe }}
+</head>
+<body id="top">
+  {#- The open/closed state of the side menu and the FAB lives in these two checkboxes (no JavaScript).
+      They must come before the parts below: the CSS reaches the parts with the sibling selector (~). -#}
+  <input type="checkbox" id="shell-nav" class="shell-toggle" aria-label="{{ t("theme.shell.menu") }}">
+  <input type="checkbox" id="shell-fab" class="shell-toggle" aria-label="{{ t("theme.shell.actions") }}">
+
+  {% include "toolbar.html" %}
+  {% include "sidebar.html" %}
+
+  <main class="shell-main">
+    {% block content %}{% endblock %}
+    <footer class="shell-footer">
+      &copy; {{ site_title }}{% if show_powered_by %} &middot; Powered by AegisCMS{% endif %}
+    </footer>
+  </main>
+
+  {% include "fab.html" %}
+</body>
+</html>
