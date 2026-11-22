@@ -1,6 +1,6 @@
 {
   "name": "official-charts",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "entrypoint": "plugin.wasm",
   "display_name": "Charts (Bar, Line & Donut)",
   "description": "Adds bar, stacked bar, horizontal bar, line and donut chart blocks to the editor. Renders accessible SVG charts on the server with multi-series support and no JavaScript.",

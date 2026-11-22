@@ -1,5 +1,42 @@
 # Changelog
 
+## [0.11.0](https://github.com/takumi-mr/AegisCMS/compare/v0.10.0...v0.11.0) (2026-11-22)
+
+
+### Features
+
+* **admin:** add declarative queries list and result preview ([#381](https://github.com/takumi-mr/AegisCMS/issues/381)) ([5f2787e](https://github.com/takumi-mr/AegisCMS/commit/5f2787e386b0d8a19b25d1b5d7d1815feb6eca23))
+* **admin:** edit the public URL of each content type in Admin Studio ([#393](https://github.com/takumi-mr/AegisCMS/issues/393)) ([a5a4ded](https://github.com/takumi-mr/AegisCMS/commit/a5a4dede96394179f360669ebc0727fa8267d75f))
+* **plugin:** add aegis-wordpress to read WordPress exports and convert posts to blocks ([#396](https://github.com/takumi-mr/AegisCMS/issues/396)) ([af7eb69](https://github.com/takumi-mr/AegisCMS/commit/af7eb691581d82427945f987380c755c692d3815))
+* **plugin:** add official-charts plugin for multi-series SVG charts ([#384](https://github.com/takumi-mr/AegisCMS/issues/384)) ([e4bf084](https://github.com/takumi-mr/AegisCMS/commit/e4bf084e8636702498dced5a05f119a9e4af182b))
+* **server:** add [theme].latest_types to mix content types in the latest lists ([#391](https://github.com/takumi-mr/AegisCMS/issues/391)) ([1dbaf94](https://github.com/takumi-mr/AegisCMS/commit/1dbaf946b0c00473614b4697ddfd6126e3fea957))
+* **server:** add aegis-server import wordpress to import a WordPress export ([#397](https://github.com/takumi-mr/AegisCMS/issues/397)) ([602a0ac](https://github.com/takumi-mr/AegisCMS/commit/602a0acaa46479e1b30b73653e7d795c1ac660e7))
+* **server:** add per-content password protection and wordpress migration support ([#410](https://github.com/takumi-mr/AegisCMS/issues/410)) ([130be77](https://github.com/takumi-mr/AegisCMS/commit/130be77ef5c680e960bedd6390d0d7f76d472783))
+* **server:** add schema-level public_path for article and custom type URLs ([#383](https://github.com/takumi-mr/AegisCMS/issues/383)) ([fb7f36b](https://github.com/takumi-mr/AegisCMS/commit/fb7f36b6ff68e1bcec4a9c31be5eb7ff3e9136ae))
+* **server:** import WordPress comments and old-URL redirects ([#398](https://github.com/takumi-mr/AegisCMS/issues/398)) ([589be9a](https://github.com/takumi-mr/AegisCMS/commit/589be9a98544a13978e229e3e871f78ef5a9903a))
+* **theme-builder:** warn about hard-coded /articles links in themes ([#392](https://github.com/takumi-mr/AegisCMS/issues/392)) ([081d8f0](https://github.com/takumi-mr/AegisCMS/commit/081d8f0c2f7626367098fbc17f52c61a99fe4e97))
+* **theme:** add the app-shell sample theme (toolbar, side menu and FAB without JavaScript) ([#401](https://github.com/takumi-mr/AegisCMS/issues/401)) ([65bb2db](https://github.com/takumi-mr/AegisCMS/commit/65bb2db4c6fb36d3db45211a5cebb4621f377b11))
+* **theme:** add the WordPress Classic starter theme and theme import-wordpress ([#399](https://github.com/takumi-mr/AegisCMS/issues/399)) ([d514069](https://github.com/takumi-mr/AegisCMS/commit/d514069be032d6a5e85fbce0a03a50cf03a8ba0a))
+
+
+### Bug Fixes
+
+* **core:** shorten the MySQL purchases index to fit utf8mb4's key limit ([#413](https://github.com/takumi-mr/AegisCMS/issues/413)) ([ed6a524](https://github.com/takumi-mr/AegisCMS/commit/ed6a52419899007a7576e102109716d418cdd09c))
+* **core:** update url to 2.5.9 for RUSTSEC-2026-0592 ([#404](https://github.com/takumi-mr/AegisCMS/issues/404)) ([472a93c](https://github.com/takumi-mr/AegisCMS/commit/472a93c3c63be8c84a798756cdd1c90c6d92dc0f))
+* **notify:** update lettre to 0.11.24 for six SMTP advisories ([#385](https://github.com/takumi-mr/AegisCMS/issues/385)) ([982029e](https://github.com/takumi-mr/AegisCMS/commit/982029e77aa54d9cb73e1ebc9461c75805ec2948))
+* **plugin:** keep pointer provenance in the SDK allocation registry ([#409](https://github.com/takumi-mr/AegisCMS/issues/409)) ([3780e3c](https://github.com/takumi-mr/AegisCMS/commit/3780e3cc1b2bd46d4b9ecfd34d9f7b126ce47d2a))
+* **runtime:** update wasmtime to 50.0.2 for eight advisories ([#386](https://github.com/takumi-mr/AegisCMS/issues/386)) ([cd16e65](https://github.com/takumi-mr/AegisCMS/commit/cd16e657c73f6d2c5b55bf79c214668aa2c56cca))
+* **schema:** align OpenAPI spec with live endpoints and add contract tests ([#379](https://github.com/takumi-mr/AegisCMS/issues/379)) ([e529d91](https://github.com/takumi-mr/AegisCMS/commit/e529d91b598d3363d07bf56cd83d39a2453d5ac0))
+* **server:** update sqlx to 0.9.1 and libsqlite3-sys to 0.40 for RUSTSEC-2026-0459 ([#387](https://github.com/takumi-mr/AegisCMS/issues/387)) ([083d4d0](https://github.com/takumi-mr/AegisCMS/commit/083d4d0b6a6f7eb44f26d05f394a7b4cf4a628b6))
+* **theme-builder:** list included templates as parts on the theme dev index ([#402](https://github.com/takumi-mr/AegisCMS/issues/402)) ([09f30f6](https://github.com/takumi-mr/AegisCMS/commit/09f30f64147c8745499fa746c398ad06b723c216))
+* **theme-builder:** show included templates as parts in the sample list ([#403](https://github.com/takumi-mr/AegisCMS/issues/403)) ([c0bdc95](https://github.com/takumi-mr/AegisCMS/commit/c0bdc951a707b2d962a030c8ae25e171501d08bb))
+
+
+### Refactoring
+
+* **core:** replace chrono with jiff across all crates ([#389](https://github.com/takumi-mr/AegisCMS/issues/389)) ([18da897](https://github.com/takumi-mr/AegisCMS/commit/18da897a1248d2c046445b04c149ed228b03bb85))
+* **db:** replace chrono-tz with jiff time zones and remove chrono ([#390](https://github.com/takumi-mr/AegisCMS/issues/390)) ([24e10a9](https://github.com/takumi-mr/AegisCMS/commit/24e10a902af67cc8a8c037e7780e1f5e04f7d4ad))
+
 ## [0.10.0](https://github.com/takumi-mr/AegisCMS/compare/v0.9.0...v0.10.0) (2026-11-15)
 
 
