@@ -6,7 +6,21 @@ use std::alloc::{alloc, dealloc, Layout};
 use std::collections::HashMap;
 use std::sync::Mutex;
 
-/// 確保した領域の登録簿: ハンドル → (アドレス, 確保したバイト数)
+/// 確保した領域: ポインタと、確保したバイト数
+///
+/// アドレスを整数（`usize`）にして持つと、取り出すときの整数からポインタへのキャストで、元のポインタが
+/// 持っていた「どの領域を指してよいか」の情報（provenance）が切れる（Miri の警告）。ポインタのまま持つ
+#[derive(Clone, Copy)]
+struct Region {
+    ptr: *mut u8,
+    len: usize,
+}
+
+// SAFETY: `Region` は `allocate` が確保した領域の場所と大きさを持つだけ。領域は `ALLOCATIONS` の Mutex の
+// 中で登録簿から取り出した 1 つの呼び出しだけが読み書き・解放するので、スレッドをまたいで渡してよい
+unsafe impl Send for Region {}
+
+/// 確保した領域の登録簿: ハンドル → 領域（ポインタと確保したバイト数）
 ///
 /// `allocate` が確保した領域だけをここに載せる。`deallocate` と `read_bytes_from_host` は、呼び出し元が渡す
 /// `ptr` / `len` をそのまま使わず、必ずこの登録簿と照らす。載っていない値（未確保・解放済み・でたらめ）は
@@ -14,14 +28,14 @@ use std::sync::Mutex;
 /// これで、二重解放・確保時と違う大きさでの解放・領域の外の読み取りが起きない
 ///
 /// ハンドルは、Wasm ではゲストのアドレスそのもの、ネイティブ（`cargo test`）では連番の ID
-static ALLOCATIONS: Mutex<Option<HashMap<i32, (usize, usize)>>> = Mutex::new(None);
+static ALLOCATIONS: Mutex<Option<HashMap<i32, Region>>> = Mutex::new(None);
 
 #[cfg(not(target_arch = "wasm32"))]
 static NEXT_ID: std::sync::atomic::AtomicI32 = std::sync::atomic::AtomicI32::new(1);
 
 /// 登録簿を操作する。別のスレッドが panic して Mutex が毒されていても、登録簿の中身は壊れていない
 /// （挿入と削除だけ）ので、そのまま使う
-fn with_allocations<T>(f: impl FnOnce(&mut HashMap<i32, (usize, usize)>) -> T) -> T {
+fn with_allocations<T>(f: impl FnOnce(&mut HashMap<i32, Region>) -> T) -> T {
     let mut guard = ALLOCATIONS
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner);
@@ -55,7 +69,7 @@ pub fn allocate(len: usize) -> i32 {
         }
     };
 
-    with_allocations(|map| map.insert(id, (ptr as usize, len)));
+    with_allocations(|map| map.insert(id, Region { ptr, len }));
     id
 }
 
@@ -71,11 +85,15 @@ pub unsafe fn deallocate(id_or_ptr: i32, _len: usize) {
     if id_or_ptr == 0 {
         return;
     }
-    if let Some((addr, alloc_len)) = with_allocations(|map| map.remove(&id_or_ptr)) {
+    if let Some(Region {
+        ptr,
+        len: alloc_len,
+    }) = with_allocations(|map| map.remove(&id_or_ptr))
+    {
         if let Ok(layout) = Layout::from_size_align(alloc_len, 8) {
-            // SAFETY: 登録簿から取り出した `(addr, alloc_len)` は `allocate` が同じ `layout` で確保したもので、
+            // SAFETY: 登録簿から取り出した `(ptr, alloc_len)` は `allocate` が同じ `layout` で確保したもので、
             // 取り出したので二重には解放されない
-            dealloc(addr as *mut u8, layout);
+            dealloc(ptr, layout);
         }
     }
 }
@@ -83,8 +101,7 @@ pub unsafe fn deallocate(id_or_ptr: i32, _len: usize) {
 /// ネイティブ環境でハンドルから実際のポインタを取得
 #[cfg(not(target_arch = "wasm32"))]
 pub fn get_native_ptr(id: i32) -> *mut u8 {
-    with_allocations(|map| map.get(&id).map(|(addr, _)| *addr as *mut u8))
-        .unwrap_or(std::ptr::null_mut())
+    with_allocations(|map| map.get(&id).map(|region| region.ptr)).unwrap_or(std::ptr::null_mut())
 }
 
 /// ホストから渡されたポインタと長さからバイト列を安全にコピーし、入力バッファを解放する
@@ -99,15 +116,19 @@ pub unsafe fn read_bytes_from_host(ptr: i32, len: i32) -> Vec<u8> {
         return Vec::new();
     }
     // 登録簿から取り出す（これで、同じ領域を読む呼び出しが 2 つ重なっても、解放は 1 回だけ）
-    let Some((addr, alloc_len)) = with_allocations(|map| map.remove(&ptr)) else {
+    let Some(Region {
+        ptr: region_ptr,
+        len: alloc_len,
+    }) = with_allocations(|map| map.remove(&ptr))
+    else {
         return Vec::new();
     };
     let n = (len as usize).min(alloc_len);
-    // SAFETY: `addr` は `allocate` が `alloc_len` バイトで確保した領域で、`n` はそれを超えない。
+    // SAFETY: `region_ptr` は `allocate` が `alloc_len` バイトで確保した領域で、`n` はそれを超えない。
     // 登録簿から取り出したので、読んでいる間に他から解放されない
-    let bytes = std::slice::from_raw_parts(addr as *const u8, n).to_vec();
+    let bytes = std::slice::from_raw_parts(region_ptr as *const u8, n).to_vec();
     if let Ok(layout) = Layout::from_size_align(alloc_len, 8) {
-        dealloc(addr as *mut u8, layout);
+        dealloc(region_ptr, layout);
     }
     bytes
 }
@@ -122,12 +143,12 @@ pub fn write_bytes_to_host(bytes: Vec<u8>) -> i64 {
     if dest_id == 0 {
         return 0;
     }
-    let Some(addr) = with_allocations(|map| map.get(&dest_id).map(|(addr, _)| *addr)) else {
+    let Some(dest) = with_allocations(|map| map.get(&dest_id).map(|region| region.ptr)) else {
         return 0;
     };
-    // SAFETY: `addr` は今 `allocate(len)` で確保した `len` バイトの領域で、`bytes` とは重ならない
+    // SAFETY: `dest` / `region_ptr` は今 `allocate(len)` で確保した `len` バイトの領域で、`bytes` とは重ならない
     unsafe {
-        std::ptr::copy_nonoverlapping(bytes.as_ptr(), addr as *mut u8, len);
+        std::ptr::copy_nonoverlapping(bytes.as_ptr(), dest, len);
     }
 
     pack_ptr_len(dest_id, len as i32)

@@ -39,4 +39,7 @@ jobs:
         uses: Swatinem/rust-cache@v2
 
       - name: Run tests under Miri
+        # strict provenance: 整数から作ったポインタ（領域の情報が切れたもの）を使うと、警告ではなく失敗にする
+        env:
+          MIRIFLAGS: -Zmiri-strict-provenance
         run: cargo miri test -p aegis-plugin-sdk
