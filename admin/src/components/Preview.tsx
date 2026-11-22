@@ -79,9 +79,13 @@ export const Preview: React.FC<PreviewProps> = ({
   // Who the content is shown to: 'staff' is the full text; 'guest' and 'member:<level>' show what
   // that kind of reader gets (the part before the members-only break, and a notice)
   const [viewer, setViewer] = useState('staff');
-  // Only content with an access level looks different to different readers
-  const canChooseViewer = access !== '' && memberLevels.length > 0;
-  const effectiveViewer = canChooseViewer ? viewer : 'staff';
+  // Only content with an access level or password protection looks different to different readers
+  const canChooseViewer = access === 'password' || (access !== '' && memberLevels.length > 0);
+  const effectiveViewer = !canChooseViewer
+    ? 'staff'
+    : access === 'password' && viewer.startsWith('member:')
+      ? 'guest'
+      : viewer;
   const idPrefix = useId();
   const [frameKey] = useState(newFrameKey);
   const [bodyFrameKey] = useState(newFrameKey);
@@ -225,11 +229,12 @@ export const Preview: React.FC<PreviewProps> = ({
           >
             <option value="staff">{t('preview.viewer.staff')}</option>
             <option value="guest">{t('preview.viewer.guest')}</option>
-            {memberLevels.map((level) => (
-              <option key={level} value={`member:${level}`}>
-                {t('preview.viewer.member', { level })}
-              </option>
-            ))}
+            {access !== 'password' &&
+              memberLevels.map((level) => (
+                <option key={level} value={`member:${level}`}>
+                  {t('preview.viewer.member', { level })}
+                </option>
+              ))}
           </select>
         </div>
       )}

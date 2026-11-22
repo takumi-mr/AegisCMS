@@ -275,6 +275,23 @@ const MESSAGES: &[(&str, &str, &str)] = &[
     ("access.login", "Log in", "ログイン"),
     ("access.register", "Sign up", "会員登録"),
     ("access.upgrade", "See how to upgrade", "アップグレードの案内を見る"),
+    (
+        "access.password_protected",
+        "This content is password protected. Enter the password to view it.",
+        "この内容はパスワードで保護されています。閲覧するにはパスワードを入力してください。",
+    ),
+    ("access.password_label", "Password", "パスワード"),
+    ("access.password_submit", "Unlock", "閲覧する"),
+    (
+        "access.password_invalid",
+        "The password is incorrect.",
+        "パスワードが正しくありません。",
+    ),
+    (
+        "access.password_rate_limited",
+        "Too many attempts. Please wait and try again.",
+        "試行回数が多すぎます。しばらく待ってからやり直してください。",
+    ),
     ("account.title", "Account", "アカウント"),
     ("account.link", "Account", "アカウント"),
     ("account.loading", "Loading…", "読み込んでいます…"),

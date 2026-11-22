@@ -20,7 +20,7 @@ use crate::test_support::test_app_state;
 const SECRET: &str = "Only paying members read this sentence about zxqunique.";
 
 fn schema(content_type: &str) -> SchemaDefinition {
-    serde_json::from_value(json!({
+    serde_json::from_value::<SchemaDefinition>(json!({
         "content_type": content_type,
         "label": content_type,
         "fields": [
@@ -30,6 +30,7 @@ fn schema(content_type: &str) -> SchemaDefinition {
         ]
     }))
     .unwrap()
+    .with_builtin_fields()
 }
 
 struct Site {
@@ -81,7 +82,11 @@ async fn site_with(configure: impl FnOnce(&mut AegisConfig)) -> Site {
         state.cache.clone(),
         state.audit.clone(),
     );
-    let state = Arc::new(state.with_members(members.unwrap()));
+    let state = match members {
+        Some(m) => state.with_members(m),
+        None => state,
+    };
+    let state = Arc::new(state);
     Site {
         app: router(&config, state.clone()),
         state,
@@ -595,4 +600,230 @@ async fn test_rendered_html_in_the_feed_and_the_api_follows_the_namespace() {
         item["blocks"][0]["text"], "Run `aegis-server user list`.",
         "{item}"
     );
+}
+
+#[tokio::test]
+async fn test_password_protected_content_unlocks_per_article_and_never_leaks_hash() {
+    // 会員アカウントが無効なサイトでも、記事ごとのパスワード保護は使える
+    let site = site_with(|c| c.members.enabled = false).await;
+    let hash1 = aegis_auth::password::hash_content_password("open-sesame").unwrap();
+    let hash2 = aegis_auth::password::hash_content_password("open-sesame").unwrap();
+    for (slug, hash) in [("locked-1", &hash1), ("locked-2", &hash2)] {
+        let schema = site
+            .state
+            .schemas
+            .read()
+            .await
+            .get("article")
+            .cloned()
+            .unwrap();
+        let mut custom_fields = HashMap::new();
+        custom_fields.insert("excerpt".to_string(), json!("Public teaser."));
+        custom_fields.insert("access".to_string(), json!("password"));
+        custom_fields.insert("access_password".to_string(), json!(hash));
+        let record = ContentRecord {
+            id: format!("article-{slug}"),
+            content_type: "article".to_string(),
+            title: format!("Title of {slug}"),
+            slug: slug.to_string(),
+            status: "published".to_string(),
+            blocks_json: serde_json::to_string(&vec![BlockNode::paragraph(SECRET)]).unwrap(),
+            author_id: None,
+            published_at: Some("2026-10-22T00:00:00Z".to_string()),
+            unpublish_at: None,
+            created_at: "2026-10-22T00:00:00Z".to_string(),
+            updated_at: "2026-10-22T00:00:00Z".to_string(),
+            custom_fields,
+        };
+        site.state
+            .db
+            .insert_content(&schema, &record)
+            .await
+            .unwrap();
+    }
+    crate::search::rebuild(&site.state).await;
+
+    // 1. 解除前: 本文は出ず、パスワード入力フォームが出る
+    let locked = site.get("/articles/locked-1", None).await;
+    assert_notice_only(&locked);
+    assert!(locked.body.contains(r#"action="/api/v1/content-auth""#));
+    assert!(locked.body.contains(r#"type="password""#));
+    assert!(!locked.body.contains(&hash1));
+
+    // ヘッドレス API・検索・コメント API でも本文とパスワードのハッシュは一切漏れない
+    let headless = site
+        .get(
+            "/api/v1/public/contents/article/locked-1?include=html",
+            None,
+        )
+        .await;
+    assert_eq!(headless.status, StatusCode::OK);
+    assert!(!headless.body.contains(SECRET));
+    assert!(!headless.body.contains("access_password"));
+    assert!(!headless.body.contains(&hash1));
+    let search = site.get("/api/v1/search?q=zxqunique", None).await;
+    let search_json: serde_json::Value = serde_json::from_str(&search.body).unwrap();
+    assert_eq!(search_json["total"], 0);
+    assert_eq!(
+        site.get("/api/v1/contents/article/locked-1/comments", None)
+            .await
+            .status,
+        StatusCode::FORBIDDEN
+    );
+
+    // 2. 誤ったパスワードを送ると、303 で元の記事に戻り、エラーの Cookie が付く
+    let bad_form = Request::post("/api/v1/content-auth")
+        .header("content-type", "application/x-www-form-urlencoded")
+        .body(Body::from(
+            "content_type=article&slug=locked-1&password=wrong&return_to=%2Farticles%2Flocked-1",
+        ))
+        .unwrap();
+    let bad_resp = site.app.clone().oneshot(bad_form).await.unwrap();
+    assert_eq!(bad_resp.status(), StatusCode::SEE_OTHER);
+    assert_eq!(
+        bad_resp.headers().get("location").unwrap(),
+        "/articles/locked-1"
+    );
+    let err_page = site
+        .app
+        .clone()
+        .oneshot(
+            Request::get("/articles/locked-1")
+                .header("cookie", "cms_pass_err=invalid")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    let err_body = String::from_utf8_lossy(
+        &axum::body::to_bytes(err_page.into_body(), usize::MAX)
+            .await
+            .unwrap(),
+    )
+    .to_string();
+    assert!(err_body.contains("cms-access-error"), "{err_body}");
+    assert!(!err_body.contains(SECRET));
+
+    // 3. 正しいパスワードを送ると、その記事専用の解除 Cookie が発行される
+    let ok_form = Request::post("/api/v1/content-auth")
+        .header("content-type", "application/x-www-form-urlencoded")
+        .body(Body::from(
+            "content_type=article&slug=locked-1&password=open-sesame&return_to=%2Farticles%2Flocked-1",
+        ))
+        .unwrap();
+    let ok_resp = site.app.clone().oneshot(ok_form).await.unwrap();
+    assert_eq!(ok_resp.status(), StatusCode::SEE_OTHER);
+    let pass_cookie = ok_resp
+        .headers()
+        .get_all("set-cookie")
+        .iter()
+        .filter_map(|v| v.to_str().ok())
+        .find(|c| c.starts_with("cms_pass="))
+        .unwrap()
+        .split(';')
+        .next()
+        .unwrap()
+        .to_string();
+
+    // 解除した記事は全文とコメント API が読める
+    let unlocked = site
+        .app
+        .clone()
+        .oneshot(
+            Request::get("/articles/locked-1")
+                .header("cookie", &pass_cookie)
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    let unlocked_body = String::from_utf8_lossy(
+        &axum::body::to_bytes(unlocked.into_body(), usize::MAX)
+            .await
+            .unwrap(),
+    )
+    .to_string();
+    assert!(unlocked_body.contains(SECRET), "{unlocked_body}");
+    assert!(!unlocked_body.contains(r#"<div class="cms-access-notice""#));
+
+    let comments_ok = site
+        .app
+        .clone()
+        .oneshot(
+            Request::get("/api/v1/contents/article/locked-1/comments")
+                .header("cookie", &pass_cookie)
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(comments_ok.status(), StatusCode::OK);
+
+    // 4. 同じパスワードでも、別の記事（locked-2）は解除されない（記事ごとの解除）
+    let other = site
+        .app
+        .clone()
+        .oneshot(
+            Request::get("/articles/locked-2")
+                .header("cookie", &pass_cookie)
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    let other_body = String::from_utf8_lossy(
+        &axum::body::to_bytes(other.into_body(), usize::MAX)
+            .await
+            .unwrap(),
+    )
+    .to_string();
+    assert!(!other_body.contains(SECRET));
+    assert!(other_body.contains(r#"<div class="cms-access-notice""#));
+
+    // 5. 記事のパスワードを変更すると、古い解除 Cookie は即座に無効になる
+    let schema = site
+        .state
+        .schemas
+        .read()
+        .await
+        .get("article")
+        .cloned()
+        .unwrap();
+    let mut rec = site
+        .state
+        .db
+        .get_content(&schema, "locked-1")
+        .await
+        .unwrap()
+        .unwrap();
+    rec.custom_fields.insert(
+        "access_password".to_string(),
+        json!(aegis_auth::password::hash_content_password("new-pass").unwrap()),
+    );
+    site.state
+        .db
+        .delete_content(&schema, &rec.id)
+        .await
+        .unwrap();
+    site.state.db.insert_content(&schema, &rec).await.unwrap();
+
+    let revoked = site
+        .app
+        .clone()
+        .oneshot(
+            Request::get("/articles/locked-1")
+                .header("cookie", &pass_cookie)
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    let revoked_body = String::from_utf8_lossy(
+        &axum::body::to_bytes(revoked.into_body(), usize::MAX)
+            .await
+            .unwrap(),
+    )
+    .to_string();
+    assert!(!revoked_body.contains(SECRET));
+    assert!(revoked_body.contains(r#"<div class="cms-access-notice""#));
 }

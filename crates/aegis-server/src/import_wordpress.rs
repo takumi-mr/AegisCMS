@@ -810,6 +810,10 @@ async fn import_item(
         body["author_id"] = json!(id);
     }
     let mut fields = serde_json::Map::new();
+    if let Some(password) = item.password.as_deref().filter(|s| !s.is_empty()) {
+        fields.insert("access".to_string(), json!("password"));
+        fields.insert("access_password".to_string(), json!(password));
+    }
     if ty == "article" {
         if let Some(excerpt) = plan::excerpt_text(&item.excerpt) {
             fields.insert("excerpt".to_string(), json!(excerpt));

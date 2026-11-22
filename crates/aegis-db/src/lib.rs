@@ -104,7 +104,7 @@ pub struct ContentRecord {
     pub custom_fields: HashMap<String, serde_json::Value>,
 }
 
-/// 記事・ページの `access`（必要な会員レベル）。未設定・空は `None`（docs/members.md 15）
+/// 記事・ページの `access`（必要な会員レベル・保護方式）。未設定・空は `None`（docs/members.md 15）
 pub fn access_of(fields: &HashMap<String, serde_json::Value>) -> Option<&str> {
     fields
         .get(aegis_schema::ACCESS_FIELD)
@@ -113,9 +113,23 @@ pub fn access_of(fields: &HashMap<String, serde_json::Value>) -> Option<&str> {
         .filter(|s| !s.is_empty())
 }
 
-/// 閲覧を制限している（`access` がレベルを求めている）か。`public` は制限なし
+/// 閲覧を制限している（`access` がレベルやパスワードを求めている）か。`public` は制限なし
 pub fn is_restricted(fields: &HashMap<String, serde_json::Value>) -> bool {
     !aegis_core::is_public_access(access_of(fields))
+}
+
+/// パスワード（合言葉）で保護している（`access == "password"`）か
+pub fn is_password_protected(fields: &HashMap<String, serde_json::Value>) -> bool {
+    aegis_core::is_password_access(access_of(fields))
+}
+
+/// 記事・ページの `access_password`（Argon2id ハッシュ）。未設定・空は `None`
+pub fn access_password_of(fields: &HashMap<String, serde_json::Value>) -> Option<&str> {
+    fields
+        .get(aegis_schema::ACCESS_PASSWORD_FIELD)
+        .and_then(|v| v.as_str())
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
 }
 
 /// 記事・ページの `purchase_price`（単独で買うときの価格。通貨の最小単位）。未設定・0 以下は

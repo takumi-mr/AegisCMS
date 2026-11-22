@@ -418,6 +418,10 @@ pub const BLOCK_STYLES: &str = "<style id=\"aegis-block-styles\">\
 :where(.aegis-toc) ol ol{margin-top:.25rem}\
 :where(.aegis-access-notice){border:1px solid rgba(127,127,127,.3);border-radius:8px;padding:1rem 1.25rem;margin:1.5rem 0}\
 :where(.aegis-access-notice) p{margin:.25rem 0}\
+:where(.aegis-access-form){display:flex;flex-wrap:wrap;gap:.5rem;align-items:center;margin-top:.75rem}\
+:where(.aegis-access-form) input[type=password]{font:inherit;color:inherit;background:transparent;border:1px solid rgba(127,127,127,.45);border-radius:6px;padding:.45rem .7rem;min-width:12rem}\
+:where(.aegis-access-form) button{font:inherit;font-weight:600;padding:.45rem 1.1rem;border-radius:6px;border:1px solid rgba(127,127,127,.45);background:rgba(127,127,127,.12);color:inherit;cursor:pointer}\
+:where(.aegis-access-error){color:#ef4444;font-size:.9em}\
 :where(.aegis-fnref){font-size:.75em;line-height:0}\
 :where(.aegis-footnotes){margin-top:2rem;padding-top:.75rem;border-top:1px solid rgba(127,127,127,.3);font-size:.9em}\
 :where(.aegis-footnotes) ol{margin:0;padding-left:1.5rem}\

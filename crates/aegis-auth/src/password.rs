@@ -6,12 +6,32 @@ use std::sync::OnceLock;
 /// ローカルユーザーのパスワードの最小文字数
 pub const MIN_PASSWORD_LEN: usize = 8;
 
+/// 記事・ページのパスワード（合言葉）の最大文字数
+pub const MAX_CONTENT_PASSWORD_LEN: usize = 128;
+
 /// パスワードを Argon2id（既定パラメータ）でハッシュし、PHC 文字列を返す
 pub fn hash_password(password: &str) -> Result<String> {
     if password.chars().count() < MIN_PASSWORD_LEN {
         return Err(AegisError::Validation(format!(
             "Password must be at least {} characters",
             MIN_PASSWORD_LEN
+        )));
+    }
+
+    Argon2::default()
+        .hash_password(password.as_bytes())
+        .map(|hash| hash.to_string())
+        .map_err(|e| AegisError::Internal(format!("Failed to hash password: {}", e)))
+}
+
+/// 記事・ページのパスワード（合言葉）を Argon2id でハッシュし、PHC 文字列を返す。
+/// 短い合言葉や WordPress からの移行も扱えるよう 1〜128 文字を許す
+pub fn hash_content_password(password: &str) -> Result<String> {
+    let len = password.chars().count();
+    if !(1..=MAX_CONTENT_PASSWORD_LEN).contains(&len) {
+        return Err(AegisError::Validation(format!(
+            "Content password must be between 1 and {} characters",
+            MAX_CONTENT_PASSWORD_LEN
         )));
     }
 

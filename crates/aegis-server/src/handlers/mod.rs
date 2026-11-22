@@ -45,6 +45,7 @@ pub mod theme;
 pub mod users;
 
 pub use crate::system::{get_system_settings, update_system_settings};
+pub use access::unlock_content_password;
 pub use api_tokens::{create_api_token, list_api_tokens, revoke_api_token};
 pub use audit::{get_metrics, list_audit_logs};
 pub use auth::{create_session, delete_session, get_current_session, verify_2fa};

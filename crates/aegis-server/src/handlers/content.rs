@@ -378,8 +378,29 @@ fn api_error(status: StatusCode, message: impl Into<String>) -> ApiError {
     (status, Json(json!({ "error": message.into() })))
 }
 
-/// `fields.access`（閲覧に必要な会員レベル）は、`public`・空・`null` か、`[members].levels` にあるものだけ。
-/// 設定にない値（タイポなど）を保存すると、だれも読めなくなるので、保存時に断る
+/// 管理画面の API の応答で、`access_password`（Argon2id ハッシュ）が設定済みであることを表すマスク文字列。
+/// 生のハッシュ値はクライアントに返さず、更新時にこの値（または空・省略）が送られたときは既存のハッシュを保つ
+pub const MASKED_ACCESS_PASSWORD: &str = "********";
+
+/// 管理 API の応答に出す `fields`: `access_password` のハッシュをマスク文字列に置き換える
+fn mask_secret_fields(
+    mut fields: HashMap<String, serde_json::Value>,
+) -> HashMap<String, serde_json::Value> {
+    if fields
+        .get(aegis_schema::ACCESS_PASSWORD_FIELD)
+        .and_then(|v| v.as_str())
+        .is_some_and(|s| !s.is_empty())
+    {
+        fields.insert(
+            aegis_schema::ACCESS_PASSWORD_FIELD.to_string(),
+            json!(MASKED_ACCESS_PASSWORD),
+        );
+    }
+    fields
+}
+
+/// `fields.access`（閲覧に必要な会員レベル・保護方式）は、`public`・`password`・空・`null` か、
+/// `[members].levels` にあるものだけ。設定にない値（タイポなど）を保存すると、だれも読めなくなるので、保存時に断る
 fn ensure_known_access(
     state: &AppState,
     fields: &HashMap<String, serde_json::Value>,
@@ -397,17 +418,77 @@ fn ensure_known_access(
         ));
     };
     let levels = &state.config.members.levels;
-    if aegis_core::is_public_access(Some(level)) || levels.iter().any(|l| l == level.trim()) {
+    if aegis_core::is_public_access(Some(level))
+        || aegis_core::is_password_access(Some(level))
+        || levels.iter().any(|l| l == level.trim())
+    {
         return Ok(());
     }
     Err((
         StatusCode::BAD_REQUEST,
         Json(json!({
             "error": format!(
-                "access must be public or one of the member levels: {}",
+                "access must be public, password or one of the member levels: {}",
                 levels.join(", ")
             ),
             "code": "unknown_access_level"
+        })),
+    ))
+}
+
+/// `access = "password"` のとき、`access_password` を Argon2id でハッシュして `fields` に入れる。
+/// すでにパスワードが設定済みの項目を更新するとき、新しいパスワードが送られなければ既存のハッシュを保つ。
+/// `access` が `"password"` でないときは、`access_password` を消す
+fn resolve_access_password(
+    fields: &mut HashMap<String, serde_json::Value>,
+    current: Option<&ContentRecord>,
+) -> Result<(), ApiError> {
+    if !aegis_db::is_password_protected(fields) {
+        fields.remove(aegis_schema::ACCESS_PASSWORD_FIELD);
+        return Ok(());
+    }
+    fields.insert(
+        aegis_schema::ACCESS_FIELD.to_string(),
+        json!(aegis_core::PASSWORD_ACCESS),
+    );
+    if let Some(val) = fields.get(aegis_schema::ACCESS_PASSWORD_FIELD) {
+        if !val.is_null() && !val.is_string() {
+            return Err(api_error(
+                StatusCode::BAD_REQUEST,
+                "access_password must be a string",
+            ));
+        }
+    }
+    let existing_hash = current
+        .and_then(|c| aegis_db::access_password_of(&c.custom_fields))
+        .map(str::to_string);
+    let provided = fields
+        .get(aegis_schema::ACCESS_PASSWORD_FIELD)
+        .and_then(|v| v.as_str());
+    if let Some(raw) = provided
+        .filter(|s| !s.is_empty() && !(existing_hash.is_some() && *s == MASKED_ACCESS_PASSWORD))
+    {
+        let hash = aegis_auth::password::hash_content_password(raw).map_err(|e| {
+            (
+                StatusCode::BAD_REQUEST,
+                Json(json!({
+                    "error": e.to_string(),
+                    "code": "invalid_access_password"
+                })),
+            )
+        })?;
+        fields.insert(aegis_schema::ACCESS_PASSWORD_FIELD.to_string(), json!(hash));
+        return Ok(());
+    }
+    if let Some(hash) = existing_hash {
+        fields.insert(aegis_schema::ACCESS_PASSWORD_FIELD.to_string(), json!(hash));
+        return Ok(());
+    }
+    Err((
+        StatusCode::BAD_REQUEST,
+        Json(json!({
+            "error": "access_password is required when access is 'password'",
+            "code": "missing_access_password"
         })),
     ))
 }
@@ -669,7 +750,7 @@ async fn content_response(
         created_at: record.created_at,
         updated_at: record.updated_at,
         comments_open,
-        fields: record.custom_fields,
+        fields: mask_secret_fields(record.custom_fields),
         relations,
     }
 }
@@ -707,6 +788,7 @@ pub async fn create_content(
     let schema = find_schema(&state, &content_type).await?;
     ensure_known_access(&state, &payload.fields)?;
     ensure_valid_purchase_price(&payload.fields)?;
+    resolve_access_password(&mut payload.fields, None)?;
     let id = Uuid::new_v4().to_string();
     let now_at = jiff::Timestamp::now();
     let now = now_at.to_rfc3339_auto();
@@ -822,6 +904,7 @@ pub async fn update_content(
                 format!("Content '{}' not found", slug_or_id),
             )
         })?;
+    resolve_access_password(&mut payload.fields, Some(&current))?;
     let status_omitted = payload.status.is_none();
     let requested_status = payload
         .status
@@ -1123,7 +1206,7 @@ pub async fn get_content_version(
         title: record.title,
         slug: record.slug,
         blocks,
-        fields: record.custom_fields,
+        fields: mask_secret_fields(record.custom_fields),
     }))
 }
 
@@ -1466,7 +1549,7 @@ pub async fn list_content(
                 unpublish_at: r.unpublish_at,
                 created_at: r.created_at,
                 updated_at: r.updated_at,
-                fields: r.custom_fields,
+                fields: mask_secret_fields(r.custom_fields),
                 relations,
             })
             .collect();
@@ -1522,7 +1605,7 @@ pub async fn list_content(
                 created_at: r.created_at,
                 updated_at: r.updated_at,
                 comments_open,
-                fields: r.custom_fields,
+                fields: mask_secret_fields(r.custom_fields),
                 relations,
             }
         });
@@ -1601,7 +1684,7 @@ pub async fn get_content(
                 created_at: r.created_at,
                 updated_at: r.updated_at,
                 comments_open,
-                fields: r.custom_fields,
+                fields: mask_secret_fields(r.custom_fields),
                 relations,
             }))
         }

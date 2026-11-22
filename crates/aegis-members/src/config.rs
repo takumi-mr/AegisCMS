@@ -334,6 +334,9 @@ impl MembersConfig {
             if level == "public" {
                 return bad("cannot use 'public' (it means everyone)");
             }
+            if level == aegis_core::PASSWORD_ACCESS {
+                return bad("cannot use 'password' (it means password-protected content)");
+            }
             if self.levels[..i].contains(level) {
                 return bad(&format!("has the level '{level}' twice"));
             }
@@ -369,6 +372,7 @@ mod tests {
             &["free", "free"],
             &["Free"],
             &["public"],
+            &["password"],
             &[""],
             &["has space"],
             &["a-very-long-level-name-that-goes-over-the-limit"],

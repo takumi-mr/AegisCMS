@@ -173,9 +173,9 @@ async fn start_purchase(
             is_currently_published(&r.status, r.unpublish_at.as_deref(), jiff::Timestamp::now())
         })
         .ok_or_else(not_for_sale)?;
-    // 単独購入は、閲覧が制限されていて、価格のある記事だけ
+    // 単独購入は、会員レベルで閲覧が制限されていて、価格のある記事だけ
     let price = aegis_db::purchase_price_of(&record.custom_fields).ok_or_else(not_for_sale)?;
-    if !record.is_restricted() {
+    if !record.is_restricted() || aegis_db::is_password_protected(&record.custom_fields) {
         return Err(not_for_sale());
     }
 
@@ -691,7 +691,7 @@ pub async fn admin_grant_purchase(
         .await
         .map_err(internal)?
         .ok_or_else(|| not_found("Content"))?;
-    if !record.is_restricted() {
+    if !record.is_restricted() || aegis_db::is_password_protected(&record.custom_fields) {
         return Err(api_error(
             StatusCode::BAD_REQUEST,
             "This content is not restricted, so there is nothing to grant",
