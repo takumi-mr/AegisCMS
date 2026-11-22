@@ -212,7 +212,8 @@ impl<'a> Parser<'a> {
                     self.pos = self.input.len();
                 }
             } else {
-                let end = rest[1..].find('<').map_or(rest.len(), |i| i + 1);
+                let first = rest.chars().next().map_or(1, char::len_utf8);
+                let end = rest[first..].find('<').map_or(rest.len(), |i| i + first);
                 self.push_text(&rest[..end], true);
                 self.pos += end;
             }
@@ -542,6 +543,14 @@ pub fn serialize(nodes: &[Node]) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn multibyte_text_between_tags_is_kept() {
+        let nodes = parse_fragment("あいう<b>え</b>お");
+        assert_eq!(nodes.len(), 3);
+        assert_eq!(nodes[0], Node::Text("あいう".to_string()));
+        assert_eq!(nodes[2], Node::Text("お".to_string()));
+    }
 
     fn el(nodes: &[Node], index: usize) -> &Element {
         match &nodes[index] {

@@ -112,7 +112,8 @@ pub const STATUS_SCHEDULED: &str = "scheduled";
 pub(crate) const STATUS_PUBLISHED: &str = "published";
 
 /// 保存する公開状態と `published_at`, `unpublish_at` を決める。
-/// - `published`: 最初に公開した日時を保つ（今まで公開されていなければ `now`）
+/// - `published`: 最初に公開した日時を保つ（今まで公開されていなければ `now`）。`backdate`（admin）で
+///   `requested_at` が過去なら、その日時で公開する（ほかのサイトからの移行で元の公開日を残すため）
 /// - `scheduled`: `requested_at` が必須。過ぎた日時ならその場で `published` にする
 /// - `unpublish_at`: `published` または `scheduled` でのみ有効。指定があれば有効なRFC 3339で、公開日時より後であること。
 /// - それ以外 (`draft`, `archived`): `published_at` / `unpublish_at` はなし (`None`)
@@ -122,6 +123,7 @@ fn resolve_publication(
     requested_unpublish_at: Option<&str>,
     current: Option<&ContentRecord>,
     now: jiff::Timestamp,
+    backdate: bool,
 ) -> Result<(String, Option<String>, Option<String>), ApiError> {
     let validate_unpublish = |unpub_str: Option<&str>,
                               pub_dt: Option<jiff::Timestamp>|
@@ -147,23 +149,39 @@ fn resolve_publication(
         Ok(Some(unpub.to_rfc3339_secs()))
     };
 
-    let published = |requested_unpub: Option<&str>| -> Result<(String, Option<String>, Option<String>), ApiError> {
+    let published = |requested_unpub: Option<&str>,
+                     backdated: Option<jiff::Timestamp>|
+     -> Result<(String, Option<String>, Option<String>), ApiError> {
         let first = current
             // `pending` / `draft` over a live version keep the first publication date (a change under review)
             .filter(|c| matches!(c.status.as_str(), STATUS_PUBLISHED | STATUS_PENDING | "draft"))
             .and_then(|c| c.published_at.clone());
-        let pub_str = first.unwrap_or_else(|| now.to_rfc3339_auto());
+        let pub_str = match backdated {
+            Some(at) => at.to_rfc3339_secs(),
+            None => first.unwrap_or_else(|| now.to_rfc3339_auto()),
+        };
         let pub_dt = aegis_core::time::parse_rfc3339(&pub_str).ok();
         let unpub = validate_unpublish(requested_unpub, pub_dt)?;
-        Ok((
-            STATUS_PUBLISHED.to_string(),
-            Some(pub_str),
-            unpub,
-        ))
+        Ok((STATUS_PUBLISHED.to_string(), Some(pub_str), unpub))
     };
 
     match status.as_str() {
-        STATUS_PUBLISHED => published(requested_unpublish_at),
+        STATUS_PUBLISHED => {
+            let backdated = requested_at
+                .map(str::trim)
+                .filter(|s| backdate && !s.is_empty())
+                .map(|raw| {
+                    aegis_core::time::parse_rfc3339(raw).map_err(|e| {
+                        api_error(
+                            StatusCode::BAD_REQUEST,
+                            format!("Invalid 'published_at' '{}': {}", raw, e),
+                        )
+                    })
+                })
+                .transpose()?
+                .filter(|at| *at <= now);
+            published(requested_unpublish_at, backdated)
+        }
         STATUS_SCHEDULED => {
             let requested = requested_at.map(str::trim).filter(|s| !s.is_empty());
             let Some(requested) = requested else {
@@ -179,7 +197,7 @@ fn resolve_publication(
                 )
             })?;
             if at <= now {
-                published(requested_unpublish_at)
+                published(requested_unpublish_at, backdate.then_some(at))
             } else {
                 let unpub = validate_unpublish(requested_unpublish_at, Some(at))?;
                 Ok((status, Some(at.to_rfc3339_secs()), unpub))
@@ -699,6 +717,7 @@ pub async fn create_content(
         payload.unpublish_at.as_deref(),
         None,
         now_at,
+        role_level(&session.role) >= ADMIN,
     )?;
 
     let saved = run_save_pipeline(
@@ -865,6 +884,7 @@ pub async fn update_content(
         payload.unpublish_at.as_deref(),
         Some(&current),
         now_at,
+        false,
     )?;
     let saved = run_save_pipeline(
         &state,

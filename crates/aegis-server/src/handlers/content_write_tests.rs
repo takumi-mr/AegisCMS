@@ -619,3 +619,39 @@ async fn test_a_contributor_update_without_status_cannot_publish() {
         .await;
     assert_eq!(status, StatusCode::FORBIDDEN, "{body}");
 }
+
+#[tokio::test]
+async fn test_only_an_admin_can_publish_with_a_past_date() {
+    let site = site().await;
+    let admin = site.new_session("admin1", "admin").await;
+    let body = with(
+        with(page("Old post", "old-post"), "status", json!("published")),
+        "published_at",
+        json!("2015-03-01T09:00:00Z"),
+    );
+
+    let (status, created) = site
+        .send_as(&admin, "POST", "/api/v1/contents/page", Some(body.clone()))
+        .await;
+    assert_eq!(status, StatusCode::CREATED, "{created}");
+    assert_eq!(created["status"], "published");
+    assert!(
+        created["published_at"]
+            .as_str()
+            .unwrap()
+            .starts_with("2015-03-01T09:00:00"),
+        "{created}"
+    );
+
+    // An editor's date is ignored: the post is published now
+    let body = with(body, "slug", json!("editor-post"));
+    let (status, created) = site.send("POST", "/api/v1/contents/page", Some(body)).await;
+    assert_eq!(status, StatusCode::CREATED, "{created}");
+    assert!(
+        !created["published_at"]
+            .as_str()
+            .unwrap()
+            .starts_with("2015"),
+        "{created}"
+    );
+}
