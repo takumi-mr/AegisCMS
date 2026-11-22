@@ -401,8 +401,10 @@ fn latest_types_must_be_public_types() {
         serde_json::json!({"content_type": "memo", "label": "M", "fields": []}),
     ]);
     let check = |types: &[&str]| {
-        let mut theme = aegis_theme::ThemeConfig::default();
-        theme.latest_types = types.iter().map(|t| t.to_string()).collect();
+        let theme = aegis_theme::ThemeConfig {
+            latest_types: types.iter().map(|t| t.to_string()).collect(),
+            ..Default::default()
+        };
         super::public::validate_latest_types(&theme, &known)
     };
     // 記事は `public_path` が無くても公開される。カスタム型は `public_path` が要る

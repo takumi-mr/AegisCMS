@@ -832,7 +832,7 @@ mod tests {
         );
 
         // 昔のブロック（`fetched_url` が無い）と、他のブロックは対象にしない
-        let mut old = fresh.clone();
+        let mut old = fresh;
         old.attributes.remove("fetched_url");
         assert_eq!(stale_embed_url(&old), None);
         assert_eq!(stale_embed_url(&BlockNode::paragraph("x")), None);
