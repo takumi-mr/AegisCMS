@@ -20,7 +20,7 @@ use aegis_cache::CacheTags;
 use aegis_captcha::CaptchaError;
 use aegis_comments::{
     AdminCommentPage, AdminListQuery, ClientInfo, CommentError, CommentRequest, CommentService,
-    ModerationSettings, PolicyOverrides, StaffAuthor,
+    ImportedComment, ModerationSettings, PolicyOverrides, StaffAuthor,
 };
 use aegis_core::{CommentSection, ModerationStatus, PageRenderContext, PublicComment};
 
@@ -321,6 +321,86 @@ fn parse_status(value: &str) -> Result<ModerationStatus, ApiError> {
     value
         .parse()
         .map_err(|e: String| api_error(StatusCode::BAD_REQUEST, e))
+}
+
+/// 取り込むコメント 1 件（`POST …/comments/import` の本文）
+#[derive(Debug, Deserialize)]
+pub struct ImportCommentItem {
+    /// 元のサイトでの ID（`parent_ref` から指す）
+    #[serde(rename = "ref")]
+    pub reference: String,
+    #[serde(default)]
+    pub parent_ref: Option<String>,
+    #[serde(default)]
+    pub name: String,
+    #[serde(default)]
+    pub email: String,
+    pub body: String,
+    /// `approved` / `pending` / `spam` / `trash`（既定は `pending`）
+    #[serde(default)]
+    pub status: Option<String>,
+    /// 投稿の日時（RFC 3339）
+    #[serde(default)]
+    pub created_at: Option<String>,
+    #[serde(default)]
+    pub ip: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ImportCommentsRequest {
+    pub comments: Vec<ImportCommentItem>,
+}
+
+/// `POST /api/v1/contents/{content_type}/{slug}/comments/import` — ほかのサイトから移したコメントを、状態・
+/// 日時・返信の関係ごと入れる（`admin`）。承認の判定・通知・投稿数の制限は行わない
+pub async fn import_comments(
+    State(state): State<Arc<AppState>>,
+    _session: AdminSession,
+    Path((content_type, slug)): Path<(String, String)>,
+    audit: AuditContext,
+    Json(payload): Json<ImportCommentsRequest>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    let service = comments(&state)?;
+    let target = service
+        .target(&content_type, &slug)
+        .await
+        .map_err(comment_error)?;
+    let items = payload
+        .comments
+        .into_iter()
+        .map(|item| {
+            let status = match item.status.as_deref() {
+                Some(s) => parse_status(s)?,
+                None => ModerationStatus::Pending,
+            };
+            Ok(ImportedComment {
+                reference: item.reference,
+                parent_ref: item.parent_ref.filter(|p| !p.is_empty()),
+                name: item.name,
+                email: item.email,
+                body: item.body,
+                status,
+                created_at: item.created_at,
+                ip: item.ip,
+            })
+        })
+        .collect::<Result<Vec<_>, ApiError>>()?;
+    let outcome = service
+        .import(&audit, &target, items)
+        .await
+        .map_err(comment_error)?;
+    let mut tags = CacheTags::new();
+    tags.add_dependency("comments", &target.id);
+    tags.add_dependency(&target.content_type, &target.id);
+    crate::cdn::purge_tags(&state, &tags).await;
+    Ok(Json(json!({
+        "imported": outcome.imported,
+        "skipped": outcome
+            .skipped
+            .iter()
+            .map(|(reference, reason)| json!({ "ref": reference, "reason": reason }))
+            .collect::<Vec<_>>(),
+    })))
 }
 
 /// `GET /api/v1/comments` — コメントの一覧（新しい順）と状態ごとの件数（`editor`）

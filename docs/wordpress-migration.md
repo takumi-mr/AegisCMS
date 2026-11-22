@@ -40,17 +40,19 @@ The same file can be imported again: items that already exist (same slug) are sk
 
 ## What Is Moved
 
-| WordPress                            | AegisCMS                                                                                                                                         |
-| ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Posts                                | `article`, with the original publication date, excerpt, first category and tags                                                                  |
-| Pages                                | `page`                                                                                                                                           |
-| Categories                           | `category` content                                                                                                                               |
-| Tags                                 | Tags. A tag whose slug is not ASCII (for example Japanese) gets the slug `wp-tag-<ID>`; the name is kept                                         |
-| Media                                | Uploaded under `wordpress/` keeping the year and month folders; links in the content (including resized copies such as `-300x200`) are rewritten |
-| Authors                              | Users with the role `contributor`, created **disabled** with a random password. Enable them and set a password to let them log in                |
-| Drafts, pending, scheduled           | The same status                                                                                                                                  |
-| Private and password-protected posts | Imported as **drafts**, so nothing private becomes public. They are listed in the report                                                         |
-| Trash                                | Not imported                                                                                                                                     |
+| WordPress                            | AegisCMS                                                                                                                                                                          |
+| ------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Posts                                | `article`, with the original publication date, excerpt, first category and tags                                                                                                   |
+| Pages                                | `page`                                                                                                                                                                            |
+| Categories                           | `category` content                                                                                                                                                                |
+| Tags                                 | Tags. A tag whose slug is not ASCII (for example Japanese) gets the slug `wp-tag-<ID>`; the name is kept                                                                          |
+| Media                                | Uploaded under `wordpress/` keeping the year and month folders; links in the content (including resized copies such as `-300x200`) are rewritten                                  |
+| Authors                              | Users with the role `contributor`, created **disabled** with a random password. Enable them and set a password to let them log in                                                 |
+| Drafts, pending, scheduled           | The same status                                                                                                                                                                   |
+| Private and password-protected posts | Imported as **drafts**, so nothing private becomes public. They are listed in the report                                                                                          |
+| Trash                                | Not imported                                                                                                                                                                      |
+| Comments                             | Imported with their status (approved, pending, spam, trash), date and replies, only on published posts. No email is sent. Needs `[comments]` enabled for the content type         |
+| Old URLs                             | 301 redirects from the old permalink to the new URL. A big site gets one pattern rule for the permalink structure (for example `/{p1}/{p2}/{slug}`) instead of thousands of rules |
 
 Posts are converted to blocks: paragraphs, headings, lists, quotes, code, tables, images, separators and details. Things that cannot be converted exactly are kept as an HTML block and listed in the report.
 
@@ -59,4 +61,4 @@ Posts are converted to blocks: paragraphs, headings, lists, quotes, code, tables
 - PHP themes and plugins. See the report for what the content used.
 - Shortcodes other than `[caption]`, `[embed]` and `[gallery]`, page-builder content, WooCommerce products, form plugins, and custom post types.
 - Featured images, parent categories and parent pages (the structure is flat), and SEO plugin fields.
-- Comments and redirects from the old URLs are not imported yet.
+- Pingbacks and trackbacks, comment authors that were logged-in users (they become plain names), and old URLs of the form `/?p=123` (a query on the home page cannot be redirected).
