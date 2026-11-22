@@ -655,3 +655,106 @@ async fn test_only_an_admin_can_publish_with_a_past_date() {
         "{created}"
     );
 }
+
+#[tokio::test]
+async fn test_password_protected_content_hashes_masks_and_preserves_password() {
+    let page_schema =
+        aegis_schema::SchemaLoader::load_from_str("content_type: page\nlabel: Pages\n").unwrap();
+    let state = Arc::new(
+        crate::test_support::test_app_state(
+            AegisConfig::default(),
+            PluginSupervisor::new(),
+            vec![page_schema.clone()],
+        )
+        .await,
+    );
+    let editor = state
+        .sessions
+        .create_session("editor1", "editor", Default::default(), None)
+        .await
+        .unwrap()
+        .id;
+    let site = Site { state, editor };
+
+    // 1. パスワードなしの `access: "password"` は 400
+    let missing = with(
+        page("Locked", "locked"),
+        "fields",
+        json!({ "access": "password" }),
+    );
+    let (status, err) = site
+        .send("POST", "/api/v1/contents/page", Some(missing))
+        .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST, "{err}");
+    assert_eq!(err["code"], "missing_access_password");
+
+    // 2. パスワードありで作成: 応答ではマスクされ、DB には Argon2id ハッシュが保存される
+    let create = with(
+        page("Locked", "locked"),
+        "fields",
+        json!({ "access": "password", "access_password": "secret" }),
+    );
+    let (status, created) = site
+        .send("POST", "/api/v1/contents/page", Some(create))
+        .await;
+    assert_eq!(status, StatusCode::CREATED, "{created}");
+    assert_eq!(created["fields"]["access"], "password");
+    assert_eq!(created["fields"]["access_password"], "********");
+
+    let stored = site
+        .state
+        .db
+        .get_content(&page_schema, "locked")
+        .await
+        .unwrap()
+        .unwrap();
+    let first_hash = stored.custom_fields["access_password"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    assert!(first_hash.starts_with("$argon2id$"), "{first_hash}");
+    assert!(aegis_auth::password::verify_password("secret", &first_hash).unwrap());
+
+    // 3. 更新時に `access_password` を省略（またはマスク値のまま）すると、既存のハッシュが保たれる
+    let update_keep = with(
+        page("Locked Renamed", "locked"),
+        "fields",
+        json!({ "access": "password" }),
+    );
+    let (status, updated) = site
+        .send("PUT", "/api/v1/contents/page/locked", Some(update_keep))
+        .await;
+    assert_eq!(status, StatusCode::OK, "{updated}");
+    assert_eq!(updated["fields"]["access_password"], "********");
+    let stored = site
+        .state
+        .db
+        .get_content(&page_schema, "locked")
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(stored.custom_fields["access_password"], first_hash);
+
+    // 4. `access` を公開に戻すと、DB から `access_password` が消える
+    let make_public = with(
+        page("Unlocked", "locked"),
+        "fields",
+        json!({ "access": null }),
+    );
+    let (status, unlocked) = site
+        .send("PUT", "/api/v1/contents/page/locked", Some(make_public))
+        .await;
+    assert_eq!(status, StatusCode::OK, "{unlocked}");
+    assert!(unlocked["fields"]["access_password"].is_null());
+    let stored = site
+        .state
+        .db
+        .get_content(&page_schema, "locked")
+        .await
+        .unwrap()
+        .unwrap();
+    assert!(stored
+        .custom_fields
+        .get("access_password")
+        .is_none_or(|v| v.is_null()));
+}

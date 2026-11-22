@@ -17,7 +17,7 @@ pub mod scripts;
 pub mod storage;
 pub mod time;
 
-pub use access::is_public_access;
+pub use access::{is_password_access, is_public_access, PASSWORD_ACCESS};
 pub use audit::{
     format_audit_timestamp, normalize_audit_timestamp, AuditAction, AuditActor, AuditEvent,
     AuditOutcome, AuditQuery, AuditSink,

@@ -357,6 +357,11 @@ pub fn router(config: &AegisConfig, state: Arc<AppState>) -> Router {
             "/api/v1/orders/{id}/refund",
             post(handlers::refund_order),
         )
+        // --- 記事・ページのパスワード（合言葉）保護の解除 ---
+        .route(
+            "/api/v1/content-auth",
+            post(handlers::unlock_content_password),
+        )
         // --- 会員アカウント（AegisCMS スタッフとは別管理） ---
         .route("/api/v1/members/register", post(handlers::member_register))
         .route("/api/v1/members/login", post(handlers::member_login))

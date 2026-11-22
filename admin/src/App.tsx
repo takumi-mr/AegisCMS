@@ -187,8 +187,9 @@ export const App: React.FC = () => {
   const [coreVersion, setCoreVersion] = useState<string | undefined>(undefined);
   const [contentType, setContentType] = useState<'article' | 'page'>('article');
   const [layout, setLayout] = useState<'default' | 'blank'>('default');
-  // Who can read the article: '' is everyone, otherwise a member level (`[members].levels`)
+  // Who can read the article: '' is everyone, 'password' is password-protected, otherwise a member level (`[members].levels`)
   const [access, setAccess] = useState<string>('');
+  const [accessPassword, setAccessPassword] = useState<string>('');
   const [memberLevels, setMemberLevels] = useState<string[]>([]);
   // The price to buy the article alone (smallest currency unit; '' is not sold alone)
   const [purchasePrice, setPurchasePrice] = useState<string>('');
@@ -647,6 +648,11 @@ export const App: React.FC = () => {
       ...(contentType === 'article' ? { category_id: categoryId || null } : {}),
       ...(contentType === 'page' ? { layout } : {}),
       access: access || null,
+      ...(access === 'password'
+        ? {
+            access_password: accessPassword || storedItem?.fields?.access_password || null,
+          }
+        : {}),
     };
   };
 
@@ -690,6 +696,7 @@ export const App: React.FC = () => {
     setLayout(rawLayout === 'blank' ? 'blank' : 'default');
     const rawAccess = item.fields?.access;
     setAccess(typeof rawAccess === 'string' && rawAccess !== 'public' ? rawAccess : '');
+    setAccessPassword('');
     const rawPrice = item.fields?.purchase_price;
     setPurchasePrice(typeof rawPrice === 'number' && rawPrice > 0 ? String(rawPrice) : '');
     setExtraValues(
@@ -739,6 +746,7 @@ export const App: React.FC = () => {
     setCategoryId('');
     setLayout('default');
     setAccess('');
+    setAccessPassword('');
     setPurchasePrice('');
     setExtraValues({});
     setExtraError(null);
@@ -770,6 +778,7 @@ export const App: React.FC = () => {
     setCategoryId('');
     setLayout('default');
     setAccess('');
+    setAccessPassword('');
     setPurchasePrice('');
     setExtraValues({});
     setExtraError(null);
@@ -927,11 +936,15 @@ export const App: React.FC = () => {
           ...(contentType === 'page' ? { layout } : {}),
           // Cleared (null) when everyone can read it
           access: access || null,
-          // Only a restricted article can be bought; cleared (null) otherwise
+          ...(access === 'password' && accessPassword ? { access_password: accessPassword } : {}),
+          // Only a member-level restricted article can be bought; cleared (null) otherwise
           ...(purchaseEnabled
             ? {
                 purchase_price:
-                  access && /^[0-9]+$/.test(purchasePrice) && Number(purchasePrice) > 0
+                  access &&
+                  access !== 'password' &&
+                  /^[0-9]+$/.test(purchasePrice) &&
+                  Number(purchasePrice) > 0
                     ? Number(purchasePrice)
                     : null,
               }
@@ -1317,30 +1330,48 @@ export const App: React.FC = () => {
                     </Field>
                   )}
 
-                  {membersEnabled && (
-                    <FieldRow>
-                      <Field label={t('editor.access')}>
-                        <select
-                          value={access}
-                          onChange={(e) => setAccess(e.target.value)}
-                          aria-label={t('editor.accessAria')}
-                        >
-                          <option value="">{t('editor.accessPublic')}</option>
-                          {memberLevels.map((level) => (
+                  <FieldRow>
+                    <Field label={t('editor.access')}>
+                      <select
+                        value={access}
+                        onChange={(e) => setAccess(e.target.value)}
+                        aria-label={t('editor.accessAria')}
+                      >
+                        <option value="">{t('editor.accessPublic')}</option>
+                        <option value="password">{t('editor.accessPassword')}</option>
+                        {membersEnabled &&
+                          memberLevels.map((level) => (
                             <option key={level} value={level}>
                               {t('editor.accessLevel', { level })}
                             </option>
                           ))}
-                          {/* A level removed from [members].levels stays visible until it is changed */}
-                          {access && !memberLevels.includes(access) && (
+                        {/* A level removed from [members].levels stays visible until it is changed */}
+                        {access &&
+                          access !== 'password' &&
+                          (!membersEnabled || !memberLevels.includes(access)) && (
                             <option value={access}>{access}</option>
                           )}
-                        </select>
+                      </select>
+                    </Field>
+                    {access === 'password' && (
+                      <Field label={t('editor.accessPasswordInput')}>
+                        <input
+                          type="password"
+                          maxLength={128}
+                          value={accessPassword}
+                          onChange={(e) => setAccessPassword(e.target.value)}
+                          placeholder={
+                            storedItem?.fields?.access_password
+                              ? t('editor.accessPasswordSavedPlaceholder')
+                              : t('editor.accessPasswordPlaceholder')
+                          }
+                          aria-label={t('editor.accessPasswordAria')}
+                        />
                       </Field>
-                    </FieldRow>
-                  )}
+                    )}
+                  </FieldRow>
 
-                  {purchaseEnabled && access && (
+                  {purchaseEnabled && access && access !== 'password' && (
                     <FieldRow>
                       <Field label={t('editor.purchasePrice', { currency: purchaseCurrency })}>
                         <input
@@ -1631,7 +1662,7 @@ export const App: React.FC = () => {
                         <Asterisk size={14} />
                         <span>{t('editor.footnote')}</span>
                       </Button>
-                      {membersEnabled && (
+                      {(membersEnabled || access === 'password') && (
                         <Button variant="tool" onClick={() => addBlock('core/paywall', '')}>
                           <Lock size={14} />
                           <span>{t('editor.paywall')}</span>

@@ -518,3 +518,18 @@ interval_count = 1       # 3 で「3 か月ごと」
 3. **サブスク**（**済**）: プラン `[[members.purchase.plans]]`、`_aegis_subscriptions`（マイグレーション・バックアップ・退会）、`mode=subscription` の Checkout（`POST /api/v1/members/subscriptions`・リンク `GET /account/subscribe?plan=..`）、Webhook（`checkout.session.completed` で開始、`customer.subscription.updated` / `deleted` で更新・解約。更新の支払いの失敗は `updated` の `past_due` で分かるので、`invoice.*` は受けない）、有効なレベル（`access.rs` の `member_session` が手動のレベルと契約のレベルの高いほうを使う）、解約・カード変更は Stripe の Customer Portal へ（`POST /api/v1/members/billing-portal`・リンク `GET /account/billing`。Stripe のダッシュボードでポータルを有効にしておく）。コードは `handlers/subscription.rs`、`aegis-db/src/subscriptions.rs`。
 4. **管理画面**（**済**）: 会員の詳細に購入・契約の一覧、無料の付与（`POST /api/v1/admin/members/{id}/purchases`）、権利の取り消し（`.../purchases/{id}/revoke`）、全額の返金（`.../purchases/{id}/refund`。Stripe の返金 API）、契約の即時解約（`.../subscriptions/{id}/cancel`）。いずれも `admin` だけ。会員の詳細の API（`GET /api/v1/admin/members/{id}`）が `purchases` / `subscriptions` を返す。
 5. **会員の画面**（**済**）: マイページ（`/account`）に「メンバーシップ」（プランの一覧と契約・解約へのリンク）と「購入した記事」。レベルが足りない会員への案内は、`upgrade_url` が無くプランがあれば、プランへのリンクを出す。
+
+---
+
+## 17. 記事・ページのパスワード（合言葉）保護（実装済み）
+
+会員アカウントを使わずに、記事・ページごとに設定したパスワード（合言葉）を入力した閲覧者だけに本文を見せる仕組みです（WordPress の「パスワード保護」相当）。閲覧制限のパイプライン（§15）を共有するため、フィード・検索・関連記事・ヘッドレス API・コメント API での漏れ防止、`<!-- paywall -->`（「ここから先」）、`Cache-Control: private, no-store` がそのまま効きます。
+
+- **モデル**: `access = "password"`（会員レベルとは排他。`[members].levels` には `"password"` を使えない）と、組み込みフィールド **`access_password`**（`string`、`nullable: true`、**`public: false`**）。`[members].enabled = false` のサイトでも常時使える。
+- **保存とマスク**: 管理 API（`POST` / `PUT /api/v1/contents/{type}`）で `access = "password"` のとき、`access_password`（1〜128 文字）を Argon2id でハッシュして DB に保存する。管理 API の応答では生のハッシュを返さず `"********"` にマスクする。更新時に `access_password` を省略（またはマスク値のまま送信）した場合は既存のハッシュを保ち、`access` を `"password"` 以外に変えたときは `access_password` を `NULL` に消す。`public: false` かつ公開描画時にも除去するため、ヘッドレス API・公開クエリ・テーマの `fields` には一切出ない。
+- **解除の流れ**:
+    1. 未解除の閲覧者には、案内の枠（`.aegis-access-notice`）にパスワード入力フォーム（`POST /api/v1/content-auth`）を出す。
+    2. `POST /api/v1/content-auth`（フォーム送信または JSON）は、IP と記事ごとの試行回数制限（`login_limiter`）を通した上で Argon2id を検証する。
+    3. 一致したら、**その記事 ID と現在の `access_password` ハッシュから派生させたトークン**（`SHA-256("aegis-content-pass:" + type + ":" + id + ":" + hash)` の先頭 16 バイト hex）を HttpOnly Cookie `{名前空間}_pass`（`SameSite=Lax`、有効 24 時間、最大 32 件）に格納し、元のページへ `303 See Other` で戻す（誤りのときは短命 Cookie `{名前空間}_pass_err` を付けて戻し、フォームにエラーメッセージを出す）。
+    4. **記事ごとの解除**: トークンに記事 ID が含まれるため、同じパスワードを設定した別の記事は自動では開かない。また、管理画面でパスワードを変更・再設定すると Argon2id のソルトごとハッシュが変わるため、発行済みの古い解除 Cookie は即座に無効になる。
+- **WordPress からの移行**: `aegis-server import wordpress` は `<wp:post_password>` のある投稿・固定ページを、元の公開状態を保ったまま `access = "password"` として取り込む（[wordpress-migration.ja.md](wordpress-migration.ja.md)）。

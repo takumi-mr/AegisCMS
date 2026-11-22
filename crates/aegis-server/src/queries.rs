@@ -408,6 +408,7 @@ async fn list_to_json(
                 )
             );
             let mut fields = record.custom_fields;
+            fields.remove(aegis_schema::ACCESS_PASSWORD_FIELD);
             fields.insert("url".to_string(), json!(url));
             json!({
                 "id": record.id,

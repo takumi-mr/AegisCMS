@@ -172,15 +172,18 @@ impl RelationTarget {
 /// 全コンテンツ型が持つ組み込みのカテゴリ参照フィールド名
 pub const CATEGORY_FIELD: &str = "category_id";
 
-/// 全コンテンツ型が持つ組み込みの閲覧制限フィールド名（必要な会員レベル。docs/members.md 15）
+/// 全コンテンツ型が持つ組み込みの閲覧制限フィールド名（必要な会員レベル・保護方式。docs/members.md 15）
 pub const ACCESS_FIELD: &str = "access";
+
+/// 全コンテンツ型が持つ組み込みのパスワード（合言葉）保護のハッシュフィールド名（`access = "password"` のとき。公開 API には出さない）
+pub const ACCESS_PASSWORD_FIELD: &str = "access_password";
 
 /// 全コンテンツ型が持つ組み込みの単独購入の価格フィールド名（通貨の最小単位。docs/members.md 16）。
 /// 商品（ショップ）の `price` とは別の名前にして、商品型の定義を上書きしない
 pub const PURCHASE_PRICE_FIELD: &str = "purchase_price";
 
 impl FieldDefinition {
-    /// 組み込みの `access`（必要な会員レベル。未設定・`public` は誰でも）。
+    /// 組み込みの `access`（必要な会員レベル、または `"password"`。未設定・`public` は誰でも）。
     /// 閲覧の制限が YAML の書き忘れで外れないよう、全コンテンツ型に必ず持たせる。
     /// 値は公開してよい（ヘッドレス API で、クライアントが鍵の印を出すのに使う）
     pub fn builtin_access() -> Self {
@@ -195,6 +198,23 @@ impl FieldDefinition {
             target: None,
             indexed_paths: Vec::new(),
             public: true,
+        }
+    }
+
+    /// 組み込みの `access_password`（記事・ページのパスワード保護の Argon2id ハッシュ）。
+    /// `public: false` にして、ヘッドレス配信 API や公開クエリには一切出さない
+    pub fn builtin_access_password() -> Self {
+        Self {
+            name: ACCESS_PASSWORD_FIELD.to_string(),
+            field_type: FieldType::String,
+            required: false,
+            nullable: true,
+            unique: false,
+            index: false,
+            max_length: Some(255),
+            target: None,
+            indexed_paths: Vec::new(),
+            public: false,
         }
     }
 
@@ -233,14 +253,19 @@ impl FieldDefinition {
 }
 
 impl SchemaDefinition {
-    /// 組み込みフィールド（`category_id`・`access`・`purchase_price`）を先頭に差し込む。
+    /// 組み込みフィールド（`category_id`・`access`・`access_password`・`purchase_price`）を先頭に差し込む。
     /// YAML に同名の定義があっても組み込みの定義で置き換える（型ごとに食い違わせない）
     pub fn with_builtin_fields(mut self) -> Self {
         self.fields.retain(|f| {
-            f.name != CATEGORY_FIELD && f.name != ACCESS_FIELD && f.name != PURCHASE_PRICE_FIELD
+            f.name != CATEGORY_FIELD
+                && f.name != ACCESS_FIELD
+                && f.name != ACCESS_PASSWORD_FIELD
+                && f.name != PURCHASE_PRICE_FIELD
         });
         self.fields
             .insert(0, FieldDefinition::builtin_purchase_price());
+        self.fields
+            .insert(0, FieldDefinition::builtin_access_password());
         self.fields.insert(0, FieldDefinition::builtin_access());
         self.fields.insert(0, FieldDefinition::builtin_category());
         self

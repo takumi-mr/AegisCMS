@@ -36,7 +36,7 @@ pub enum Skip {
 }
 
 /// 項目の状態を決める。公開は公開、下書きは下書き、予約は予約。
-/// 非公開・パスワード保護は、勝手に公開しないよう下書きにして報告する
+/// 非公開は、勝手に公開しないよう下書きにして報告する（パスワード保護の投稿は `access = "password"` としてそのままの状態を保つ）
 pub fn map_status(item: &WpItem) -> Result<Status, Skip> {
     let plain = |status, note| Status {
         status,
@@ -54,13 +54,6 @@ pub fn map_status(item: &WpItem) -> Result<Status, Skip> {
         "private" => plain("draft", Some("private")),
         _ => return Err(Skip::NotContent),
     };
-    if item.password.is_some() {
-        return Ok(Status {
-            status: "draft",
-            published_at: status.published_at,
-            note: Some("password protected"),
-        });
-    }
     Ok(status)
 }
 
@@ -459,15 +452,15 @@ mod tests {
     }
 
     #[test]
-    fn private_and_password_posts_are_never_published() {
+    fn private_posts_become_drafts_while_password_posts_keep_their_status() {
         let private = map_status(&item("post", "private")).unwrap();
         assert_eq!((private.status, private.note), ("draft", Some("private")));
 
         let mut locked = item("post", "publish");
         locked.password = Some("secret".to_string());
         let locked = map_status(&locked).unwrap();
-        assert_eq!(locked.status, "draft");
-        assert_eq!(locked.note, Some("password protected"));
+        assert_eq!(locked.status, "published");
+        assert_eq!(locked.note, None);
     }
 
     #[test]

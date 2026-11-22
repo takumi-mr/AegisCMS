@@ -323,6 +323,7 @@ pub fn site_page_context(state: &AppState) -> PageRenderContext {
 
 /// 一覧・関連記事などの要素に、公開ページの URL（`fields.url`。`base_path` 込み）を入れる
 pub(crate) fn set_public_url(state: &AppState, item: &mut aegis_core::ContentSummary) {
+    item.fields.remove(aegis_schema::ACCESS_PASSWORD_FIELD);
     let base = state
         .config
         .server
@@ -370,6 +371,7 @@ pub async fn render_page(
 
     // 関連記事・前後の記事のリンク先。テーマは `{{ item.fields.url }}` で使う（`base_path` 込み）
     let mut page = page;
+    page.fields.remove(aegis_schema::ACCESS_PASSWORD_FIELD);
     for item in page
         .related_articles
         .iter_mut()

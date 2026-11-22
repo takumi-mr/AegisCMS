@@ -204,9 +204,9 @@ const STANDARD_QUERY_COLUMNS: &[(&str, FieldType)] = &[
     ("updated_at", FieldType::Timestamp),
 ];
 
-/// 列名を、スキーマのフィールドか使える標準カラムから探す
+/// 列名を、スキーマの公開フィールドか使える標準カラムから探す（`public: false` の内部フィールドは使えない）
 pub fn resolve_column(schema: &SchemaDefinition, name: &str) -> Option<Column> {
-    if let Some(f) = schema.fields.iter().find(|f| f.name == name) {
+    if let Some(f) = schema.fields.iter().find(|f| f.name == name && f.public) {
         return Some(Column {
             field_type: f.field_type,
             nullable: !(f.required && !f.nullable),
@@ -532,7 +532,11 @@ impl QueryDefinition {
                             // 参照先は分からないので載せない（テーマは `relations` で読む）
                             FieldType::Relation | FieldType::Jsonb => continue,
                         };
-                        if f.name != crate::ACCESS_FIELD && f.name != crate::PURCHASE_PRICE_FIELD {
+                        if f.public
+                            && f.name != crate::ACCESS_FIELD
+                            && f.name != crate::ACCESS_PASSWORD_FIELD
+                            && f.name != crate::PURCHASE_PRICE_FIELD
+                        {
                             fields.insert(f.name.clone(), value);
                         }
                     }
