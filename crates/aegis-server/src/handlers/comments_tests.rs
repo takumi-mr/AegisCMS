@@ -786,3 +786,50 @@ fn test_shared_captcha_validation_and_routing() {
     let captchas = config.resolve_captcha().unwrap();
     assert!(captchas.forum.is_some() && captchas.contact.is_none());
 }
+
+#[tokio::test]
+async fn test_import_keeps_status_dates_and_replies_without_notifications() {
+    let site = site(|_| {}).await;
+    let path = "/api/v1/contents/article/hello/comments/import";
+    let body = json!({ "comments": [
+        // The reply comes before its parent: the parent is still created first
+        { "ref": "2", "parent_ref": "1", "name": "B", "email": "", "body": "reply",
+          "status": "approved", "created_at": "2019-01-02T00:00:00Z" },
+        { "ref": "1", "name": "A", "email": "a@example.com", "body": "first",
+          "status": "approved", "created_at": "2019-01-01T00:00:00Z", "ip": "198.51.100.4" },
+        { "ref": "3", "name": "Bot", "body": "buy now", "status": "spam" },
+        { "ref": "4", "parent_ref": "missing", "name": "C", "body": "orphan", "status": "approved" },
+        { "ref": "5", "name": "D", "body": "   ", "status": "approved" },
+    ]});
+
+    // Editors cannot import; only admins
+    let (status, _) = site
+        .call("POST", path, Some(body.clone()), Some(&site.editor))
+        .await;
+    assert_eq!(status, StatusCode::FORBIDDEN);
+
+    let (status, out) = site.call("POST", path, Some(body), Some(&site.admin)).await;
+    assert_eq!(status, StatusCode::OK, "{out}");
+    assert_eq!(out["imported"], 4, "{out}");
+    assert_eq!(out["skipped"][0]["ref"], "5");
+
+    // Nobody is emailed about imported comments
+    assert!(site.mails.kinds().is_empty());
+
+    let (_, public) = site
+        .call("GET", "/api/v1/contents/article/hello/comments", None, None)
+        .await;
+    // The spam comment is not public; the other three approved ones are
+    assert_eq!(public["count"], 3, "{public}");
+    let (_, list) = site
+        .call(
+            "GET",
+            "/api/v1/comments?status=spam",
+            None,
+            Some(&site.admin),
+        )
+        .await;
+    assert_eq!(list["comments"].as_array().map(Vec::len), Some(1), "{list}");
+    let text = public.to_string();
+    assert!(text.contains("2019-01-01T00:00:00"), "{text}");
+}

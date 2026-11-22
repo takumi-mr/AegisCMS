@@ -24,12 +24,9 @@
 
 ### 🚚 WordPress からの移行
 
-WXR（「ツール > エクスポート」の XML）を CLI で取り込む。完全なワンボタンは目指さず、「だいたい移せて、移せなかったものが報告で分かる」を目標にする。残りは次の 2 本。
+WXR（「ツール > エクスポート」の XML）を CLI（`aegis-server import wordpress`。[docs/wordpress-migration.ja.md](docs/wordpress-migration.ja.md)）で取り込む。完全なワンボタンは目指さず、「だいたい移せて、移せなかったものが報告で分かる」を目標にする。
 
-- [ ] **PR 2b: コメントと旧 URL のリダイレクト**（`aegis-server import wordpress` は投稿・固定ページ・メディア・著者・カテゴリ・タグまで実装済み。[docs/wordpress-migration.ja.md](docs/wordpress-migration.ja.md)）。
-    - コメント: 公開用の投稿 API では承認状態・日時・返信の親子を指定できない。admin 専用の取り込み用 API（`POST /api/v1/import/comments`、監査ログつき）を足し、`aegis_wordpress::WpComment` を流し込む。取り込み後は、取り込みコマンドの「コメントは未対応」の報告を外す。
-    - リダイレクト: 上限が 2,000 件で、投稿の多いサイトでは足りない。旧パーマリンク（`/2024/05/slug/`・`/?p=123`）をパターンで受ける規則を足す。
-    - 取り込みは admin のログインで行う（API トークンは `editor` までで、ユーザーの作成と過去の公開日の指定ができないため）。2 段階認証のユーザーは使えない。必要なら、トークンに取り込み用の許可を足すか、CLI で 2FA コードを受ける。
+- **取り込みは admin のログインで行う**（API トークンは `editor` までで、ユーザーの作成と過去の公開日の指定ができないため）。2 段階認証のユーザーは使えない。必要なら、トークンに取り込み用の許可を足すか、CLI で 2FA コードを受ける。
 - [ ] **PR 3: スターターテーマ + 対応表 + 移行ガイド**: WordPress の標準のクラス名（`entry-content`・`post`・`widget` など）で出力するスターターテーマと、`theme import-wordpress`（移行元テーマの `style.css` とアセットを取り込む）。対応表は、テンプレート階層（`single.php` → `article.html` など）と関数 → 変数。ガイドは `docs/wordpress-migration.md`（日本語・英語）。
 - 割り切り: PHP のテーマ・プラグインは変換できない。ショートコード・ページビルダー・WooCommerce・フォームのプラグインは、報告に出して手で直す。画像の説明（キャプション）は、画像ブロックが持てないため斜体の段落にする。段落内の改行・`<sup>`・入れ子のリストは、`core/html` ブロックに残す。
 

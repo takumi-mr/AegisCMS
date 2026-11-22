@@ -87,6 +87,10 @@ pub fn router(config: &AegisConfig, state: Arc<AppState>) -> Router {
             "/api/v1/contents/{content_type}/{id}/comments/state",
             get(handlers::get_content_comments).put(handlers::set_content_comments),
         )
+        .route(
+            "/api/v1/contents/{content_type}/{slug}/comments/import",
+            post(handlers::import_comments),
+        )
         .route("/api/v1/comments", get(handlers::list_comments))
         .route(
             "/api/v1/comments/settings",
@@ -1025,8 +1029,8 @@ async fn redirect_middleware(
     let Some((path, query)) = lookup else {
         return response;
     };
-    let rule = state.redirects.read().await.resolve(&path).cloned();
-    let Some(rule) = rule else {
+    let resolved = state.redirects.read().await.resolve_target(&path);
+    let Some((rule_to, rule_status)) = resolved else {
         return response;
     };
 
@@ -1035,8 +1039,8 @@ async fn redirect_middleware(
         .server
         .normalized_base_path()
         .unwrap_or_default();
-    let mut target = under_base_path(&base_path, &rule.to);
-    if let Some(query) = query.filter(|q| !q.is_empty() && !rule.to.contains('?')) {
+    let mut target = under_base_path(&base_path, &rule_to);
+    if let Some(query) = query.filter(|q| !q.is_empty() && !rule_to.contains('?')) {
         let (before, fragment) = match target.split_once('#') {
             Some((before, fragment)) => (before.to_string(), format!("#{}", fragment)),
             None => (target.clone(), String::new()),
@@ -1048,7 +1052,7 @@ async fn redirect_middleware(
     else {
         return response;
     };
-    let status = if rule.status == 302 {
+    let status = if rule_status == 302 {
         StatusCode::FOUND
     } else {
         StatusCode::MOVED_PERMANENTLY

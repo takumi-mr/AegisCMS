@@ -178,6 +178,32 @@ pub struct Submitted {
     pub comment: Option<PublicComment>,
 }
 
+/// 一度に取り込めるコメントの数
+pub const MAX_IMPORT: usize = 1000;
+
+/// ほかのサイトから移すコメント 1 件
+#[derive(Debug, Clone)]
+pub struct ImportedComment {
+    /// 元のサイトでの ID（同じ要求の中で `parent_ref` から指す）
+    pub reference: String,
+    pub parent_ref: Option<String>,
+    pub name: String,
+    pub email: String,
+    pub body: String,
+    pub status: ModerationStatus,
+    /// RFC 3339。読めなければ今
+    pub created_at: Option<String>,
+    pub ip: Option<String>,
+}
+
+/// 取り込みの結果
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
+pub struct ImportOutcome {
+    pub imported: usize,
+    /// 入れられなかったコメントの `reference` と理由
+    pub skipped: Vec<(String, String)>,
+}
+
 /// Admin Studio から返信するユーザー
 #[derive(Debug, Clone)]
 pub struct StaffAuthor {
@@ -1137,6 +1163,118 @@ impl CommentService {
         result?;
         self.notify_reply(&target, &parent, &record);
         Ok(record)
+    }
+
+    /// ほかのサイトから移したコメントを、そのまま入れる（承認の判定・通知・投稿数の制限・返信の深さの
+    /// 制限は行わない）。同じ要求の中で、`parent_ref` は `reference` が同じコメントを指す。
+    /// 親が先に入るよう並べ替える。入れられなかったものは、理由つきで返す
+    pub async fn import(
+        &self,
+        audit: &AuditOrigin,
+        target: &CommentTarget,
+        comments: Vec<ImportedComment>,
+    ) -> CommentResult<ImportOutcome> {
+        if comments.len() > MAX_IMPORT {
+            return Err(CommentError::Invalid(format!(
+                "At most {MAX_IMPORT} comments can be imported at once"
+            )));
+        }
+        let mut outcome = ImportOutcome::default();
+        let mut ids: HashMap<String, String> = HashMap::new();
+        let refs: HashSet<String> = comments.iter().map(|c| c.reference.clone()).collect();
+        let mut pending = comments;
+        // 親が先に入るまで、残りを繰り返し試す（親が見つからなければ、最後に親なしで入れる）
+        while !pending.is_empty() {
+            let (ready, waiting): (Vec<_>, Vec<_>) = pending.into_iter().partition(|c| {
+                c.parent_ref
+                    .as_ref()
+                    .is_none_or(|p| ids.contains_key(p) || !refs.contains(p))
+            });
+            if ready.is_empty() {
+                // 親が同じ要求の中に無い（または循環している）: 親なしで入れる
+                pending = waiting
+                    .into_iter()
+                    .map(|mut c| {
+                        c.parent_ref = None;
+                        c
+                    })
+                    .collect();
+                continue;
+            }
+            pending = waiting;
+            for comment in ready {
+                let reference = comment.reference.clone();
+                match self.import_one(target, comment, &ids).await {
+                    Ok(id) => {
+                        ids.insert(reference, id);
+                        outcome.imported += 1;
+                    }
+                    Err(reason) => outcome.skipped.push((reference, reason)),
+                }
+            }
+        }
+        self.deps
+            .audit
+            .record(
+                audit
+                    .event(AuditAction::CommentCreate, AuditOutcome::Success)
+                    .with_resource("content", Some(target.id.clone()))
+                    .with_details(json!({
+                        "import": true,
+                        "content_type": target.content_type,
+                        "imported": outcome.imported,
+                        "skipped": outcome.skipped.len(),
+                    })),
+            )
+            .await;
+        Ok(outcome)
+    }
+
+    async fn import_one(
+        &self,
+        target: &CommentTarget,
+        comment: ImportedComment,
+        ids: &HashMap<String, String>,
+    ) -> Result<String, String> {
+        let name =
+            moderation::normalize_name(&comment.name).unwrap_or_else(|_| "Anonymous".to_string());
+        // メールが無い・壊れているコメントは、メールなしで入れる
+        let email = moderation::normalize_email(&comment.email).unwrap_or_default();
+        let truncated: String = comment.body.chars().take(self.config.max_length).collect();
+        let body = moderation::normalize_body(&truncated, self.config.max_length)?;
+        let created_at = comment
+            .created_at
+            .as_deref()
+            .and_then(|s| aegis_core::time::parse_rfc3339(s).ok())
+            .map_or_else(now, |t| t.to_rfc3339_micros());
+        let record = CommentRecord {
+            id: Uuid::new_v4().to_string(),
+            content_type: target.content_type.clone(),
+            content_id: target.id.clone(),
+            parent_id: comment
+                .parent_ref
+                .as_ref()
+                .and_then(|p| ids.get(p))
+                .cloned(),
+            author_name: name,
+            author_email: email,
+            author_user_id: None,
+            body,
+            status: comment.status.as_str().to_string(),
+            ip: comment.ip.filter(|ip| !ip.trim().is_empty()),
+            user_agent: None,
+            notify_replies: false,
+            notify_token: None,
+            created_at: created_at.clone(),
+            updated_at: created_at,
+        };
+        let id = record.id.clone();
+        self.deps
+            .db
+            .insert_comment(&record)
+            .await
+            .map_err(|e| e.to_string())?;
+        Ok(id)
     }
 
     /// コンテンツを削除したときに、そのコメントと受付の切り替えも消す

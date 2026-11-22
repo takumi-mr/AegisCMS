@@ -120,6 +120,100 @@ pub fn canonical_path(path: &str) -> String {
     }
 }
 
+/// `from` の `{name}`（1 区間に一致する）の名前。`[a-z][a-z0-9_]*` で 16 文字まで
+fn placeholder(segment: &str) -> Option<&str> {
+    let name = segment.strip_prefix('{')?.strip_suffix('}')?;
+    let mut chars = name.chars();
+    let valid = chars.next().is_some_and(|c| c.is_ascii_lowercase())
+        && name.len() <= 16
+        && chars.all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_');
+    valid.then_some(name)
+}
+
+/// `from` が `{name}` を含むパターンか
+fn is_pattern(from: &str) -> bool {
+    from.contains('{')
+}
+
+/// パターンの検査: `{` `}` は区間まるごと `{name}` の形だけで、名前は重複しない
+fn check_pattern(from: &str) -> std::result::Result<(), RedirectError> {
+    let mut names = HashSet::new();
+    for segment in from.split('/') {
+        if segment.contains(['{', '}']) {
+            let name = placeholder(segment).ok_or_else(|| {
+                invalid(
+                    "from",
+                    "a placeholder must be a whole path segment like {slug} (lowercase letters, digits and '_')",
+                )
+            })?;
+            if !names.insert(name) {
+                return Err(invalid("from", "a placeholder name is used twice"));
+            }
+        }
+    }
+    Ok(())
+}
+
+/// `to` の `{name}` が、すべて `from` にあるか
+fn check_target_placeholders(from: &str, to: &str) -> std::result::Result<(), RedirectError> {
+    let known: HashSet<&str> = from.split('/').filter_map(placeholder).collect();
+    let path = to.split(['?', '#']).next().unwrap_or(to);
+    let mut rest = path;
+    while let Some(start) = rest.find('{') {
+        let Some(len) = rest[start..].find('}') else {
+            return Err(invalid("to", "a '{' is not closed"));
+        };
+        let name = &rest[start + 1..start + len];
+        if !known.contains(name) {
+            return Err(invalid(
+                "to",
+                "a placeholder in 'to' must also be in 'from'",
+            ));
+        }
+        rest = &rest[start + len + 1..];
+    }
+    if rest.contains('}') {
+        return Err(invalid("to", "a '}' has no '{'"));
+    }
+    Ok(())
+}
+
+/// パターンに一致したら、`{name}` に入った値（区間ごと）
+fn match_pattern<'a>(pattern: &'a str, path: &'a str) -> Option<Vec<(&'a str, &'a str)>> {
+    let mut captures = Vec::new();
+    let mut want = pattern.split('/');
+    let mut have = path.split('/');
+    loop {
+        match (want.next(), have.next()) {
+            (None, None) => return Some(captures),
+            (Some(w), Some(h)) => match placeholder(w) {
+                Some(name) if !h.is_empty() => captures.push((name, h)),
+                Some(_) => return None,
+                None if w == h => {}
+                None => return None,
+            },
+            _ => return None,
+        }
+    }
+}
+
+/// `to` の `{name}` を値に置き換える。値は URL のパスに入れられるよう `%XX` にする
+fn fill_target(to: &str, captures: &[(&str, &str)]) -> String {
+    let mut out = to.to_string();
+    for (name, value) in captures {
+        let mut encoded = String::new();
+        for byte in value.bytes() {
+            if byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_' | b'.' | b'~') {
+                encoded.push(byte as char);
+            } else {
+                encoded.push_str(&format!("%{byte:02X}"));
+            }
+        }
+        out = out.replace(&format!("{{{name}}}"), &encoded);
+    }
+    out
+}
+
 /// `from` の検査と整形。`reserved` はリダイレクトを置けない先頭（`/api`・管理画面など）
 pub fn normalize_from(
     raw: &str,
@@ -142,6 +236,9 @@ pub fn normalize_from(
         ));
     }
     let path = canonical_path(raw);
+    if path.contains(['{', '}']) {
+        check_pattern(&path)?;
+    }
     if path == "/" {
         return Err(invalid("from", "the home page cannot be redirected"));
     }
@@ -262,9 +359,26 @@ impl RedirectTable {
     }
 
     /// このパスの規則（比べる形は [`canonical_path`]）
+    #[cfg(test)]
     pub fn resolve(&self, path: &str) -> Option<&RedirectRule> {
         let path = canonical_path(path);
         self.rules.iter().find(|r| r.from == path)
+    }
+
+    /// このパスの転送先（`to`・ステータス）。完全に一致する規則を先に探し、なければパターンの規則を
+    /// 上から順に試す（`{slug}` などに入った値を `to` に入れて返す）
+    pub fn resolve_target(&self, path: &str) -> Option<(String, u16)> {
+        let path = canonical_path(path);
+        if let Some(rule) = self.rules.iter().find(|r| r.from == path) {
+            return Some((rule.to.clone(), rule.status));
+        }
+        self.rules
+            .iter()
+            .filter(|r| is_pattern(&r.from))
+            .find_map(|r| {
+                let captures = match_pattern(&r.from, &path)?;
+                Some((fill_target(&r.to, &captures), r.status))
+            })
     }
 
     /// `from` から規則をたどって `from` に戻るか（`ignore` の規則は無いものとして）
@@ -301,6 +415,7 @@ impl RedirectTable {
         let from = normalize_from(&input.from, reserved)?;
         let to = validate_to(&input.to)?;
         let status = validate_status(input.status)?;
+        check_target_placeholders(&from, &to)?;
         if self.rules.len() >= MAX_RULES {
             return Err(RedirectError::TooMany);
         }
@@ -334,6 +449,7 @@ impl RedirectTable {
         let from = normalize_from(&input.from, reserved)?;
         let to = validate_to(&input.to)?;
         let status = validate_status(input.status)?;
+        check_target_placeholders(&from, &to)?;
         let index = self
             .rules
             .iter()
