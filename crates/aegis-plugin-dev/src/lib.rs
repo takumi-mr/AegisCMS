@@ -1561,6 +1561,11 @@ mod tests {
             build_status,
         };
 
+        test_router(state)
+    }
+
+    /// 開発サーバーと同じ経路を持つ、テスト用のルーター
+    fn test_router(state: DevState) -> Router {
         Router::new()
             .route("/", get(welcome_page))
             .route("/__dev/version", get(version_handler))
@@ -2059,5 +2064,304 @@ mod tests {
 
         let res = app.oneshot(req).await.unwrap();
         assert_eq!(res.status(), StatusCode::BAD_REQUEST);
+    }
+
+    // --- ファイル操作・ビルド・ビルド検出・ロングポーリング ---
+
+    /// 呼び出しの結果（状態コードと本文）。書き込み系に必要なヘッダーを付ける
+    async fn send(
+        app: &Router,
+        method: &str,
+        uri: &str,
+        body: Option<&str>,
+    ) -> (StatusCode, String) {
+        let mut req = Request::builder()
+            .method(method)
+            .uri(uri)
+            .header("Host", "localhost:8091")
+            .header("x-aegis-dev", "1");
+        let payload = match body {
+            Some(b) => {
+                req = req.header("content-type", "application/json");
+                Body::from(b.to_string())
+            }
+            None => Body::empty(),
+        };
+        let res = app
+            .clone()
+            .oneshot(req.body(payload).unwrap())
+            .await
+            .unwrap();
+        let status = res.status();
+        let bytes = to_bytes(res.into_body(), usize::MAX).await.unwrap();
+        (status, String::from_utf8_lossy(&bytes).into_owned())
+    }
+
+    fn router_with(dir: PathBuf, build: BuildStatus) -> (Router, watch::Sender<u64>, DevState) {
+        let (tx, rx) = watch::channel(0);
+        let state = DevState {
+            dir,
+            engine: WasmEngine::new().unwrap(),
+            version: rx,
+            loopback: true,
+            host_services: DevHostServices::new(),
+            build_status: Arc::new(RwLock::new(build)),
+        };
+        (test_router(state.clone()), tx, state)
+    }
+
+    #[tokio::test]
+    async fn test_files_api_lists_reads_writes_and_deletes() {
+        let tmp = setup_test_plugin_dir();
+        let dir = tmp.path().join("my-test-plugin").canonicalize().unwrap();
+        let app = create_test_router(dir.clone());
+
+        // 一覧: パスの順。ディレクトリは大きさ 0
+        std::fs::create_dir_all(dir.join("src")).unwrap();
+        std::fs::write(dir.join("src/lib.rs"), "fn main() {}").unwrap();
+        let (status, body) = send(&app, "GET", "/__dev/api/files", None).await;
+        assert_eq!(status, StatusCode::OK);
+        let list: Vec<Value> = serde_json::from_str(&body).unwrap();
+        let paths: Vec<&str> = list.iter().map(|f| f["path"].as_str().unwrap()).collect();
+        assert_eq!(
+            paths,
+            ["plugin.manifest.json", "plugin.wasm", "src", "src/lib.rs"]
+        );
+        let src = list.iter().find(|f| f["path"] == "src").unwrap();
+        assert_eq!(src["is_dir"], true);
+        assert_eq!(src["size"], 0);
+        let lib = list.iter().find(|f| f["path"] == "src/lib.rs").unwrap();
+        assert_eq!(lib["size"], 12);
+
+        // 読む
+        let (status, body) = send(&app, "GET", "/__dev/api/files/src/lib.rs", None).await;
+        assert_eq!(status, StatusCode::OK);
+        let read: Value = serde_json::from_str(&body).unwrap();
+        assert_eq!(read["path"], "src/lib.rs");
+        assert_eq!(read["content"], "fn main() {}");
+
+        // 書く: 途中のフォルダーも作る。上書きもできる
+        let (status, _) = send(
+            &app,
+            "PUT",
+            "/__dev/api/files/notes/deep/a.txt",
+            Some(r#"{"content":"first"}"#),
+        )
+        .await;
+        assert_eq!(status, StatusCode::NO_CONTENT);
+        assert_eq!(
+            std::fs::read_to_string(dir.join("notes/deep/a.txt")).unwrap(),
+            "first"
+        );
+        send(
+            &app,
+            "PUT",
+            "/__dev/api/files/notes/deep/a.txt",
+            Some(r#"{"content":"second"}"#),
+        )
+        .await;
+        assert_eq!(
+            std::fs::read_to_string(dir.join("notes/deep/a.txt")).unwrap(),
+            "second"
+        );
+
+        // 消す: ファイルは消え、無いものを消しても 204
+        let (status, _) = send(&app, "DELETE", "/__dev/api/files/notes/deep/a.txt", None).await;
+        assert_eq!(status, StatusCode::NO_CONTENT);
+        assert!(!dir.join("notes/deep/a.txt").exists());
+        let (status, _) = send(&app, "DELETE", "/__dev/api/files/notes/deep/a.txt", None).await;
+        assert_eq!(status, StatusCode::NO_CONTENT);
+    }
+
+    #[tokio::test]
+    async fn test_files_api_refuses_missing_binary_and_escaping_paths() {
+        let tmp = setup_test_plugin_dir();
+        let dir = tmp.path().join("my-test-plugin").canonicalize().unwrap();
+        let app = create_test_router(dir.clone());
+
+        // ない・テキストでない
+        let (status, _) = send(&app, "GET", "/__dev/api/files/nope.txt", None).await;
+        assert_eq!(status, StatusCode::NOT_FOUND);
+        let (status, _) = send(&app, "GET", "/__dev/api/files/plugin.wasm", None).await;
+        assert_eq!(status, StatusCode::UNSUPPORTED_MEDIA_TYPE);
+
+        // 大きすぎるファイルは読まない
+        std::fs::write(dir.join("big.txt"), vec![b'a'; MAX_FILE_BYTES + 1]).unwrap();
+        let (status, _) = send(&app, "GET", "/__dev/api/files/big.txt", None).await;
+        assert_eq!(status, StatusCode::PAYLOAD_TOO_LARGE);
+
+        // 書き込みと削除も、フォルダーの外へは出られない
+        for method in ["PUT", "DELETE"] {
+            let (status, body) = send(
+                &app,
+                method,
+                "/__dev/api/files/%2e%2e/outside.txt",
+                Some(r#"{"content":"x"}"#),
+            )
+            .await;
+            assert!(status.is_client_error(), "{method} {status} {body}");
+        }
+        assert!(!tmp.path().join("outside.txt").exists());
+    }
+
+    #[test]
+    fn test_resolve_safe_path_stays_inside_the_directory() {
+        let tmp = tempfile::tempdir().unwrap();
+        let dir = tmp.path().join("plugin");
+        std::fs::create_dir_all(&dir).unwrap();
+        let dir = dir.canonicalize().unwrap();
+
+        // 先頭の区切りは外し、まだ無いパスも許す（これから作る）
+        assert_eq!(
+            resolve_safe_path(&dir, "/a/b.txt").unwrap(),
+            dir.join("a/b.txt")
+        );
+        assert_eq!(
+            resolve_safe_path(&dir, "\\a.txt").unwrap(),
+            dir.join("a.txt")
+        );
+        // `..` は断る
+        let (status, _) = resolve_safe_path(&dir, "a/../../x").unwrap_err();
+        assert_eq!(status, StatusCode::BAD_REQUEST);
+
+        // フォルダーの外を指すシンボリックリンクをたどって出ることはできない
+        let outside = tmp.path().join("outside");
+        std::fs::create_dir_all(&outside).unwrap();
+        #[cfg(unix)]
+        {
+            std::os::unix::fs::symlink(&outside, dir.join("link")).unwrap();
+            let (status, message) = resolve_safe_path(&dir, "link/secret.txt").unwrap_err();
+            assert_eq!(status, StatusCode::BAD_REQUEST);
+            assert!(message.contains("leaves"), "{message}");
+        }
+    }
+
+    #[test]
+    fn test_build_command_is_detected_in_order() {
+        let tmp = tempfile::tempdir().unwrap();
+        let dir = tmp.path();
+        assert_eq!(detect_build_command(dir), None);
+
+        // package.json: asbuild が build より先
+        std::fs::write(
+            dir.join("package.json"),
+            r#"{"scripts":{"build":"tsc","asbuild":"asc"}}"#,
+        )
+        .unwrap();
+        assert_eq!(
+            detect_build_command(dir).as_deref(),
+            Some("npm run asbuild")
+        );
+        std::fs::write(dir.join("package.json"), r#"{"scripts":{"build":"tsc"}}"#).unwrap();
+        assert_eq!(detect_build_command(dir).as_deref(), Some("npm run build"));
+        std::fs::write(dir.join("package.json"), r#"{"scripts":{"test":"x"}}"#).unwrap();
+        assert_eq!(detect_build_command(dir), None);
+
+        // Cargo.toml は package.json より先
+        std::fs::write(dir.join("Cargo.toml"), "[package]").unwrap();
+        assert_eq!(
+            detect_build_command(dir).as_deref(),
+            Some(RUST_BUILD_COMMAND)
+        );
+
+        // マニフェストの `dev.build_command` が一番先
+        std::fs::write(
+            dir.join("plugin.manifest.json"),
+            r#"{"dev":{"build_command":"make wasm"}}"#,
+        )
+        .unwrap();
+        assert_eq!(detect_build_command(dir).as_deref(), Some("make wasm"));
+    }
+
+    #[tokio::test]
+    async fn test_build_api_runs_the_command_and_records_the_result() {
+        let tmp = setup_test_plugin_dir();
+        let dir = tmp.path().join("my-test-plugin").canonicalize().unwrap();
+
+        // コマンドが無ければ、何も動かさず今の状態を返す
+        let (app, _tx, _state) = router_with(dir.clone(), BuildStatus::default());
+        let (status, body) = send(&app, "POST", "/__dev/api/build", Some("{}")).await;
+        assert_eq!(status, StatusCode::OK);
+        let idle: Value = serde_json::from_str(&body).unwrap();
+        assert_eq!(idle["is_building"], false);
+        assert_eq!(idle["last_built_at"], Value::Null);
+
+        // 成功するコマンド（`echo` は cmd でも sh でも使える）。コマンドは `dir` で動く
+        let (app, _tx, state) = router_with(
+            dir.clone(),
+            BuildStatus {
+                command: Some("echo built > built.txt".to_string()),
+                ..BuildStatus::default()
+            },
+        );
+        let (status, body) = send(&app, "POST", "/__dev/api/build", Some("{}")).await;
+        assert_eq!(status, StatusCode::OK);
+        let ok: Value = serde_json::from_str(&body).unwrap();
+        assert_eq!(ok["last_error"], Value::Null, "{ok}");
+        assert!(ok["last_built_at"].as_u64().unwrap() > 0);
+        assert!(dir.join("built.txt").exists());
+        assert!(!state.build_status.read().unwrap().is_building);
+
+        // 失敗するコマンドは、失敗の理由を残す
+        let (app, _tx, _state) = router_with(
+            dir.clone(),
+            BuildStatus {
+                command: Some("exit 3".to_string()),
+                ..BuildStatus::default()
+            },
+        );
+        let (status, body) = send(&app, "POST", "/__dev/api/build", Some("{}")).await;
+        assert_eq!(status, StatusCode::OK);
+        let failed: Value = serde_json::from_str(&body).unwrap();
+        assert!(failed["last_error"].is_string(), "{failed}");
+        assert_eq!(failed["is_building"], false);
+        assert!(failed["last_built_at"].as_u64().is_some());
+    }
+
+    #[tokio::test]
+    async fn test_welcome_page_names_the_plugin_and_survives_a_missing_manifest() {
+        let tmp = setup_test_plugin_dir();
+        let dir = tmp.path().join("my-test-plugin").canonicalize().unwrap();
+        let app = create_test_router(dir.clone());
+        let (status, html) = send(&app, "GET", "/", None).await;
+        assert_eq!(status, StatusCode::OK);
+        assert!(html.contains("my-test-plugin v1.0.0"), "{html}");
+
+        std::fs::remove_file(dir.join("plugin.manifest.json")).unwrap();
+        let (status, html) = send(&app, "GET", "/", None).await;
+        assert_eq!(status, StatusCode::OK);
+        assert!(html.contains("unknown-plugin v0.0.0"), "{html}");
+
+        // マニフェストが無いと、プラグインの情報は 404
+        let (status, _) = send(&app, "GET", "/__dev/api/plugin", None).await;
+        assert_eq!(status, StatusCode::NOT_FOUND);
+        std::fs::write(dir.join("plugin.manifest.json"), "not json").unwrap();
+        let (status, _) = send(&app, "GET", "/__dev/api/plugin", None).await;
+        assert_eq!(status, StatusCode::BAD_REQUEST);
+    }
+
+    #[tokio::test]
+    async fn test_version_long_poll_returns_at_once_or_when_the_version_moves() {
+        let tmp = setup_test_plugin_dir();
+        let dir = tmp.path().join("my-test-plugin").canonicalize().unwrap();
+        let (app, tx, _state) = router_with(dir, BuildStatus::default());
+
+        // `since` なしと、すでに新しい版: すぐ返す
+        let (_, body) = send(&app, "GET", "/__dev/version", None).await;
+        assert_eq!(serde_json::from_str::<Value>(&body).unwrap()["version"], 0);
+        tx.send(5).unwrap();
+        let (_, body) = send(&app, "GET", "/__dev/version?since=2", None).await;
+        assert_eq!(serde_json::from_str::<Value>(&body).unwrap()["version"], 5);
+
+        // まだ同じ版: 待って、版が進んだら返す
+        let waiting = {
+            let app = app.clone();
+            tokio::spawn(async move { send(&app, "GET", "/__dev/version?since=5", None).await })
+        };
+        tokio::time::sleep(Duration::from_millis(100)).await;
+        assert!(!waiting.is_finished(), "it should still be waiting");
+        tx.send(6).unwrap();
+        let (_, body) = waiting.await.unwrap();
+        assert_eq!(serde_json::from_str::<Value>(&body).unwrap()["version"], 6);
     }
 }
