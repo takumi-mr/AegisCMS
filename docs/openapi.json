@@ -26,6 +26,11 @@
             "nullable": true,
             "type": "string"
           },
+          "access_password": {
+            "maxLength": 255,
+            "nullable": true,
+            "type": "string"
+          },
           "category_id": {
             "description": "Foreign key relation to category.id",
             "nullable": true,
@@ -173,6 +178,11 @@
         "properties": {
           "access": {
             "maxLength": 32,
+            "nullable": true,
+            "type": "string"
+          },
+          "access_password": {
+            "maxLength": 255,
             "nullable": true,
             "type": "string"
           },
@@ -410,6 +420,11 @@
             "nullable": true,
             "type": "string"
           },
+          "access_password": {
+            "maxLength": 255,
+            "nullable": true,
+            "type": "string"
+          },
           "category_id": {
             "description": "Foreign key relation to category.id",
             "nullable": true,
@@ -453,6 +468,11 @@
         "properties": {
           "access": {
             "maxLength": 32,
+            "nullable": true,
+            "type": "string"
+          },
+          "access_password": {
+            "maxLength": 255,
             "nullable": true,
             "type": "string"
           },
