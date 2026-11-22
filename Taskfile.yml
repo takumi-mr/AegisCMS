@@ -124,6 +124,8 @@ tasks:
 
   miri:
     desc: プラグイン SDK の unsafe を Miri で検査 (nightly と miri コンポーネントが必要。rustup +nightly component add miri rust-src)
+    env:
+      MIRIFLAGS: -Zmiri-strict-provenance
     cmds:
       - cargo +nightly miri test -p aegis-plugin-sdk
 
