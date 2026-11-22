@@ -1898,3 +1898,120 @@ async fn test_multi_currency_quote_and_checkout_flow() {
     assert_eq!(quote_var_usd["subtotal"], 2200);
     assert_eq!(quote_var_usd["total"], 2700);
 }
+
+/// 在庫が閾値をまたいだ注文で、スタッフに `stock.low` を 1 回だけ知らせる
+#[tokio::test]
+async fn test_low_stock_is_reported_once_when_the_threshold_is_crossed() {
+    let shop = shop(|config| config.commerce.low_stock_threshold = Some(2)).await;
+    let low_stock = |shop: &Shop| -> Vec<NotificationEvent> {
+        shop.mails
+            .events
+            .lock()
+            .unwrap()
+            .iter()
+            .filter(|e| e.kind == "stock.low")
+            .cloned()
+            .collect()
+    };
+    let buy = |quantity: u32| {
+        let shop = &shop;
+        async move {
+            let (status, _) = shop
+                .call(
+                    "POST",
+                    "/api/v1/shop/checkout",
+                    Some(json!({
+                        "items": [{ "product": "mug", "quantity": quantity }],
+                        "email": "member@example.com",
+                        "name": "Member",
+                    })),
+                    None,
+                )
+                .await;
+            assert_eq!(status, StatusCode::CREATED);
+        }
+    };
+
+    // 在庫 3 → 1: 閾値 2 をまたぐので、知らせる
+    buy(2).await;
+    let events = low_stock(&shop);
+    assert_eq!(events.len(), 1, "{events:?}");
+    assert_eq!(events[0].data["product"]["id"], "p-mug");
+    assert_eq!(events[0].data["product"]["stock"], 1);
+    assert_eq!(events[0].data["threshold"], 2);
+    assert!(matches!(
+        events[0].recipients.as_slice(),
+        [Recipient::Staff]
+    ));
+
+    // 在庫 1 → 0: もう閾値以下なので、重ねて知らせない
+    buy(1).await;
+    assert_eq!(low_stock(&shop).len(), 1);
+}
+
+#[tokio::test]
+async fn test_low_stock_is_not_reported_when_stock_stays_above_the_threshold() {
+    // 在庫 3 → 1 でも、閾値が 0 ならまだ超えていない
+    let shop = shop(|config| config.commerce.low_stock_threshold = Some(0)).await;
+    paid_mug_order(&shop).await;
+    let kinds: Vec<String> = shop
+        .mails
+        .events
+        .lock()
+        .unwrap()
+        .iter()
+        .map(|e| e.kind.clone())
+        .collect();
+    assert!(!kinds.contains(&"stock.low".to_string()), "{kinds:?}");
+}
+
+#[tokio::test]
+async fn test_low_stock_report_can_be_turned_off() {
+    let shop = shop(|config| config.commerce.low_stock_threshold = None).await;
+    paid_mug_order(&shop).await;
+    let kinds: Vec<String> = shop
+        .mails
+        .events
+        .lock()
+        .unwrap()
+        .iter()
+        .map(|e| e.kind.clone())
+        .collect();
+    assert!(!kinds.contains(&"stock.low".to_string()), "{kinds:?}");
+}
+
+/// 返金額の検査: 0 以下と、返金できる残りを超える額は受け付けない（何も記録しない）
+#[tokio::test]
+async fn test_refund_amount_is_validated_and_nothing_is_recorded_on_rejection() {
+    let shop = shop(|_| {}).await;
+    let order_id = paid_mug_order(&shop).await;
+    let refund = |body: Value| {
+        let shop = &shop;
+        let order_id = order_id.clone();
+        async move {
+            shop.call(
+                "POST",
+                &format!("/api/v1/orders/{order_id}/refund"),
+                Some(body),
+                Some(&shop.staff_token),
+            )
+            .await
+        }
+    };
+
+    for amount in [0, -100] {
+        let (status, err) = refund(json!({ "amount": amount })).await;
+        assert!(status.is_client_error(), "{status} {err}");
+        assert!(err["error"].as_str().unwrap().contains("greater than zero"));
+    }
+    // 合計 2900 円のところに 3000 円
+    let (status, err) = refund(json!({ "amount": 3000 })).await;
+    assert!(status.is_client_error(), "{status} {err}");
+    assert!(err["error"].as_str().unwrap().contains("exceeds"), "{err}");
+
+    // 何も記録されていない: 全額をまだ返金できる
+    let (status, res) = refund(json!({ "amount": 2900 })).await;
+    assert_eq!(status, StatusCode::OK, "{res}");
+    assert_eq!(res["refunded_amount"], 2900);
+    assert_eq!(res["refunds"].as_array().unwrap().len(), 1);
+}
