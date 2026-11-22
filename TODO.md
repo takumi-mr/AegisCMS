@@ -24,10 +24,9 @@
 
 ### 🚚 WordPress からの移行
 
-WXR（「ツール > エクスポート」の XML）を CLI（`aegis-server import wordpress`。[docs/wordpress-migration.ja.md](docs/wordpress-migration.ja.md)）で取り込む。完全なワンボタンは目指さず、「だいたい移せて、移せなかったものが報告で分かる」を目標にする。
+WXR（「ツール > エクスポート」の XML）を CLI（`aegis-server import wordpress`）で、テーマの見た目を `aegis-server theme import-wordpress` で移す（[docs/wordpress-migration.ja.md](docs/wordpress-migration.ja.md)）。完全なワンボタンは目指さず、「だいたい移せて、移せなかったものが報告で分かる」を目標にする。
 
 - **取り込みは admin のログインで行う**（API トークンは `editor` までで、ユーザーの作成と過去の公開日の指定ができないため）。2 段階認証のユーザーは使えない。必要なら、トークンに取り込み用の許可を足すか、CLI で 2FA コードを受ける。
-- [ ] **PR 3: スターターテーマ + 対応表 + 移行ガイド**: WordPress の標準のクラス名（`entry-content`・`post`・`widget` など）で出力するスターターテーマと、`theme import-wordpress`（移行元テーマの `style.css` とアセットを取り込む）。対応表は、テンプレート階層（`single.php` → `article.html` など）と関数 → 変数。ガイドは `docs/wordpress-migration.md`（日本語・英語）。
 - 割り切り: PHP のテーマ・プラグインは変換できない。ショートコード・ページビルダー・WooCommerce・フォームのプラグインは、報告に出して手で直す。画像の説明（キャプション）は、画像ブロックが持てないため斜体の段落にする。段落内の改行・`<sup>`・入れ子のリストは、`core/html` ブロックに残す。
 
 ### 🔌 プラグイン・将来構想

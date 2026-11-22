@@ -11,17 +11,17 @@ AegisCMS の設計、設定、機能仕様、拡張開発（テーマ・プラ�
 
 ### 0. 🚀 導入・運用（利用者向け）
 
-| ドキュメント                                                                 | 概要                                                                           | 対象           |
-| ---------------------------------------------------------------------------- | ------------------------------------------------------------------------------ | -------------- |
-| [導入 (`install.md`)](install.ja.md)                                         | Docker・Linux バイナリ・Windows バイナリでの起動と、最初の管理者の作成         | 運用者         |
-| [インターネットへの公開 (`publish.md`)](publish.ja.md)                       | Caddy 構成または自前のリバースプロキシでの HTTPS 化                            | 運用者         |
-| [バックアップと復元 (`backup-restore.md`)](backup-restore.ja.md)             | バックアップの取得・検証・復元                                                 | 運用者         |
-| [WordPress からの移行 (`wordpress-migration.md`)](wordpress-migration.ja.md) | WordPress の書き出しの取り込み。投稿・固定ページ・メディア・著者、移らないもの | 運用者         |
-| [更新 (`upgrade.md`)](upgrade.ja.md)                                         | Docker・バイナリの更新手順と、元に戻す方法                                     | 運用者         |
-| [Admin Studio をはじめる (`admin-studio.md`)](admin-studio.ja.md)            | 最初のログイン、画面の見方、ロール、二段階認証                                 | 運用者・編集者 |
-| [コンテンツを書いて公開する (`admin-editing.md`)](admin-editing.ja.md)       | エディタ、プレビュー、状態、予約公開、レビュー、版履歴                         | 編集者・執筆者 |
-| [サイトの設定 (`admin-settings.md`)](admin-settings.ja.md)                   | 「設定」の各項目をやさしく説明                                                 | 運用者         |
-| [トラブル対応 (`troubleshooting.md`)](troubleshooting.ja.md)                 | ログイン・起動・アップロード・復元で困ったとき                                 | 運用者         |
+| ドキュメント                                                                 | 概要                                                                                                       | 対象           |
+| ---------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- | -------------- |
+| [導入 (`install.md`)](install.ja.md)                                         | Docker・Linux バイナリ・Windows バイナリでの起動と、最初の管理者の作成                                     | 運用者         |
+| [インターネットへの公開 (`publish.md`)](publish.ja.md)                       | Caddy 構成または自前のリバースプロキシでの HTTPS 化                                                        | 運用者         |
+| [バックアップと復元 (`backup-restore.md`)](backup-restore.ja.md)             | バックアップの取得・検証・復元                                                                             | 運用者         |
+| [WordPress からの移行 (`wordpress-migration.md`)](wordpress-migration.ja.md) | WordPress の書き出しの取り込みとテーマの移行。投稿・メディア・コメント・リダイレクト・テンプレートの対応表 | 運用者         |
+| [更新 (`upgrade.md`)](upgrade.ja.md)                                         | Docker・バイナリの更新手順と、元に戻す方法                                                                 | 運用者         |
+| [Admin Studio をはじめる (`admin-studio.md`)](admin-studio.ja.md)            | 最初のログイン、画面の見方、ロール、二段階認証                                                             | 運用者・編集者 |
+| [コンテンツを書いて公開する (`admin-editing.md`)](admin-editing.ja.md)       | エディタ、プレビュー、状態、予約公開、レビュー、版履歴                                                     | 編集者・執筆者 |
+| [サイトの設定 (`admin-settings.md`)](admin-settings.ja.md)                   | 「設定」の各項目をやさしく説明                                                                             | 運用者         |
+| [トラブル対応 (`troubleshooting.md`)](troubleshooting.ja.md)                 | ログイン・起動・アップロード・復元で困ったとき                                                             | 運用者         |
 
 ### 1. 🏗️ コアアーキテクチャ & 設計
 

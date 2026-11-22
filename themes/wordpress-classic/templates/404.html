@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="error-404 not-found">
+  <header class="page-header">
+    <h1 class="page-title">{{ t("notfound.title") }}</h1>
+  </header>
+  <div class="page-content">
+    <p>{{ t("notfound.message") }}</p>
+    <p><a href="{{ base_path }}/">{{ t("notfound.home") }}</a></p>
+  </div>
+</section>
+{% endblock %}

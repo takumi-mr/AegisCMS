@@ -14,17 +14,17 @@ Refer to the most suitable document for what you want to know and for your role 
 
 ### 0. 🚀 Installing & Operating (for users)
 
-| Document                                                                   | Overview                                                                                   | Audience           |
-| -------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ | ------------------ |
-| [Installing (`install.md`)](install.md)                                    | Start with Docker, a Linux binary, or a Windows binary, and create the first administrator | Operators          |
-| [Publishing on the internet (`publish.md`)](publish.md)                    | HTTPS with the Caddy setup or your own reverse proxy                                       | Operators          |
-| [Backup and restore (`backup-restore.md`)](backup-restore.md)              | Taking, verifying and restoring backups                                                    | Operators          |
-| [Moving from WordPress (`wordpress-migration.md`)](wordpress-migration.md) | Importing a WordPress export: posts, pages, media, authors, and what is not moved          | Operators          |
-| [Updating (`upgrade.md`)](upgrade.md)                                      | Updating Docker and binary installs, and going back                                        | Operators          |
-| [Admin Studio: getting started (`admin-studio.md`)](admin-studio.md)       | First sign-in, the screen, roles, two-factor authentication                                | Operators, editors |
-| [Writing and publishing content (`admin-editing.md`)](admin-editing.md)    | The editor, preview, status, scheduling, review, version history                           | Editors, authors   |
-| [Site settings (`admin-settings.md`)](admin-settings.md)                   | Every section of Settings, in plain terms                                                  | Operators          |
-| [Troubleshooting (`troubleshooting.md`)](troubleshooting.md)               | Login, startup, upload and restore problems                                                | Operators          |
+| Document                                                                   | Overview                                                                                                    | Audience           |
+| -------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- | ------------------ |
+| [Installing (`install.md`)](install.md)                                    | Start with Docker, a Linux binary, or a Windows binary, and create the first administrator                  | Operators          |
+| [Publishing on the internet (`publish.md`)](publish.md)                    | HTTPS with the Caddy setup or your own reverse proxy                                                        | Operators          |
+| [Backup and restore (`backup-restore.md`)](backup-restore.md)              | Taking, verifying and restoring backups                                                                     | Operators          |
+| [Moving from WordPress (`wordpress-migration.md`)](wordpress-migration.md) | Importing a WordPress export and carrying a theme over: posts, media, comments, redirects, template mapping | Operators          |
+| [Updating (`upgrade.md`)](upgrade.md)                                      | Updating Docker and binary installs, and going back                                                         | Operators          |
+| [Admin Studio: getting started (`admin-studio.md`)](admin-studio.md)       | First sign-in, the screen, roles, two-factor authentication                                                 | Operators, editors |
+| [Writing and publishing content (`admin-editing.md`)](admin-editing.md)    | The editor, preview, status, scheduling, review, version history                                            | Editors, authors   |
+| [Site settings (`admin-settings.md`)](admin-settings.md)                   | Every section of Settings, in plain terms                                                                   | Operators          |
+| [Troubleshooting (`troubleshooting.md`)](troubleshooting.md)               | Login, startup, upload and restore problems                                                                 | Operators          |
 
 ### 1. 🏗️ Core Architecture & Design
 

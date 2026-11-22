@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 500" width="100%" height="100%">
+  <rect width="800" height="500" fill="#f1f1f1" />
+  <rect x="0" y="0" width="800" height="90" fill="#ffffff" />
+  <rect x="0" y="89" width="800" height="1" fill="#dddddd" />
+  <rect x="60" y="28" width="180" height="22" rx="3" fill="#21759b" />
+  <rect x="60" y="58" width="260" height="8" rx="2" fill="#b8b8b8" />
+  <rect x="520" y="36" width="50" height="10" rx="2" fill="#555555" />
+  <rect x="590" y="36" width="50" height="10" rx="2" fill="#555555" />
+  <rect x="660" y="36" width="80" height="10" rx="2" fill="#555555" />
+
+  <rect x="60" y="120" width="680" height="150" fill="#ffffff" />
+  <rect x="84" y="144" width="320" height="18" rx="3" fill="#21759b" />
+  <rect x="84" y="174" width="140" height="8" rx="2" fill="#b8b8b8" />
+  <rect x="84" y="200" width="632" height="8" rx="2" fill="#dddddd" />
+  <rect x="84" y="220" width="600" height="8" rx="2" fill="#dddddd" />
+  <rect x="84" y="240" width="420" height="8" rx="2" fill="#dddddd" />
+
+  <rect x="60" y="290" width="680" height="150" fill="#ffffff" />
+  <rect x="84" y="314" width="260" height="18" rx="3" fill="#21759b" />
+  <rect x="84" y="344" width="140" height="8" rx="2" fill="#b8b8b8" />
+  <rect x="84" y="370" width="632" height="8" rx="2" fill="#dddddd" />
+  <rect x="84" y="390" width="560" height="8" rx="2" fill="#dddddd" />
+  <rect x="84" y="410" width="380" height="8" rx="2" fill="#dddddd" />
+
+  <text x="400" y="478" font-family="Georgia, serif" font-size="16" fill="#777777" text-anchor="middle">WordPress Classic</text>
+</svg>

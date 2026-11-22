@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+
+{% block content %}
+<article id="post-{{ slug }}" class="page hentry">
+  <header class="entry-header">
+    <h1 class="entry-title">{{ title }}</h1>
+  </header>
+
+  <div class="entry-content">
+    {{ content_html | safe }}
+  </div>
+</article>
+{% if comments %}<div id="comments" class="comments-area">{% include "comments.html" %}</div>{% endif %}
+{% endblock %}

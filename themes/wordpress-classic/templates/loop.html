@@ -1,0 +1,25 @@
+{% for item in items %}
+<article id="post-{{ loop.index }}" class="post hentry">
+  <header class="entry-header">
+    <h2 class="entry-title"><a href="{{ item.fields.url }}" rel="bookmark">{{ item.title }}</a></h2>
+    <div class="entry-meta">
+      <span class="posted-on"><time class="entry-date published" datetime="{{ item.published_at }}">{{ item.published_at | date_short }}</time></span>
+    </div>
+  </header>
+  <div class="entry-summary">
+    <p>{{ item.excerpt | truncate(200) }}</p>
+  </div>
+</article>
+{% else %}
+<section class="no-results not-found">
+  <p>{{ t("category.empty") }}</p>
+</section>
+{% endfor %}
+{% if pagination and pagination.total_pages > 1 %}
+<nav class="navigation posts-navigation" role="navigation" aria-label="{{ t("pagination.label") }}">
+  <div class="nav-links">
+    {% if pagination.next_url %}<div class="nav-previous"><a href="{{ pagination.next_url }}" rel="next">&larr; {{ t("pagination.older") }}</a></div>{% endif %}
+    {% if pagination.prev_url %}<div class="nav-next"><a href="{{ pagination.prev_url }}" rel="prev">{{ t("pagination.newer") }} &rarr;</a></div>{% endif %}
+  </div>
+</nav>
+{% endif %}

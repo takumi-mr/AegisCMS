@@ -538,6 +538,7 @@ fn test_built_in_templates_and_bundled_themes_have_no_inline_code() {
         "minimal-editorial",
         "roastery",
         "trailhead",
+        "wordpress-classic",
     ] {
         engines.push((
             theme_id.to_string(),
@@ -579,6 +580,7 @@ fn test_bundled_themes_render_in_both_locales() {
         "minimal-editorial",
         "roastery",
         "trailhead",
+        "wordpress-classic",
     ];
 
     for theme_id in bundled {

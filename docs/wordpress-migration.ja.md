@@ -58,7 +58,73 @@ aegis-server import wordpress export.xml --url http://127.0.0.1:8080 --username 
 
 ## 移らないもの
 
-- PHP のテーマ・プラグイン（コンテンツが何を使っていたかは報告で分かります）。
+- PHP のテーマ・プラグイン。テーマの見た目は移せます（[テーマを移す](#テーマを移す)）。コンテンツが何を使っていたかは報告で分かります。
 - `[caption]`・`[embed]`・`[gallery]` 以外のショートコード、ページビルダーの内容、WooCommerce の商品、フォームのプラグイン、独自の投稿タイプ。
 - アイキャッチ画像、親カテゴリ・親ページ（フラットになります）、SEO プラグインの項目。
 - ピンバック・トラックバック、ログインユーザーとしてのコメントの投稿者（名前だけになります）、`/?p=123` の形の旧 URL（トップページのクエリは転送できません）。
+
+## テーマを移す
+
+WordPress のテーマは PHP で、AegisCMS のテーマでは PHP は動きません。持ってこられるのは**見た目**（CSS・画像・フォント）です。スターターテーマ `wordpress-classic` は、昔ながらの WordPress テーマと同じクラス名（`site-header`・`entry-title`・`entry-content`・`hentry`・`widget`・`nav-links` など）で出力するので、元の `style.css` が、ほとんど（または全く）直さずに効きます。
+
+```bash
+aegis-server theme import-wordpress path/to/wp-content/themes/my-old-theme
+aegis-server theme dev themes/my-old-theme
+```
+
+`theme import-wordpress` は `themes/<id>/` を作ります（ID は元のテーマの Text Domain から付けます。`--id` でも指定できます）。
+
+- スターターのテンプレートと `style.css`
+- 元のテーマのファイル（`style.css`・画像・フォント・ほかの CSS と JavaScript）を、フォルダーの構造のまま `assets/wp/` に写します。`url(images/bg.png)` がそのまま効きます。PHP・翻訳・`node_modules`・隠しファイルは写しません
+- 元のテーマのヘッダー（名前・作者・バージョン・ライセンス）と `screenshot.png`（プレビュー）から `theme.json` を作ります。CSS が使う Google Fonts は `csp` に宣言します
+- 元の `style.css` は、スターターの CSS の**あとに**読み込むので、元の指定が勝ちます
+
+最後に、確かめる箇所を一覧で出します。`theme dev`（または Theme Builder）で見た目を確かめ、違うところを直して、`[theme].active` を新しい ID にします。
+
+### テンプレート階層の対応
+
+| WordPress                               | AegisCMS                    | 備考                                                                                                                 |
+| --------------------------------------- | --------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| `header.php` + `footer.php`             | `templates/base.html`       | 全ページ共通の骨組み。元のヘッダー・フッターのマークアップはここに入れます                                           |
+| `index.php`・`home.php`                 | `index.html`                | 投稿の一覧                                                                                                           |
+| `front-page.php`                        | `front.html`                | `[theme].front_page = "template"` にします                                                                           |
+| `single.php`・`single-post.php`         | `article.html`              | 投稿                                                                                                                 |
+| `page.php`                              | `page.html`                 | 固定ページ                                                                                                           |
+| `category.php`・`archive.php`           | `category.html`             | カテゴリの一覧                                                                                                       |
+| `tag.php`                               | `tag.html`                  | タグの一覧                                                                                                           |
+| `search.php`                            | `search.html`               | サイト内検索（[search.ja.md](search.ja.md)）                                                                         |
+| `404.php`                               | `404.html`                  |                                                                                                                      |
+| `comments.php`                          | `comments.html`             | テーマに無ければ、組み込みのコメント欄を使います                                                                     |
+| `sidebar.php`・ウィジェット             | —                           | 対応していません。固定の内容は `base.html` に書きます                                                                |
+| `functions.php`                         | —                           | メニュー・ウィジェット・画像サイズ・カスタマイザーの設定は取り込みません                                             |
+| `template-parts/*.php`                  | `{% include "name.html" %}` | マークアップをテンプレートに写します（スターターの `loop.html` が例です）                                            |
+| `page-{slug}.php`・カスタムテンプレート | 固定ページの `layout` 欄    | `layout` を `blank` か、テーマのテンプレート名にします（[theme_authoring_guide.ja.md](theme_authoring_guide.ja.md)） |
+
+### テンプレートタグ・変数の対応
+
+| WordPress                                              | AegisCMS                                                                                                  |
+| ------------------------------------------------------ | --------------------------------------------------------------------------------------------------------- |
+| `bloginfo('name')`                                     | `{{ site_title }}`                                                                                        |
+| `bloginfo('description')`                              | `{{ site_description }}`                                                                                  |
+| `home_url('/')`                                        | `{{ base_path }}/`                                                                                        |
+| `get_stylesheet_uri()`・`get_template_directory_uri()` | `{{ base_path }}/theme/assets/…`                                                                          |
+| `language_attributes()`                                | `lang="{{ locale }}"`                                                                                     |
+| `wp_head()`                                            | `{{ extra_head \| safe }}`（と `{{ extra_css \| inline_style }}`）                                        |
+| `wp_footer()`                                          | 足すものはありません                                                                                      |
+| `body_class()`                                         | `base.html` に書く（スターターは `single`・`page`・`home blog`・`archive`・`error404` を出します）        |
+| `have_posts()` / `the_post()` のループ                 | `{% for item in items %}…{% endfor %}`                                                                    |
+| `the_title()`                                          | `{{ title }}`（1 件）/ `{{ item.title }}`（一覧の中）                                                     |
+| `the_content()`                                        | `{{ content_html \| safe }}`                                                                              |
+| `the_excerpt()`                                        | `{{ item.excerpt }}`                                                                                      |
+| `the_permalink()`                                      | `{{ item.fields.url }}`                                                                                   |
+| `get_the_date()`                                       | `{{ published_at \| date_short }}`                                                                        |
+| `the_author()`                                         | `{{ author }}`                                                                                            |
+| `the_category()`                                       | `{{ relations.category_id.title }}`。リンクは `{{ base_path }}/category/{{ relations.category_id.slug }}` |
+| `the_tags()`                                           | `{% for tag in fields.tags %}{{ tag.name }}{{ tag.url }}{% endfor %}`                                     |
+| `comments_template()`                                  | `{% if comments %}{% include "comments.html" %}{% endif %}`                                               |
+| `the_posts_navigation()`・`paginate_links()`           | `pagination`（`prev_url`・`next_url`・`page`・`total_pages`）                                             |
+| `wp_nav_menu()`                                        | `base.html` にリンクを書く                                                                                |
+| `__()`・`_e()`・`esc_html__()`                         | 文言を直接書くか、`{{ t("key") }}`                                                                        |
+| `is_front_page()`・`is_single()`・`is_page()`          | `content_type`（`index`・`article`・`page`・`error` など）                                                |
+
+PHP のテーマに無かった決まりごと: リンクには `base_path` を付ける、テンプレートにインラインのスクリプトや `style=` 属性を書かない（CSP が止めます）、`| safe` を付けてよいのは `content_html` だけ。詳しくは[テーマ作成ガイド](theme_authoring_guide.ja.md)。

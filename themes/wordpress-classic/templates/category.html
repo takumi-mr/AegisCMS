@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+
+{% block content %}
+<header class="page-header">
+  <h1 class="page-title">{{ title }}</h1>
+  {% if fields.description %}<div class="taxonomy-description"><p>{{ fields.description }}</p></div>{% endif %}
+</header>
+{% include "loop.html" %}
+{% endblock %}
