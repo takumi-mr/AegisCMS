@@ -361,4 +361,416 @@ mod tests {
         assert_eq!(json_ld.review_count, 5);
         assert!((json_ld.rating_value - 4.4).abs() < 0.01);
     }
+
+    // --- 入力・権限・通知・管理操作 ---
+
+    use aegis_comments::PolicyOverrides;
+    use aegis_core::{AegisError, NotificationEvent, Notifier};
+    use std::sync::Mutex;
+
+    #[derive(Default)]
+    struct Recording(Mutex<Vec<NotificationEvent>>);
+
+    impl Notifier for Recording {
+        fn notify(&self, event: NotificationEvent) {
+            self.0.lock().unwrap().push(event);
+        }
+    }
+
+    fn submission(order_id: &str, rating: i64, title: &str, body: &str) -> ReviewSubmission {
+        ReviewSubmission {
+            order_id: order_id.to_string(),
+            rating,
+            title: title.to_string(),
+            body: body.to_string(),
+            author_name: None,
+            access_token: None,
+        }
+    }
+
+    fn member(member_id: &str, email: &str) -> ReviewAuthor {
+        ReviewAuthor::Member {
+            member_id: member_id.to_string(),
+            email: email.to_string(),
+            name: "Alice".to_string(),
+        }
+    }
+
+    /// 支払い済みの注文を作る（持ち主は会員 `m1`、メールは user@example.com、トークンは `tok`）
+    async fn paid_order(db: &Arc<dyn DatabaseAdapter>, order_id: &str, product_id: &str) {
+        create_dummy_order(
+            db,
+            order_id,
+            Some("m1"),
+            "user@example.com",
+            product_id,
+            OrderStatus::Paid,
+            "tok",
+        )
+        .await;
+    }
+
+    #[tokio::test]
+    async fn test_review_input_is_validated_before_anything_is_looked_up() {
+        let (service, _db) = setup_review_service().await;
+        let long_title = "t".repeat(201);
+        let long_body = "b".repeat(5001);
+        let cases = [
+            (submission("o", 0, "Title", "Body"), "Rating"),
+            (submission("o", 6, "Title", "Body"), "Rating"),
+            (submission("o", 3, "   ", "Body"), "Title is required"),
+            (submission("o", 3, &long_title, "Body"), "at most 200"),
+            (submission("o", 3, "Title", "  "), "body is required"),
+            (submission("o", 3, "Title", &long_body), "at most 5,000"),
+        ];
+        for (sub, expected) in cases {
+            let err = service
+                .submit_review("p1", sub, member("m1", "user@example.com"), None, None)
+                .await
+                .unwrap_err();
+            assert!(
+                matches!(&err, AegisError::Validation(m) if m.contains(expected)),
+                "{expected}: {err:?}"
+            );
+        }
+        // 長さは文字数で数える（200 文字ちょうどの日本語は通る）
+        let (service, db) = setup_review_service().await;
+        paid_order(&db, "o1", "p1").await;
+        let title = "あ".repeat(200);
+        service
+            .submit_review(
+                "p1",
+                submission("o1", 5, &title, "Body"),
+                member("m1", "user@example.com"),
+                None,
+                None,
+            )
+            .await
+            .expect("200 characters is allowed");
+    }
+
+    #[tokio::test]
+    async fn test_review_is_rejected_for_the_wrong_order_product_or_person() {
+        let (service, db) = setup_review_service().await;
+        paid_order(&db, "o1", "p1").await;
+        create_dummy_order(
+            &db,
+            "o2",
+            Some("m1"),
+            "user@example.com",
+            "p1",
+            OrderStatus::PendingPayment,
+            "tok",
+        )
+        .await;
+
+        // 注文がない
+        let err = service
+            .submit_review(
+                "p1",
+                submission("nope", 5, "T", "B"),
+                member("m1", "user@example.com"),
+                None,
+                None,
+            )
+            .await
+            .unwrap_err();
+        assert!(matches!(err, AegisError::NotFound(_)), "{err:?}");
+
+        // 未払いの注文
+        let err = service
+            .submit_review(
+                "p1",
+                submission("o2", 5, "T", "B"),
+                member("m1", "user@example.com"),
+                None,
+                None,
+            )
+            .await
+            .unwrap_err();
+        assert!(matches!(err, AegisError::PermissionDenied(_)), "{err:?}");
+
+        // 注文に入っていない商品（商品 ID でも slug でも一致しない）
+        let err = service
+            .submit_review(
+                "other-product",
+                submission("o1", 5, "T", "B"),
+                member("m1", "user@example.com"),
+                None,
+                None,
+            )
+            .await
+            .unwrap_err();
+        assert!(
+            matches!(&err, AegisError::PermissionDenied(m) if m.contains("does not contain")),
+            "{err:?}"
+        );
+
+        // 別の人（会員 ID もメールも違う）
+        let err = service
+            .submit_review(
+                "p1",
+                submission("o1", 5, "T", "B"),
+                member("someone-else", "other@example.com"),
+                None,
+                None,
+            )
+            .await
+            .unwrap_err();
+        assert!(
+            matches!(&err, AegisError::PermissionDenied(m) if m.contains("your own orders")),
+            "{err:?}"
+        );
+
+        // 会員 ID が違っても、注文のメールと同じなら（大文字小文字を問わず）本人とみなす。
+        // 商品は slug でも指せる
+        service
+            .submit_review(
+                "test-product",
+                submission("o1", 5, "T", "B"),
+                member("another-id", "USER@example.com"),
+                None,
+                None,
+            )
+            .await
+            .expect("the order's email identifies the buyer; the slug also names the product");
+    }
+
+    #[tokio::test]
+    async fn test_guest_review_needs_the_right_token_and_falls_back_to_the_order_name() {
+        let (service, db) = setup_review_service().await;
+        paid_order(&db, "o1", "p1").await;
+        let guest = |token: &str, name: &str| ReviewAuthor::GuestWithToken {
+            order_id: "o1".to_string(),
+            access_token: token.to_string(),
+            author_name: name.to_string(),
+        };
+
+        let err = service
+            .submit_review(
+                "p1",
+                submission("o1", 4, "T", "B"),
+                guest("wrong", "Bob"),
+                None,
+                None,
+            )
+            .await
+            .unwrap_err();
+        assert!(matches!(err, AegisError::Authentication(_)), "{err:?}");
+
+        // 名前が空なら、注文の顧客名を使う
+        let review = service
+            .submit_review(
+                "p1",
+                submission("o1", 4, "T", "B"),
+                guest("tok", "  "),
+                None,
+                None,
+            )
+            .await
+            .unwrap();
+        assert_eq!(review.author_name, "Member Name");
+        assert_eq!(review.member_id, None);
+        assert_eq!(review.author_email, "user@example.com");
+    }
+
+    #[tokio::test]
+    async fn test_staff_are_notified_with_the_review_status() {
+        for (require_approval, event, status) in [
+            (false, "review.posted", "approved"),
+            (true, "review.pending", "pending"),
+        ] {
+            let config = DatabaseConfig {
+                url: "sqlite::memory:".to_string(),
+                ..DatabaseConfig::default()
+            };
+            let db = create_database_adapter(&config).await.unwrap();
+            db.init().await.unwrap();
+            let notifier = Arc::new(Recording::default());
+            let service = ReviewService::new(
+                db.clone(),
+                Arc::new(AuditService::with_sinks(vec![])),
+                Some(notifier.clone()),
+                aegis_comments::ModerationConfig {
+                    require_approval,
+                    ..Default::default()
+                },
+            );
+            paid_order(&db, "o1", "p1").await;
+            let review = service
+                .submit_review(
+                    "p1",
+                    submission("o1", 2, "Not for me", "Too small."),
+                    member("m1", "user@example.com"),
+                    Some("203.0.113.9".to_string()),
+                    Some("test-agent".to_string()),
+                )
+                .await
+                .unwrap();
+            // 低評価でも、そのことで保留にはしない（承認制の設定だけで決まる）
+            assert_eq!(review.status, status);
+            assert_eq!(review.ip.as_deref(), Some("203.0.113.9"));
+
+            let events = notifier.0.lock().unwrap();
+            assert_eq!(events.len(), 1, "{event}");
+            assert_eq!(events[0].kind, event);
+            assert_eq!(events[0].data["status"], status);
+            assert_eq!(events[0].data["rating"], 2);
+            assert_eq!(events[0].data["review_id"], review.id);
+        }
+    }
+
+    #[tokio::test]
+    async fn test_admin_status_reply_and_bulk_operations() {
+        let (service, db) = setup_review_service().await;
+        let mut ids = Vec::new();
+        for n in 1..=2 {
+            let order = format!("o{n}");
+            paid_order(&db, &order, "p1").await;
+            let review = service
+                .submit_review(
+                    "p1",
+                    submission(&order, 5, "Great", "Works."),
+                    member("m1", "user@example.com"),
+                    None,
+                    None,
+                )
+                .await
+                .unwrap();
+            ids.push(review.id);
+        }
+
+        // 状態の名前と、存在するレビューか
+        let err = service
+            .admin_set_status(&ids[0], "published", None)
+            .await
+            .unwrap_err();
+        assert!(matches!(&err, AegisError::Validation(m) if m.contains("Invalid status")));
+        let err = service
+            .admin_set_status("missing", "spam", None)
+            .await
+            .unwrap_err();
+        assert!(matches!(err, AegisError::NotFound(_)), "{err:?}");
+        let err = service.admin_get_review("missing").await.unwrap_err();
+        assert!(matches!(err, AegisError::NotFound(_)), "{err:?}");
+
+        // 返信は、付けても外せる
+        service
+            .admin_set_reply(&ids[0], Some("Thank you!"))
+            .await
+            .unwrap();
+        let replied = service.admin_get_review(&ids[0]).await.unwrap();
+        assert_eq!(replied.reply.as_deref(), Some("Thank you!"));
+        assert!(replied.replied_at.is_some());
+        service.admin_set_reply(&ids[0], None).await.unwrap();
+        let cleared = service.admin_get_review(&ids[0]).await.unwrap();
+        assert_eq!(cleared.reply, None);
+        assert_eq!(cleared.replied_at, None);
+
+        // 一括で状態を変えると、公開の一覧から消える
+        let (public, _) = service.list_public_reviews("p1", None, 0).await.unwrap();
+        assert_eq!(public.len(), 2);
+        let changed = service
+            .admin_bulk_status(&ids, "trash", Some("Off topic"))
+            .await
+            .unwrap();
+        assert_eq!(changed, 2);
+        let (public, stats) = service.list_public_reviews("p1", None, 0).await.unwrap();
+        assert!(public.is_empty());
+        assert_eq!(stats.review_count, 0);
+        let trashed = service.admin_get_review(&ids[1]).await.unwrap();
+        assert_eq!(trashed.rejection_reason.as_deref(), Some("Off topic"));
+
+        // 管理者の一覧は、状態を問わず見える。一括削除で消える
+        let page = service
+            .admin_list_reviews(aegis_db::ReviewListQuery::default())
+            .await
+            .unwrap();
+        assert_eq!(page.reviews.len(), 2);
+        assert_eq!(service.admin_bulk_delete(&ids).await.unwrap(), 2);
+        let err = service.admin_get_review(&ids[0]).await.unwrap_err();
+        assert!(matches!(err, AegisError::NotFound(_)));
+    }
+
+    #[tokio::test]
+    async fn test_review_settings_override_the_default_policy_and_can_be_reset() {
+        let (service, db) = setup_review_service().await;
+        for order in ["o1", "o2", "o3"] {
+            paid_order(&db, order, "p1").await;
+        }
+        let post = |order: &'static str| {
+            let service = &service;
+            async move {
+                service
+                    .submit_review(
+                        "p1",
+                        submission(order, 5, "T", "B"),
+                        member("m1", "user@example.com"),
+                        None,
+                        None,
+                    )
+                    .await
+                    .unwrap()
+            }
+        };
+
+        // 初期値: 設定なし。テストの設定は承認制でないので、承認される
+        assert_eq!(
+            service.admin_get_settings().await.unwrap(),
+            PolicyOverrides::default()
+        );
+        assert_eq!(post("o1").await.status, "approved");
+
+        // 設定で承認制にすると、保留になる
+        let saved = service
+            .admin_update_settings(PolicyOverrides {
+                require_approval: Some(true),
+                auto_approve_known: None,
+            })
+            .await
+            .unwrap();
+        assert_eq!(saved.require_approval, Some(true));
+        assert_eq!(post("o2").await.status, "pending");
+
+        // 設定を外すと、元の設定（承認制でない）に戻る
+        let reset = service
+            .admin_update_settings(PolicyOverrides::default())
+            .await
+            .unwrap();
+        assert_eq!(reset, PolicyOverrides::default());
+        assert_eq!(post("o3").await.status, "approved");
+    }
+
+    #[tokio::test]
+    async fn test_member_and_public_review_lists() {
+        let (service, db) = setup_review_service().await;
+        for n in 1..=3 {
+            let order = format!("o{n}");
+            paid_order(&db, &order, "p1").await;
+            service
+                .submit_review(
+                    "p1",
+                    submission(&order, n, &format!("Review {n}"), "Body"),
+                    member("m1", "user@example.com"),
+                    None,
+                    None,
+                )
+                .await
+                .unwrap();
+        }
+
+        // 会員の一覧は、自分の分だけ。ほかの会員は空
+        assert_eq!(service.list_member_reviews("m1").await.unwrap().len(), 3);
+        assert!(service.list_member_reviews("m2").await.unwrap().is_empty());
+
+        // 公開の一覧は、件数と位置で区切れる。集計は全件
+        let (first, stats) = service.list_public_reviews("p1", Some(2), 0).await.unwrap();
+        assert_eq!(first.len(), 2);
+        assert_eq!(stats.review_count, 3);
+        let (rest, _) = service.list_public_reviews("p1", Some(2), 2).await.unwrap();
+        assert_eq!(rest.len(), 1);
+        let (none, stats) = service.list_public_reviews("other", None, 0).await.unwrap();
+        assert!(none.is_empty());
+        assert_eq!(stats.review_count, 0);
+    }
 }
