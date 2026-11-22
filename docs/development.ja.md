@@ -65,6 +65,7 @@ AegisCMS の開発環境、検証、ビルド、CI、Docker イメージにつ�
 
 - `docker-ci` はビルドできるかの検証なので、LTO を省いた `ci-release` プロファイル（`--build-arg CARGO_PROFILE=ci-release`。最適化レベルは release と同じ）でビルドする。本番 release プロファイルは `lto = "thin"` / `codegen-units = 16`（Thin LTO）を採用しており、Fat LTO に比べてリンク・最適化時間を大幅に短縮しつつ本番同等の実行速度を維持する。
 - ライセンス一覧（`THIRD_PARTY_LICENSES.md` と `admin/src/data/licenses.json`）は、`license-list.yml` が依存の変更（`Cargo.lock`・`Cargo.toml`・`package-lock.json`）のたびに作り直して、差分があれば落とします。依存を変えたら `task licenses:generate` を実行してコミットします。
+- カバレッジは、`coverage.yml` が `main` への push と手動実行で、全テストを `cargo llvm-cov` の下で動かし、クレートごとの行カバレッジを実行結果の要約に出します（lcov は成果物）。計測だけで、落とすことはしません。手元では `task coverage`（`cargo install cargo-llvm-cov --locked` と `rustup component add llvm-tools-preview` が必要）。
 - dev / test プロファイルのデバッグ情報は `line-tables-only`（バックトレースの行番号は残る）。フルのデバッグ情報だと `aegis-server` のテストバイナリの PDB が約 500 MB になる（`line-tables-only` で約 200 MB。Windows で `aegis-server` を変えたときの再ビルドが約 10 秒 → 6.5 秒）。デバッガで変数を見たいときは `CARGO_PROFILE_DEV_DEBUG=true` で上書きする（依存も再ビルドされる）。
 
 ---

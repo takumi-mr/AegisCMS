@@ -115,6 +115,13 @@ tasks:
     cmds:
       - cargo audit
 
+  coverage:
+    desc: 行カバレッジをクレートごとに測る (cargo-llvm-cov が必要。cargo install cargo-llvm-cov --locked と rustup component add llvm-tools-preview)
+    cmds:
+      - cargo llvm-cov --workspace --all-features --no-report
+      - cargo llvm-cov report --json --summary-only --output-path target/coverage.json
+      - node scripts/coverage-summary.mjs target/coverage.json
+
   miri:
     desc: プラグイン SDK の unsafe を Miri で検査 (nightly と miri コンポーネントが必要。rustup +nightly component add miri rust-src)
     cmds:
