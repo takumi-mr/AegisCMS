@@ -27,6 +27,7 @@ Forwards visitors who open an old URL to a new URL (301 / 302). Manage the rules
 - **It is used only when the page is a 404.** Even if you put a rule on the URL of a live page (article, static page, product, category, etc.), that page is displayed. The rule starts working after the page is removed, so adding one beforehand is safe. Only `GET` / `HEAD` are covered.
 - **The query string is carried over** (such as `?utm_source=x`). However, if `to` contains `?`, the one in `to` is used. A `#fragment` from `to` is appended last.
 - **Loops cannot be created**: a rule that follows rules back to its `from` (A → B, B → A) or redirects to itself is refused (`400 redirect_loop`). There is only one rule per `from` (`409 duplicate_redirect`).
+- **Patterns**: a path segment written as `{name}` (lowercase letters, digits and `_`) matches any one segment, and `to` can use the same `{name}` (`/{year}/{month}/{slug}` → `/articles/{slug}`). A placeholder must be a whole segment, names cannot repeat, and `to` can only use names that are in `from`. Rules without a placeholder are tried first, then patterns from the top. One pattern rule can stand for a whole old permalink structure, so a big site does not need thousands of rules. `aegis-server import wordpress` creates one when there are too many posts ([wordpress-migration.md](wordpress-migration.md)).
 - **The limit is 2,000 rules.**
 - **Cache-Control**: 301 gets `public, max-age=3600`, and 302 gets `no-cache`.
 

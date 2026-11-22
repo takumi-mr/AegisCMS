@@ -249,6 +249,180 @@ fn split_stem(old: &str) -> &str {
     split_extension(old).map_or(old, |(stem, _)| stem)
 }
 
+/// コメントの本文（WordPress のコメントは HTML）。段落・`<br>` は改行にして、タグを除く
+pub fn comment_text(html: &str) -> String {
+    fn collect(nodes: &[Node], out: &mut String) {
+        for node in nodes {
+            match node {
+                Node::Text(t) => out.push_str(t),
+                Node::Element(e) => {
+                    let block = matches!(e.tag.as_str(), "p" | "div" | "blockquote" | "li");
+                    if e.tag == "br" {
+                        out.push('\n');
+                    }
+                    if block {
+                        out.push_str("\n\n");
+                    }
+                    collect(&e.children, out);
+                    if block {
+                        out.push_str("\n\n");
+                    }
+                }
+                Node::Comment(_) => {}
+            }
+        }
+    }
+    let mut raw = String::new();
+    collect(&parse_fragment(html), &mut raw);
+    // 3 つ以上続く改行は 2 つにする
+    let mut out = String::new();
+    let mut newlines = 0;
+    for c in raw.trim().chars() {
+        if c == '\n' {
+            newlines += 1;
+            if newlines <= 2 {
+                out.push(c);
+            }
+        } else {
+            newlines = 0;
+            out.push(c);
+        }
+    }
+    out
+}
+
+/// WordPress のコメントの状態 → 取り込み先の状態（`approved` / `pending` / `spam` / `trash`）
+pub fn comment_status(approved: &str) -> &'static str {
+    match approved {
+        "1" => "approved",
+        "spam" => "spam",
+        "trash" => "trash",
+        _ => "pending",
+    }
+}
+
+/// 項目のパーマリンク（`link`）の、パスの部分。`/?p=123` のようにパスで決まらないものは `None`
+pub fn old_path(link: &str) -> Option<String> {
+    let link = link.trim();
+    let rest = link.split_once("://").map_or(link, |(_, r)| r);
+    // ホストを除く
+    let path_and_query = rest.find('/').map_or("", |i| &rest[i..]);
+    let path = path_and_query.split('#').next().unwrap_or("");
+    let path = path.split('?').next().unwrap_or("");
+    let decoded = percent_decode(path);
+    let trimmed = decoded.trim_end_matches('/');
+    if trimmed.is_empty() {
+        return None;
+    }
+    Some(trimmed.to_string())
+}
+
+/// 旧 URL → 新 URL の規則の計画
+#[derive(Debug, Default, PartialEq, Eq)]
+pub struct RedirectPlan {
+    /// （旧パス, 新パス）
+    pub exact: Vec<(String, String)>,
+    /// （`{slug}` などを含む旧パス, 新パス）
+    pub patterns: Vec<(String, String)>,
+    /// パスで決まらない（`/?p=123`）ため、規則を作れない項目の数
+    pub unmatched: usize,
+    /// 規則の数の上限で、作らなかった項目の数
+    pub over_budget: usize,
+}
+
+/// 公開済みの項目（`(項目, 型)`）の旧 URL から、規則を計画する。`prefix` は記事の公開 URL の先頭、
+/// `budget` は作れる規則の数。固定ページは必ず 1 件ずつ。投稿は、`budget` に収まれば 1 件ずつ、
+/// 収まらなければ、旧パーマリンクの形（`/2020/05/{slug}` など）を 1 つの規則にする
+pub fn plan_redirects(
+    items: &[(&WpItem, &'static str)],
+    prefix: &str,
+    budget: usize,
+) -> RedirectPlan {
+    type Post = (String, String, String); // (旧パス, slug, 新パス)
+    let prefix = prefix.trim_end_matches('/');
+    let mut plan = RedirectPlan::default();
+    let mut pages = Vec::new();
+    let mut posts: Vec<Post> = Vec::new();
+    for (item, ty) in items {
+        let Some(old) = old_path(&item.link) else {
+            plan.unmatched += 1;
+            continue;
+        };
+        let slug = item_slug(item);
+        let new = if *ty == "page" {
+            format!("/{slug}")
+        } else {
+            format!("{prefix}/{slug}")
+        };
+        if old == new {
+            continue;
+        }
+        if *ty == "page" {
+            pages.push((old, new));
+        } else {
+            posts.push((old, slug, new));
+        }
+    }
+    plan.over_budget += pages.len().saturating_sub(budget);
+    pages.truncate(budget);
+    let mut room = budget - pages.len();
+    plan.exact = pages;
+    if posts.len() <= room {
+        plan.exact.extend(posts.into_iter().map(|(o, _, n)| (o, n)));
+        return plan;
+    }
+    // 投稿が多い: いちばん多い形（区間の数・slug の位置）を 1 つのパターンにする
+    let shape = |post: &Post| -> Option<(usize, usize)> {
+        let segments: Vec<&str> = post.0.trim_start_matches('/').split('/').collect();
+        let at = segments.iter().position(|s| *s == post.1)?;
+        Some((segments.len(), at))
+    };
+    let mut counts: std::collections::HashMap<(usize, usize), usize> = Default::default();
+    for post in &posts {
+        if let Some(s) = shape(post) {
+            *counts.entry(s).or_default() += 1;
+        }
+    }
+    let best = counts
+        .into_iter()
+        .max_by_key(|(shape, n)| (*n, std::cmp::Reverse(*shape)))
+        .map(|(shape, _)| shape);
+    let mut rest = Vec::new();
+    match best {
+        Some((len, at)) if room > 0 => {
+            let segs: Vec<Vec<&str>> = posts
+                .iter()
+                .filter(|p| shape(p) == Some((len, at)))
+                .map(|p| p.0.trim_start_matches('/').split('/').collect())
+                .collect();
+            // 区間ごとに、全員が同じ文字ならそのまま、違えば `{pN}`
+            let pattern: Vec<String> = (0..len)
+                .map(|i| {
+                    if i == at {
+                        "{slug}".to_string()
+                    } else if segs.iter().all(|s| s[i] == segs[0][i]) {
+                        segs[0][i].to_string()
+                    } else {
+                        format!("{{p{}}}", i + 1)
+                    }
+                })
+                .collect();
+            plan.patterns.push((
+                format!("/{}", pattern.join("/")),
+                format!("{prefix}/{{slug}}"),
+            ));
+            room -= 1;
+            rest.extend(posts.into_iter().filter(|p| shape(p) != Some((len, at))));
+        }
+        _ => rest = posts,
+    }
+    // パターンに入らなかった投稿は、余裕のある分だけ 1 件ずつ
+    plan.over_budget += rest.len().saturating_sub(room);
+    plan.exact
+        .extend(rest.into_iter().take(room).map(|(o, _, n)| (o, n)));
+    plan
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -358,6 +532,94 @@ mod tests {
         assert_eq!(excerpt_text(&long).unwrap().chars().count(), 500);
     }
 
+    #[test]
+    fn comment_html_becomes_plain_text() {
+        assert_eq!(
+            comment_text("<p>Hello <a href=\"x\">world</a></p>\n<p>Bye<br/>now</p>"),
+            "Hello world\n\nBye\nnow"
+        );
+        assert_eq!(comment_text("a &amp; b"), "a & b");
+        assert_eq!(comment_status("1"), "approved");
+        assert_eq!(comment_status("0"), "pending");
+        assert_eq!(comment_status("spam"), "spam");
+        assert_eq!(comment_status("trash"), "trash");
+        assert_eq!(comment_status("post-trashed"), "pending");
+    }
+
+    #[test]
+    fn old_paths_come_from_the_permalink() {
+        assert_eq!(
+            old_path("https://old.example/2020/05/hello/").as_deref(),
+            Some("/2020/05/hello")
+        );
+        assert_eq!(
+            old_path("http://old.example/%e3%81%82/").as_deref(),
+            Some("/あ")
+        );
+        assert_eq!(old_path("https://old.example/?p=123"), None);
+        assert_eq!(old_path("https://old.example/"), None);
+        assert_eq!(old_path(""), None);
+    }
+
+    fn linked(id: u64, link: &str, slug: &str) -> WpItem {
+        WpItem {
+            id,
+            link: link.to_string(),
+            slug: slug.to_string(),
+            ..WpItem::default()
+        }
+    }
+
+    #[test]
+    fn a_small_site_gets_one_rule_per_item() {
+        let post = linked(1, "https://o.example/2020/05/hello/", "hello");
+        let page = linked(2, "https://o.example/info/", "about");
+        let plan = plan_redirects(&[(&post, "article"), (&page, "page")], "/articles", 100);
+        assert_eq!(
+            plan.exact,
+            vec![
+                ("/info".to_string(), "/about".to_string()),
+                ("/2020/05/hello".to_string(), "/articles/hello".to_string()),
+            ]
+        );
+        assert!(plan.patterns.is_empty());
+    }
+
+    #[test]
+    fn a_big_site_gets_one_pattern_for_the_permalink_shape() {
+        let posts: Vec<WpItem> = (0..30)
+            .map(|i| {
+                linked(
+                    i,
+                    &format!(
+                        "https://o.example/20{:02}/0{}/post-{i}/",
+                        10 + i % 5,
+                        1 + i % 9
+                    ),
+                    &format!("post-{i}"),
+                )
+            })
+            .collect();
+        let items: Vec<(&WpItem, &'static str)> = posts.iter().map(|p| (p, "article")).collect();
+        let plan = plan_redirects(&items, "/articles", 5);
+        assert_eq!(
+            plan.patterns,
+            vec![(
+                "/{p1}/{p2}/{slug}".to_string(),
+                "/articles/{slug}".to_string()
+            )]
+        );
+        assert!(plan.exact.is_empty());
+        assert_eq!(plan.over_budget, 0);
+    }
+
+    #[test]
+    fn plain_permalinks_cannot_be_redirected() {
+        let post = linked(1, "https://o.example/?p=1", "hello");
+        let plan = plan_redirects(&[(&post, "article")], "/articles", 10);
+        assert_eq!(plan.unmatched, 1);
+        assert!(plan.exact.is_empty());
+    }
     #[test]
     fn usernames_are_made_valid() {
         assert_eq!(username("taro.yamada", 1), "taro.yamada");

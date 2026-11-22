@@ -317,3 +317,47 @@ fn test_reserved_prefixes_include_the_admin_path() {
     assert!(reserved.contains(&"/api".to_string()));
     assert!(reserved.contains(&"/studio".to_string()));
 }
+
+#[test]
+fn test_pattern_rules_match_segments_and_fill_the_target() {
+    let mut table = RedirectTable::default();
+    add(&mut table, "/{year}/{month}/{slug}", "/articles/{slug}").unwrap();
+    assert_eq!(
+        table.resolve_target("/2020/05/hello/"),
+        Some(("/articles/hello".to_string(), 301))
+    );
+    // 区間の数が違えば一致しない
+    assert_eq!(table.resolve_target("/2020/hello"), None);
+    assert_eq!(table.resolve_target("/2020/05/hello/extra"), None);
+    // 日本語の slug は戻して受け、転送先では符号化する
+    assert_eq!(
+        table
+            .resolve_target("/2020/05/%E8%A8%98%E4%BA%8B")
+            .unwrap()
+            .0,
+        "/articles/%E8%A8%98%E4%BA%8B"
+    );
+}
+
+#[test]
+fn test_an_exact_rule_wins_over_a_pattern() {
+    let mut table = RedirectTable::default();
+    add(&mut table, "/{slug}", "/articles/{slug}").unwrap();
+    add(&mut table, "/about", "/company").unwrap();
+    assert_eq!(table.resolve_target("/about").unwrap().0, "/company");
+    assert_eq!(table.resolve_target("/other").unwrap().0, "/articles/other");
+}
+
+#[test]
+fn test_bad_patterns_are_refused() {
+    let mut table = RedirectTable::default();
+    // 区間まるごとではない
+    assert!(add(&mut table, "/a-{slug}", "/b/{slug}").is_err());
+    // 名前の重複
+    assert!(add(&mut table, "/{a}/{a}", "/x").is_err());
+    // `to` に、`from` に無い名前
+    assert!(add(&mut table, "/{a}", "/b/{c}").is_err());
+    // パターンでない規則の `to` に `{`
+    assert!(add(&mut table, "/plain", "/b/{a}").is_err());
+    assert!(table.rules().is_empty());
+}

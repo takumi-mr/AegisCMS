@@ -111,6 +111,7 @@ fn dry_run(export: &WxrExport, report: &mut Report) {
     for _ in &export.tags {
         report.created("tag");
     }
+    let mut published: Vec<(&WpItem, &'static str)> = Vec::new();
     for item in &export.items {
         if item.post_type == "attachment" {
             if item.attachment_url.is_some() {
@@ -118,7 +119,7 @@ fn dry_run(export: &WxrExport, report: &mut Report) {
             }
             continue;
         }
-        let Some((ty, _)) = classify(item, report) else {
+        let Some((ty, status)) = classify(item, report) else {
             continue;
         };
         report.created(ty);
@@ -130,8 +131,56 @@ fn dry_run(export: &WxrExport, report: &mut Report) {
                 &format!("{}: {}", note.code, note.detail),
             );
         }
+        let comments = importable_comments(item);
+        if status.status == "published" {
+            for _ in &comments {
+                report.created("comment");
+            }
+        } else if !comments.is_empty() {
+            report.note(
+                "comment",
+                &describe(item),
+                "comments are not imported: the post is not published",
+            );
+        }
+        if status.status == "published" {
+            published.push((item, ty));
+        }
     }
+    let redirects = plan::plan_redirects(&published, "/articles", MAX_REDIRECTS);
+    for _ in redirects.exact.iter().chain(&redirects.patterns) {
+        report.created("redirect");
+    }
+    redirect_notes(&redirects, report);
     notes_for_everything(export, report);
+}
+
+/// サーバーが持てるリダイレクトの規則の数（`redirects::MAX_RULES`）
+const MAX_REDIRECTS: usize = crate::redirects::MAX_RULES;
+
+/// 取り込むコメント（ピンバック・トラックバックは取り込まない）
+fn importable_comments(item: &WpItem) -> Vec<&aegis_wordpress::WpComment> {
+    item.comments
+        .iter()
+        .filter(|c| c.kind.is_empty() || c.kind == "comment")
+        .collect()
+}
+
+fn redirect_notes(redirects: &plan::RedirectPlan, report: &mut Report) {
+    if redirects.unmatched > 0 {
+        report.note(
+            "redirect",
+            &format!("{} posts and pages", redirects.unmatched),
+            "no redirect: the old URL is not a path (for example /?p=123)",
+        );
+    }
+    if redirects.over_budget > 0 {
+        report.note(
+            "redirect",
+            &format!("{} posts and pages", redirects.over_budget),
+            "no redirect: the server holds at most 2,000 redirect rules",
+        );
+    }
 }
 
 /// 型と状態を決める。取り込まないものは報告に残して `None`
@@ -157,14 +206,6 @@ fn classify(item: &WpItem, report: &mut Report) -> Option<(&'static str, plan::S
 
 /// 取り込みでは扱わないものを、まとめて報告に残す
 fn notes_for_everything(export: &WxrExport, report: &mut Report) {
-    let comments: usize = export.items.iter().map(|i| i.comments.len()).sum();
-    if comments > 0 {
-        report.note(
-            "comments",
-            &format!("{comments} comments"),
-            "not imported yet",
-        );
-    }
     let with_thumbnail = export
         .items
         .iter()
@@ -267,8 +308,132 @@ async fn import(
         .await;
     }
     println!("Imported {total} posts and pages");
+    let published: Vec<(&WpItem, &'static str)> = items
+        .iter()
+        .filter(|(_, _, status)| status.status == "published")
+        .map(|(item, ty, _)| (*item, *ty))
+        .collect();
+    import_redirects(client, &published, report).await;
     notes_for_everything(export, report);
     Ok(())
+}
+
+/// 旧 URL → 新 URL のリダイレクトを作る。規則の数の上限に収まらないときは、旧パーマリンクの形を
+/// 1 つのパターンの規則にする
+async fn import_redirects(client: &Client, items: &[(&WpItem, &'static str)], report: &mut Report) {
+    let prefix = match client.json(Method::GET, "/api/v1/public-paths", None).await {
+        Ok((StatusCode::OK, body)) => body
+            .as_array()
+            .and_then(|entries| entries.iter().find(|e| e["content_type"] == "article"))
+            .and_then(|e| e["running"].as_str())
+            .unwrap_or("/articles")
+            .to_string(),
+        _ => "/articles".to_string(),
+    };
+    let existing = match client
+        .json(Method::GET, "/api/v1/redirects?limit=1", None)
+        .await
+    {
+        Ok((StatusCode::OK, body)) => body["total"].as_u64().unwrap_or(0) as usize,
+        _ => 0,
+    };
+    let redirects = plan::plan_redirects(items, &prefix, MAX_REDIRECTS.saturating_sub(existing));
+    println!(
+        "Creating redirects… {}",
+        redirects.exact.len() + redirects.patterns.len()
+    );
+    for (from, to) in redirects.patterns.iter().chain(&redirects.exact) {
+        let body = json!({ "from": from, "to": to, "status": 301 });
+        match client
+            .json(Method::POST, "/api/v1/redirects", Some(&body))
+            .await
+        {
+            Ok((StatusCode::CREATED, _)) => report.created("redirect"),
+            Ok((StatusCode::CONFLICT, _)) => report.existing("redirect"),
+            Ok((status, body)) => report.failed("redirect", from, &error_of(status, &body)),
+            Err(e) => report.failed("redirect", from, &e),
+        }
+    }
+    redirect_notes(&redirects, report);
+}
+
+/// 投稿・固定ページのコメントを、状態・日時・返信の関係ごと取り込む
+async fn import_comments(
+    client: &Client,
+    item: &WpItem,
+    ty: &str,
+    slug: &str,
+    subject: &str,
+    report: &mut Report,
+) {
+    let comments = importable_comments(item);
+    let skipped_kinds = item.comments.len() - comments.len();
+    if skipped_kinds > 0 {
+        report.note(
+            "comment",
+            subject,
+            &format!("{skipped_kinds} pingbacks and trackbacks are not imported"),
+        );
+    }
+    let path = format!(
+        "/api/v1/contents/{ty}/{}/comments/import",
+        encode_segment(slug)
+    );
+    for chunk in comments.chunks(500) {
+        let items: Vec<Value> = chunk
+            .iter()
+            .map(|c| {
+                json!({
+                    "ref": c.id.to_string(),
+                    "parent_ref": (c.parent != 0).then(|| c.parent.to_string()),
+                    "name": c.author,
+                    "email": c.author_email,
+                    "body": plan::comment_text(&c.content),
+                    "status": plan::comment_status(&c.approved),
+                    "created_at": c.date.map(|d| d.to_string()),
+                    "ip": c.author_ip,
+                })
+            })
+            .collect();
+        match client
+            .json(Method::POST, &path, Some(&json!({ "comments": items })))
+            .await
+        {
+            Ok((StatusCode::OK, body)) => {
+                for _ in 0..body["imported"].as_u64().unwrap_or(0) {
+                    report.created("comment");
+                }
+                for entry in body["skipped"].as_array().into_iter().flatten() {
+                    report.skipped(
+                        "comment",
+                        &format!(
+                            "{subject} comment #{}",
+                            entry["ref"].as_str().unwrap_or("?")
+                        ),
+                        entry["reason"].as_str().unwrap_or("not imported"),
+                    );
+                }
+            }
+            Ok((StatusCode::NOT_FOUND, _)) => {
+                report.note(
+                    "comment",
+                    subject,
+                    &format!(
+                        "comments are not enabled for '{ty}': enable [comments] to import them"
+                    ),
+                );
+                return;
+            }
+            Ok((status, body)) => {
+                report.failed("comment", subject, &error_of(status, &body));
+                return;
+            }
+            Err(e) => {
+                report.failed("comment", subject, &e);
+                return;
+            }
+        }
+    }
 }
 
 struct ImportContext<'a> {
@@ -685,6 +850,18 @@ async fn import_item(
             report.failed(ty, &subject, &e);
             return;
         }
+    }
+
+    if status.status == "published" {
+        if !item.comments.is_empty() {
+            import_comments(client, item, ty, &slug, &subject, report).await;
+        }
+    } else if !importable_comments(item).is_empty() {
+        report.note(
+            "comment",
+            &subject,
+            "comments are not imported: the post is not published",
+        );
     }
 
     if ty == "article" {
