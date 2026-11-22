@@ -1,0 +1,277 @@
+/*
+ * WordPress Classic — a starter theme that uses the class names of classic WordPress themes.
+ * The WordPress theme's own style.css (added by `aegis-server theme import-wordpress`) is loaded
+ * after this file, so its rules win.
+ */
+
+:root {
+  --wp-bg: #f1f1f1;
+  --wp-surface: #ffffff;
+  --wp-text: #333333;
+  --wp-muted: #777777;
+  --wp-border: #dddddd;
+  --wp-link: #21759b;
+  --wp-link-hover: #0f3647;
+  --accent: var(--wp-link);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--wp-bg);
+  color: var(--wp-text);
+  font-family: Georgia, 'Times New Roman', 'Hiragino Mincho ProN', 'Yu Mincho', serif;
+  font-size: 1rem;
+  line-height: 1.7;
+  overflow-wrap: anywhere;
+}
+
+a {
+  color: var(--wp-link);
+}
+
+a:hover {
+  color: var(--wp-link-hover);
+}
+
+img {
+  max-width: 100%;
+  height: auto;
+}
+
+/* Header */
+.site-header {
+  background: var(--wp-surface);
+  border-bottom: 1px solid var(--wp-border);
+  padding: 1.5rem max(1rem, calc((100% - 880px) / 2));
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.75rem 1.5rem;
+}
+
+.site-title {
+  margin: 0;
+  font-size: 1.6rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.site-title a {
+  color: var(--wp-text);
+  text-decoration: none;
+}
+
+.site-description {
+  margin: 0.25rem 0 0;
+  color: var(--wp-muted);
+  font-size: 0.9rem;
+}
+
+.main-navigation ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1.25rem;
+}
+
+.main-navigation a {
+  text-decoration: none;
+}
+
+/* Content */
+.site-content {
+  max-width: 880px;
+  margin: 0 auto;
+  padding: 2rem 1rem;
+}
+
+.hentry {
+  background: var(--wp-surface);
+  border: 1px solid var(--wp-border);
+  padding: 1.5rem 2rem;
+  margin-bottom: 2rem;
+}
+
+.entry-title {
+  margin: 0 0 0.5rem;
+  font-size: 1.75rem;
+  line-height: 1.3;
+}
+
+.entry-title a {
+  text-decoration: none;
+}
+
+.entry-meta,
+.entry-footer {
+  color: var(--wp-muted);
+  font-size: 0.85rem;
+}
+
+.entry-meta > span + span::before {
+  content: '\00b7';
+  margin: 0 0.5rem;
+}
+
+.entry-footer span {
+  margin-right: 1rem;
+}
+
+.tags-links a + a::before {
+  content: ', ';
+  color: var(--wp-muted);
+}
+
+.entry-content,
+.entry-summary {
+  margin-top: 1rem;
+}
+
+.entry-content > :first-child,
+.entry-summary > :first-child {
+  margin-top: 0;
+}
+
+/* The body (a CSS reset must not remove these) */
+.entry-content p,
+.entry-summary p {
+  margin: 0 0 1.25rem;
+}
+
+.entry-content h2,
+.entry-content h3,
+.entry-content h4 {
+  margin: 2rem 0 0.75rem;
+  line-height: 1.3;
+}
+
+.entry-content ul,
+.entry-content ol {
+  margin: 0 0 1.25rem;
+  padding-left: 1.5rem;
+}
+
+.entry-content blockquote {
+  margin: 0 0 1.25rem;
+  padding-left: 1rem;
+  border-left: 4px solid var(--wp-border);
+  color: var(--wp-muted);
+}
+
+.entry-content pre {
+  overflow-x: auto;
+  padding: 1rem;
+  background: var(--wp-bg);
+  font-size: 0.9rem;
+}
+
+.entry-content figure {
+  margin: 0 0 1.25rem;
+}
+
+.entry-content figcaption,
+.wp-caption-text {
+  color: var(--wp-muted);
+  font-size: 0.85rem;
+}
+
+.entry-content table {
+  border-collapse: collapse;
+  max-width: 100%;
+}
+
+.entry-content th,
+.entry-content td {
+  border: 1px solid var(--wp-border);
+  padding: 0.4rem 0.7rem;
+}
+
+.alignleft {
+  float: left;
+  margin: 0 1.5rem 1rem 0;
+}
+
+.alignright {
+  float: right;
+  margin: 0 0 1rem 1.5rem;
+}
+
+.aligncenter {
+  display: block;
+  margin: 0 auto 1rem;
+}
+
+/* Archive headers, 404 */
+.page-header {
+  margin-bottom: 1.5rem;
+}
+
+.page-title {
+  margin: 0;
+  font-size: 1.5rem;
+}
+
+.taxonomy-description {
+  color: var(--wp-muted);
+}
+
+.no-results,
+.error-404 {
+  background: var(--wp-surface);
+  border: 1px solid var(--wp-border);
+  padding: 1.5rem 2rem;
+}
+
+/* Pagination */
+.posts-navigation .nav-links {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.posts-navigation .nav-next {
+  margin-left: auto;
+}
+
+/* Comments */
+.comments-area {
+  background: var(--wp-surface);
+  border: 1px solid var(--wp-border);
+  padding: 1.5rem 2rem;
+  margin-bottom: 2rem;
+}
+
+/* Footer */
+.site-footer {
+  border-top: 1px solid var(--wp-border);
+  padding: 1.5rem 1rem;
+  text-align: center;
+  color: var(--wp-muted);
+  font-size: 0.85rem;
+}
+
+@media (max-width: 600px) {
+  .hentry,
+  .comments-area,
+  .no-results,
+  .error-404 {
+    padding: 1rem;
+  }
+
+  .entry-title {
+    font-size: 1.4rem;
+  }
+
+  .alignleft,
+  .alignright {
+    float: none;
+    margin: 0 0 1rem;
+  }
+}

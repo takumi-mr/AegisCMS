@@ -63,6 +63,7 @@ mod system;
 #[cfg(test)]
 mod test_support;
 mod theme_dev;
+mod theme_import_wordpress;
 
 use aegis_runtime::PluginSupervisor;
 use aegis_schema::{OpenApiGenerator, SchemaLoader, TypeScriptGenerator};
@@ -182,6 +183,8 @@ enum Commands {
 enum ThemeCommand {
     /// Serve a theme directory with sample data (no database needed) and reload the browser on save
     Dev(theme_dev::DevArgs),
+    /// Make a theme from a WordPress theme folder: its style.css and assets on top of the WordPress Classic starter
+    ImportWordpress(theme_import_wordpress::ImportThemeArgs),
 }
 
 #[derive(Subcommand, Debug)]
@@ -982,6 +985,9 @@ async fn run_server() -> anyhow::Result<()> {
         Commands::Theme {
             action: ThemeCommand::Dev(args),
         } => theme_dev::run(args).await?,
+        Commands::Theme {
+            action: ThemeCommand::ImportWordpress(args),
+        } => theme_import_wordpress::run(args)?,
         Commands::Import {
             action: ImportCommand::Wordpress(args),
         } => import_wordpress::run(args).await?,

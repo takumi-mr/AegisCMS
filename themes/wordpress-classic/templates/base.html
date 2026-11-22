@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="{{ locale }}">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% if title %}{{ title }} | {% endif %}{{ site_title }}</title>
+  <meta name="description" content="{% if site_description %}{{ site_description }}{% else %}{{ site_title }}{% endif %}">
+  <link rel="stylesheet" href="{{ base_path }}/theme/assets/style.css">
+  <!-- wordpress-theme-style -->
+  {% if extra_css %}
+  {{ extra_css | inline_style }}
+  {% endif %}
+  {{ extra_head | safe }}
+</head>
+<body class="{% if content_type == 'article' %}single single-post{% elif content_type == 'page' %}page page-template-default{% elif content_type == 'index' %}home blog{% elif content_type == 'error' %}error404{% elif content_type in ['category', 'tag'] %}archive {{ content_type }}{% else %}{{ content_type }}{% endif %}">
+<div id="page" class="site hfeed">
+  <header id="masthead" class="site-header" role="banner">
+    <div class="site-branding">
+      <p class="site-title"><a href="{{ base_path }}/" rel="home">{{ site_title }}</a></p>
+      {% if site_description %}<p class="site-description">{{ site_description }}</p>{% endif %}
+    </div>
+    <nav id="site-navigation" class="main-navigation" role="navigation">
+      <ul id="primary-menu" class="menu">
+        <li class="menu-item menu-item-home"><a href="{{ base_path }}/">{{ t("nav.home") }}</a></li>
+        <li class="menu-item"><a href="{{ base_path }}/tags">{{ t("tags.title") }}</a></li>
+        {% if admin_url %}<li class="menu-item"><a href="{{ admin_url }}">{{ t("admin.studio") }}</a></li>{% endif %}
+      </ul>
+    </nav>
+  </header>
+
+  <div id="content" class="site-content">
+    <div id="primary" class="content-area">
+      <main id="main" class="site-main" role="main">
+        {% block content %}{% endblock %}
+      </main>
+    </div>
+  </div>
+
+  <footer id="colophon" class="site-footer" role="contentinfo">
+    <div class="site-info">
+      &copy; {{ site_title }}{% if show_powered_by %} &middot; Powered by AegisCMS{% endif %}
+    </div>
+  </footer>
+</div>
+</body>
+</html>

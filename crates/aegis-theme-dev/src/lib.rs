@@ -385,6 +385,7 @@ fn default_sample(template: &str) -> Value {
                 "author_id": "editor",
                 "published_at": format!("2026-10-{:02}T09:00:00Z", 20 + n),
                 "created_at": format!("2026-10-{:02}T09:00:00Z", 20 + n),
+                "fields": { "url": format!("/articles/sample-{n}") },
             })
         })
         .collect();

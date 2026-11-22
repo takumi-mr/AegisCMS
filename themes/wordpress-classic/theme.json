@@ -1,0 +1,15 @@
+{
+  "id": "wordpress-classic",
+  "name": "WordPress Classic",
+  "version": "1.0.0",
+  "description": "A starter theme that outputs the markup and class names of classic WordPress themes (site-header, entry-title, entry-content, hentry, widget…), so the style.css of a WordPress theme applies with little or no change. Used by `aegis-server theme import-wordpress`.",
+  "author": {
+    "name": "AegisCMS",
+    "url": "https://aegiscms.dev"
+  },
+  "license": "MIT OR Apache-2.0",
+  "preview_image": "preview.svg",
+  "tags": ["light", "classic", "blog", "wordpress", "starter"],
+  "homepage": "https://aegiscms.dev/themes/wordpress-classic",
+  "min_aegis_version": "0.1.0"
+}

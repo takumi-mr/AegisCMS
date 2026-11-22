@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+
+{% block content %}
+<article id="post-{{ slug }}" class="post hentry">
+  <header class="entry-header">
+    <h1 class="entry-title">{{ title }}</h1>
+    <div class="entry-meta">
+      {% if published_at %}<span class="posted-on"><time class="entry-date published" datetime="{{ published_at }}">{{ published_at | date_short }}</time></span>{% endif %}
+      {% if author %}<span class="byline"><span class="author vcard">{{ author }}</span></span>{% endif %}
+    </div>
+  </header>
+
+  <div class="entry-content">
+    {{ content_html | safe }}
+  </div>
+
+  <footer class="entry-footer">
+    {% if relations and relations.category_id %}<span class="cat-links"><a href="{{ base_path }}/category/{{ relations.category_id.slug }}" rel="category tag">{{ relations.category_id.title }}</a></span>{% endif %}
+    {% if fields.tags %}<span class="tags-links">{% for tag in fields.tags %}<a href="{{ tag.url }}" rel="tag">{{ tag.name }}</a>{% endfor %}</span>{% endif %}
+  </footer>
+</article>
+{% if comments %}<div id="comments" class="comments-area">{% include "comments.html" %}</div>{% endif %}
+{% endblock %}
