@@ -1,8 +1,9 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { Crosshair, Monitor, Smartphone, Tablet } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { BlockInfo, SampleInfo } from '../types.ts';
 import { VIEWPORTS, type ViewportId } from '../viewports.ts';
+import { groupSamples } from '../samples.ts';
 
 const ICONS = {
   fit: Monitor,
@@ -47,6 +48,7 @@ export function Preview({
 }: PreviewProps) {
   const { t } = useTranslation();
   const iframeRef = useRef<HTMLIFrameElement>(null);
+  const sampleGroups = useMemo(() => groupSamples(samples), [samples]);
   const width = VIEWPORTS.find((v) => v.id === viewport)?.width ?? null;
 
   useEffect(() => {
@@ -64,11 +66,21 @@ export function Preview({
         <label>
           {t('preview.page')}
           <select value={sample} onChange={(e) => onSample(e.target.value)}>
-            {samples.map((s) => (
-              <option key={s.name} value={s.name}>
-                {s.name}（{s.template}）
-              </option>
-            ))}
+            {sampleGroups.map((group) => {
+              const options = group.items.map((s) => (
+                <option key={s.name} value={s.name}>
+                  {s.name}（{s.template}）
+                </option>
+              ));
+              // 部品がなければ、見出しのない 1 つの一覧のまま
+              return group.part ? (
+                <optgroup key="parts" label={t('preview.parts')}>
+                  {options}
+                </optgroup>
+              ) : (
+                options
+              );
+            })}
           </select>
         </label>
         {blocks.length > 0 && (

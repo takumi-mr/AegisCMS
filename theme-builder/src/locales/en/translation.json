@@ -80,6 +80,7 @@
   "preview": {
     "title": "Preview",
     "page": "Page",
+    "parts": "Parts",
     "block": "Block",
     "wholePage": "(Whole page)",
     "blockSelectAria": "Block selection",
