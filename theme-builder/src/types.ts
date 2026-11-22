@@ -25,6 +25,7 @@ export interface SampleInfo {
   template: string;
   source: 'file' | 'builtin';
   preview_url: string;
+  part?: boolean;
 }
 
 /** `GET /__dev/api/theme` */

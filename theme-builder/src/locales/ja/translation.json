@@ -80,6 +80,7 @@
   "preview": {
     "title": "プレビュー",
     "page": "ページ",
+    "parts": "部品",
     "block": "ブロック",
     "wholePage": "（ページ全体）",
     "blockSelectAria": "ブロック選択",

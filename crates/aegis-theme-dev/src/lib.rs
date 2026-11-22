@@ -138,6 +138,8 @@ struct SampleInfo {
     template: String,
     source: &'static str,
     preview_url: String,
+    /// ほかのテンプレートから読み込まれる部品（単体では `base.html` に包まれない断片になる）
+    part: bool,
 }
 
 pub async fn run(args: DevArgs) -> anyhow::Result<()> {
@@ -913,10 +915,12 @@ async fn preview_page(State(state): State<DevState>, UrlPath(name): UrlPath<Stri
 /// `GET /__dev/api/theme` — マニフェスト・テンプレート・サンプルの一覧
 async fn api_theme(State(state): State<DevState>) -> Json<Value> {
     let (samples, errors) = load_all(&state);
+    let parts = part_templates(&state.dir);
     let samples: Vec<SampleInfo> = samples
         .into_iter()
         .map(|s| SampleInfo {
             preview_url: format!("/preview/{}", s.name),
+            part: parts.contains(&s.context.template),
             template: s.context.template,
             source: s.source,
             name: s.name,
@@ -1635,6 +1639,21 @@ mod tests {
         assert!(parts.contains("/preview/toolbar"));
         assert!(parts.contains("/preview/macros"));
         assert!(!parts.contains("/preview/index"));
+
+        // Theme Builder の API にも、部品かどうかを返す
+        let (_, text) = get_text(&app, "/__dev/api/theme").await;
+        let info: Value = serde_json::from_str(&text).unwrap();
+        let part_of = |name: &str| {
+            info["samples"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .find(|s| s["name"] == name)
+                .map(|s| s["part"].as_bool().unwrap())
+        };
+        assert_eq!(part_of("toolbar"), Some(true));
+        assert_eq!(part_of("macros"), Some(true));
+        assert_eq!(part_of("index"), Some(false));
     }
 
     #[tokio::test]
