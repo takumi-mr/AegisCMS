@@ -27,6 +27,7 @@ mod handlers;
 mod headers;
 #[cfg(feature = "headless")]
 mod headless;
+mod import_wordpress;
 mod inject;
 mod mcp;
 #[cfg(test)]
@@ -159,6 +160,11 @@ enum Commands {
         #[command(subcommand)]
         action: ThemeCommand,
     },
+    /// Import content from another site into a running server through its REST API
+    Import {
+        #[command(subcommand)]
+        action: ImportCommand,
+    },
     /// Serve several sites over HTTPS with Caddy (deploy/README.md)
     Deploy {
         #[command(subcommand)]
@@ -176,6 +182,12 @@ enum Commands {
 enum ThemeCommand {
     /// Serve a theme directory with sample data (no database needed) and reload the browser on save
     Dev(theme_dev::DevArgs),
+}
+
+#[derive(Subcommand, Debug)]
+enum ImportCommand {
+    /// Import a WordPress export (WXR): authors, categories, tags, media, posts and pages
+    Wordpress(import_wordpress::WordpressArgs),
 }
 
 #[derive(Subcommand, Debug)]
@@ -970,6 +982,9 @@ async fn run_server() -> anyhow::Result<()> {
         Commands::Theme {
             action: ThemeCommand::Dev(args),
         } => theme_dev::run(args).await?,
+        Commands::Import {
+            action: ImportCommand::Wordpress(args),
+        } => import_wordpress::run(args).await?,
         Commands::Deploy {
             action: DeployCommand::Generate { dir, builtin },
         } => deploy::run_generate(&dir, &builtin)?,
