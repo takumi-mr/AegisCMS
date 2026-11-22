@@ -783,6 +783,56 @@ fn error_page(title: &str, detail: &str) -> Html<String> {
     )))
 }
 
+/// サーバーが URL ごとに自分で描画するテンプレート（部品ではない）
+const PAGE_TEMPLATES: &[&str] = &[
+    "base.html",
+    "index.html",
+    "front.html",
+    "category.html",
+    "tag.html",
+    "tags.html",
+    "search.html",
+    "contact.html",
+    "consent.html",
+    "notices.html",
+    "article.html",
+    "page.html",
+    "404.html",
+    "blank.html",
+    "products.html",
+    "product.html",
+];
+
+/// ほかのテンプレートから `{% include %}`・`{% from %}`・`{% import %}` で読み込まれている部品の名前。
+/// 部品は単体で描画すると、`base.html` に包まれない断片になる
+fn part_templates(dir: &Path) -> std::collections::HashSet<String> {
+    let mut parts = std::collections::HashSet::new();
+    for template in list_templates(dir) {
+        let Ok(source) = std::fs::read_to_string(dir.join("templates").join(&template)) else {
+            continue;
+        };
+        for tag in source.split("{%").skip(1) {
+            let tag = tag.trim_start_matches('-').trim_start();
+            let Some(rest) = ["include", "from", "import"]
+                .iter()
+                .find_map(|kw| tag.strip_prefix(kw))
+            else {
+                continue;
+            };
+            let rest = rest.trim_start();
+            let Some(quote) = rest.chars().next().filter(|c| matches!(c, '"' | '\'')) else {
+                continue;
+            };
+            if let Some(name) = rest[1..].split(quote).next() {
+                if !PAGE_TEMPLATES.contains(&name) {
+                    parts.insert(name.to_string());
+                }
+            }
+        }
+    }
+    parts
+}
+
 /// `GET /` — サンプルの一覧
 async fn index_page(State(state): State<DevState>) -> Html<String> {
     let (samples, errors) = load_all(&state);
@@ -794,15 +844,31 @@ async fn index_page(State(state): State<DevState>) -> Html<String> {
         style = aegis_core::csp::inline_style_tag(DEV_CSS),
         n = escape(&name)
     );
-    for s in &samples {
+    let parts = part_templates(&state.dir);
+    let (parts_samples, pages): (Vec<&Sample>, Vec<&Sample>) = samples
+        .iter()
+        .partition(|s| parts.contains(&s.context.template));
+    let list = |items: &[&Sample]| -> String {
+        items
+            .iter()
+            .map(|s| {
+                format!(
+                    "<li><a href=\"/preview/{n}\">{n}</a> <small>({t}, {src})</small></li>",
+                    n = escape(&s.name),
+                    t = escape(&s.context.template),
+                    src = s.source
+                )
+            })
+            .collect()
+    };
+    body.push_str(&list(&pages));
+    body.push_str("</ul>");
+    if !parts_samples.is_empty() {
         body.push_str(&format!(
-            "<li><a href=\"/preview/{n}\">{n}</a> <small>({t}, {src})</small></li>",
-            n = escape(&s.name),
-            t = escape(&s.context.template),
-            src = s.source
+            "<h2>Parts</h2><p>Included by other templates. Shown alone, so they have no <code>base.html</code> around them.</p><ul>{}</ul>",
+            list(&parts_samples)
         ));
     }
-    body.push_str("</ul>");
     for e in &errors {
         body.push_str(&format!("<p class=\"dev-error\">{}</p>", escape(e)));
     }
@@ -1543,6 +1609,40 @@ mod tests {
         let status = res.status();
         let bytes = to_bytes(res.into_body(), usize::MAX).await.unwrap();
         (status, String::from_utf8_lossy(&bytes).into_owned())
+    }
+
+    #[tokio::test]
+    async fn test_index_lists_included_templates_as_parts() {
+        let tmp = theme_dir();
+        let templates = tmp.path().join("mytheme/templates");
+        std::fs::write(templates.join("toolbar.html"), "<header>bar</header>").unwrap();
+        std::fs::write(
+            templates.join("macros.html"),
+            "{% macro card(x) %}{{ x }}{% endmacro %}",
+        )
+        .unwrap();
+        std::fs::write(
+            templates.join("index.html"),
+            "{% extends \"base.html\" %}{% block content %}{% include \"toolbar.html\" %}{%- from 'macros.html' import card -%}{% endblock %}",
+        )
+        .unwrap();
+        let (app, _tx) = app(&tmp);
+        let (status, html) = get_text(&app, "/").await;
+        assert_eq!(status, StatusCode::OK);
+        let (pages, parts) = html.split_once("<h2>Parts</h2>").expect("a Parts section");
+        assert!(pages.contains("/preview/index"));
+        assert!(!pages.contains("/preview/toolbar"));
+        assert!(parts.contains("/preview/toolbar"));
+        assert!(parts.contains("/preview/macros"));
+        assert!(!parts.contains("/preview/index"));
+    }
+
+    #[tokio::test]
+    async fn test_index_has_no_parts_section_without_includes() {
+        let tmp = theme_dir();
+        let (app, _tx) = app(&tmp);
+        let (_, html) = get_text(&app, "/").await;
+        assert!(!html.contains("<h2>Parts</h2>"));
     }
 
     #[tokio::test]
