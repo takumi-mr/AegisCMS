@@ -74,6 +74,33 @@ task docker:build
 task docker:run
 ```
 
+### 2a. 実機の PostgreSQL / MySQL / Redis での動作確認（CI では行わない）
+
+CI は SQLite だけで動き、PostgreSQL・MySQL・Redis のテストは**動かしません**（接続できないと、各テストは `Skipping ...` と出して成功扱いで飛ばします）。そのため、**次の変更では、ローカルで Docker の実機コンテナに対してテストを動かして確かめてください**。
+
+- 対象: `crates/aegis-db`（`postgres.rs`・`mysql.rs`・`migrations/`）、DB を直接扱うクレート（`aegis-backup`・`aegis-comments` など）の SQL、キャッシュ・イベントバス（`aegis-cache` の Redis）
+- 理由の例: MySQL 8.0 の標準の文字セット（utf8mb4）では、索引が 3072 バイトを超えると `init` が止まる（v0.6.0 から入っていた `_aegis_purchases` の索引がそうだった）。SQLite でも CI でも気づけない
+
+```bash
+# 実機コンテナを起動（PostgreSQL 16 :5432 / MySQL 8.0 :3306 / Redis 7 :6379）
+task docker:dbs:up
+
+# 実機 DB の統合テストを一括実行
+task test:dbs
+
+# 実機 DB を使うテストを、DB のクレートごとにすべて実行する場合
+cargo test -p aegis-db --tests
+cargo test -p aegis-backup --test cross_db_roundtrip
+
+# 終わったら停止・削除（DB のデータも消える）
+task docker:dbs:down
+```
+
+- **`Skipping` と出たテストは、確かめたことになりません**。コンテナが起動しているか（ポートに繋がるか）を確認します。
+- マイグレーション（`crates/aegis-db/migrations/{sqlite,postgres,mysql}/`）を足す・変えるときは、3 つの方言すべてで実機に流して確かめます。リリース済みの手順は編集しない（チェックサムが変わる）のが原則です（[docs/versioning.ja.md の 6](docs/versioning.ja.md#6-テーブル定義の更新方針)）。
+- MySQL の索引の長さは、`crates/aegis-db/tests/mysql_index_size.rs` が CI でも検査します（`VARCHAR(255)` の列を 4 列並べるような索引は、`col(64)` のように先頭の文字数を絞る）。ただし実機での確認の代わりにはなりません。
+- カバレッジを実機 DB つきで測るときは、コンテナを起動したうえで `task coverage` を実行します。
+
 ---
 
 ## 3. ブランチ運用規約 (Branch Strategy)
@@ -147,6 +174,7 @@ Conventional Commits 形式に準拠します。
     - [ ] （Markdown 変更時）`task fmt:md:check`（`npx prettier@3.9.10 --check "**/*.md"`）に違反がないこと（VS Code では保存時に自動整形。対象外は `.prettierignore`）
     - [ ] （Plugin Builder 変更時）`npm --prefix plugin-builder run test`・`run build`・`run format:check`・`run lint` がすべてパスすること
     - [ ] （Theme Builder 変更時）`npm --prefix theme-builder run test`・`run test:e2e`・`run build`・`run format:check`・`run lint` がすべてパスすること
+    - [ ] （DB・マイグレーション・Redis 変更時）本ファイルの 2a のとおり、実機コンテナで `task test:dbs` を動かし、結果を PR の検証結果に書くこと（CI は実機 DB を動かさない）
 3. **PR テンプレート構造**:
     - **概要 (Summary)**: 変更の背景と目的を簡潔に記述。
     - **変更内容 (Changes)**: 具体的な追加・修正内容を箇条書き。
