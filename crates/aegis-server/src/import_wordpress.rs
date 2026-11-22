@@ -8,6 +8,9 @@ mod client;
 mod plan;
 mod report;
 
+#[cfg(test)]
+mod e2e_tests;
+
 use std::collections::{BTreeSet, HashMap};
 use std::path::PathBuf;
 
