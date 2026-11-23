@@ -55,7 +55,7 @@ The same file can be imported again: items that already exist (same slug) are sk
 | Comments                   | Imported with their status (approved, pending, spam, trash), date and replies, only on published posts. No email is sent. Needs `[comments]` enabled for the content type         |
 | Old URLs                   | 301 redirects from the old permalink to the new URL. A big site gets one pattern rule for the permalink structure (for example `/{p1}/{p2}/{slug}`) instead of thousands of rules |
 
-Posts are converted to blocks: paragraphs, headings, lists, quotes, code, tables, images, separators and details. Things that cannot be converted exactly are kept as an HTML block and listed in the report.
+Posts are converted to blocks: paragraphs, headings, lists, quotes, code, tables, images, separators and details. Things that cannot be converted exactly are kept as an HTML block and listed in the report. An image caption becomes an italic paragraph under the image, because the image block cannot hold one. Line breaks inside a paragraph, `<sup>`, and nested lists are kept as a `core/html` block.
 
 ## What Is Not Moved
 
