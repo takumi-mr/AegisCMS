@@ -22,17 +22,9 @@
 
 ## 未着手タスク (Backlog)
 
-### 🚚 WordPress からの移行
+### 🔍 実機での確認
 
-WXR（「ツール > エクスポート」の XML）を CLI（`aegis-server import wordpress`）で、テーマの見た目を `aegis-server theme import-wordpress` で移す（[docs/wordpress-migration.ja.md](docs/wordpress-migration.ja.md)）。完全なワンボタンは目指さず、「だいたい移せて、移せなかったものが報告で分かる」を目標にする。
-
-- **取り込みは admin のログインで行う**（API トークンは `editor` までで、ユーザーの作成と過去の公開日の指定ができないため）。2 段階認証のユーザーは使えない。必要なら、トークンに取り込み用の許可を足すか、CLI で 2FA コードを受ける。
-- 割り切り: PHP のテーマ・プラグインは変換できない。ショートコード・ページビルダー・WooCommerce・フォームのプラグインは、報告に出して手で直す。画像の説明（キャプション）は、画像ブロックが持てないため斜体の段落にする。段落内の改行・`<sup>`・入れ子のリストは、`core/html` ブロックに残す。
-
-### 🔌 プラグイン・将来構想
-
-GitHub の範囲を超えるブロックはすべてプラグインで作る（[architecture.md 3.1a](docs/architecture.ja.md#31a-core-ブロックの範囲github-でできることが上限)）。上から順に着手する。
+上から順に着手する。
 
 - [ ] **会員の購入・サブスクの実機確認**: 設計は [members.md 16](docs/members.ja.md#16-購入記事の単独購入サブスク)。実装（記事の単独購入・サブスク・管理画面・マイページ）は済で、Stripe はモックでしか確かめていない。Stripe のテストモードで、決済ページ・Webhook（`checkout.session.completed` / `customer.subscription.*` / `charge.refunded`）・Customer Portal・返金を一度通す。新しい API バージョンで契約の期間の終わりが `items` に移っている点（`current_period_end`）は両対応にしてあるが、実物の応答では未確認。
 - [ ] **official-clarity の実機確認**: 単体テストと Wasm の実行で、起動コードが同意を待つ形で入り、録画しないページに入らないことは確かめた。実際の Clarity での動作（CSP のホストで読み込み・送信がブロックされないか、`scripts.clarity.ms` が要るか）は、プロジェクト ID を入れたサイトで確かめていない。
-- [ ] **リンク埋め込みの定期更新（検討。要望が出てから）**: `official-link-embed` は「再取得」ボタンと URL の書き換えでだけ取り直す（Wasm に時計が無く、KV に有効期限も無いため、期限切れの自動判定はできない）。ホスト側の定期ジョブが要るかは、要望を見て決める。
