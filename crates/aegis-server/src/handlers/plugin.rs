@@ -379,6 +379,9 @@ async fn switch_plugins(
     crate::plugin_registry::install(state, supervisor).await;
     let previous = std::mem::replace(enabled, next);
     crate::cluster::announce(state, crate::cluster::TOPIC_PLUGINS, "").await;
+    // プラグインの出力（ブロック・スクリプト・CSP のホスト）と同梱のアセット（`/plugins/<name>/assets/`）を
+    // CDN に残さない。無効にした（問題が見つかった）プラグインのものが、キャッシュから配られ続けないように
+    crate::cdn::purge_site_global(state).await;
     state
         .audit
         .record(
@@ -534,6 +537,8 @@ pub async fn update_plugin_settings(
     }
     // ほかのサーバーはメモリに載せた値を持っているので、キャッシュから読み直してもらう
     crate::cluster::announce(&state, crate::cluster::TOPIC_PLUGIN_SETTINGS, &name).await;
+    // 設定はプラグインの出力（スクリプトの URL・ブロックの見た目など）を変えるので、CDN に古いページを残さない
+    crate::cdn::purge_site_global(&state).await;
 
     state
         .audit
@@ -1006,7 +1011,7 @@ mod tests {
         enabled: &[&str],
         configure: impl FnOnce(&mut AegisConfig),
     ) -> Arc<AppState> {
-        switchable_server(enabled, configure, None).await
+        switchable_server(enabled, configure, None, None).await
     }
 
     /// [`switchable_state`] on the database, cache and event bus of `shared` (another server of the site)
@@ -1014,6 +1019,7 @@ mod tests {
         enabled: &[&str],
         configure: impl FnOnce(&mut AegisConfig),
         shared: Option<&Shared>,
+        cdn: Option<Arc<dyn aegis_cache::CdnPurger>>,
     ) -> Arc<AppState> {
         let plugins_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../plugins");
         let mut config = AegisConfig::default();
@@ -1047,6 +1053,9 @@ mod tests {
             Some(loader),
             enabled,
         ));
+        if let Some(cdn) = cdn {
+            state = state.with_cdn(cdn);
+        }
         Arc::new(state)
     }
 
@@ -1066,7 +1075,7 @@ mod tests {
             cache: first.cache.clone(),
             bus: first.bus.clone(),
         };
-        let second = switchable_server(enabled, |_| {}, Some(&shared)).await;
+        let second = switchable_server(enabled, |_| {}, Some(&shared), None).await;
         (first, second)
     }
 
@@ -1105,6 +1114,28 @@ mod tests {
             .await
             .unwrap()
             .remove(crate::plugin_registry::ENABLED_SETTING)
+    }
+
+    #[tokio::test]
+    async fn test_switching_plugins_purges_the_cdn() {
+        let purger = Arc::new(aegis_cache::RecordingCdnPurger::new());
+        let state = switchable_server(
+            &["official-code-enhancer"],
+            |config| config.cdn.enabled = true,
+            None,
+            Some(purger.clone()),
+        )
+        .await;
+        set_enabled(&state, "official-code-enhancer", false)
+            .await
+            .unwrap();
+        let tags: Vec<String> = purger.take_batches().into_iter().flatten().collect();
+        assert_eq!(tags, ["site-global"]);
+        // 変わらないときはパージしない
+        set_enabled(&state, "official-code-enhancer", false)
+            .await
+            .unwrap();
+        assert!(purger.take_batches().is_empty());
     }
 
     #[tokio::test]
