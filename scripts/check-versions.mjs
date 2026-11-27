@@ -86,12 +86,25 @@ expect(
   dependencyVersion(read('crates/aegis-plugin-sdk/Cargo.toml'), 'aegis-plugin-macros'),
   core,
 );
-for (const template of ['sdk/templates/rust', 'sdk/templates/rust-block']) {
-  expect(
-    `${template}/Cargo.toml aegis-plugin-sdk`,
-    dependencyVersion(read(`${template}/Cargo.toml`), 'aegis-plugin-sdk'),
-    core,
+// sdk/templates/ 配下の Rust テンプレートはすべて検出し、release-please が
+// aegis-plugin-sdk のバージョン要求を上げる対象（extra-files）に入っているかも確かめる。
+// 漏れていると、コアのリリース時に要求が古いまま残り、workspace の解決が失敗する。
+const templateDirs = readdirSync(join(root, 'sdk', 'templates'), { withFileTypes: true })
+  .filter((d) => d.isDirectory())
+  .map((d) => `sdk/templates/${d.name}`);
+const coreExtraFiles = config.packages['.']['extra-files'] ?? [];
+for (const template of templateDirs) {
+  const cargo = `${template}/Cargo.toml`;
+  if (!existsSync(join(root, cargo))) continue;
+  const requirement = dependencyVersion(read(cargo), 'aegis-plugin-sdk');
+  if (requirement === undefined) continue;
+  expect(`${cargo} aegis-plugin-sdk`, requirement, core);
+  const bumped = coreExtraFiles.some(
+    (e) => e.path === cargo && e.jsonpath === '$.dependencies.aegis-plugin-sdk.version',
   );
+  if (!bumped) {
+    fail(`${cargo}: aegis-plugin-sdk is not in the "." extra-files of release-please-config.json`);
+  }
 }
 for (const app of ['admin', 'theme-builder', 'plugin-builder']) {
   expect(`${app}/package.json`, readJson(`${app}/package.json`).version, core);
@@ -117,10 +130,7 @@ if (hostAbi === undefined) fail('crates/aegis-core/src/package.rs: PLUGIN_ABI_VE
 // プラグイン（公式プラグインとテンプレート・サンプルの manifest）
 const manifestFiles = [
   ...Object.keys(versions).filter((p) => p.startsWith('plugins/')),
-  'sdk/templates/rust',
-  'sdk/templates/rust-block',
-  'sdk/templates/assemblyscript',
-  'sdk/templates/tinygo',
+  ...templateDirs.filter((dir) => existsSync(join(root, dir, 'plugin.manifest.json'))),
   'sdk/examples/assemblyscript-hooks',
   'sdk/examples/slack-notifier',
   'sdk/tinygo/examples/hooks',

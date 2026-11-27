@@ -73,6 +73,16 @@
           "jsonpath": "$.dependencies.aegis-plugin-sdk.version"
         },
         {
+          "type": "toml",
+          "path": "sdk/templates/react-island/Cargo.toml",
+          "jsonpath": "$.dependencies.aegis-plugin-sdk.version"
+        },
+        {
+          "type": "toml",
+          "path": "sdk/templates/vue-island/Cargo.toml",
+          "jsonpath": "$.dependencies.aegis-plugin-sdk.version"
+        },
+        {
           "type": "json",
           "path": "admin/package.json",
           "jsonpath": "$.version"
