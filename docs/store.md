@@ -5,7 +5,7 @@
 # Package store (design, not implemented)
 
 > [!NOTE]
-> This is a design note. Implemented so far: fetching and verifying catalogs and the listing API (`GET /api/v1/store/packages`; settings in [configuration.md 2.28](configuration.md#228-store--package-store)). Installing from the store and the Admin Studio screen are not done yet. Once everything is, this will be rewritten as a specification.
+> This is a design note. Implemented so far: fetching and verifying catalogs, the listing API (`GET /api/v1/store/packages`) and installing from the store (`POST /api/v1/store/install`); settings and APIs in [configuration.md 2.28](configuration.md#228-store--package-store). The Admin Studio screen is not done yet. Once everything is, this will be rewritten as a specification.
 
 Lets admins pick published plugins and themes in Admin Studio and install or update them. The distribution side is **static files only** (a signed catalog and ZIP files); there is no dedicated HTTP server. AegisCMS reads the catalog, downloads a ZIP, and hands it to the existing ZIP installation ([installing packages and signatures](plugin_hooks.md#74-installing-from-a-zip-package-and-signatures)).
 
@@ -165,8 +165,8 @@ Official plugins and themes that the core tests do not use, and those that depen
 Order:
 
 1. Let the store build from several sources (done: `sources` in AegisCMS-Store's `store.json`).
-2. Build the store install API, so users can reinstall from the store once packages are no longer bundled.
-3. Move the "move first" packages to the new repository together with their tests, which run against the core's `aegis-runtime` pinned to a tag. Switch their source in `store.json` (bump the version before publishing).
+2. Build the store install API (`POST /api/v1/store/install`), so users can reinstall from the store once packages are no longer bundled.
+3. (Done: [AegisCMS-Plugin](https://github.com/takumi-mr/AegisCMS-Plugin), taken from core v0.12.0, and the store builds them from there.) Move the "move first" packages to the new repository together with their tests, which run against the core's `aegis-runtime` pinned to a tag. Switch their source in `store.json` (bump the version before publishing).
 4. Remove them from the core (directories, workspace members, Taskfile, release-please config, the matching tests in `sdk_plugins.rs`, docs). Unbundling is a breaking change for users, so release it as `feat!:` with migration steps (reinstall from the store).
 5. Stop enabling mermaid and plantuml by default, then move them. Move themes once they can carry their own strings.
 

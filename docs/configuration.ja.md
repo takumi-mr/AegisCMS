@@ -694,7 +694,12 @@ AI アシスタント向けの MCP サーバー（`POST /mcp`）と、それが�
 
 ### 2.28 `[store]` — パッケージストア
 
-署名したカタログからプラグイン・テーマの一覧を読みます（設計と今後の予定は [store.md](store.ja.md)）。いまは一覧の取得（`GET /api/v1/store/packages`、`admin`）までで、ストアからのインストールはまだできません。
+署名したカタログからプラグイン・テーマの一覧を読みます（設計と今後の予定は [store.md](store.ja.md)）。API（いずれも `admin`）:
+
+- `GET /api/v1/store/packages`: パッケージの一覧。インストール済みのバージョン・このサーバーで動く最新版・更新の有無つき。
+- `POST /api/v1/store/install`: `{"catalog": "official", "kind": "plugin" | "theme", "id": "...", "version": "..."}`（`version` を省くとこのサーバーで動く最新版）。ZIP を取得し、カタログの `size`・`sha256` と、中身の ID・バージョン・署名の鍵・`capabilities`（テーマは `csp`）がカタログと一致するときだけ入れます。同じ ID のものは置き換えます（更新）。有効化はしません。署名を必須にしていないサーバー（`require_signatures = false`）でも、ストアからは署名の無いものを入れません。失敗の `code` は `catalog_*`・`package_not_found`・`version_not_found`・`incompatible_version`・`package_fetch_failed`・`package_mismatch`・`package_invalid`・`plugins_disabled` です。監査ログ（`plugin.install` / `theme.install`）の `details.source` に取得元が残ります。
+
+Admin Studio の画面はまだありません。
 
 | キー                | 既定値    | 説明                                                                                                                                                                                 |
 | ------------------- | --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |

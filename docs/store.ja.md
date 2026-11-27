@@ -5,7 +5,7 @@
 # パッケージストア（設計・未実装）
 
 > [!NOTE]
-> この文書は設計メモです。実装済みはカタログの取得・検証と一覧の API（`GET /api/v1/store/packages`）まで（設定は [configuration.md の 2.28](configuration.ja.md#228-store--パッケージストア)）。ストアからのインストールと Admin Studio の画面はまだです。すべて実装したら仕様の文書に書き直します。
+> この文書は設計メモです。実装済みはカタログの取得・検証、一覧の API（`GET /api/v1/store/packages`）、ストアからのインストール（`POST /api/v1/store/install`）まで（設定と API は [configuration.md の 2.28](configuration.ja.md#228-store--パッケージストア)）。Admin Studio の画面はまだです。すべて実装したら仕様の文書に書き直します。
 
 Admin Studio から、配布されているプラグインとテーマを選んでインストール・更新できるようにします。配る側は**静的なファイルだけ**（署名したカタログと ZIP）で、専用の HTTP サーバーは作りません。CMS 側は、カタログを読み、ZIP を取得して、既存の ZIP インストール（[プラグインのインストールと署名](plugin_hooks.ja.md#74-zip-パッケージからのインストールと署名)）に渡します。
 
@@ -165,8 +165,8 @@ public_key = "<カタログ署名の Ed25519 公開鍵、32 バイトの hex>"
 順番:
 
 1. ストアが複数の取得元から配れるようにする（済。AegisCMS-Store の `store.json` の `sources`）。
-2. ストアからのインストール API を作る。同梱をやめても、利用者がストアから入れ直せるようにするため。
-3. 新しいリポジトリに「先に移す」ものを、各プラグインのテストと一緒に移す。テストは本体の `aegis-runtime` をタグで参照して動かす。ストアの `store.json` で取得元を切り替える（バージョンを上げてから出す）。
+2. ストアからのインストール API を作る（`POST /api/v1/store/install`）。同梱をやめても、利用者がストアから入れ直せるようにするため。
+3. 新しいリポジトリに「先に移す」ものを、各プラグインのテストと一緒に移す（済。[AegisCMS-Plugin](https://github.com/takumi-mr/AegisCMS-Plugin) に本体 v0.12.0 から移し、ストアはそこから配っている）。テストは本体の `aegis-runtime` をタグで参照して動かす。ストアの `store.json` で取得元を切り替える（バージョンを上げてから出す）。
 4. 本体から消す（ディレクトリ・workspace のメンバー・Taskfile・release-please の設定・`sdk_plugins.rs` の該当テスト・ドキュメント）。同梱をやめるのは利用者にとって破壊的変更なので `feat!:` で出し、移行の手順（ストアから入れ直す）を書く。
 5. mermaid・plantuml を既定で有効にするのをやめてから移す。テーマは翻訳をテーマ側に持てるようにしてから移す。
 

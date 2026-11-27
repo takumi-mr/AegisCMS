@@ -17,7 +17,7 @@
 
 - 公式プラグインおよび `sdk/templates/*`・`sdk/examples/*`（`sdk/tinygo/examples/hooks` を含む）の `plugin.wasm` はリポジトリにコミット済みで、バージョンや SDK を変えても自動では再ビルドされない（`version` は manifest にだけあり、Wasm には入らない）。ソースや SDK を変えたときは各自再生成してから出す。
 - `admin/package.json` の `overrides`（`glob` → `minimatch ^11.0.5`）は、Dependabot の minimatch の警告（11.0.1 未満が対象）を避けるための一時的なもの。`@storybook/react-vite` が固定する `@joshwooding/vite-plugin-react-docgen-typescript@0.7` が `glob@13`（`minimatch ^10`）に依存するため。react-vite が新しい docgen プラグイン（`glob` に依存しない 0.9 系）に上がったら外す。`npm audit` に残る `glob` の警告（moderate）は、修正が react-vite のメジャーダウングレードになるため対応しない。
-- [AegisCMS-Store](https://github.com/takumi-mr/AegisCMS-Store) の `store.json` は取得元 `core` を `v0.11.0` で取り出していて、`official-embeds`（v0.11.0 より後に追加）を載せていない。次のリリースで `sources.core.ref` を上げるときに `packages` へ戻す。公式のカタログの URL と公開鍵は `store.rs` の既定値（`OFFICIAL_CATALOG_*`）。カタログの鍵を替えると、その値を持つ版のサーバーだけが読める（新旧の鍵を並べる仕組みは store.md 8 の未決事項）。
+- 公式のカタログの URL と公開鍵は `store.rs` の既定値（`OFFICIAL_CATALOG_*`）。カタログの鍵を替えると、その値を持つ版のサーバーだけが読める（新旧の鍵を並べる仕組みは store.md 8 の未決事項）。
 
 ---
 
@@ -35,6 +35,6 @@
 
 設計は [store.md](docs/store.ja.md)。当面は公式のプラグイン・テーマだけを配る。上から順に着手する。
 
-- [ ] **ストアからのインストール・更新 API**: カタログの読み込みと一覧（`crates/aegis-server/src/store.rs`・`GET /api/v1/store/packages`）は済。ZIP の取得（`store::build_client` を使う） → `size`・`sha256` の照合 → エントリの `public_key` と `signature.json` の鍵の一致 → 既存の ZIP インストール。`capabilities` がマニフェストと食い違えば拒否。監査ログに取得元を残す。
-- [ ] **Admin Studio のストア画面**: 一覧、互換性のないものの無効化、インストール前の `capabilities` の確認、更新のお知らせ。
-- [ ] **公式パッケージの別リポジトリへの移行**: 計画と対象は [store.md 7](docs/store.ja.md#7-公式パッケージの別リポジトリへの移行計画)。インストール API の後に、新しいリポジトリへ「先に移す」もの（ads・clarity・embeds・link-embed・charts・share-buttons・reading-time・back-to-top・code-lines・lightbox・external-links）をテストごと移し、ストアの取得元を切り替えてから本体から消す（`feat!:`）。mermaid・plantuml は既定で有効にするのをやめてから、テーマは翻訳をテーマ側に持てるようにしてから。
+- [ ] **Admin Studio のストア画面**: API（`GET /api/v1/store/packages`・`POST /api/v1/store/install`）は済。一覧、互換性のないものの無効化、インストール前の `capabilities` の確認、更新のお知らせ、インストール後に有効化へ進む導線。
+- [ ] **公式パッケージを本体から消す（移行の手順 4）**: 計画は [store.md 7](docs/store.ja.md#7-公式パッケージの別リポジトリへの移行計画)。ads・clarity・embeds・link-embed・charts・share-buttons・reading-time・back-to-top・code-lines・lightbox・external-links は [AegisCMS-Plugin](https://github.com/takumi-mr/AegisCMS-Plugin)（テストごと）に移し、ストアもそこから配っている（AegisCMS-Store の `sources.plugins`）。本体から、ディレクトリ・workspace のメンバー・Taskfile のビルド・release-please の設定・`aegis-runtime/tests/sdk_plugins.rs` の該当テスト（`test_official_reading_plugins_add_to_the_page` は page-toc の部分を残す）・ドキュメントの記述を消す。同梱をやめるのは破壊的変更なので `feat!:` で、移行の手順（ストアから入れ直す）を書く。ストアからのインストール（#429）がリリースされてから出す。
+- [ ] **mermaid・plantuml とテーマの移行（手順 5）**: mermaid・plantuml は `config/default.toml` で既定で有効にするのをやめてから。テーマは翻訳（`aegis-theme/src/messages.rs`）をテーマ側に持てるようにしてから。

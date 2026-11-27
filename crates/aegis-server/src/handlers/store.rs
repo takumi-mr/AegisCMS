@@ -6,15 +6,33 @@ use std::sync::Arc;
 use axum::extract::State;
 use axum::http::StatusCode;
 use axum::Json;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use serde_json::json;
 
+use crate::audit::AuditContext;
 use crate::auth::authorize::RequireRole;
 use crate::auth::AdminSession;
 use crate::state::AppState;
-use crate::store::{self, CatalogPackage, CatalogVersion, PackageKind};
+use crate::store::{
+    self, CatalogPackage, CatalogVersion, InstallError, PackageFetchError, PackageKind, StoreSource,
+};
 
 type ApiError = (StatusCode, Json<serde_json::Value>);
+
+fn api_error(status: StatusCode, code: &str, message: impl Into<String>) -> ApiError {
+    (
+        status,
+        Json(json!({ "error": message.into(), "code": code })),
+    )
+}
+
+fn store_disabled() -> ApiError {
+    api_error(
+        StatusCode::NOT_FOUND,
+        "store_disabled",
+        "The package store is disabled",
+    )
+}
 
 /// カタログごとの取得結果
 #[derive(Debug, Serialize)]
@@ -81,18 +99,9 @@ pub async fn list_store_packages(
 ) -> Result<Json<StorePackagesResponse>, ApiError> {
     let config = &state.config.store;
     if !config.enabled {
-        return Err((
-            StatusCode::NOT_FOUND,
-            Json(json!({ "error": "The package store is disabled", "code": "store_disabled" })),
-        ));
+        return Err(store_disabled());
     }
-    let client = store::build_client(config).map_err(|e| {
-        tracing::error!("Failed to build the store HTTP client: {}", e);
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(json!({ "error": "Failed to prepare the store client" })),
-        )
-    })?;
+    let client = client(config)?;
 
     let installed = installed_versions(&state);
     let mut catalogs = Vec::new();
@@ -135,6 +144,181 @@ pub async fn list_store_packages(
         catalogs.push(status);
     }
     Ok(Json(StorePackagesResponse { catalogs, packages }))
+}
+
+fn client(config: &store::StoreConfig) -> Result<reqwest::Client, ApiError> {
+    store::build_client(config).map_err(|e| {
+        tracing::error!("Failed to build the store HTTP client: {}", e);
+        api_error(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "internal",
+            "Failed to prepare the store client",
+        )
+    })
+}
+
+#[derive(Debug, Deserialize)]
+pub struct StoreInstallRequest {
+    /// カタログの名前（`[[store.catalogs]].name`）
+    pub catalog: String,
+    pub kind: PackageKind,
+    pub id: String,
+    /// 入れるバージョン。省略するとこのサーバーで動く最も新しいもの
+    #[serde(default)]
+    pub version: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct StoreInstallResponse {
+    pub catalog: String,
+    pub kind: PackageKind,
+    pub id: String,
+    pub version: String,
+    /// インストールしたもの（プラグインは `GET /api/v1/plugins` の要素、テーマは `GET /api/v1/themes` の要素）
+    pub installed: serde_json::Value,
+}
+
+/// `POST /api/v1/store/install` — カタログのパッケージを取得してインストールする（admin 権限必須）。
+/// カタログを取得し直して検証し、ZIP の `size`・`sha256`、中身の ID・バージョン・署名の鍵・`capabilities` が
+/// カタログと一致するときだけ入れる。同じ ID のものは置き換える（更新）。有効化はしない
+pub async fn install_store_package(
+    State(state): State<Arc<AppState>>,
+    RequireRole(session): AdminSession,
+    audit: AuditContext,
+    Json(req): Json<StoreInstallRequest>,
+) -> Result<Json<StoreInstallResponse>, ApiError> {
+    let config = &state.config.store;
+    if !config.enabled {
+        return Err(store_disabled());
+    }
+    let catalog_config = config
+        .catalogs
+        .iter()
+        .find(|c| c.name == req.catalog)
+        .ok_or_else(|| {
+            api_error(
+                StatusCode::NOT_FOUND,
+                "catalog_not_found",
+                format!("No catalog named '{}'", req.catalog),
+            )
+        })?;
+    if req.kind == PackageKind::Plugin && state.plugin_registry.loader().is_none() {
+        return Err(api_error(
+            StatusCode::CONFLICT,
+            "plugins_disabled",
+            "Wasm plugins are turned off on this server ([runtime].enable_wasm_plugins = false)",
+        ));
+    }
+
+    let client = client(config)?;
+    let catalog = store::load_catalog(&client, state.db.as_ref(), config, catalog_config)
+        .await
+        .map_err(|e| {
+            tracing::warn!("Store catalog '{}' rejected: {}", catalog_config.name, e);
+            api_error(StatusCode::BAD_GATEWAY, e.code(), e.to_string())
+        })?;
+    let package = catalog
+        .packages
+        .iter()
+        .find(|p| p.kind == req.kind && p.id == req.id)
+        .ok_or_else(|| {
+            api_error(
+                StatusCode::NOT_FOUND,
+                "package_not_found",
+                format!("'{}' is not in the catalog '{}'", req.id, req.catalog),
+            )
+        })?;
+    let version = match &req.version {
+        Some(wanted) => package
+            .versions
+            .iter()
+            .find(|v| &v.version == wanted)
+            .ok_or_else(|| {
+                api_error(
+                    StatusCode::NOT_FOUND,
+                    "version_not_found",
+                    format!("'{}' has no version {}", req.id, wanted),
+                )
+            })?,
+        None => package.latest_compatible().ok_or_else(|| {
+            api_error(
+                StatusCode::CONFLICT,
+                "incompatible_version",
+                format!("No version of '{}' runs on this server", req.id),
+            )
+        })?,
+    };
+    if !version.is_compatible() {
+        return Err(api_error(
+            StatusCode::CONFLICT,
+            "incompatible_version",
+            format!(
+                "'{}' {} needs AegisCMS {} or later",
+                req.id,
+                version.version,
+                version.min_aegis_version.as_deref().unwrap_or("?")
+            ),
+        ));
+    }
+
+    let bytes = store::fetch_package(&client, version).await.map_err(|e| {
+        tracing::warn!("Store package '{}' rejected: {}", req.id, e);
+        let code = match e {
+            PackageFetchError::Fetch(_) => "package_fetch_failed",
+            PackageFetchError::Mismatch(_) => "package_mismatch",
+        };
+        api_error(StatusCode::BAD_GATEWAY, code, e.to_string())
+    })?;
+
+    let source = StoreSource {
+        catalog: &catalog_config.name,
+        kind: req.kind,
+        id: &req.id,
+        version,
+    };
+    let actor = aegis_core::AuditActor {
+        user_id: session.user_id,
+        role: session.role,
+    };
+    let installed = match req.kind {
+        PackageKind::Plugin => crate::handlers::plugin::install_plugin_package(
+            &state,
+            actor,
+            &audit,
+            &bytes,
+            Some(&source),
+        )
+        .await
+        .map(|info| serde_json::to_value(info).unwrap_or_default()),
+        PackageKind::Theme => crate::handlers::theme::install_theme_package(
+            &state,
+            actor,
+            &audit,
+            &bytes,
+            Some(&source),
+        )
+        .await
+        .map(|info| serde_json::to_value(info).unwrap_or_default()),
+    }
+    .map_err(|e| match e {
+        InstallError::Invalid(m) => {
+            tracing::warn!("Store package '{}' rejected: {}", req.id, m);
+            api_error(
+                StatusCode::BAD_GATEWAY,
+                "package_invalid",
+                format!("The package from the store is invalid: {}", m),
+            )
+        }
+        InstallError::Internal(m) => api_error(StatusCode::INTERNAL_SERVER_ERROR, "internal", m),
+    })?;
+
+    Ok(Json(StoreInstallResponse {
+        catalog: catalog_config.name.clone(),
+        kind: req.kind,
+        id: req.id,
+        version: version.version.clone(),
+        installed,
+    }))
 }
 
 /// インストール済みのプラグイン・テーマのバージョン（`(種類, ID)` → バージョン）
@@ -338,5 +522,73 @@ mod tests {
         assert_eq!(body["catalogs"][0]["ok"], false);
         assert_eq!(body["catalogs"][0]["code"], "catalog_fetch_failed");
         assert_eq!(body["packages"], serde_json::json!([]));
+    }
+
+    #[tokio::test]
+    async fn install_answers_with_codes_before_any_download() {
+        use axum::body::Body;
+        use axum::http::Request;
+        use tower::ServiceExt;
+
+        async fn post(
+            config: crate::config::AegisConfig,
+            body: serde_json::Value,
+        ) -> (StatusCode, serde_json::Value) {
+            let state = Arc::new(
+                crate::test_support::test_app_state(
+                    config,
+                    aegis_runtime::PluginSupervisor::new(),
+                    vec![],
+                )
+                .await,
+            );
+            let token = state
+                .sessions
+                .create_session("u1", "admin", Default::default(), None)
+                .await
+                .unwrap()
+                .id;
+            let app = crate::app::router(&state.config.clone(), state);
+            let res = app
+                .oneshot(
+                    Request::post("/api/v1/store/install")
+                        .header("authorization", format!("Bearer {token}"))
+                        .header("content-type", "application/json")
+                        .body(Body::from(body.to_string()))
+                        .unwrap(),
+                )
+                .await
+                .unwrap();
+            let status = res.status();
+            let bytes = axum::body::to_bytes(res.into_body(), 1 << 20)
+                .await
+                .unwrap();
+            (status, serde_json::from_slice(&bytes).unwrap_or_default())
+        }
+
+        let body = serde_json::json!({ "catalog": "official", "kind": "theme", "id": "roastery" });
+        let (status, res) = post(crate::config::AegisConfig::default(), body.clone()).await;
+        assert_eq!(status, StatusCode::NOT_FOUND);
+        assert_eq!(res["code"], "store_disabled");
+
+        let mut config = crate::config::AegisConfig::default();
+        config.store.enabled = true;
+        let (status, res) = post(
+            config.clone(),
+            serde_json::json!({ "catalog": "nope", "kind": "theme", "id": "roastery" }),
+        )
+        .await;
+        assert_eq!(status, StatusCode::NOT_FOUND);
+        assert_eq!(res["code"], "catalog_not_found");
+
+        // 内部のアドレスのカタログは接続する前に断る（実際の通信は起きない）
+        config.store.catalogs = vec![store::StoreCatalogConfig {
+            name: "official".into(),
+            url: "https://127.0.0.1/catalog.json".into(),
+            public_key: "c".repeat(64),
+        }];
+        let (status, res) = post(config, body).await;
+        assert_eq!(status, StatusCode::BAD_GATEWAY);
+        assert_eq!(res["code"], "catalog_fetch_failed");
     }
 }
