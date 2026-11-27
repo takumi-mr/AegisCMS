@@ -17,7 +17,7 @@
 
 - 公式プラグインおよび `sdk/templates/*`・`sdk/examples/*`（`sdk/tinygo/examples/hooks` を含む）の `plugin.wasm` はリポジトリにコミット済みで、バージョンや SDK を変えても自動では再ビルドされない（`version` は manifest にだけあり、Wasm には入らない）。ソースや SDK を変えたときは各自再生成してから出す。
 - `admin/package.json` の `overrides`（`glob` → `minimatch ^11.0.5`）は、Dependabot の minimatch の警告（11.0.1 未満が対象）を避けるための一時的なもの。`@storybook/react-vite` が固定する `@joshwooding/vite-plugin-react-docgen-typescript@0.7` が `glob@13`（`minimatch ^10`）に依存するため。react-vite が新しい docgen プラグイン（`glob` に依存しない 0.9 系）に上がったら外す。`npm audit` に残る `glob` の警告（moderate）は、修正が react-vite のメジャーダウングレードになるため対応しない。
-- [AegisCMS-Store](https://github.com/takumi-mr/AegisCMS-Store) の `store.json` は `aegis_ref = "v0.11.0"` で、`official-embeds`（v0.11.0 より後に追加）を載せていない。次のリリースで `aegis_ref` を上げるときに `packages` へ戻す。カタログの公開鍵は `f0addc0ea8e0d47a0fa8706ccb06e8352e3042174228cb567a92ec6c30ec15e9`（`[[store.catalogs]].public_key` に書く値）。
+- [AegisCMS-Store](https://github.com/takumi-mr/AegisCMS-Store) の `store.json` は `aegis_ref = "v0.11.0"` で、`official-embeds`（v0.11.0 より後に追加）を載せていない。次のリリースで `aegis_ref` を上げるときに `packages` へ戻す。公式のカタログの URL と公開鍵は `store.rs` の既定値（`OFFICIAL_CATALOG_*`）。カタログの鍵を替えると、その値を持つ版のサーバーだけが読める（新旧の鍵を並べる仕組みは store.md 7 の未決事項）。
 
 ---
 

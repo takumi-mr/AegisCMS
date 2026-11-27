@@ -93,7 +93,9 @@ url = "https://<owner>.github.io/aegis-store/catalog.json"
 public_key = "<カタログ署名の Ed25519 公開鍵、32 バイトの hex>"
 ```
 
-- カタログは配列で、当面は 1 つ。各カタログの鍵は、そのカタログにだけ使う。
+- カタログは配列で、各カタログの鍵は、そのカタログにだけ使う。
+- `[[store.catalogs]]` を書かなければ、公式のカタログ（AegisCMS-Store。URL と公開鍵は `store.rs` の `OFFICIAL_CATALOG_*`）を読む。書くと置き換わる。`enabled` の既定は `false`（黙って外部に通信しない）。
+- 公式のカタログの公開鍵はサーバーに組み込まれているので、鍵を替えると、新しい鍵を持つ版に更新したサーバーだけが読める。カタログの秘密鍵は GitHub の secret とは別に控えておく。
 - 受け入れた `sequence` は DB（`_aegis_settings` の `store.catalog_sequences`）に記録する。複数のサーバーで共有され、記録は下げない。バックアップから復元すると記録も復元時点の値に戻るが、検査が緩むだけで、次に受け入れたカタログから元に戻る。
 - ZIP の `signature.json` の鍵は、カタログのエントリの `public_key` と一致することを確かめる。`[plugins]` / `[theme]` の `require_signatures`・`trusted_public_keys` はそのまま効く（ストア経由でも緩めない）。
 

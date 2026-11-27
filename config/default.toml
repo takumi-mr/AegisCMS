@@ -395,14 +395,11 @@ locale = "en"
 # site_key = ""
 # secret = "env:TURNSTILE_SECRET"
 
-# Package store (docs/store.md): lists plugins and themes from signed catalogs.
-# The catalog URL must be https://; the signature is read from the same URL plus ".sig"
+# Package store (docs/store.md): lists plugins and themes from signed catalogs. Off by default.
+# Without [[store.catalogs]] the official catalog is read; writing some replaces it
+# (see docs/configuration.md 2.28)
 # [store]
 # enabled = true
-# [[store.catalogs]]
-# name = "official"
-# url = "https://example.github.io/aegis-store/catalog.json"
-# public_key = "<Ed25519 public key, 64 hex characters>"
 
 # Plugin settings read with config::get (values "env:NAME" come from the environment), e.g.
 # [plugins.settings.official-shop-rules]

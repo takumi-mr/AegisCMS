@@ -696,12 +696,12 @@ It is read at startup, so restart the server after changing it. To stop one assi
 
 Reads the list of plugins and themes from signed catalogs (design and plans: [store.md](store.md)). For now this covers only the listing (`GET /api/v1/store/packages`, `admin`); installing from the store is not available yet.
 
-| Key                 | Default   | Description                                                                                                                   |
-| ------------------- | --------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| `enabled`           | `false`   | `true` turns the store on. While `false`, the API answers `404 store_disabled`                                                |
-| `max_catalog_bytes` | `1048576` | Size limit for `catalog.json` (bytes)                                                                                         |
-| `timeout_secs`      | `15`      | Timeout for each fetch (seconds)                                                                                              |
-| `catalogs`          | `[]`      | Catalogs to read (`[[store.catalogs]]`). At least one is required when `enabled = true` (otherwise the server does not start) |
+| Key                 | Default   | Description                                                                                                                                                                                                                                       |
+| ------------------- | --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `enabled`           | `false`   | `true` turns the store on. While `false`, the API answers `404 store_disabled`                                                                                                                                                                    |
+| `max_catalog_bytes` | `1048576` | Size limit for `catalog.json` (bytes)                                                                                                                                                                                                             |
+| `timeout_secs`      | `15`      | Timeout for each fetch (seconds)                                                                                                                                                                                                                  |
+| `catalogs`          | official  | Catalogs to read (`[[store.catalogs]]`). Without any, the official catalog (below) is read. Writing some replaces it (list the official one too to keep it). An empty list (`catalogs = []`) with `enabled = true` stops the server from starting |
 
 Keys of `[[store.catalogs]]`:
 
@@ -711,13 +711,24 @@ Keys of `[[store.catalogs]]`:
 | `url`        | URL of `catalog.json` (`https://` only). The signature is fetched from the same URL with `.sig` appended |
 | `public_key` | Ed25519 public key that verifies the catalog signature (32 bytes hex)                                    |
 
+To read only the official catalog, `enabled` is enough:
+
 ```toml
 [store]
 enabled = true
+```
 
+The default official catalog (published by [AegisCMS-Store](https://github.com/takumi-mr/AegisCMS-Store)) is shown below. To add another catalog, list the official one as well:
+
+```toml
 [[store.catalogs]]
 name = "official"
-url = "https://example.github.io/aegis-store/catalog.json"
+url = "https://takumi-mr.github.io/AegisCMS-Store/catalog.json"
+public_key = "f0addc0ea8e0d47a0fa8706ccb06e8352e3042174228cb567a92ec6c30ec15e9"
+
+[[store.catalogs]]
+name = "mine"
+url = "https://example.com/aegis-store/catalog.json"
 public_key = "<64 hex characters>"
 ```
 

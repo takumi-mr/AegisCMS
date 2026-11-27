@@ -696,12 +696,12 @@ AI アシスタント向けの MCP サーバー（`POST /mcp`）と、それが�
 
 署名したカタログからプラグイン・テーマの一覧を読みます（設計と今後の予定は [store.md](store.ja.md)）。いまは一覧の取得（`GET /api/v1/store/packages`、`admin`）までで、ストアからのインストールはまだできません。
 
-| キー                | 既定値    | 説明                                                                                             |
-| ------------------- | --------- | ------------------------------------------------------------------------------------------------ |
-| `enabled`           | `false`   | `true` でストアを使う。`false` のとき API は `404 store_disabled`                                |
-| `max_catalog_bytes` | `1048576` | `catalog.json` の大きさの上限（バイト）                                                          |
-| `timeout_secs`      | `15`      | 1 回の取得のタイムアウト（秒）                                                                   |
-| `catalogs`          | `[]`      | 読むカタログ（`[[store.catalogs]]`）。`enabled = true` のときは 1 つ以上必須（無いと起動しない） |
+| キー                | 既定値    | 説明                                                                                                                                                                                 |
+| ------------------- | --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `enabled`           | `false`   | `true` でストアを使う。`false` のとき API は `404 store_disabled`                                                                                                                    |
+| `max_catalog_bytes` | `1048576` | `catalog.json` の大きさの上限（バイト）                                                                                                                                              |
+| `timeout_secs`      | `15`      | 1 回の取得のタイムアウト（秒）                                                                                                                                                       |
+| `catalogs`          | 公式      | 読むカタログ（`[[store.catalogs]]`）。書かなければ公式のカタログ（下記）を読む。書くと置き換わる（公式も読むなら並べて書く）。`enabled = true` で空（`catalogs = []`）だと起動しない |
 
 `[[store.catalogs]]` の項目:
 
@@ -711,13 +711,24 @@ AI アシスタント向けの MCP サーバー（`POST /mcp`）と、それが�
 | `url`        | `catalog.json` の URL（`https://` のみ）。署名は同じ URL に `.sig` を付けた場所から取る |
 | `public_key` | カタログの署名を確かめる Ed25519 公開鍵（32 バイトの hex）                              |
 
+公式のカタログを読むだけなら、`enabled` だけで足ります。
+
 ```toml
 [store]
 enabled = true
+```
 
+既定の公式のカタログは次のとおりです（[AegisCMS-Store](https://github.com/takumi-mr/AegisCMS-Store) が公開）。ほかのカタログを足すときは、公式のものも並べて書きます。
+
+```toml
 [[store.catalogs]]
 name = "official"
-url = "https://example.github.io/aegis-store/catalog.json"
+url = "https://takumi-mr.github.io/AegisCMS-Store/catalog.json"
+public_key = "f0addc0ea8e0d47a0fa8706ccb06e8352e3042174228cb567a92ec6c30ec15e9"
+
+[[store.catalogs]]
+name = "mine"
+url = "https://example.com/aegis-store/catalog.json"
 public_key = "<64 文字の hex>"
 ```
 

@@ -15,6 +15,14 @@ use serde::{Deserialize, Serialize};
 
 use crate::ssrf::{is_private_or_loopback_host, PublicOnlyResolver};
 
+/// 公式のカタログ（AegisCMS-Store の GitHub Pages）。`[[store.catalogs]]` を書かなければこれを読む
+pub const OFFICIAL_CATALOG_URL: &str = "https://takumi-mr.github.io/AegisCMS-Store/catalog.json";
+
+/// 公式のカタログの署名を確かめる Ed25519 公開鍵。替えるとこの値を持つ版のサーバーだけが読めるので、
+/// 秘密鍵は失くさないよう控えておく（docs/store.md の 5）
+pub const OFFICIAL_CATALOG_PUBLIC_KEY: &str =
+    "f0addc0ea8e0d47a0fa8706ccb06e8352e3042174228cb567a92ec6c30ec15e9";
+
 /// 読めるカタログの形式のバージョン
 pub const CATALOG_SCHEMA_VERSION: u32 = 1;
 
@@ -33,7 +41,7 @@ const MAX_SIGNATURE_BYTES: u64 = 1024;
 pub struct StoreConfig {
     /// ストアを使うか（既定: `false`）
     pub enabled: bool,
-    /// 読むカタログ（`[[store.catalogs]]`）
+    /// 読むカタログ（`[[store.catalogs]]`）。書かなければ公式のカタログ。書くと置き換わる
     pub catalogs: Vec<StoreCatalogConfig>,
     /// `catalog.json` の大きさの上限（バイト。既定: 1 MiB）
     pub max_catalog_bytes: u64,
@@ -45,7 +53,7 @@ impl Default for StoreConfig {
     fn default() -> Self {
         Self {
             enabled: false,
-            catalogs: Vec::new(),
+            catalogs: vec![StoreCatalogConfig::official()],
             max_catalog_bytes: 1024 * 1024,
             timeout_secs: 15,
         }
@@ -61,6 +69,17 @@ pub struct StoreCatalogConfig {
     pub url: String,
     /// カタログの署名を確かめる Ed25519 公開鍵（32 バイトの hex）
     pub public_key: String,
+}
+
+impl StoreCatalogConfig {
+    /// 公式のカタログ
+    pub fn official() -> Self {
+        Self {
+            name: "official".to_string(),
+            url: OFFICIAL_CATALOG_URL.to_string(),
+            public_key: OFFICIAL_CATALOG_PUBLIC_KEY.to_string(),
+        }
+    }
 }
 
 impl StoreConfig {
@@ -583,6 +602,38 @@ mod tests {
             url: url.into(),
             public_key: "c".repeat(64),
         }
+    }
+
+    #[test]
+    fn the_official_catalog_is_the_default() {
+        let config = StoreConfig::default();
+        assert!(!config.enabled);
+        assert_eq!(config.catalogs.len(), 1);
+        assert_eq!(config.catalogs[0].url, OFFICIAL_CATALOG_URL);
+        let enabled = StoreConfig {
+            enabled: true,
+            ..config
+        };
+        assert!(enabled.validate().is_ok());
+
+        // `[store]` に `enabled` だけ書いても公式のカタログを読み、`[[store.catalogs]]` を書けば置き換わる
+        let only_enabled: StoreConfig = toml::from_str("enabled = true").unwrap();
+        assert_eq!(
+            only_enabled.catalogs[0].public_key,
+            OFFICIAL_CATALOG_PUBLIC_KEY
+        );
+        let replaced: StoreConfig = toml::from_str(&format!(
+            "enabled = true
+[[catalogs]]
+name = \"mine\"
+url = \"https://example.com/c.json\"
+public_key = \"{}\"
+",
+            "c".repeat(64)
+        ))
+        .unwrap();
+        assert_eq!(replaced.catalogs.len(), 1);
+        assert_eq!(replaced.catalogs[0].name, "mine");
     }
 
     #[test]
