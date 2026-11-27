@@ -152,12 +152,25 @@ public_url_prefix = "https://cdn.example.com"
 
 ### 2.5 `[paths]` — ディレクトリ
 
-| キー             | 型   | 既定値         | 説明                                                                                                                                                                            |
-| ---------------- | ---- | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `schemas_dir`    | path | `"schemas"`    | 宣言的スキーマ (`*.yaml`) の読み込み元                                                                                                                                          |
-| `queries_dir`    | path | `"queries"`    | 宣言的クエリの定義（`*.yaml`）の読み込み元（[queries.md](queries.ja.md)）                                                                                                       |
-| `plugins_dir`    | path | `"plugins"`    | Wasm プラグインのインストール先（`<plugins_dir>/<name>/` に 1 プラグイン）。読み込むのは有効化リスト（`[plugins].enabled`、または Admin Studio で切り替えた一覧）にあるものだけ |
-| `admin_dist_dir` | path | `"admin/dist"` | Admin Studio ビルド成果物。存在すれば `/` で SPA として配信。なければ、`embed-admin` feature でビルドしたバイナリは、埋め込んだ Admin Studio を配信（`task build:standalone`）  |
+| キー                  | 型   | 既定値         | 説明                                                                                                                                                                                                                                         |
+| --------------------- | ---- | -------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `schemas_dir`         | path | `"schemas"`    | 宣言的スキーマ (`*.yaml`) の読み込み元                                                                                                                                                                                                       |
+| `queries_dir`         | path | `"queries"`    | 宣言的クエリの定義（`*.yaml`）の読み込み元（[queries.md](queries.ja.md)）                                                                                                                                                                    |
+| `plugins_dir`         | path | `"plugins"`    | Wasm プラグインのインストール先（`<plugins_dir>/<name>/` に 1 プラグイン）。Admin Studio のアップロードとストアはここに置く。読み込むのは有効化リスト（`[plugins].enabled`、または Admin Studio で切り替えた一覧）にあるものだけ             |
+| `bundled_plugins_dir` | path | なし           | 同梱のプラグインの置き場所（読み取り専用。ここには書き込まない）。`plugins_dir` → `bundled_plugins_dir` の順に探し、同じ名前は `plugins_dir` のものを使う（同梱のものを、入れたもので置き換えられる）。書かなければ `plugins_dir` だけを使う |
+| `themes_dir`          | path | `"themes"`     | テーマのインストール先（`<themes_dir>/<id>/`）。Admin Studio のアップロードとストアはここに置く                                                                                                                                              |
+| `bundled_themes_dir`  | path | なし           | 同梱のテーマの置き場所（読み取り専用）。探す順と優先は `bundled_plugins_dir` と同じ                                                                                                                                                          |
+| `admin_dist_dir`      | path | `"admin/dist"` | Admin Studio ビルド成果物。存在すれば `/` で SPA として配信。なければ、`embed-admin` feature でビルドしたバイナリは、埋め込んだ Admin Studio を配信（`task build:standalone`）                                                               |
+
+同梱の設定ファイル（`config/default.toml`・`config/docker.toml`）は、入れたものを `data/` の下（Docker は `/app/data/`。ボリュームに残る）に、同梱のものを `plugins/`・`themes/`（Docker はイメージの中。更新で入れ替わる）に分けています。
+
+```toml
+[paths]
+plugins_dir = "data/plugins"
+bundled_plugins_dir = "plugins"
+themes_dir = "data/themes"
+bundled_themes_dir = "themes"
+```
 
 ### 2.6 `[runtime]` — Wasm プラグインランタイム
 

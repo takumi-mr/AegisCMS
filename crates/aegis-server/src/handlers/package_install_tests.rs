@@ -152,7 +152,7 @@ async fn test_site() -> (Arc<crate::state::AppState>, String, PathBuf, PathBuf) 
     let loader = crate::plugin_registry::PluginLoader::new(
         aegis_runtime::WasmEngine::new().unwrap(),
         Arc::new(std::sync::Mutex::new(std::collections::HashMap::new())).into(),
-        plugins_dir.clone(),
+        vec![plugins_dir.clone()],
         config.runtime.default_resource_limits(),
     );
 

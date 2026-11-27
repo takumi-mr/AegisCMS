@@ -115,14 +115,35 @@ struct ThemeEngineInner {
 
 #[derive(Clone)]
 pub struct ThemeEngine {
+    /// テーマのインストール先（アップロード・ストアで入れたもの。書き込むのはここだけ）
     themes_dir: PathBuf,
+    /// 同梱のテーマ（`[paths].bundled_themes_dir`。読み取り専用）。同じ ID は `themes_dir` を優先する
+    bundled_dir: Option<PathBuf>,
     inner: Arc<RwLock<ThemeEngineInner>>,
+}
+
+/// テーマ ID のディレクトリ。`themes_dir` → `bundled_dir` の順に探し、どちらにも無ければ `themes_dir` の下
+fn resolve_theme_dir(themes_dir: &Path, bundled_dir: Option<&Path>, theme_id: &str) -> PathBuf {
+    let installed = themes_dir.join(theme_id);
+    if installed.exists() {
+        return installed;
+    }
+    match bundled_dir.map(|dir| dir.join(theme_id)) {
+        Some(bundled) if bundled.exists() => bundled,
+        _ => installed,
+    }
 }
 
 impl ThemeEngine {
     pub fn new(themes_dir: &Path, active_theme: &str) -> Self {
+        Self::with_dirs(themes_dir, None, active_theme)
+    }
+
+    /// インストール先（`themes_dir`）と同梱のテーマ（`bundled_dir`）の両方から探すエンジン
+    pub fn with_dirs(themes_dir: &Path, bundled_dir: Option<&Path>, active_theme: &str) -> Self {
         let active = active_theme.to_string();
-        let theme_dir = themes_dir.join(&active).join("templates");
+        let active_dir = resolve_theme_dir(themes_dir, bundled_dir, &active);
+        let theme_dir = active_dir.join("templates");
         let theme_templates_dir = if theme_dir.exists() {
             Some(theme_dir)
         } else {
@@ -131,9 +152,10 @@ impl ThemeEngine {
 
         Self {
             themes_dir: themes_dir.to_path_buf(),
+            bundled_dir: bundled_dir.map(Path::to_path_buf),
             inner: Arc::new(RwLock::new(ThemeEngineInner {
                 queries: new_queries_handle(),
-                active_csp: load_theme_csp(themes_dir, &active),
+                active_csp: load_theme_csp(&active_dir),
                 active_theme: active,
                 theme_templates_dir,
                 dynamic_templates: HashMap::new(),
@@ -232,9 +254,19 @@ impl ThemeEngine {
         self
     }
 
-    /// テーマディレクトリのパスを取得
+    /// テーマのインストール先（アップロード・ストアで入れる場所）
     pub fn themes_dir(&self) -> &Path {
         &self.themes_dir
+    }
+
+    /// 同梱のテーマの場所（`[paths].bundled_themes_dir`。無ければ `None`）
+    pub fn bundled_dir(&self) -> Option<&Path> {
+        self.bundled_dir.as_deref()
+    }
+
+    /// テーマ ID のディレクトリ（インストール先 → 同梱の順に探す。どちらにも無ければインストール先の下）
+    pub fn theme_dir(&self, theme_id: &str) -> PathBuf {
+        resolve_theme_dir(&self.themes_dir, self.bundled_dir.as_deref(), theme_id)
     }
 
     /// 現在アクティブなテーマ識別子を取得
@@ -261,7 +293,7 @@ impl ThemeEngine {
         }
 
         // テーマディレクトリまたは組み込みデフォルトテーマの存在確認
-        let target_dir = self.themes_dir.join(target_id);
+        let target_dir = self.theme_dir(target_id);
         if !target_dir.exists() && target_id != "default" {
             return Err(AegisError::Theme(format!(
                 "Theme '{}' not found in themes directory: {}",
@@ -277,7 +309,7 @@ impl ThemeEngine {
             None
         };
 
-        let active_csp = load_theme_csp(&self.themes_dir, target_id);
+        let active_csp = load_theme_csp(&target_dir);
         let mut inner = self.inner.write().unwrap();
         inner.active_theme = target_id.to_string();
         inner.active_csp = active_csp;
@@ -294,15 +326,20 @@ impl ThemeEngine {
         let mut themes = Vec::new();
         let mut found_ids = std::collections::HashSet::new();
 
-        // 1. themes_dir 配下のディレクトリを走査
-        if self.themes_dir.exists() {
-            if let Ok(entries) = std::fs::read_dir(&self.themes_dir) {
+        // 1. インストール先 → 同梱の順にディレクトリを走査する（同じフォルダ名はインストール先を優先）
+        let mut seen_folders = std::collections::HashSet::new();
+        let dirs = std::iter::once(self.themes_dir.as_path()).chain(self.bundled_dir.as_deref());
+        for themes_dir in dirs {
+            if let Ok(entries) = std::fs::read_dir(themes_dir) {
                 for entry in entries.flatten() {
                     let path = entry.path();
                     if path.is_dir() {
                         if let Some(folder_name) = path.file_name().and_then(|s| s.to_str()) {
                             // 隠しフォルダは無視
                             if folder_name.starts_with('.') {
+                                continue;
+                            }
+                            if !seen_folders.insert(folder_name.to_string()) {
                                 continue;
                             }
 
@@ -391,7 +428,7 @@ impl ThemeEngine {
 
     /// 指定されたテーマのアセットディレクトリパス
     pub fn theme_assets_dir(&self, theme_id: &str) -> Option<PathBuf> {
-        let dir = self.themes_dir.join(theme_id).join("assets");
+        let dir = self.theme_dir(theme_id).join("assets");
         if dir.exists() {
             Some(dir)
         } else {
@@ -401,7 +438,7 @@ impl ThemeEngine {
 
     /// テーマのプレビュー画像パスを取得
     pub fn theme_preview_file(&self, theme_id: &str) -> Option<PathBuf> {
-        let theme_dir = self.themes_dir.join(theme_id);
+        let theme_dir = self.theme_dir(theme_id);
         if !theme_dir.exists() {
             return None;
         }
@@ -960,17 +997,16 @@ fn with_static_styles(mut html: String) -> String {
 }
 
 /// テーマの `theme.json` の `csp`（無い・誤りなら空。誤りは警告を出す）
-fn load_theme_csp(themes_dir: &Path, theme_id: &str) -> crate::manifest::ThemeCsp {
-    let Some(csp) = ThemeManifest::load_from_dir(&themes_dir.join(theme_id)).and_then(|m| m.csp)
-    else {
+fn load_theme_csp(theme_dir: &Path) -> crate::manifest::ThemeCsp {
+    let Some(csp) = ThemeManifest::load_from_dir(theme_dir).and_then(|m| m.csp) else {
         return crate::manifest::ThemeCsp::default();
     };
     match csp.validate() {
         Ok(()) => csp,
         Err(e) => {
             tracing::warn!(
-                "Theme '{}': theme.json is ignored for the CSP: {}",
-                theme_id,
+                "Theme {}: theme.json is ignored for the CSP: {}",
+                theme_dir.display(),
                 e
             );
             crate::manifest::ThemeCsp::default()
@@ -1272,6 +1308,65 @@ mod tests {
 
         // 存在しないテーマへの切り替えはエラー
         assert!(engine.set_active_theme("non-existent-theme").is_err());
+    }
+
+    #[test]
+    fn test_installed_themes_take_precedence_over_bundled_ones() {
+        let root = std::env::temp_dir().join(format!(
+            "aegis_theme_dirs_{}_{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let installed = root.join("installed");
+        let bundled = root.join("bundled");
+        let theme = |dir: &Path, id: &str, name: &str| {
+            let d = dir.join(id);
+            std::fs::create_dir_all(d.join("assets")).unwrap();
+            std::fs::write(
+                d.join("theme.json"),
+                format!(r#"{{"id": "{id}", "name": "{name}", "version": "1.0.0"}}"#),
+            )
+            .unwrap();
+        };
+        theme(&bundled, "paper", "Paper (bundled)");
+        theme(&bundled, "ink", "Ink (bundled)");
+        theme(&installed, "ink", "Ink (installed)");
+        theme(&installed, "mine", "Mine");
+
+        let engine = ThemeEngine::with_dirs(&installed, Some(&bundled), "paper");
+        assert_eq!(engine.theme_dir("paper"), bundled.join("paper"));
+        assert_eq!(engine.theme_dir("ink"), installed.join("ink"));
+        assert_eq!(engine.theme_dir("none"), installed.join("none"));
+        assert_eq!(
+            engine.theme_assets_dir("paper"),
+            Some(bundled.join("paper").join("assets"))
+        );
+
+        let mut names: Vec<_> = engine
+            .list_installed_themes()
+            .into_iter()
+            .map(|t| t.manifest.name)
+            .collect();
+        names.sort();
+        assert_eq!(
+            names,
+            [
+                "Aegis Dark Core (Built-in)",
+                "Ink (installed)",
+                "Mine",
+                "Paper (bundled)"
+            ]
+        );
+
+        // 同梱のテーマにも、インストールしたテーマにも切り替えられる
+        engine.set_active_theme("ink").unwrap();
+        engine.set_active_theme("paper").unwrap();
+        assert!(engine.set_active_theme("none").is_err());
+
+        let _ = std::fs::remove_dir_all(&root);
     }
 
     #[test]

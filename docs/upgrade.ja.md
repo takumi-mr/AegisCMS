@@ -22,7 +22,7 @@ docker stop aegiscms && docker rm aegiscms
 docker run -d --name aegiscms -p 8080:8080 -v aegis-data:/app/data ghcr.io/takumi-mr/aegiscms:latest
 ```
 
-以前と同じボリューム（`-v`）とオプションを使ってください。データはボリュームに残ります。`deploy/` では `./deploy.sh pull && ./deploy.sh up` を実行します。
+以前と同じボリューム（`-v`）とオプションを使ってください。データはボリュームに残ります。Admin Studio やストアから入れたプラグイン・テーマもボリューム（`/app/data/plugins`・`/app/data/themes`）に残り、同梱のものはイメージと一緒に更新されます。`deploy/` では `./deploy.sh pull && ./deploy.sh up` を実行します。
 
 #### バージョンを固定する（Docker）
 
@@ -41,7 +41,7 @@ docker run -d --name aegiscms -p 8080:8080 -v aegis-data:/app/data ghcr.io/takum
 1. サーバーを止めます。
 2. 新しいアーカイブをダウンロードし、**新しいフォルダ**に展開します。
 3. 古いフォルダからデータと設定をコピーします: `aegis.db*`、`data/`、編集した `config/` と `schemas/`。新しい設定が増えていることがあるので、新しい `config/default.toml` と `schemas/` を自分のものと見比べてください。
-4. 新しい `plugins/` と `themes/`（リリースに合わせて更新されます）と、自作のものを置きます。
+4. 同梱のプラグイン・テーマ（`plugins/`・`themes/`）は、新しいフォルダのものを使います（リリースに合わせて更新されます）。Admin Studio やストアから入れたものは、同梱の設定（`[paths].plugins_dir = "data/plugins"`・`themes_dir = "data/themes"`）なら `data/` の下にあるので、手順 3 で一緒に移ります。古い設定（`plugins_dir = "plugins"`）のままなら、自分で入れたものを新しい `plugins/`・`themes/` にコピーします（[設定の 2.5](configuration.ja.md#25-paths--ディレクトリ)）。
 5. 新しいバイナリを起動します。すべて動くと確認できるまで、古いフォルダは残しておきます。
 
 サービスとして動かしている場合は、`WorkingDirectory` と `ExecStart` を新しいフォルダに向けます。
