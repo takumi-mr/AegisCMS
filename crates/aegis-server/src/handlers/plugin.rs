@@ -717,11 +717,27 @@ fn copy_dir_all(src: &std::path::Path, dst: &std::path::Path) -> std::io::Result
     Ok(())
 }
 
+/// プラグインのアセットとして配信する拡張子（小文字）。ブラウザーがスクリプトを動かす文書（HTML・XHTML・
+/// XML・SVG など）は、サイトと同じオリジンで開かれるとプラグインの外でスクリプトが動くため配信しない
+const PLUGIN_ASSET_EXTENSIONS: &[&str] = &[
+    "js", "mjs", "css", "map", "json", "wasm", "woff", "woff2", "ttf", "otf", "png", "jpg", "jpeg",
+    "gif", "webp", "avif", "ico",
+];
+
+/// プラグインのアセットとして配信してよいファイル名か（拡張子が [`PLUGIN_ASSET_EXTENSIONS`] のどれか）
+fn is_servable_plugin_asset(rel_path: &str) -> bool {
+    std::path::Path::new(rel_path)
+        .extension()
+        .and_then(|e| e.to_str())
+        .is_some_and(|e| PLUGIN_ASSET_EXTENSIONS.contains(&e.to_ascii_lowercase().as_str()))
+}
+
 /// `GET /plugins/{name}/assets/{*path}` — 有効化されているプラグインの `assets/` 配下の静的ファイルを配信する。
 ///
 /// React / Vue などでビルドしたアイランド用 JS・CSS をプラグイン自身に同梱して、同一オリジン（Strict CSP
 /// の `script-src 'self'` / `style-src 'self'` 適合）で配信できるようにするためのエンドポイント。
-/// 無効・未ロードのプラグインや `assets/` 外へのパストラバーサルは拒否する。
+/// 無効・未ロードのプラグインや `assets/` 外へのパストラバーサル、ドットファイル、
+/// [`PLUGIN_ASSET_EXTENSIONS`] に無い種類（HTML・SVG など）は拒否する。
 pub async fn get_plugin_asset(
     State(state): State<Arc<AppState>>,
     Path((plugin_name, rel_path)): Path<(String, String)>,
@@ -746,17 +762,13 @@ pub async fn get_plugin_asset(
         return (StatusCode::NOT_FOUND, "Plugin asset not found").into_response();
     }
 
-    let clean_path = std::path::Path::new(&rel_path);
-    for comp in clean_path.components() {
-        if matches!(
-            comp,
-            std::path::Component::ParentDir
-                | std::path::Component::Prefix(_)
-                | std::path::Component::RootDir
-        ) {
-            return (StatusCode::BAD_REQUEST, "Invalid asset path").into_response();
-        }
+    if !crate::handlers::widget::is_safe_asset_path(&rel_path) {
+        return (StatusCode::BAD_REQUEST, "Invalid asset path").into_response();
     }
+    if !is_servable_plugin_asset(&rel_path) {
+        return (StatusCode::NOT_FOUND, "Plugin asset not found").into_response();
+    }
+    let clean_path = std::path::Path::new(&rel_path);
 
     let assets_dir = state
         .config
@@ -910,6 +922,32 @@ mod tests {
         let resp = get_plugin_asset(
             State(state.clone()),
             Path(("../my-island".to_string(), "island.js".to_string())),
+        )
+        .await;
+        assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+
+        // 5. スクリプトが動く文書（HTML・SVG・XML）は、置いてあっても配信しない
+        for (file, body) in [
+            ("evil.html", "<script>alert(1)</script>"),
+            ("evil.HTM", "<script>alert(1)</script>"),
+            ("evil.svg", "<svg onload=alert(1)></svg>"),
+            ("evil.xhtml", "<html/>"),
+            ("evil.xml", "<x/>"),
+            ("no-extension", "x"),
+        ] {
+            std::fs::write(enabled_assets.join(file), body).unwrap();
+            let resp = get_plugin_asset(
+                State(state.clone()),
+                Path(("my-island".to_string(), file.to_string())),
+            )
+            .await;
+            assert_eq!(resp.status(), StatusCode::NOT_FOUND, "{file}");
+        }
+        // 6. ドットファイルは配信しない
+        std::fs::write(enabled_assets.join(".env.js"), "x").unwrap();
+        let resp = get_plugin_asset(
+            State(state.clone()),
+            Path(("my-island".to_string(), ".env.js".to_string())),
         )
         .await;
         assert_eq!(resp.status(), StatusCode::BAD_REQUEST);

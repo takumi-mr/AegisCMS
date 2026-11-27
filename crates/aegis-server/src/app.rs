@@ -1290,6 +1290,17 @@ async fn security_headers_middleware(
         );
     }
 
+    // ウィジェット（`/widgets/<name>/`）の文書は、`core/widget` の iframe と同じ `sandbox` で動かす。
+    // iframe の `sandbox` 属性は、URL を直接開かれると効かないため（開かれてもサイトのオリジンにならない）
+    if path.starts_with("/widgets/") {
+        sandbox_widget_documents(&mut response);
+    }
+    // プラグインのアセットは文書の種類を配信しない（`handlers::plugin::get_plugin_asset`）。
+    // それでも文書が返るとき（ハンドラーの変更など）は、スクリプトを動かさずにダウンロードさせる
+    if path.starts_with("/plugins/") {
+        neutralize_documents(&mut response);
+    }
+
     // アップロードしたファイルは公開ページと同じオリジンから配る。HTML や JavaScript が置かれていても
     // （以前に保存されたもの・ストレージを直接書き換えられたもの）、スクリプトを実行させない
     let uploads = state
@@ -1306,6 +1317,71 @@ async fn security_headers_middleware(
     }
 
     response
+}
+
+/// 応答の Content-Type（`;` 以降を除いた小文字）
+fn response_kind(response: &axum::response::Response) -> String {
+    response
+        .headers()
+        .get(axum::http::header::CONTENT_TYPE)
+        .and_then(|v| v.to_str().ok())
+        .and_then(|v| v.split(';').next())
+        .unwrap_or("")
+        .trim()
+        .to_ascii_lowercase()
+}
+
+/// ブラウザーが文書として開き、スクリプトを動かせる種類（HTML・XHTML・XML。SVG は別に止める）
+fn is_active_document(kind: &str) -> bool {
+    matches!(
+        kind,
+        "text/html" | "application/xhtml+xml" | "text/xml" | "application/xml" | "text/xsl"
+    ) || (kind.ends_with("+xml") && kind != "image/svg+xml")
+}
+
+/// ウィジェットの HTML の CSP に `sandbox allow-scripts allow-forms` を足す（不透明なオリジンで動き、
+/// サイトの Cookie・Admin Studio のセッション・同じオリジンの API に触れない）。HTML 以外の文書は
+/// [`neutralize_documents`] と同じく、スクリプトを動かさずにダウンロードさせる
+fn sandbox_widget_documents(response: &mut axum::response::Response) {
+    use axum::http::{header, HeaderValue};
+    let kind = response_kind(response);
+    if kind != "text/html" && kind != "application/xhtml+xml" {
+        neutralize_documents(response);
+        return;
+    }
+    let headers = response.headers_mut();
+    let csp = headers
+        .get(header::CONTENT_SECURITY_POLICY)
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or_default()
+        .trim_end()
+        .trim_end_matches(';')
+        .to_string();
+    let csp = if csp.is_empty() {
+        "sandbox allow-scripts allow-forms".to_string()
+    } else {
+        format!("{csp}; sandbox allow-scripts allow-forms")
+    };
+    if let Ok(value) = HeaderValue::from_str(&csp) {
+        headers.insert(header::CONTENT_SECURITY_POLICY, value);
+    }
+}
+
+/// 文書の種類（[`is_active_document`]）なら、スクリプトを動かさない CSP を付けてダウンロードさせる
+fn neutralize_documents(response: &mut axum::response::Response) {
+    use axum::http::{header, HeaderValue};
+    if !is_active_document(&response_kind(response)) {
+        return;
+    }
+    let headers = response.headers_mut();
+    headers.insert(
+        header::CONTENT_SECURITY_POLICY,
+        HeaderValue::from_static("default-src 'none'; sandbox"),
+    );
+    headers.insert(
+        header::CONTENT_DISPOSITION,
+        HeaderValue::from_static("attachment"),
+    );
 }
 
 /// `/uploads` の応答に付ける防御: 種類の推測を止め（`nosniff`）、スクリプトを実行できる種類
@@ -1415,6 +1491,99 @@ mod tests {
     use axum::body::Body;
     use axum::http::{header, StatusCode};
     use tower::ServiceExt;
+
+    #[tokio::test]
+    async fn test_widget_documents_run_in_a_sandbox_even_when_opened_directly() {
+        let dir = std::env::temp_dir().join(format!("aegis_widget_csp_{}", uuid::Uuid::new_v4()));
+        let widget = dir.join("calc");
+        std::fs::create_dir_all(widget.join("assets")).unwrap();
+        std::fs::write(widget.join("index.html"), "<!doctype html><p>calc</p>").unwrap();
+        std::fs::write(widget.join("assets").join("app.js"), "1").unwrap();
+        std::fs::write(widget.join("data.xml"), "<x/>").unwrap();
+        let mut config = crate::config::AegisConfig::default();
+        config.paths.widgets_dir = dir.clone();
+        let state = crate::test_support::test_state_with_config(
+            config,
+            aegis_runtime::PluginSupervisor::new(),
+        )
+        .await;
+        let get = |uri: &'static str| {
+            let app = router(&state.config, state.clone());
+            async move {
+                app.oneshot(Request::builder().uri(uri).body(Body::empty()).unwrap())
+                    .await
+                    .unwrap()
+            }
+        };
+
+        for uri in ["/widgets/calc/", "/widgets/calc/index.html"] {
+            let response = get(uri).await;
+            assert_eq!(response.status(), StatusCode::OK, "{uri}");
+            let csp = response.headers()[header::CONTENT_SECURITY_POLICY]
+                .to_str()
+                .unwrap();
+            // 公開ページの CSP を保ったまま、iframe と同じ sandbox が付く（allow-same-origin なし）
+            assert!(csp.contains("default-src"), "{csp}");
+            assert!(
+                csp.ends_with("; sandbox allow-scripts allow-forms"),
+                "{csp}"
+            );
+            assert!(!csp.contains("allow-same-origin"), "{csp}");
+        }
+        // スクリプトなどのアセットはそのまま（ダウンロードにしない）
+        let js = get("/widgets/calc/assets/app.js").await;
+        assert_eq!(js.status(), StatusCode::OK);
+        assert!(js.headers().get(header::CONTENT_DISPOSITION).is_none());
+        // 種類の分からないファイル（XML など）は、文書として開かれない形で返る
+        let xml = get("/widgets/calc/data.xml").await;
+        assert_eq!(
+            xml.headers()[header::CONTENT_TYPE],
+            "application/octet-stream"
+        );
+        assert_eq!(xml.headers()[header::X_CONTENT_TYPE_OPTIONS], "nosniff");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn test_documents_are_neutralized_but_other_assets_are_not() {
+        let respond = |content_type: &str| {
+            let mut response = axum::response::Response::new(Body::empty());
+            response
+                .headers_mut()
+                .insert(header::CONTENT_TYPE, content_type.parse().unwrap());
+            neutralize_documents(&mut response);
+            response
+        };
+        for kind in [
+            "text/html; charset=utf-8",
+            "application/xhtml+xml",
+            "text/xml",
+            "application/rss+xml",
+        ] {
+            let response = respond(kind);
+            assert_eq!(
+                response.headers()[header::CONTENT_DISPOSITION],
+                "attachment",
+                "{kind}"
+            );
+        }
+        for kind in [
+            "application/javascript",
+            "text/css",
+            "image/png",
+            "font/woff2",
+            "image/svg+xml",
+        ] {
+            let response = respond(kind);
+            assert!(
+                response
+                    .headers()
+                    .get(header::CONTENT_DISPOSITION)
+                    .is_none(),
+                "{kind}"
+            );
+        }
+    }
 
     #[test]
     fn test_upload_responses_never_run_scripts() {
