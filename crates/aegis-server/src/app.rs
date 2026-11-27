@@ -970,13 +970,36 @@ async fn maintenance_middleware(
         }
     }
 
-    let message = aegis_ast::renderer::escape_html(&system.maintenance_message);
-    let title = state.site().title;
-    let title = aegis_ast::renderer::escape_html(&title);
     let locale = state.config.theme.locale.as_str();
     let suffix = aegis_theme::messages::translate(locale, "maintenance.title", &[]);
-    let html = format!(
-        r#"<!DOCTYPE html>
+    let escaped_message = aegis_ast::renderer::escape_html(&system.maintenance_message);
+
+    let mut fields = std::collections::HashMap::new();
+    fields.insert(
+        "message".to_string(),
+        serde_json::Value::String(system.maintenance_message.clone()),
+    );
+
+    let ctx = aegis_core::PageRenderContext {
+        template: "maintenance.html".to_string(),
+        content_type: "error".to_string(),
+        title: suffix.clone(),
+        slug: "maintenance".to_string(),
+        content_html: format!("<p>{}</p>", escaped_message),
+        fields,
+        ..crate::render::site_page_context(&state)
+    };
+
+    let html = match state.theme.render(&ctx.template, &ctx) {
+        Ok(rendered) => rendered,
+        Err(e) => {
+            tracing::warn!(
+                "Failed to render maintenance.html template, falling back to default: {}",
+                e
+            );
+            let title = aegis_ast::renderer::escape_html(&ctx.site_title);
+            format!(
+                r#"<!DOCTYPE html>
 <html lang="{}">
 <head>
     <meta charset="utf-8">
@@ -996,8 +1019,10 @@ async fn maintenance_middleware(
     </div>
 </body>
 </html>"#,
-        locale, title, suffix, title, message
-    );
+                locale, title, suffix, title, escaped_message
+            )
+        }
+    };
 
     // Strict CSP: このページの `<style>` のハッシュを CSP に足す
     aegis_core::csp::record_styles_in(&html);
@@ -1503,6 +1528,41 @@ mod tests {
         assert_eq!(status, StatusCode::SERVICE_UNAVAILABLE);
         assert!(body.contains(r#"<html lang="ja">"#), "{}", body);
         assert!(body.contains("- メンテナンス中</title>"), "{}", body);
+    }
+
+    #[tokio::test]
+    async fn test_maintenance_page_can_be_overridden_by_theme() {
+        let config = AegisConfig::default();
+        let state = crate::test_support::test_state_with_config(
+            config.clone(),
+            aegis_runtime::PluginSupervisor::new(),
+        )
+        .await;
+        state.theme.register_template(
+            "maintenance.html",
+            r#"<!DOCTYPE html><html><body><main class="custom-maint"><h1>{{ site_title }} | {{ title }}</h1><p class="msg">{{ fields.message }}</p></main></body></html>"#,
+        );
+        state.system.write().unwrap().maintenance_mode = Some(true);
+        state.system.write().unwrap().maintenance_message =
+            Some("Planned upgrade <soon>".to_string());
+
+        let app = router(&config, state.clone());
+        let (status, body, _) = get_text(&app, "/").await;
+        assert_eq!(status, StatusCode::SERVICE_UNAVAILABLE);
+        assert!(body.contains(r#"<main class="custom-maint">"#), "{}", body);
+        assert!(
+            body.contains(r#"<p class="msg">Planned upgrade &lt;soon&gt;</p>"#),
+            "{}",
+            body
+        );
+
+        // 壊れたテンプレートでも 503 フォールバックで応答する
+        state
+            .theme
+            .register_template("maintenance.html", "{% if unclosed %}");
+        let (status, body, _) = get_text(&app, "/").await;
+        assert_eq!(status, StatusCode::SERVICE_UNAVAILABLE);
+        assert!(body.contains("Planned upgrade &lt;soon&gt;"), "{}", body);
     }
 
     #[test]
