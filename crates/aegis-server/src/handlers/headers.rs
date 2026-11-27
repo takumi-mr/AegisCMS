@@ -98,6 +98,7 @@ pub async fn update_headers_settings(
     State(state): State<Arc<AppState>>,
     RequireRole(session): AdminSession,
     audit_ctx: AuditContext,
+    request_headers: axum::http::HeaderMap,
     Json(payload): Json<UpdateHeadersSettings>,
 ) -> Result<Json<HeadersSettingsResponse>, ApiError> {
     let csp = normalize_opt(payload.content_security_policy);
@@ -161,6 +162,17 @@ pub async fn update_headers_settings(
             hosts.dedup();
             crate::embeds::validate_hosts("embed_frame_domains", &hosts)
                 .map_err(|m| bad_request(&m))?;
+            // このサイト自身（正規 URL と、このリクエストの Host）は許可できない
+            let request_host = request_headers
+                .get(axum::http::header::HOST)
+                .and_then(|v| v.to_str().ok())
+                .and_then(|h| crate::embeds::url_host(&format!("http://{h}")));
+            let own = [crate::embeds::own_host(&state), request_host];
+            if let Some(host) = hosts.iter().find(|h| own.iter().flatten().any(|o| o == *h)) {
+                return Err(bad_request(&format!(
+                    "embed_frame_domains: {host:?} is this site's own host; a same-origin page in the generic embed could remove its sandbox"
+                )));
+            }
             hosts
         }
     };
@@ -317,6 +329,7 @@ mod tests {
             State(state.clone()),
             admin(),
             AuditContext::default(),
+            axum::http::HeaderMap::new(),
             Json(update_payload),
         )
         .await
@@ -368,6 +381,7 @@ mod tests {
             State(state.clone()),
             admin(),
             AuditContext::default(),
+            axum::http::HeaderMap::new(),
             Json(reset_payload),
         )
         .await
@@ -387,6 +401,7 @@ mod tests {
             State(state.clone()),
             admin(),
             AuditContext::default(),
+            axum::http::HeaderMap::new(),
             Json(clear(vec![])),
         )
         .await
@@ -406,11 +421,68 @@ mod tests {
                 State(state.clone()),
                 admin(),
                 AuditContext::default(),
+                axum::http::HeaderMap::new(),
                 Json(clear(vec![bad])),
             )
             .await;
             assert_eq!(result.unwrap_err().0, StatusCode::BAD_REQUEST, "{}", bad);
         }
+    }
+
+    #[tokio::test]
+    async fn test_the_sites_own_host_cannot_be_allowed_for_embeds() {
+        let state = test_state_with_config(AegisConfig::default(), PluginSupervisor::new()).await;
+        state.seo.write().unwrap().canonical_base_url = Some("https://Example.com/cms".to_string());
+        let put = |hosts: &[&str], host_header: Option<&str>| {
+            let state = state.clone();
+            let hosts: Vec<String> = hosts.iter().map(|h| h.to_string()).collect();
+            let mut headers = axum::http::HeaderMap::new();
+            if let Some(h) = host_header {
+                headers.insert(axum::http::header::HOST, h.parse().unwrap());
+            }
+            async move {
+                update_headers_settings(
+                    State(state),
+                    admin(),
+                    AuditContext::default(),
+                    headers,
+                    Json(UpdateHeadersSettings {
+                        embed_frame_domains: Some(hosts),
+                        ..Default::default()
+                    }),
+                )
+                .await
+            }
+        };
+        // 正規 URL のホスト
+        assert_eq!(
+            put(&["example.com"], None).await.unwrap_err().0,
+            StatusCode::BAD_REQUEST
+        );
+        // このリクエストの Host（ポートつきでも）
+        assert_eq!(
+            put(&["admin.example.net"], Some("admin.example.net:8443"))
+                .await
+                .unwrap_err()
+                .0,
+            StatusCode::BAD_REQUEST
+        );
+        // ほかのホストは許可できる
+        assert!(put(&["forms.example.com"], Some("example.com"))
+            .await
+            .is_ok());
+
+        // 設定ファイル・DB に入っていても、正規 URL のホストは効かない
+        state
+            .headers
+            .write()
+            .unwrap()
+            .embed_frame_domains
+            .push("example.com".to_string());
+        assert_eq!(
+            crate::embeds::site_frame_domains(&state),
+            ["forms.example.com"]
+        );
     }
 
     #[tokio::test]
@@ -426,6 +498,7 @@ mod tests {
             State(state.clone()),
             admin(),
             AuditContext::default(),
+            axum::http::HeaderMap::new(),
             Json(bad_val),
         )
         .await;
@@ -444,6 +517,7 @@ mod tests {
             State(state.clone()),
             admin(),
             AuditContext::default(),
+            axum::http::HeaderMap::new(),
             Json(bad_name),
         )
         .await;

@@ -87,10 +87,32 @@ impl EmbedConfig {
     }
 }
 
-/// 管理者が許可したホスト（設定ファイルと Admin Studio の和。重複なし・並べ替え済み）
+/// URL（`https://example.com:8443/cms` など）のホスト名（英小文字。ポートとユーザー情報を除く）
+pub fn url_host(url: &str) -> Option<String> {
+    let rest = url.trim().split_once("://")?.1;
+    let authority = rest.split(['/', '?', '#']).next()?;
+    let host = authority.rsplit('@').next()?;
+    let host = match host.strip_prefix('[') {
+        Some(v6) => v6.split(']').next()?,
+        None => host.split(':').next()?,
+    };
+    (!host.is_empty()).then(|| host.to_ascii_lowercase())
+}
+
+/// このサイト自身のホスト（`[seo]` の正規 URL・Admin Studio の **SEO & Bot** のもの）。
+/// 許可するホストに入れると、汎用の埋め込み（`allow-scripts allow-same-origin`）が同じオリジンの
+/// ページを開き、`sandbox` を外して親のページを操作できてしまうため、許可するホストから除く
+pub fn own_host(state: &AppState) -> Option<String> {
+    state.seo().canonical_base_url.as_deref().and_then(url_host)
+}
+
+/// 管理者が許可したホスト（設定ファイルと Admin Studio の和。重複なし・並べ替え済み）。
+/// このサイト自身のホスト（[`own_host`]）は、書かれていても除く
 pub fn site_frame_domains(state: &AppState) -> Vec<String> {
+    let own = own_host(state);
     let mut hosts = state.config.embed.frame_domains.clone();
     hosts.extend(state.headers().embed_frame_domains);
+    hosts.retain(|h| own.as_deref() != Some(h.as_str()));
     hosts.sort();
     hosts.dedup();
     hosts
@@ -142,6 +164,24 @@ mod tests {
                 .collect(),
             ..Default::default()
         }
+    }
+
+    #[test]
+    fn reads_the_host_of_a_url() {
+        assert_eq!(
+            url_host("https://Example.com/cms").as_deref(),
+            Some("example.com")
+        );
+        assert_eq!(
+            url_host("https://example.com:8443").as_deref(),
+            Some("example.com")
+        );
+        assert_eq!(
+            url_host("https://u@example.com/").as_deref(),
+            Some("example.com")
+        );
+        assert_eq!(url_host("http://[::1]:8080/").as_deref(), Some("::1"));
+        assert_eq!(url_host("example.com"), None);
     }
 
     #[test]

@@ -592,6 +592,7 @@ mod tests {
             State(state.clone()),
             admin(),
             AuditContext::default(),
+            axum::http::HeaderMap::new(),
             Json(UpdateHeadersSettings::default()),
         )
         .await
