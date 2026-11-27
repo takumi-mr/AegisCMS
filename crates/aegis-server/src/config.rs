@@ -356,16 +356,33 @@ impl ServerConfig {
 #[serde(default)]
 pub struct PathsConfig {
     pub schemas_dir: PathBuf,
+    /// プラグインのインストール先（アップロード・ストアで入れる場所）。同梱のものは `bundled_plugins_dir`
     pub plugins_dir: PathBuf,
+    /// 同梱のプラグイン（読み取り専用。書かなければ使わない）。同じ名前は `plugins_dir` を優先する
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub bundled_plugins_dir: Option<PathBuf>,
     pub admin_dist_dir: PathBuf,
+    /// テーマのインストール先（アップロード・ストアで入れる場所）。同梱のものは `bundled_themes_dir`
     #[serde(default = "default_themes_dir")]
     pub themes_dir: PathBuf,
+    /// 同梱のテーマ（読み取り専用。書かなければ使わない）。同じ ID は `themes_dir` を優先する
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub bundled_themes_dir: Option<PathBuf>,
     /// 宣言的クエリの定義（`queries/*.yaml`）を置くディレクトリ
     #[serde(default = "default_queries_dir")]
     pub queries_dir: PathBuf,
     /// `core/widget` ブロックで `<iframe>` 埋め込みする静的ウィジェット（`widgets/<name>/index.html`）を置くディレクトリ
     #[serde(default = "default_widgets_dir")]
     pub widgets_dir: PathBuf,
+}
+
+impl PathsConfig {
+    /// プラグインを探すディレクトリ（インストール先 → 同梱の順）
+    pub fn plugin_dirs(&self) -> Vec<PathBuf> {
+        std::iter::once(self.plugins_dir.clone())
+            .chain(self.bundled_plugins_dir.clone())
+            .collect()
+    }
 }
 
 fn default_queries_dir() -> PathBuf {
@@ -385,8 +402,10 @@ impl Default for PathsConfig {
         Self {
             schemas_dir: PathBuf::from("schemas"),
             plugins_dir: PathBuf::from("plugins"),
+            bundled_plugins_dir: None,
             admin_dist_dir: PathBuf::from("admin/dist"),
             themes_dir: default_themes_dir(),
+            bundled_themes_dir: None,
             queries_dir: default_queries_dir(),
             widgets_dir: default_widgets_dir(),
         }

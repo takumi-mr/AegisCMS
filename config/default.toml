@@ -76,9 +76,13 @@ timeout_ms = 5000
 
 [paths]
 schemas_dir = "schemas"
-plugins_dir = "plugins"
+# Plugins and themes installed from Admin Studio or the store go under data/; the bundled ones in
+# plugins/ and themes/ come with each release. An installed package with the same name wins
+plugins_dir = "data/plugins"
+bundled_plugins_dir = "plugins"
 admin_dist_dir = "admin/dist"
-themes_dir = "themes"
+themes_dir = "data/themes"
+bundled_themes_dir = "themes"
 queries_dir = "queries"
 
 # 宣言的クエリ（queries/*.yaml。docs/queries.md）

@@ -443,7 +443,7 @@ fn warn_hardcoded_article_links(state: &AppState) {
     if prefix == "/articles" {
         return;
     }
-    let theme_dir = state.theme.themes_dir().join(state.theme.active_theme());
+    let theme_dir = state.theme.theme_dir(&state.theme.active_theme());
     for found in aegis_theme::hardcoded_article_paths(&theme_dir) {
         tracing::warn!(
             "Theme '{}': {} (the article public_path is {})",
@@ -460,16 +460,13 @@ async fn run_plugin_command(config: &AegisConfig, action: PluginCommand) -> anyh
             config.plugins.validate()?;
             config.theme.validate()?;
             let enabled = cli_enabled_plugins(config).await;
-            let plugins = aegis_runtime::WasmPluginLoader::list(
-                &config.paths.plugins_dir,
+            let plugins = aegis_runtime::WasmPluginLoader::list_in(
+                &config.paths.plugin_dirs(),
                 &enabled,
                 &config.runtime.default_resource_limits(),
             )?;
             if plugins.is_empty() {
-                println!(
-                    "No plugins installed in {}",
-                    config.paths.plugins_dir.display()
-                );
+                println!("No plugins installed in {:?}", config.paths.plugin_dirs());
                 return Ok(());
             }
             println!(
@@ -1166,19 +1163,23 @@ async fn run_server() -> anyhow::Result<()> {
 
             // 5.5 テーマエンジンの初期化 & プラグイン登録テンプレートの同期
             let theme_engine = Arc::new(
-                aegis_theme::ThemeEngine::new(&config.paths.themes_dir, &config.theme.active)
-                    .with_queries(query_service.handle())
-                    .with_base_path(&base_path)
-                    .with_articles_path(
-                        schemas
-                            .get("article")
-                            .and_then(|s| s.public_path.as_deref())
-                            .unwrap_or("/articles"),
-                    )
-                    .with_admin_url(&public_admin_url(&config, &base_path, &admin_path))
-                    .with_template_reload(config.theme.reload_templates)
-                    .with_powered_by(config.theme.show_powered_by)
-                    .with_locale(&config.theme.locale),
+                aegis_theme::ThemeEngine::with_dirs(
+                    &config.paths.themes_dir,
+                    config.paths.bundled_themes_dir.as_deref(),
+                    &config.theme.active,
+                )
+                .with_queries(query_service.handle())
+                .with_base_path(&base_path)
+                .with_articles_path(
+                    schemas
+                        .get("article")
+                        .and_then(|s| s.public_path.as_deref())
+                        .unwrap_or("/articles"),
+                )
+                .with_admin_url(&public_admin_url(&config, &base_path, &admin_path))
+                .with_template_reload(config.theme.reload_templates)
+                .with_powered_by(config.theme.show_powered_by)
+                .with_locale(&config.theme.locale),
             );
             let plugin_templates = supervisor.collect_plugin_templates();
             for (name, content) in plugin_templates {
@@ -1766,14 +1767,14 @@ fn load_plugins(
     let loader = plugin_registry::PluginLoader::new(
         engine,
         host_services.into(),
-        config.paths.plugins_dir.clone(),
+        config.paths.plugin_dirs(),
         config.runtime.default_resource_limits(),
     );
     let supervisor = loader.load(enabled)?;
     tracing::info!(
         "Loaded {} Wasm plugins from {:?}",
         supervisor.plugins().len(),
-        config.paths.plugins_dir
+        config.paths.plugin_dirs()
     );
     Ok((supervisor, Some(loader)))
 }

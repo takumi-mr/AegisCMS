@@ -41,9 +41,14 @@ timeout_ms = 2000
 
 [paths]
 schemas_dir = "schemas"
-plugins_dir = "plugins"
+# Plugins and themes installed from Admin Studio or the store go to the volume (/app/data), so they
+# survive a new image. The bundled ones stay in the image and are replaced on upgrade; an installed
+# package with the same name wins (docs/configuration.md)
+plugins_dir = "/app/data/plugins"
+bundled_plugins_dir = "/app/plugins"
 admin_dist_dir = "admin/dist"
-themes_dir = "themes"
+themes_dir = "/app/data/themes"
+bundled_themes_dir = "/app/themes"
 
 [runtime]
 enable_wasm_plugins = true

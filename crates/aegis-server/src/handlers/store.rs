@@ -324,8 +324,8 @@ pub async fn install_store_package(
 /// インストール済みのプラグイン・テーマのバージョン（`(種類, ID)` → バージョン）
 fn installed_versions(state: &AppState) -> HashMap<(PackageKind, String), String> {
     let mut installed = HashMap::new();
-    match aegis_runtime::WasmPluginLoader::discover(
-        &state.config.paths.plugins_dir,
+    match aegis_runtime::WasmPluginLoader::discover_in(
+        &state.config.paths.plugin_dirs(),
         &state.config.runtime.default_resource_limits(),
     ) {
         Ok(plugins) => {

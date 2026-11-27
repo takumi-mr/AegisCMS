@@ -22,7 +22,7 @@ docker stop aegiscms && docker rm aegiscms
 docker run -d --name aegiscms -p 8080:8080 -v aegis-data:/app/data ghcr.io/takumi-mr/aegiscms:latest
 ```
 
-Use the same volume (`-v`) and the same options as before. Your data stays in the volume. With `deploy/`, run `./deploy.sh pull && ./deploy.sh up`.
+Use the same volume (`-v`) and the same options as before. Your data stays in the volume. Plugins and themes installed from Admin Studio or the store stay there too (`/app/data/plugins`, `/app/data/themes`), and the bundled ones are updated with the image. With `deploy/`, run `./deploy.sh pull && ./deploy.sh up`.
 
 #### Pinning a version (Docker)
 
@@ -41,7 +41,7 @@ Before 1.0, a new minor version (`0.9` to `0.10`) can contain breaking changes, 
 1. Stop the server.
 2. Download the new archive and extract it into a **new folder**.
 3. Copy your data and settings from the old folder: `aegis.db*`, `data/`, and your edited `config/` and `schemas/`. Compare the new `config/default.toml` and `schemas/` with yours, since new settings may have been added.
-4. Take the new `plugins/` and `themes/` (they are updated with the release), plus any of your own.
+4. Use the bundled plugins and themes (`plugins/`, `themes/`) from the new folder (they are updated with the release). Plugins and themes installed from Admin Studio or the store are under `data/` with the shipped configuration (`[paths].plugins_dir = "data/plugins"`, `themes_dir = "data/themes"`), so they move with step 3. If you still have the old setting (`plugins_dir = "plugins"`), copy what you installed into the new `plugins/` and `themes/` ([configuration 2.5](configuration.md#25-paths--directories)).
 5. Start the new binary, and keep the old folder until you are sure everything works.
 
 If you run it as a service, point `WorkingDirectory` and `ExecStart` at the new folder.

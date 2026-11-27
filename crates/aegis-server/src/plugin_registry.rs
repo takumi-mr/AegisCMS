@@ -16,8 +16,6 @@ use crate::state::AppState;
 /// `_aegis_settings` の名前（値は JSON の文字列の配列。順序がフックの実行順）
 pub const ENABLED_SETTING: &str = "plugins.enabled";
 
-const MANIFEST_FILE: &str = "plugin.manifest.json";
-
 /// 有効なプラグインの一覧（Admin Studio で保存した値 → `[plugins].enabled` の順）。
 /// 保存した値が壊れていればエラーにする（アクセス制限などのプラグインが黙って外れることを防ぐため）
 pub async fn resolve_enabled(
@@ -51,7 +49,8 @@ pub async fn resolve_enabled(
 pub struct PluginLoader {
     engine: WasmEngine,
     services: PluginServices,
-    plugins_dir: PathBuf,
+    /// プラグインを探すディレクトリ（インストール先 → 同梱の順）
+    plugin_dirs: Vec<PathBuf>,
     default_limits: PluginResourceLimits,
 }
 
@@ -59,13 +58,13 @@ impl PluginLoader {
     pub fn new(
         engine: WasmEngine,
         services: PluginServices,
-        plugins_dir: PathBuf,
+        plugin_dirs: Vec<PathBuf>,
         default_limits: PluginResourceLimits,
     ) -> Self {
         Self {
             engine,
             services,
-            plugins_dir,
+            plugin_dirs,
             default_limits,
         }
     }
@@ -78,8 +77,8 @@ impl PluginLoader {
     /// 起動時: `enabled` をその順に読み込む（インストール済みで無効なものはログに出す）
     pub fn load(&self, enabled: &[String]) -> Result<PluginSupervisor> {
         let mut supervisor = PluginSupervisor::new();
-        WasmPluginLoader::load_enabled(
-            &self.plugins_dir,
+        WasmPluginLoader::load_enabled_in(
+            &self.plugin_dirs,
             enabled,
             self.engine.clone(),
             &mut supervisor,
@@ -101,13 +100,12 @@ impl PluginLoader {
                 supervisor.register(plugin.clone());
                 continue;
             }
-            let plugin_dir = self.plugins_dir.join(name);
-            if !plugin_dir.join(MANIFEST_FILE).is_file() {
+            let Some(plugin_dir) = WasmPluginLoader::find_in(&self.plugin_dirs, name) else {
                 return Err(AegisError::Validation(format!(
                     "Plugin '{}' is not installed",
                     name
                 )));
-            }
+            };
             let instance = WasmPluginLoader::load_plugin(
                 &plugin_dir,
                 self.engine.clone(),

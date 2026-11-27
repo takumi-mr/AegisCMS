@@ -152,12 +152,25 @@ Used when `backend = "redis"`.
 
 ### 2.5 `[paths]` — Directories
 
-| Key              | Type | Default        | Description                                                                                                                                                                                     |
-| ---------------- | ---- | -------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `schemas_dir`    | path | `"schemas"`    | Where declarative schemas (`*.yaml`) are loaded from                                                                                                                                            |
-| `queries_dir`    | path | `"queries"`    | Where declarative query definitions (`*.yaml`) are loaded from ([queries.md](queries.md))                                                                                                       |
-| `plugins_dir`    | path | `"plugins"`    | Where Wasm plugins are installed (one plugin in `<plugins_dir>/<name>/`). Only those in the enabled list (`[plugins].enabled`, or the list toggled in Admin Studio) are loaded                  |
-| `admin_dist_dir` | path | `"admin/dist"` | Admin Studio build output. If it exists, it is served as the SPA at `/`. If not, a binary built with the `embed-admin` feature serves the Admin Studio embedded in it (`task build:standalone`) |
+| Key                   | Type | Default        | Description                                                                                                                                                                                                                                                                        |
+| --------------------- | ---- | -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `schemas_dir`         | path | `"schemas"`    | Where declarative schemas (`*.yaml`) are loaded from                                                                                                                                                                                                                               |
+| `queries_dir`         | path | `"queries"`    | Where declarative query definitions (`*.yaml`) are loaded from ([queries.md](queries.md))                                                                                                                                                                                          |
+| `plugins_dir`         | path | `"plugins"`    | Where Wasm plugins are installed (one plugin in `<plugins_dir>/<name>/`). Uploads from Admin Studio and the store go here. Only those in the enabled list (`[plugins].enabled`, or the list toggled in Admin Studio) are loaded                                                    |
+| `bundled_plugins_dir` | path | none           | Where the bundled plugins are (read-only; nothing is written there). Plugins are looked up in `plugins_dir`, then `bundled_plugins_dir`, and a plugin with the same name in `plugins_dir` wins (an installed one replaces the bundled one). Without it, only `plugins_dir` is used |
+| `themes_dir`          | path | `"themes"`     | Where themes are installed (`<themes_dir>/<id>/`). Uploads from Admin Studio and the store go here                                                                                                                                                                                 |
+| `bundled_themes_dir`  | path | none           | Where the bundled themes are (read-only). Lookup order and precedence are the same as `bundled_plugins_dir`                                                                                                                                                                        |
+| `admin_dist_dir`      | path | `"admin/dist"` | Admin Studio build output. If it exists, it is served as the SPA at `/`. If not, a binary built with the `embed-admin` feature serves the Admin Studio embedded in it (`task build:standalone`)                                                                                    |
+
+The shipped configuration files (`config/default.toml`, `config/docker.toml`) put installed packages under `data/` (`/app/data/` in Docker, which stays on the volume) and the bundled ones in `plugins/` and `themes/` (inside the image in Docker, replaced on upgrade).
+
+```toml
+[paths]
+plugins_dir = "data/plugins"
+bundled_plugins_dir = "plugins"
+themes_dir = "data/themes"
+bundled_themes_dir = "themes"
+```
 
 ### 2.6 `[runtime]` — Wasm Plugin Runtime
 

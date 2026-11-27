@@ -138,8 +138,8 @@ pub async fn list_plugins(
 }
 
 async fn plugin_list(state: &AppState, enabled: &[String]) -> Result<Vec<PluginInfo>, ApiError> {
-    let mut plugins = WasmPluginLoader::list(
-        &state.config.paths.plugins_dir,
+    let mut plugins = WasmPluginLoader::list_in(
+        &state.config.paths.plugin_dirs(),
         enabled,
         &state.config.runtime.default_resource_limits(),
     )
@@ -466,8 +466,8 @@ pub async fn get_plugin_settings(
 
 /// `plugins_dir/<name>/` のマニフェスト（読めなければ `None`）
 fn installed_manifest(state: &AppState, name: &str) -> Option<aegis_core::PluginManifest> {
-    WasmPluginLoader::discover(
-        &state.config.paths.plugins_dir,
+    WasmPluginLoader::discover_in(
+        &state.config.paths.plugin_dirs(),
         &state.config.runtime.default_resource_limits(),
     )
     .ok()?
@@ -785,12 +785,18 @@ pub async fn get_plugin_asset(
     }
     let clean_path = std::path::Path::new(&rel_path);
 
-    let assets_dir = state
+    // インストール先 → 同梱の順に、そのプラグインのディレクトリを探す
+    let Some(plugin_dir) = state
         .config
         .paths
-        .plugins_dir
-        .join(&plugin_name)
-        .join("assets");
+        .plugin_dirs()
+        .into_iter()
+        .map(|dir| dir.join(&plugin_name))
+        .find(|dir| dir.is_dir())
+    else {
+        return (StatusCode::NOT_FOUND, "Plugin assets directory not found").into_response();
+    };
+    let assets_dir = plugin_dir.join("assets");
     let Ok(canonical_assets_dir) = std::fs::canonicalize(&assets_dir) else {
         return (StatusCode::NOT_FOUND, "Plugin assets directory not found").into_response();
     };
@@ -1040,7 +1046,7 @@ mod tests {
         let loader = crate::plugin_registry::PluginLoader::new(
             aegis_runtime::WasmEngine::new().unwrap(),
             Arc::new(std::sync::Mutex::new(HashMap::new())).into(),
-            plugins_dir,
+            vec![plugins_dir],
             config.runtime.default_resource_limits(),
         );
         let supervisor = loader.load(&enabled).unwrap();

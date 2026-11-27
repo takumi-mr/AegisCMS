@@ -82,13 +82,51 @@ impl WasmPluginLoader {
         Ok(plugins)
     }
 
+    /// 複数のディレクトリ（インストール先 → 同梱の順など）からプラグインを列挙する。同じディレクトリ名は
+    /// 先のディレクトリのものだけを返す（あとから入れたもので同梱のものを置き換えられるように）
+    pub fn discover_in(
+        dirs: &[PathBuf],
+        default_limits: &PluginResourceLimits,
+    ) -> Result<Vec<InstalledPlugin>> {
+        let mut plugins: Vec<InstalledPlugin> = Vec::new();
+        for dir in dirs {
+            for plugin in Self::discover(dir, default_limits)? {
+                if !plugins.iter().any(|p| p.dir_name == plugin.dir_name) {
+                    plugins.push(plugin);
+                }
+            }
+        }
+        plugins.sort_by(|a, b| a.dir_name.cmp(&b.dir_name));
+        Ok(plugins)
+    }
+
+    /// `name` のプラグインのディレクトリ（`dirs` の順に、マニフェストのある最初のもの）
+    pub fn find_in(dirs: &[PathBuf], name: &str) -> Option<PathBuf> {
+        dirs.iter()
+            .map(|dir| dir.join(name))
+            .find(|dir| dir.join(MANIFEST_FILE).is_file())
+    }
+
     /// 有効なプラグイン（`enabled` の順）→ 無効なインストール済みプラグイン（名前順）の順に状態を返す
     pub fn list<P: AsRef<Path>>(
         plugins_dir: P,
         enabled: &[String],
         default_limits: &PluginResourceLimits,
     ) -> Result<Vec<PluginInfo>> {
-        let mut installed = Self::discover(plugins_dir, default_limits)?;
+        Self::list_in(
+            &[plugins_dir.as_ref().to_path_buf()],
+            enabled,
+            default_limits,
+        )
+    }
+
+    /// [`Self::list`] の複数のディレクトリ版（[`Self::discover_in`] の順で探す）
+    pub fn list_in(
+        dirs: &[PathBuf],
+        enabled: &[String],
+        default_limits: &PluginResourceLimits,
+    ) -> Result<Vec<PluginInfo>> {
+        let mut installed = Self::discover_in(dirs, default_limits)?;
         let mut plugins = Vec::new();
         for name in enabled {
             plugins.push(match installed.iter().position(|p| &p.dir_name == name) {
@@ -149,16 +187,37 @@ impl WasmPluginLoader {
         services: PluginServices,
         default_limits: &PluginResourceLimits,
     ) -> Result<usize> {
-        let dir = plugins_dir.as_ref();
+        Self::load_enabled_in(
+            &[plugins_dir.as_ref().to_path_buf()],
+            enabled,
+            engine,
+            supervisor,
+            services,
+            default_limits,
+        )
+    }
+
+    /// [`Self::load_enabled`] の複数のディレクトリ版（[`Self::find_in`] の順で探す）
+    pub fn load_enabled_in(
+        dirs: &[PathBuf],
+        enabled: &[String],
+        engine: WasmEngine,
+        supervisor: &mut PluginSupervisor,
+        services: PluginServices,
+        default_limits: &PluginResourceLimits,
+    ) -> Result<usize> {
         for name in enabled {
-            let plugin_dir = dir.join(name);
-            if !plugin_dir.join(MANIFEST_FILE).is_file() {
+            let Some(plugin_dir) = Self::find_in(dirs, name) else {
+                let searched: Vec<String> = dirs
+                    .iter()
+                    .map(|dir| dir.join(name).join(MANIFEST_FILE).display().to_string())
+                    .collect();
                 return Err(AegisError::Config(format!(
                     "Plugin '{}' is enabled in [plugins].enabled but not installed ({} not found)",
                     name,
-                    plugin_dir.join(MANIFEST_FILE).display()
+                    searched.join(", ")
                 )));
-            }
+            };
             let instance = Self::load_plugin(
                 &plugin_dir,
                 engine.clone(),
@@ -178,7 +237,7 @@ impl WasmPluginLoader {
             supervisor.register(instance);
         }
 
-        for installed in Self::discover(dir, default_limits)? {
+        for installed in Self::discover_in(dirs, default_limits)? {
             if !enabled.contains(&installed.dir_name) {
                 match &installed.problem {
                     Some(problem) => tracing::warn!(
@@ -387,6 +446,58 @@ mod tests {
             vec!["gamma", "alpha"]
         );
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn test_installed_plugins_take_precedence_over_bundled_ones() {
+        let installed = temp_plugins_dir("dirs_installed");
+        let bundled = temp_plugins_dir("dirs_bundled");
+        install(&bundled, "alpha", "alpha", VALID_WAT);
+        install(&bundled, "beta", "beta", VALID_WAT);
+        install(&installed, "beta", "beta", VALID_WAT);
+        install(&installed, "gamma", "gamma", VALID_WAT);
+        let dirs = vec![installed.clone(), bundled.clone()];
+
+        let found = WasmPluginLoader::discover_in(&dirs, &PluginResourceLimits::default()).unwrap();
+        let names: Vec<_> = found.iter().map(|p| p.dir_name.as_str()).collect();
+        assert_eq!(names, ["alpha", "beta", "gamma"]);
+        let beta = found.iter().find(|p| p.dir_name == "beta").unwrap();
+        assert_eq!(beta.path, installed.join("beta"));
+
+        assert_eq!(
+            WasmPluginLoader::find_in(&dirs, "alpha"),
+            Some(bundled.join("alpha"))
+        );
+        assert_eq!(
+            WasmPluginLoader::find_in(&dirs, "beta"),
+            Some(installed.join("beta"))
+        );
+        assert_eq!(WasmPluginLoader::find_in(&dirs, "delta"), None);
+
+        let mut supervisor = PluginSupervisor::new();
+        let loaded = WasmPluginLoader::load_enabled_in(
+            &dirs,
+            &["gamma".to_string(), "alpha".to_string()],
+            WasmEngine::new().unwrap(),
+            &mut supervisor,
+            Arc::new(std::sync::Mutex::new(std::collections::HashMap::new())).into(),
+            &PluginResourceLimits::default(),
+        )
+        .unwrap();
+        assert_eq!(loaded, 2);
+        let missing = WasmPluginLoader::load_enabled_in(
+            &dirs,
+            &["delta".to_string()],
+            WasmEngine::new().unwrap(),
+            &mut PluginSupervisor::new(),
+            Arc::new(std::sync::Mutex::new(std::collections::HashMap::new())).into(),
+            &PluginResourceLimits::default(),
+        )
+        .unwrap_err();
+        assert!(missing.to_string().contains("not installed"), "{missing}");
+
+        let _ = std::fs::remove_dir_all(&installed);
+        let _ = std::fs::remove_dir_all(&bundled);
     }
 
     #[test]
