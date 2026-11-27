@@ -34,6 +34,6 @@
 
 設計は [store.md](docs/store.ja.md)。当面は公式のプラグイン・テーマだけを配る。上から順に着手する。
 
-- [ ] **配布用リポジトリの用意**: 本体とは別のリポジトリ（例: `aegis-store`）を作り、タグ（`<id>-v<version>`）の push で「ビルド → ZIP に署名 → Release → `catalog.json` の作り直しと署名 → Pages に出す」を行う CI を作る。カタログの鍵と ZIP の鍵を分け、Actions の secret に置く。`expires_at` を延ばす定期の作り直しも入れる。
+- [ ] **配布用リポジトリの初回公開**: [AegisCMS-Store](https://github.com/takumi-mr/AegisCMS-Store) にスクリプトとワークフロー（`Publish`）は用意済み。鍵を作って secret（`CATALOG_SIGNING_KEY`・`PACKAGE_SIGNING_KEY`）に登録し、Pages の Source を GitHub Actions にして初回の公開を行う。そのあと、実際の Pages のカタログを `[store]` に設定し、`GET /api/v1/store/packages` で取得できること（`objects.githubusercontent.com` へのリダイレクトを含む）を確かめる。
 - [ ] **ストアからのインストール・更新 API**: カタログの読み込みと一覧（`crates/aegis-server/src/store.rs`・`GET /api/v1/store/packages`）は済。ZIP の取得（`store::build_client` を使う） → `size`・`sha256` の照合 → エントリの `public_key` と `signature.json` の鍵の一致 → 既存の ZIP インストール。`capabilities` がマニフェストと食い違えば拒否。監査ログに取得元を残す。
 - [ ] **Admin Studio のストア画面**: 一覧、互換性のないものの無効化、インストール前の `capabilities` の確認、更新のお知らせ。
