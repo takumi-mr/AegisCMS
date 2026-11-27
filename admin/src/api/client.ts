@@ -15,6 +15,7 @@ import type {
   CommentSettings,
   CommentStatus,
   ContactForm,
+  WidgetSummary,
   ContactMessagePage,
   ContactStatus,
   ContentItem,
@@ -952,6 +953,11 @@ export const aegisApi = {
   /** Contact forms and their fields (404 when [contact] is disabled) */
   async listContactForms(): Promise<ContactForm[]> {
     return request('/contact/forms', {}, i18n.t('api.contactFormsFailed'));
+  },
+
+  /** Custom static widgets discovered under `[paths].widgets_dir` */
+  async listWidgets(): Promise<WidgetSummary[]> {
+    return request('/widgets', {}, i18n.t('api.widgetsFailed'));
   },
 
   /** The contact inbox, newest first, with counts per status */

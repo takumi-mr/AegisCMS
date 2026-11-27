@@ -22,7 +22,7 @@ import {
   Lock,
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import type { BlockNode, ContactForm, PluginBlockDefinition } from '../types';
+import type { BlockNode, ContactForm, PluginBlockDefinition, WidgetSummary } from '../types';
 import { cx } from '../utils/cx';
 import { altFromKey } from '../utils/media';
 import {
@@ -53,6 +53,8 @@ interface BlockItemProps {
   blockDefinitions?: PluginBlockDefinition[];
   /** Contact forms (`GET /api/v1/contact/forms`; empty when [contact] is disabled) */
   contactForms?: ContactForm[];
+  /** Custom static widgets (`GET /api/v1/widgets`) */
+  widgets?: WidgetSummary[];
 }
 
 export const BlockItem: React.FC<BlockItemProps> = ({
@@ -66,6 +68,7 @@ export const BlockItem: React.FC<BlockItemProps> = ({
   canUpload,
   blockDefinitions = [],
   contactForms = [],
+  widgets = [],
 }) => {
   const { t, i18n } = useTranslation();
   const pluginBlock = isPluginBlockName(block.name);
@@ -102,6 +105,8 @@ export const BlockItem: React.FC<BlockItemProps> = ({
         return <Asterisk size={14} />;
       case 'core/contact-form':
         return <Mail size={14} />;
+      case 'core/widget':
+        return <Puzzle size={14} />;
       default:
         return pluginBlock ? <Puzzle size={14} /> : <AlignLeft size={14} />;
     }
@@ -385,6 +390,10 @@ export const BlockItem: React.FC<BlockItemProps> = ({
         <ContactFormBlock block={block} forms={contactForms} onChange={onChange} />
       )}
 
+      {block.name === 'core/widget' && (
+        <WidgetBlock block={block} widgets={widgets} onChange={onChange} />
+      )}
+
       {block.name === 'core/toc' && (
         <div className={styles.stack}>
           <div className={styles.inline}>
@@ -598,6 +607,99 @@ const ContactFormBlock: React.FC<{
             : t('blocks.contactFormMissing', { name })}
         </p>
       )}
+    </div>
+  );
+};
+
+const WidgetBlock: React.FC<{
+  block: BlockNode;
+  widgets: WidgetSummary[];
+  onChange: (updated: BlockNode) => void;
+}> = ({ block, widgets, onChange }) => {
+  const { t } = useTranslation();
+  const name = String(block.attributes?.name ?? '');
+  const title = String(block.attributes?.title ?? '');
+  const height = Number(block.attributes?.height ?? 400);
+  const params = String(block.attributes?.params ?? '');
+  const known = widgets.some((w) => w.name === name);
+
+  return (
+    <div className={styles.stack}>
+      <div className={styles.inline}>
+        <span className={styles.languageLabel}>{t('blocks.widgetName')}</span>
+        {widgets.length > 0 ? (
+          <select
+            className={styles.levelSelect}
+            aria-label={t('blocks.widgetName')}
+            value={name}
+            onChange={(e) =>
+              onChange({ ...block, attributes: { ...block.attributes, name: e.target.value } })
+            }
+          >
+            <option value="">{t('blocks.widgetSelect')}</option>
+            {name && !known && <option value={name}>{name}</option>}
+            {widgets.map((w) => (
+              <option key={w.name} value={w.name}>
+                {w.name}
+              </option>
+            ))}
+          </select>
+        ) : (
+          <input
+            type="text"
+            className={styles.urlInput}
+            aria-label={t('blocks.widgetName')}
+            placeholder="my-widget"
+            value={name}
+            onChange={(e) =>
+              onChange({ ...block, attributes: { ...block.attributes, name: e.target.value } })
+            }
+          />
+        )}
+        <span className={styles.languageLabel}>{t('blocks.widgetHeight')}</span>
+        <input
+          type="number"
+          min={100}
+          max={3000}
+          step={20}
+          className={styles.levelSelect}
+          aria-label={t('blocks.widgetHeight')}
+          value={Number.isFinite(height) ? height : 400}
+          onChange={(e) =>
+            onChange({
+              ...block,
+              attributes: { ...block.attributes, height: Number(e.target.value) || 400 },
+            })
+          }
+        />
+      </div>
+      <div className={styles.inline}>
+        <input
+          type="text"
+          className={styles.urlInput}
+          aria-label={t('blocks.widgetTitle')}
+          placeholder={t('blocks.widgetTitlePlaceholder')}
+          value={title}
+          onChange={(e) =>
+            onChange({ ...block, attributes: { ...block.attributes, title: e.target.value } })
+          }
+        />
+        <input
+          type="text"
+          className={styles.urlInput}
+          aria-label={t('blocks.widgetParams')}
+          placeholder={t('blocks.widgetParamsPlaceholder')}
+          value={params}
+          onChange={(e) =>
+            onChange({ ...block, attributes: { ...block.attributes, params: e.target.value } })
+          }
+        />
+      </div>
+      <p className={styles.note}>
+        {name && !known && widgets.length > 0
+          ? t('blocks.widgetMissing', { name })
+          : t('blocks.widgetHint')}
+      </p>
     </div>
   );
 };

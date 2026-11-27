@@ -357,10 +357,17 @@ pub struct PathsConfig {
     /// 宣言的クエリの定義（`queries/*.yaml`）を置くディレクトリ
     #[serde(default = "default_queries_dir")]
     pub queries_dir: PathBuf,
+    /// `core/widget` ブロックで `<iframe>` 埋め込みする静的ウィジェット（`widgets/<name>/index.html`）を置くディレクトリ
+    #[serde(default = "default_widgets_dir")]
+    pub widgets_dir: PathBuf,
 }
 
 fn default_queries_dir() -> PathBuf {
     PathBuf::from("queries")
+}
+
+fn default_widgets_dir() -> PathBuf {
+    PathBuf::from("widgets")
 }
 
 fn default_themes_dir() -> PathBuf {
@@ -375,6 +382,7 @@ impl Default for PathsConfig {
             admin_dist_dir: PathBuf::from("admin/dist"),
             themes_dir: default_themes_dir(),
             queries_dir: default_queries_dir(),
+            widgets_dir: default_widgets_dir(),
         }
     }
 }

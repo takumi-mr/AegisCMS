@@ -78,6 +78,7 @@
     "blocksFailed": "Could not load the plugin blocks",
     "analyticsFailed": "Failed to load the analytics",
     "contactFormsFailed": "Failed to load the contact forms",
+    "widgetsFailed": "Failed to load the custom widgets",
     "contactMessagesFailed": "Failed to load the contact messages",
     "contactAttachmentFailed": "Failed to download the attachment",
     "updateContactMessageFailed": "Failed to update the message",
@@ -250,7 +251,16 @@
     "contactForm": "Form",
     "contactFormFields": "Fields: {{fields}} (change them in [[contact.forms]] of the configuration file)",
     "contactFormDisabled": "Contact forms are not enabled ([contact].enabled); this block shows nothing.",
-    "contactFormMissing": "There is no form named \"{{name}}\" in the configuration; this block shows nothing."
+    "contactFormMissing": "There is no form named \"{{name}}\" in the configuration; this block shows nothing.",
+    "widgetName": "Widget",
+    "widgetSelect": "Select a widget…",
+    "widgetHeight": "Height (px)",
+    "widgetTitle": "Title",
+    "widgetTitlePlaceholder": "Iframe title (optional, for accessibility)",
+    "widgetParams": "Parameters",
+    "widgetParamsPlaceholder": "Parameters passed via URL hash (optional)",
+    "widgetHint": "Mounts widgets/<name>/index.html inside a sandboxed iframe (allow-scripts allow-forms).",
+    "widgetMissing": "There is no widget named \"{{name}}\" under widgets/; this block shows nothing."
   },
   "categories": {
     "title": "Categories",
@@ -440,6 +450,7 @@
     "details": "Details",
     "footnote": "Footnote",
     "contactForm": "Contact form",
+    "widget": "Widget",
     "review": {
       "readOnly": "You cannot change this content. Contributors can change only their own drafts and items waiting for review.",
       "waiting": "This is waiting for review. Save it as published or scheduled to approve it, or as a draft to return it (the author is emailed).",
@@ -675,7 +686,8 @@
       "details": "Details",
       "paywall": "Members-only break",
       "footnote": "Footnote",
-      "contactForm": "Contact form"
+      "contactForm": "Contact form",
+      "widget": "Widget"
     },
     "inlineCode": "Inline code (`code`)",
     "table": "Table (| A | B |)",

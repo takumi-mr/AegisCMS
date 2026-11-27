@@ -503,4 +503,21 @@ describe('markdown utilities', () => {
       ]);
     });
   });
+
+  describe('custom widget', () => {
+    it('writes and reads [WIDGET ...] shortcodes', () => {
+      const blocks: BlockNode[] = [
+        { name: 'core/widget', attributes: { name: 'price-sim', height: 400 } },
+        {
+          name: 'core/widget',
+          attributes: { name: 'calc', height: 520, title: 'Calculator', params: 'mode=pro' },
+        },
+      ];
+      const markdown = blocksToMarkdown(blocks);
+      expect(markdown).toBe(
+        '[WIDGET name="price-sim"]\n\n[WIDGET name="calc" height=520 title="Calculator" params="mode=pro"]'
+      );
+      expect(markdownToBlocks(markdown)).toEqual(blocks);
+    });
+  });
 });
