@@ -29,3 +29,12 @@
 - [ ] **会員の購入・サブスクの実機確認**: 設計は [members.md 16](docs/members.ja.md#16-購入記事の単独購入サブスク)。実装（記事の単独購入・サブスク・管理画面・マイページ）は済で、Stripe はモックでしか確かめていない。Stripe のテストモードで、決済ページ・Webhook（`checkout.session.completed` / `customer.subscription.*` / `charge.refunded`）・Customer Portal・返金を一度通す。新しい API バージョンで契約の期間の終わりが `items` に移っている点（`current_period_end`）は両対応にしてあるが、実物の応答では未確認。
 - [ ] **official-clarity の実機確認**: 単体テストと Wasm の実行で、起動コードが同意を待つ形で入り、録画しないページに入らないことは確かめた。実際の Clarity での動作（CSP のホストで読み込み・送信がブロックされないか、`scripts.clarity.ms` が要るか）は、プロジェクト ID を入れたサイトで確かめていない。
 - [ ] **official-embeds の実機確認**: URL の読み取り・`src` の組み立て・サニタイズ後に iframe が残ることは単体テストと Wasm の実行で確かめた。実際のブラウザーで、各サービスの埋め込みが CSP（足したホストだけの `frame-src`）の下で表示されるか（埋め込みの中からさらに別のホストを iframe で読む・ポップアップを開くものが無いか。とくに Google マップ・カレンダー・フォーム、CodePen の「クリックで実行」）は確かめていない。同意を待つ埋め込み（`[embed].consent`）で、許可したあとに iframe が読み込まれて案内が隠れること、汎用の埋め込み（`official-embeds/iframe`）の `sandbox` で、よく使うサービス（Google フォーム・Typeform など）が動くことも、実際のブラウザーでは確かめていない。
+
+### 🏪 パッケージストア（第 1 段階）
+
+設計は [store.md](docs/store.ja.md)。当面は公式のプラグイン・テーマだけを配る。上から順に着手する。
+
+- [ ] **配布用リポジトリの用意**: 本体とは別のリポジトリ（例: `aegis-store`）を作り、タグ（`<id>-v<version>`）の push で「ビルド → ZIP に署名 → Release → `catalog.json` の作り直しと署名 → Pages に出す」を行う CI を作る。カタログの鍵と ZIP の鍵を分け、Actions の secret に置く。`expires_at` を延ばす定期の作り直しも入れる。
+- [ ] **CMS 側のカタログ読み込み**: `[[store.catalogs]]` の設定、カタログの取得（https のみ・サイズ上限・タイムアウト・リダイレクト制限）、署名・`schema_version`・`sequence`（巻き戻しの拒否）・`expires_at` の検証。`sequence` の保存先と復元後の扱いは未決（store.md 7）。
+- [ ] **ストアからのインストール・更新 API**: ZIP の取得 → `size`・`sha256` の照合 → エントリの `public_key` と `signature.json` の鍵の一致 → 既存の ZIP インストール。`capabilities` がマニフェストと食い違えば拒否。監査ログに取得元を残す。
+- [ ] **Admin Studio のストア画面**: 一覧、互換性のないものの無効化、インストール前の `capabilities` の確認、更新のお知らせ。
