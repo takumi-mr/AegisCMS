@@ -118,9 +118,25 @@ const TOC_LINE = /^\[(?:TOC|toc)((?:\s+(?:title="[^"]*"|maxLevel=\d))*)\s*\]$/;
 /** A contact form: `[CONTACT]` (the default form) or `[CONTACT form="sales"]` */
 const CONTACT_LINE = /^\[(?:CONTACT|contact)(?:\s+form="([a-z0-9_-]*)")?\s*\]$/;
 
+/** A custom static widget: `[WIDGET name="price-sim" height=400 title="..." params="..."]` */
+const WIDGET_LINE = /^\[(?:WIDGET|widget)((?:\s+[a-z]+=(?:"[^"]*"|\d+))*)\s*\]$/;
+
 function contactToMarkdown(block: BlockNode): string {
   const form = String(block.attributes?.form ?? '').trim();
   return form && form !== 'default' ? `[CONTACT form="${form}"]` : '[CONTACT]';
+}
+
+function widgetToMarkdown(block: BlockNode): string {
+  let options = '';
+  const name = String(block.attributes?.name ?? '').trim();
+  if (name) options += ` name="${name}"`;
+  const height = Number(block.attributes?.height ?? 400);
+  if (Number.isFinite(height) && height !== 400) options += ` height=${height}`;
+  const title = String(block.attributes?.title ?? '').trim();
+  if (title) options += ` title="${title.replace(/"/g, "'")}"`;
+  const params = String(block.attributes?.params ?? '').trim();
+  if (params) options += ` params="${params.replace(/"/g, "'")}"`;
+  return `[WIDGET${options}]`;
 }
 
 function tocToMarkdown(block: BlockNode): string {
@@ -196,6 +212,10 @@ export function blocksToMarkdown(blocks: BlockNode[]): string {
       }
       case 'core/contact-form': {
         parts.push(contactToMarkdown(block));
+        break;
+      }
+      case 'core/widget': {
+        parts.push(widgetToMarkdown(block));
         break;
       }
       case 'core/quote': {
@@ -342,6 +362,23 @@ export function markdownToBlocks(markdown: string): BlockNode[] {
         name: 'core/contact-form',
         attributes: { form: contactMatch[1] || 'default' },
       });
+      i++;
+      continue;
+    }
+
+    // Custom widget: [WIDGET name="price-sim" height=400 title="..." params="..."]
+    const widgetMatch = line.trim().match(WIDGET_LINE);
+    if (widgetMatch) {
+      const attributes: Record<string, any> = {};
+      const name = widgetMatch[1].match(/name="([A-Za-z0-9_-]*)"/);
+      if (name && name[1]) attributes.name = name[1];
+      const height = widgetMatch[1].match(/height=(\d+)/);
+      attributes.height = height ? Math.max(100, Math.min(3000, Number(height[1]))) : 400;
+      const title = widgetMatch[1].match(/title="([^"]*)"/);
+      if (title && title[1].trim()) attributes.title = title[1].trim();
+      const params = widgetMatch[1].match(/params="([^"]*)"/);
+      if (params && params[1].trim()) attributes.params = params[1].trim();
+      blocks.push({ name: 'core/widget', attributes });
       i++;
       continue;
     }
@@ -574,6 +611,7 @@ export function markdownToBlocks(markdown: string): BlockNode[] {
           PAYWALL_LINE.test(curLine.trim()) ||
           curLine.trim().match(TOC_LINE) ||
           CONTACT_LINE.test(curLine.trim()) ||
+          WIDGET_LINE.test(curLine.trim()) ||
           SEPARATOR_LINE.test(curLine) ||
           isTableStart(lines, i))
       ) {
@@ -632,6 +670,7 @@ const SUMMARY_KEYS = {
   'core/details': 'markdown.summary.details',
   'core/footnote': 'markdown.summary.footnote',
   'core/contact-form': 'markdown.summary.contactForm',
+  'core/widget': 'markdown.summary.widget',
 } as const;
 
 /**

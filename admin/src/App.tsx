@@ -62,6 +62,7 @@ import { takeInviteToken, takeResetToken, takeVerifyToken } from './utils/verify
 import type {
   BlockNode,
   ContactForm,
+  WidgetSummary,
   ContentItem,
   ContentVersionDetail,
   ContentSummary,
@@ -181,6 +182,8 @@ export const App: React.FC = () => {
   const [forumEnabled, setForumEnabled] = useState<boolean>(false);
   // Contact forms ([contact].enabled); empty until the server lists them
   const [contactForms, setContactForms] = useState<ContactForm[]>([]);
+  // Custom static widgets discovered under [paths].widgets_dir
+  const [widgets, setWidgets] = useState<WidgetSummary[]>([]);
   // Hidden until the server says analytics are on ([analytics].enabled)
   const [analyticsEnabled, setAnalyticsEnabled] = useState<boolean>(false);
   const [isOnline, setIsOnline] = useState<boolean>(false);
@@ -531,6 +534,14 @@ export const App: React.FC = () => {
       })
       .catch(() => {
         if (!cancelled) setContactForms([]);
+      });
+    aegisApi
+      .listWidgets()
+      .then((list) => {
+        if (!cancelled) setWidgets(list);
+      })
+      .catch(() => {
+        if (!cancelled) setWidgets([]);
       });
     return () => {
       cancelled = true;
@@ -1676,6 +1687,18 @@ export const App: React.FC = () => {
                         <FileCode size={14} />
                         <span>{t('editor.html')}</span>
                       </Button>
+                      <Button
+                        variant="tool"
+                        onClick={() =>
+                          addBlock('core/widget', '', {
+                            name: widgets[0]?.name ?? '',
+                            height: 400,
+                          })
+                        }
+                      >
+                        <Puzzle size={14} />
+                        <span>{t('editor.widget')}</span>
+                      </Button>
                       {contactForms.length > 0 && (
                         <Button
                           variant="tool"
@@ -1724,6 +1747,7 @@ export const App: React.FC = () => {
                           canUpload={writable}
                           blockDefinitions={blockDefinitions}
                           contactForms={contactForms}
+                          widgets={widgets}
                         />
                       ))}
 

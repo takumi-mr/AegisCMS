@@ -1338,6 +1338,11 @@ export interface ContactForm {
   auto_reply: boolean;
 }
 
+/** `GET /api/v1/widgets` — static widgets placed under `[paths].widgets_dir` */
+export interface WidgetSummary {
+  name: string;
+}
+
 export type ContactStatus = 'new' | 'read' | 'done' | 'spam';
 
 /** A file attached to a contact message (downloaded through the API; it has no public URL) */
