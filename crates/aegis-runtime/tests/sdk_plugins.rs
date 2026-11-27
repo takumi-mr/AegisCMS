@@ -134,7 +134,10 @@ async fn run_sdk_plugins(engine: &WasmEngine) {
                 .await
                 .unwrap_or_else(|e| panic!("{}: on_render_page: {}", name, e));
             assert_eq!(rendered.template, "article.html", "{}", name);
-            assert!(!rendered.extra_css.is_empty(), "{}", name);
+            // ブロック専用プラグイン（react-island / vue-island）は該当ブロックがあるページにだけアセットを足す
+            if plugin.manifest().blocks.is_empty() {
+                assert!(!rendered.extra_css.is_empty(), "{}", name);
+            }
         }
     }
 }
