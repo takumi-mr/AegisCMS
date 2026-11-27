@@ -133,6 +133,7 @@ consent_exempt = ["www.openstreetmap.org"]  # 待たないホスト（Cookie を
 - 待つ iframe があるブロックには、先頭に「この埋め込みは、Cookie の利用を許可すると表示されます。」と「Cookie の設定」ボタンを出します（`p.aegis-consent-note`。文言は `[theme].locale`。見た目は `consent.css` で、テーマで変えられます）。許可すると案内は隠れ、埋め込みが読み込まれます。
 - 対象は公開ページとプレビューだけです。コンテンツ API（`rendered_html`）・ヘッドレスの `html`・フィードは変えません（同意のスクリプトが無いので、クライアントが自分で同意を扱います）。
 - 区分は 1 つです（サービスごとに分けたいときは、`consent_exempt` で待たないものを外します）。`[consent]` が無効なら書けません。
+- **待つのは `<iframe>` だけです**。プラグインのブロックが出す外部の `<img>`・`<audio>`・`<video>`・CSS の `url()` は、同意の前でも読み込まれます（閲覧者の IP アドレスなどが送られます）。外部のホストから読み込ませたくないときは、CSP の `img-src`・`media-src` を絞るか、そうしたブロックを使わないでください。
 
 ## 3. テーマでバナーを作る(`templates/consent.html`)
 

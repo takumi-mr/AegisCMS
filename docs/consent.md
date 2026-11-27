@@ -133,6 +133,7 @@ consent_exempt = ["www.openstreetmap.org"]  # hosts that do not wait (such as on
 - A block with an iframe that waits gets, at its top, "This embedded content is shown once you allow cookies for it." and a "Cookie settings" button (`p.aegis-consent-note`; the wording follows `[theme].locale`, and the look is in `consent.css`, which a theme can change). Once allowed, the note hides and the embed loads.
 - Only public pages and previews are affected. The content API (`rendered_html`), headless `html`, and feeds are left as they are (there is no consent script there, so clients handle consent themselves).
 - There is one category (to treat services differently, exclude the ones that need not wait with `consent_exempt`). It cannot be set while `[consent]` is disabled.
+- **Only `<iframe>`s wait.** External `<img>`, `<audio>`, `<video>`, and CSS `url()` that plugin blocks output are loaded even before consent (the viewer's IP address and other details are sent). To keep them from loading from external hosts, narrow the CSP's `img-src` and `media-src`, or do not use such blocks.
 
 ## 3. Building the Banner in a Theme (`templates/consent.html`)
 
