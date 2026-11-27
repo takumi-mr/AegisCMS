@@ -74,6 +74,9 @@ pub struct RenderedContent {
 /// 問い合わせフォームのブロック（`{"form": "<フォームの名前>"}`。トップレベルに置いたものだけ描く）
 pub const CONTACT_FORM_BLOCK: &str = "core/contact-form";
 
+/// カスタムウィジェットの iframe 埋め込みブロック（`{"name": "<ウィジェット名>", "height": 400}`）
+pub const WIDGET_BLOCK: &str = "core/widget";
+
 /// Renders stored blocks to body HTML, including the plugins' custom blocks: a block named
 /// `<plugin>/<block>` that an enabled plugin declares is rendered by that plugin's
 /// `render-blocks` hook (one call per plugin with all of its blocks, in document order). The
@@ -98,13 +101,18 @@ pub async fn render_content(state: &AppState, blocks: &[BlockNode]) -> RenderedC
             }
         }
     }
-    // 問い合わせフォームのブロック（設定のフォームから作る。HTML はエスケープ済み）
+    // 問い合わせフォーム・カスタムウィジェットのブロック（HTML はエスケープ済み）
     let mut prerendered = HashMap::new();
     for (i, block) in blocks.iter().enumerate() {
         if block.name == CONTACT_FORM_BLOCK {
             prerendered.insert(
                 i,
                 crate::handlers::contact::block_html(state, &block.attributes),
+            );
+        } else if block.name == WIDGET_BLOCK {
+            prerendered.insert(
+                i,
+                crate::handlers::widget::block_html(state, &block.attributes),
             );
         }
     }

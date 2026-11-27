@@ -78,6 +78,7 @@
     "blocksFailed": "プラグインのブロックを取得できませんでした",
     "analyticsFailed": "アクセス解析を読み込めませんでした",
     "contactFormsFailed": "問い合わせフォームを読み込めませんでした",
+    "widgetsFailed": "カスタムウィジェットを読み込めませんでした",
     "contactMessagesFailed": "問い合わせを読み込めませんでした",
     "contactAttachmentFailed": "添付ファイルをダウンロードできませんでした",
     "updateContactMessageFailed": "問い合わせを更新できませんでした",
@@ -249,7 +250,16 @@
     "contactForm": "フォーム",
     "contactFormFields": "項目: {{fields}}（設定ファイルの [[contact.forms]] で変えられます）",
     "contactFormDisabled": "問い合わせフォームが無効です（[contact].enabled）。このブロックは何も表示しません。",
-    "contactFormMissing": "設定に「{{name}}」というフォームがありません。このブロックは何も表示しません。"
+    "contactFormMissing": "設定に「{{name}}」というフォームがありません。このブロックは何も表示しません。",
+    "widgetName": "ウィジェット",
+    "widgetSelect": "ウィジェットを選択…",
+    "widgetHeight": "高さ (px)",
+    "widgetTitle": "タイトル",
+    "widgetTitlePlaceholder": "iframe のタイトル（任意・アクセシビリティ用）",
+    "widgetParams": "パラメータ",
+    "widgetParamsPlaceholder": "URL ハッシュで渡すパラメータ（任意・JSON 等）",
+    "widgetHint": "widgets/<名前>/index.html をサンドボックス付き iframe（allow-scripts allow-forms）に自動マウントします。",
+    "widgetMissing": "widgets/ に「{{name}}」が見つかりません。このブロックは何も表示しません。"
   },
   "categories": {
     "title": "カテゴリ",
@@ -437,6 +447,7 @@
     "details": "折りたたみ",
     "footnote": "脚注",
     "contactForm": "問い合わせフォーム",
+    "widget": "ウィジェット",
     "review": {
       "readOnly": "このコンテンツは変更できません。寄稿者が変更できるのは、自分の下書きとレビュー待ちのものだけです。",
       "waiting": "レビュー待ちです。公開・予約公開にして保存すると承認、下書きに戻して保存すると差し戻しになります（著者にメールで知らせます）。",
@@ -666,7 +677,8 @@
       "details": "折りたたみ",
       "paywall": "会員向けの区切り",
       "footnote": "脚注",
-      "contactForm": "問い合わせフォーム"
+      "contactForm": "問い合わせフォーム",
+      "widget": "ウィジェット"
     },
     "inlineCode": "インラインコード（`コード`）",
     "table": "表（| A | B |）",

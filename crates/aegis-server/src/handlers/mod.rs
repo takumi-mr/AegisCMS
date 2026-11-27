@@ -43,6 +43,7 @@ pub mod tags;
 pub mod tags_public;
 pub mod theme;
 pub mod users;
+pub mod widget;
 
 pub use crate::system::{get_system_settings, update_system_settings};
 pub use access::unlock_content_password;
@@ -135,6 +136,7 @@ pub use users::{
     create_user, delete_avatar, delete_user, disable_2fa, enable_2fa, get_user, list_users,
     reset_user_2fa, setup_2fa, update_user, upload_avatar,
 };
+pub use widget::{get_widget_asset, get_widget_index, list_widgets};
 
 #[cfg(test)]
 mod access_tests;

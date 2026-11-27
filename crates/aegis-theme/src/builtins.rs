@@ -465,6 +465,7 @@ pub const BLOCK_STYLES: &str = "<style id=\"aegis-block-styles\">\
 .aegis-ta-left{text-align:left}.aegis-ta-center{text-align:center}.aegis-ta-right{text-align:right}\
 .aegis-contact-trap,.aegis-newsletter-trap{position:absolute;left:-10000px;width:1px;height:1px;overflow:hidden}\
 :where(iframe.aegis-html-sandbox){width:100%;border:0;display:block;min-height:48px}\
+:where(.aegis-widget){margin:1.5rem 0}:where(iframe.aegis-widget-frame){width:100%;border:0;display:block;border-radius:8px}\
 </style>";
 
 /// `[theme].front_page = "template"` のトップページ。テーマに `front.html` が無ければ記事一覧と同じ表示にする
