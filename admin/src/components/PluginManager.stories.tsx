@@ -59,6 +59,8 @@ const PLUGINS: PluginInfo[] = [
           frame_domains: ['www.youtube-nocookie.com', 'player.vimeo.com'],
           site_domains: true,
         },
+        local_scripts: true,
+        inline_scripts: true,
       },
     }),
   },
@@ -208,6 +210,10 @@ export const Default: Story = {
     ).toBeVisible();
     // 管理者が許可したホストを受け入れるプラグインは、そのことが出る
     await expect(canvas.getByText(/hosts allowed in Settings › Headers/)).toBeVisible();
+    // サイトで JavaScript を動かすプラグインは、そのことが出る
+    await expect(
+      canvas.getByText('Runs JavaScript on public pages: inline, files on this site')
+    ).toBeVisible();
   },
 };
 

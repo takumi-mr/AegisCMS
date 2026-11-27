@@ -1524,6 +1524,9 @@
     "installing": "Installing...",
     "frameDomains": "Embeds (iframe): {{domains}}",
     "siteFrameDomains": "Embeds (iframe): hosts allowed in Settings › Headers",
+    "runsScripts": "Runs JavaScript on public pages: {{kinds}}",
+    "inlineScripts": "inline",
+    "localScripts": "files on this site",
     "cspDomains": "CSP {{directive}}: {{domains}}"
   },
   "site": {

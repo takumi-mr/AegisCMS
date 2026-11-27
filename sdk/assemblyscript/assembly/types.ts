@@ -130,7 +130,8 @@ export class PageRenderContext {
 /**
  * `<head>` に足すスクリプト 1 つ。ホストがマニフェストの宣言と照合して検査し、タグを作る
  * （属性はホストが決める）。
- * - 外部（`external`）: URL は、このサイトのパスか、`capabilities.csp.script_domains` にある `https://` の URL
+ * - 外部（`external`）: URL は、`capabilities.csp.script_domains` にある `https://` の URL か、
+ *   `capabilities.local_scripts: true` のときのこのサイトのパス（ほかのプラグインのアセットは不可）
  * - インライン（`inline`）: マニフェストに `capabilities.inline_scripts: true` が要る
  * `consent` に区分（`analytics` など）を入れると、ホストが同意のあとに実行する形で出す
  */

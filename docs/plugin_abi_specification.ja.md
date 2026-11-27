@@ -437,7 +437,7 @@ EC のカートの見積もり・注文の確定時に呼び出されます（[�
 ```
 
 - **書き込み専用**: プラグインには常に空で渡されます。ホストが検査して `<script>` のタグにし、全プラグインのあとで `extra_head` の後ろに足します。**属性はホストが決めます**（`onload` などを書けない）。順序は、返した順（プラグインの順）です。
-- **`external`**: `url` は、このサイトのパス（`/assets/x.js`）か、ホストがマニフェストの `capabilities.csp.script_domains` にある `https://` の URL（ユーザー情報・ポート・引用符・空白を含むものは不可）。`async_load`・`defer`・`crossorigin`（`crossorigin="anonymous"`）は任意。
+- **`external`**: `url` は、ホストがマニフェストの `capabilities.csp.script_domains` にある `https://` の URL（ユーザー情報・ポート・引用符・空白を含むものは不可）か、マニフェストに **`capabilities.local_scripts: true`** の宣言があるときの、このサイトのパス（`/assets/x.js`・`/plugins/<自分の名前>/assets/x.js`）。ほかのプラグインのアセット（`/plugins/<別の名前>/…`）は、宣言があっても読めません。`async_load`・`defer`・`crossorigin`（`crossorigin="anonymous"`）は任意。
 - **`inline`**: マニフェストに **`capabilities.inline_scripts: true`** の宣言が要ります（宣言がなければ捨てます）。本文は 64 KB まで、NUL を含まないこと。`</script` と `<!--` は、ホストが JavaScript の意味を変えない形にします。
 - **`consent`**: 同意の区分（`[a-z0-9_-]` の 1〜32 文字）。あれば、ホストが `type="text/plain" data-aegis-consent="区分"` の形で出し、同意のあとにバナーのスクリプトが実行します（[consent.md](consent.ja.md)）。プラグインが HTML を組み立てる必要はありません。
 - **違反したスクリプトは捨てます**（ページは壊しません）。理由は警告ログに残ります。`aegis-plugin-dev` のプレビューは、捨てた理由を表示します。
@@ -520,6 +520,7 @@ EC のカートの見積もり・注文の確定時に呼び出されます（[�
 - **`capabilities.embed.frame_domains`**: カスタムブロックの HTML に残せる `<iframe>` の配信元のホスト（CSP の `frame-src` にも足される）。形式は [plugin_hooks.md 3.2](plugin_hooks.ja.md#32-外部のページの埋め込み-capabilitiesembed)。
 - **`capabilities.embed.site_domains`**: `true` なら、サイトの管理者が許可したホスト（`[embed].frame_domains` と Settings › Headers）の `<iframe>` も残す。詳細は [plugin_hooks.md 3.2](plugin_hooks.ja.md#32-外部のページの埋め込み-capabilitiesembed)。
 - **`capabilities.inline_scripts`**: `on-render-page` の `scripts` でインラインのスクリプトを足す宣言（真偽値。既定 `false`）。形式は [5.3.3a](#533a-on_render_page-でスクリプトを足すscriptsabi-2)。外部のスクリプトのホストは `capabilities.csp.script_domains`。
+- **`capabilities.local_scripts`**: `on-render-page` の `scripts` で、このサイトのパスのスクリプト（プラグインが同梱した `/plugins/<自分の名前>/assets/` の JS など）を足す宣言（真偽値。既定 `false`）。Admin Studio のプラグインの一覧の「機能・権限」に「公開ページで JavaScript を実行」と表示されます。
 - **`capabilities.render_page.input`**: `on-render-page` に渡す重いフィールドの絞り込み。形式は [5.3.3](#533-on_render_page-に渡すフィールドの絞り込みcapabilitiesrender_pageinput)。
 - **`blocks`**: 本文に置けるカスタムブロックの宣言（名前・表示名・入力欄）。`render-blocks` フックが必要。形式は [plugin_hooks.md 3.1](plugin_hooks.ja.md#31-カスタムブロック-blocks)。
 

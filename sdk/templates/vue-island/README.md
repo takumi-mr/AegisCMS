@@ -4,7 +4,7 @@ Admin Studio の記事エディタから差し込める **Vue 3 アイランド�
 
 ## 構成
 
-- `plugin.manifest.json`: Admin Studio のエディタ用ブロック定義と CSP capability 宣言
+- `plugin.manifest.json`: Admin Studio のエディタ用ブロック定義と CSP capability 宣言。同梱した `assets/island.js` を読み込むため `capabilities.local_scripts: true` を宣言しています（無いとホストがスクリプトを捨てます）
 - `src/lib.rs`: `render-blocks`（マウント先 `<div data-aegis-island="vue-counter" data-props="...">` を出力）および `on-render-page`（該当ブロックがある記事だけ `/plugins/<name>/assets/island.{js,css}` を注入）
 - `frontend/`: Vue 3 + Vite プロジェクト（SFC を事前コンパイルするため `'unsafe-eval'` 不要で Strict CSP に完全適合。`npm run build` で `../assets/island.js` と `../assets/island.css` を生成）
 

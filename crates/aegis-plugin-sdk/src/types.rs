@@ -336,7 +336,8 @@ impl InjectedScript {
         }
     }
 
-    /// 外部のスクリプト（ホストは `capabilities.csp.script_domains` にある `https://` の URL だけ通す）
+    /// 外部のスクリプト（ホストは `capabilities.csp.script_domains` にある `https://` の URL と、
+    /// `capabilities.local_scripts: true` のときのこのサイトのパスだけ通す。ほかのプラグインのアセットは不可）
     pub fn external(url: impl Into<String>) -> Self {
         Self {
             source: ScriptSource::External {

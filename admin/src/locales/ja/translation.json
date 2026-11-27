@@ -1506,6 +1506,9 @@
     "installing": "インストール中...",
     "frameDomains": "埋め込み（iframe）: {{domains}}",
     "siteFrameDomains": "埋め込み（iframe）: Settings › Headers で許可したホスト",
+    "runsScripts": "公開ページで JavaScript を実行: {{kinds}}",
+    "inlineScripts": "インライン",
+    "localScripts": "サイト上のファイル",
     "cspDomains": "CSP {{directive}} に追加: {{domains}}"
   },
   "site": {

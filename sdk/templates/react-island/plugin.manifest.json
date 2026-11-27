@@ -29,7 +29,8 @@
     },
     "csp": {
       "connect_domains": []
-    }
+    },
+    "local_scripts": true
   },
   "resource_limits": {
     "max_memory_mb": 16,

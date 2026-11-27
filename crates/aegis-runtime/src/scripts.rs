@@ -59,6 +59,20 @@ fn is_same_origin_path(url: &str) -> bool {
 }
 
 /// URL に入れてはいけないバイト（制御文字・空白・引用符・`<` `>`・バックスラッシュ・DEL）
+/// サイトのパスのうち、プラグイン `name` が読んでよいものか: `/plugins/` の下なら自分の名前のものだけ
+/// （ほかのプラグインのアセットを、そのプラグインの宣言を借りて読まない）。大文字小文字は区別しない
+fn is_own_or_shared_path(url: &str, name: &str) -> bool {
+    let path = url.split(['?', '#']).next().unwrap_or("");
+    let lower = path.to_ascii_lowercase();
+    match lower.strip_prefix("/plugins/") {
+        Some(rest) => {
+            let owner = rest.split('/').next().unwrap_or("");
+            owner == name.to_ascii_lowercase() && !rest.split('/').any(|seg| seg == "..")
+        }
+        None => !lower.starts_with("/plugins") || lower == "/plugins",
+    }
+}
+
 fn is_unsafe_url_byte(b: u8) -> bool {
     matches!(b, 0..=0x20 | 0x22 | 0x27 | 0x3c | 0x3e | 0x5c | 0x7f)
 }
@@ -74,7 +88,9 @@ fn escape_attribute(value: &str) -> String {
 
 /// 検査して、`<head>` に足すタグを作る。
 ///
-/// - `external`: このサイトのパス（`/assets/x.js`）か、ホストがマニフェストの `capabilities.csp.script_domains` にある `https://` の URL
+/// - `external`: ホストがマニフェストの `capabilities.csp.script_domains` にある `https://` の URL か、
+///   マニフェストに `capabilities.local_scripts: true` の宣言があるときの、このサイトのパス（`/assets/x.js`）。
+///   サイトのパスでも、ほかのプラグインのアセット（`/plugins/<別の名前>/…`）は読めない
 /// - `inline`: マニフェストに `capabilities.inline_scripts: true` の宣言があり、`MAX_INLINE_SCRIPT_BYTES` 以下で、NUL を含まないこと
 /// - 同意の区分は `[a-z0-9_-]{1,32}`
 ///
@@ -103,6 +119,20 @@ pub fn render_script_tags(manifest: &PluginManifest, scripts: &[InjectedScript])
                 defer,
                 crossorigin,
             } => {
+                if is_same_origin_path(url) {
+                    if !manifest.capabilities.local_scripts {
+                        tags.rejected.push(format!(
+                            "external script {url:?}: a path on this site needs capabilities.local_scripts"
+                        ));
+                        continue;
+                    }
+                    if !is_own_or_shared_path(url, &manifest.name) {
+                        tags.rejected.push(format!(
+                            "external script {url:?}: another plugin's assets cannot be loaded"
+                        ));
+                        continue;
+                    }
+                }
                 let allowed = is_same_origin_path(url)
                     || https_host(url).is_some_and(|host| {
                         manifest
@@ -218,9 +248,17 @@ mod tests {
             assert!(out.html.is_empty(), "{bad}: {}", out.html);
             assert_eq!(out.rejected.len(), 1, "{bad}");
         }
-        // このサイトのパスは、宣言なしで通る
-        let local = render_script_tags(
+        // このサイトのパスは、capabilities.local_scripts の宣言が要る
+        let undeclared = render_script_tags(
             &manifest(false, &[]),
+            &[InjectedScript::external("/assets/mermaid.min.js")],
+        );
+        assert!(undeclared.html.is_empty());
+        assert_eq!(undeclared.rejected.len(), 1, "{:?}", undeclared.rejected);
+        let mut with_local = manifest(false, &[]);
+        with_local.capabilities.local_scripts = true;
+        let local = render_script_tags(
+            &with_local,
             &[InjectedScript::external("/assets/mermaid.min.js")],
         );
         assert_eq!(
@@ -245,6 +283,34 @@ mod tests {
         )
         .html
         .is_empty());
+    }
+
+    #[test]
+    fn local_scripts_can_load_only_the_plugins_own_assets() {
+        let mut m = manifest(false, &[]);
+        m.name = "my-island".to_string();
+        m.capabilities.local_scripts = true;
+        for ok in [
+            "/plugins/my-island/assets/island.js",
+            "/plugins/My-Island/assets/island.js?v=1",
+            "/theme/assets/site.js",
+            "/assets/mermaid.min.js",
+        ] {
+            let out = render_script_tags(&m, &[InjectedScript::external(ok)]);
+            assert!(out.rejected.is_empty(), "{ok}: {:?}", out.rejected);
+        }
+        for bad in [
+            "/plugins/other/assets/x.js",
+            "/plugins/my-island-2/assets/x.js",
+            "/plugins/my-island/../other/assets/x.js",
+            "/PLUGINS/other/assets/x.js",
+            "/pluginsother/x.js",
+            "/plugins/",
+        ] {
+            let out = render_script_tags(&m, &[InjectedScript::external(bad)]);
+            assert!(out.html.is_empty(), "{bad}: {}", out.html);
+            assert_eq!(out.rejected.len(), 1, "{bad}");
+        }
     }
 
     #[test]
