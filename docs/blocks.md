@@ -258,3 +258,36 @@ It can also be set from Admin Studio's plugin management screen and takes effect
 **Network restrictions** (common to all plugins; [plugin_hooks.md 5.4](plugin_hooks.md#54-http-requests-hosthttp_fetch)): only `http` / `https`, and ports only 443 for `https` and 80 or 8080 for `http`. It does not connect to internal IP addresses (loopback, private, link-local = cloud metadata, etc.) or host names that resolve to them, even if written in the allowed domains. Redirects are followed up to 3 times, with the allowed domains and the above restrictions checked at each destination.
 
 The classes for changing the look in a theme are `.oe-card`, `.oe-body`, `.oe-title`, `.oe-description`, `.oe-site`, and `.oe-image` (zero-specificity `:where()`).
+
+## 6. Custom widgets (`core/widget`) and choosing a frontend extension approach
+
+There are four ways to integrate interactive UI built with React, Vue, or other frontend frameworks into AegisCMS, depending on where and how it is used.
+
+### 6.1 Choosing the right approach
+
+| Goal                                                                                                                                                                                                                                                                             | Recommended approach                                            | Why                                                                                                                                                                     |
+| -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Site-wide UI** shared across pages (header search, navigation, fixed LP sections)                                                                                                                                                                                              | **Theme** (`templates/` + `assets/`)                            | Simplest to manage as part of the layout. Built JS/CSS placed in `themes/<name>/assets/` can mount partially as islands under Strict CSP                                |
+| **Per-article / per-page mini-apps** (either the same widget or a different widget per page)                                                                                                                                                                                     | **`core/widget`** (`widgets/<name>/` + iframe)                  | No Rust or Wasm required—just drop a `vite build` output into `widgets/<name>/`. Completely avoids CSS collisions and runs isolated in a sandboxed iframe               |
+| Advanced widgets that need any of the following:<br>• A dedicated **editor form (GUI)** for authors<br>• **Seamless integration** with article fonts, dark mode, and dynamic height<br>• **External API calls** (`capabilities.csp.connect_domains`) or **Wasm-side processing** | **Custom Plugin** (`sdk/templates/react-island` / `vue-island`) | Declare form fields and CSP permissions in `plugin.manifest.json`, and inject `/plugins/<name>/assets/` JS/CSS only on pages that use the block for direct DOM mounting |
+| Building the **entire site** with React / Vue                                                                                                                                                                                                                                    | **Headless mode** (separate Next.js / Nuxt / Astro app)         | Keeps routing, SSR, and state management unified in the frontend app ([Headless Delivery API](headless.md))                                                             |
+
+In practice, starting with **Theme** (site-wide layout) and **`core/widget`** (per-page mini-apps) covers most use cases with minimal overhead. Promote a widget to a **Custom Plugin** only when authors need a dedicated form UI or direct DOM integration with the surrounding article.
+
+### 6.2 Using `core/widget`
+
+Place a directory named after your widget containing `index.html` under `[paths].widgets_dir` (default: `widgets/`). No Rust code or server restart is required.
+
+```text
+widgets/
+└── price-sim/
+    ├── index.html
+    └── assets/
+        ├── index.js
+        └── index.css
+```
+
+- **Building with Vite**: set `base: './'` in `vite.config.ts` so assets resolve relative to `/widgets/<name>/`, then copy `dist/` into `widgets/<name>/`.
+- **Inserting from the editor**: click **Widget** in the Admin Studio toolbar to pick a discovered widget and set its height (100–3000px, default 400), iframe title, and optional parameters. In Markdown, it round-trips as `[WIDGET name="price-sim" height=400 title="Price Simulator" params="mode=pro"]`.
+- **Reading parameters**: `params` is passed via the URL hash (`/widgets/<name>/index.html#<encoded>`), so your widget can read it with `decodeURIComponent(location.hash.slice(1))` without fragmenting server/CDN caches.
+- **Security**: public pages render `<iframe sandbox="allow-scripts allow-forms" loading="lazy" referrerpolicy="no-referrer">`. Because `allow-same-origin` is omitted, the widget is strictly isolated from the parent page DOM and administrator sessions.
