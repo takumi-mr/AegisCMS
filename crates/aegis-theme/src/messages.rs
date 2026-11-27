@@ -58,6 +58,11 @@ const MESSAGES: &[(&str, &str, &str)] = &[
         "サイトを動かすために必要です。常にオンです。",
     ),
     ("consent.reopen", "Cookie settings", "Cookie の設定"),
+    (
+        "consent.embed_waiting",
+        "This embedded content is shown once you allow cookies for it.",
+        "この埋め込みは、Cookie の利用を許可すると表示されます。",
+    ),
     ("consent.category.analytics", "Analytics", "アクセス解析"),
     (
         "consent.category.analytics.description",

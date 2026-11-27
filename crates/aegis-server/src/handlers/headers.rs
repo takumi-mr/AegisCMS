@@ -8,8 +8,9 @@ use crate::auth::authorize::RequireRole;
 use crate::auth::AdminSession;
 use crate::headers::{
     self, CustomHeader, HeaderDefaults, HeaderOverrides, COOP_SETTING, CSP_SETTING,
-    CUSTOM_HEADERS_SETTING, MAX_CUSTOM_HEADERS_COUNT, PERMISSIONS_POLICY_SETTING,
-    REFERRER_POLICY_SETTING, X_CONTENT_TYPE_OPTIONS_SETTING, X_FRAME_OPTIONS_SETTING,
+    CUSTOM_HEADERS_SETTING, EMBED_FRAME_DOMAINS_SETTING, MAX_CUSTOM_HEADERS_COUNT,
+    PERMISSIONS_POLICY_SETTING, REFERRER_POLICY_SETTING, X_CONTENT_TYPE_OPTIONS_SETTING,
+    X_FRAME_OPTIONS_SETTING,
 };
 use crate::state::AppState;
 use aegis_core::{AuditAction, AuditActor, AuditOutcome};
@@ -26,6 +27,13 @@ pub struct HeadersSettingsResponse {
     pub permissions_policy: Option<String>,
     pub cross_origin_opener_policy: Option<String>,
     pub custom_headers: Vec<CustomHeader>,
+    /// 管理者が許可する埋め込みのホスト（Admin Studio で設定したもの）
+    pub embed_frame_domains: Vec<String>,
+    /// 設定ファイルの `[embed].frame_domains`（読み取り専用。Admin Studio の値と合わせて使う）
+    pub config_embed_frame_domains: Vec<String>,
+    /// 許可したホストを受け入れるプラグイン（`capabilities.embed.site_domains`）が有効か。
+    /// 無効なら、許可したホストは本文にも CSP にも効かない
+    pub embed_frame_domains_in_use: bool,
     pub defaults: HeaderDefaults,
 }
 
@@ -46,9 +54,13 @@ pub struct UpdateHeadersSettings {
     pub cross_origin_opener_policy: Option<String>,
     #[serde(default)]
     pub custom_headers: Option<Vec<CustomHeader>>,
+    /// 省略すると今の値のまま（空の配列で消す）
+    #[serde(default)]
+    pub embed_frame_domains: Option<Vec<String>>,
 }
 
-fn response(overrides: HeaderOverrides) -> HeadersSettingsResponse {
+async fn response(state: &AppState, overrides: HeaderOverrides) -> HeadersSettingsResponse {
+    let in_use = state.supervisor.read().await.accepts_site_frame_domains();
     HeadersSettingsResponse {
         content_security_policy: overrides.content_security_policy,
         x_frame_options: overrides.x_frame_options,
@@ -57,6 +69,9 @@ fn response(overrides: HeaderOverrides) -> HeadersSettingsResponse {
         permissions_policy: overrides.permissions_policy,
         cross_origin_opener_policy: overrides.cross_origin_opener_policy,
         custom_headers: overrides.custom_headers,
+        embed_frame_domains: overrides.embed_frame_domains,
+        config_embed_frame_domains: state.config.embed.frame_domains.clone(),
+        embed_frame_domains_in_use: in_use,
         defaults: HeaderDefaults::default(),
     }
 }
@@ -75,7 +90,7 @@ pub async fn get_headers_settings(
     RequireRole(_session): AdminSession,
 ) -> Json<HeadersSettingsResponse> {
     let overrides = state.headers();
-    Json(response(overrides))
+    Json(response(&state, overrides).await)
 }
 
 /// `PUT /api/v1/headers` — 共通ヘッダーおよび防御ヘッダー設定の更新（admin 必須）
@@ -133,6 +148,23 @@ pub async fn update_headers_settings(
         }
     }
 
+    // 埋め込みを許可するホスト（小文字にそろえ、重複を除く。形式が違えば 400）
+    let embed_frame_domains = match payload.embed_frame_domains {
+        None => state.headers().embed_frame_domains,
+        Some(list) => {
+            let mut hosts: Vec<String> = list
+                .iter()
+                .map(|h| h.trim().to_ascii_lowercase())
+                .filter(|h| !h.is_empty())
+                .collect();
+            hosts.sort();
+            hosts.dedup();
+            crate::embeds::validate_hosts("embed_frame_domains", &hosts)
+                .map_err(|m| bad_request(&m))?;
+            hosts
+        }
+    };
+
     let next = HeaderOverrides {
         content_security_policy: csp,
         x_frame_options: x_frame,
@@ -141,6 +173,7 @@ pub async fn update_headers_settings(
         permissions_policy: permissions,
         cross_origin_opener_policy: coop,
         custom_headers,
+        embed_frame_domains,
     };
 
     let previous = state.headers();
@@ -163,8 +196,14 @@ pub async fn update_headers_settings(
         }
     };
 
+    let embed_json = if next.embed_frame_domains.is_empty() {
+        None
+    } else {
+        serde_json::to_string(&next.embed_frame_domains).ok()
+    };
+
     let saved = async {
-        let pairs: [(&str, &Option<String>); 7] = [
+        let pairs: [(&str, &Option<String>); 8] = [
             (CSP_SETTING, &next.content_security_policy),
             (X_FRAME_OPTIONS_SETTING, &next.x_frame_options),
             (X_CONTENT_TYPE_OPTIONS_SETTING, &next.x_content_type_options),
@@ -172,6 +211,7 @@ pub async fn update_headers_settings(
             (PERMISSIONS_POLICY_SETTING, &next.permissions_policy),
             (COOP_SETTING, &next.cross_origin_opener_policy),
             (CUSTOM_HEADERS_SETTING, &custom_json),
+            (EMBED_FRAME_DOMAINS_SETTING, &embed_json),
         ];
 
         for (key, val) in pairs {
@@ -222,7 +262,7 @@ pub async fn update_headers_settings(
     // セキュリティ・カスタムレスポンスヘッダーの変更をエッジにも反映させるためCDNキャッシュをパージ
     crate::cdn::purge_site_global(&state).await;
 
-    Ok(Json(response(next)))
+    Ok(Json(response(&state, next).await))
 }
 
 #[cfg(test)]
@@ -266,6 +306,11 @@ mod tests {
                 name: "X-Custom-Header".to_string(),
                 value: "CustomValue".to_string(),
             }]),
+            embed_frame_domains: Some(vec![
+                " Forms.Example.com ".to_string(),
+                "forms.example.com".to_string(),
+                "".to_string(),
+            ]),
         };
 
         let Json(updated) = update_headers_settings(
@@ -285,6 +330,9 @@ mod tests {
         assert_eq!(updated.referrer_policy.as_deref(), Some("no-referrer"));
         assert_eq!(updated.custom_headers.len(), 1);
         assert_eq!(updated.custom_headers[0].name, "X-Custom-Header");
+        // 小文字にそろえ、重複と空を除く
+        assert_eq!(updated.embed_frame_domains, ["forms.example.com"]);
+        assert!(!updated.embed_frame_domains_in_use);
 
         // state.headers() に反映されていること
         let current = state.headers();
@@ -303,6 +351,7 @@ mod tests {
         );
         assert_eq!(loaded.x_frame_options.as_deref(), Some("DENY"));
         assert_eq!(loaded.custom_headers.len(), 1);
+        assert_eq!(loaded.embed_frame_domains, ["forms.example.com"]);
 
         // 空にしてリセット
         let reset_payload = UpdateHeadersSettings {
@@ -313,6 +362,7 @@ mod tests {
             permissions_policy: None,
             cross_origin_opener_policy: None,
             custom_headers: Some(vec![]),
+            embed_frame_domains: None,
         };
         let Json(reset) = update_headers_settings(
             State(state.clone()),
@@ -325,6 +375,42 @@ mod tests {
         assert_eq!(reset.content_security_policy, None);
         assert_eq!(reset.x_frame_options, None);
         assert!(reset.custom_headers.is_empty());
+        // 送らなければ今の値のまま（古いクライアントが消してしまわないように）
+        assert_eq!(reset.embed_frame_domains, ["forms.example.com"]);
+
+        // 空の配列で消す。形式の違うホストは 400
+        let clear = |hosts: Vec<&str>| UpdateHeadersSettings {
+            embed_frame_domains: Some(hosts.into_iter().map(str::to_string).collect()),
+            ..Default::default()
+        };
+        let Json(cleared) = update_headers_settings(
+            State(state.clone()),
+            admin(),
+            AuditContext::default(),
+            Json(clear(vec![])),
+        )
+        .await
+        .unwrap();
+        assert!(cleared.embed_frame_domains.is_empty());
+        assert!(HeaderOverrides::load(state.db.as_ref())
+            .await
+            .embed_frame_domains
+            .is_empty());
+        for bad in [
+            "https://a.example",
+            "*.example.com",
+            "a.example:8443",
+            "a.example/x",
+        ] {
+            let result = update_headers_settings(
+                State(state.clone()),
+                admin(),
+                AuditContext::default(),
+                Json(clear(vec![bad])),
+            )
+            .await;
+            assert_eq!(result.unwrap_err().0, StatusCode::BAD_REQUEST, "{}", bad);
+        }
     }
 
     #[tokio::test]

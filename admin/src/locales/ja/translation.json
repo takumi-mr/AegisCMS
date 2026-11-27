@@ -1505,6 +1505,7 @@
     "installFailed": "プラグインのインストールに失敗しました",
     "installing": "インストール中...",
     "frameDomains": "埋め込み（iframe）: {{domains}}",
+    "siteFrameDomains": "埋め込み（iframe）: Settings › Headers で許可したホスト",
     "cspDomains": "CSP {{directive}} に追加: {{domains}}"
   },
   "site": {
@@ -1542,6 +1543,11 @@
     "customSectionHint": "すべてのレスポンスに付与する任意のカスタム HTTP ヘッダーを追加します。",
     "addCustomHeader": "ヘッダーを追加",
     "noCustomHeaders": "カスタムヘッダーは設定されていません。",
+    "embedSectionTitle": "埋め込みを許可するホスト",
+    "embedSectionHint": "受け入れを宣言したプラグインのブロック（official-embeds の「埋め込み（許可したサイト）」など）で、このホストのページを埋め込めます。ホストは CSP の frame-src にも足されます。1 行に 1 つ、https:// を付けずに書きます（例: forms.example.com）。信頼できるサイトだけを足してください。",
+    "embedHostsLabel": "許可するホスト",
+    "embedConfigHosts": "設定ファイル（[embed].frame_domains）でも許可: {{hosts}}",
+    "embedNotInUse": "許可したホストを受け入れるプラグインが有効でないため、今は効きません。official-embeds などのプラグインを有効にしてください。",
     "headerNamePlaceholder": "ヘッダー名 (例: Strict-Transport-Security)",
     "headerValuePlaceholder": "ヘッダー値",
     "removeHeader": "ヘッダーを削除",

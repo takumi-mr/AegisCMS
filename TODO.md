@@ -28,9 +28,4 @@
 
 - [ ] **会員の購入・サブスクの実機確認**: 設計は [members.md 16](docs/members.ja.md#16-購入記事の単独購入サブスク)。実装（記事の単独購入・サブスク・管理画面・マイページ）は済で、Stripe はモックでしか確かめていない。Stripe のテストモードで、決済ページ・Webhook（`checkout.session.completed` / `customer.subscription.*` / `charge.refunded`）・Customer Portal・返金を一度通す。新しい API バージョンで契約の期間の終わりが `items` に移っている点（`current_period_end`）は両対応にしてあるが、実物の応答では未確認。
 - [ ] **official-clarity の実機確認**: 単体テストと Wasm の実行で、起動コードが同意を待つ形で入り、録画しないページに入らないことは確かめた。実際の Clarity での動作（CSP のホストで読み込み・送信がブロックされないか、`scripts.clarity.ms` が要るか）は、プロジェクト ID を入れたサイトで確かめていない。
-- [ ] **official-embeds の実機確認**: URL の読み取り・`src` の組み立て・サニタイズ後に iframe が残ることは単体テストと Wasm の実行で確かめた。実際のブラウザーで、各サービスの埋め込みが CSP（足したホストだけの `frame-src`）の下で表示されるか（埋め込みの中からさらに別のホストを iframe で読む・ポップアップを開くものが無いか。とくに Google マップ・カレンダー・フォーム、CodePen の「クリックで実行」）は確かめていない。
-
-### 🧩 埋め込みブロック（official-embeds）の続き
-
-- [ ] **Cookie の同意を待ってから埋め込みを読み込む**: `[consent]` の iframe は `data-src` と `data-aegis-consent` で書く形（[consent.md 2](docs/consent.ja.md#2-同意が要るスクリプトを書く)）だが、プラグインのブロックのサニタイズ（`sanitize_html_fragment_with_frames`）は iframe の属性を `src` などに限るため、この形が使えない。プラグインの設定でサービスごとに同意の区分を選べるようにするには、ブロックの HTML で宣言したホストの iframe に限り `data-src`・`data-aegis-consent` を残すか、`render-blocks` の出力に同意の区分を持たせる形をコア側で決める必要がある。
-- [ ] **管理者が許可したホストの汎用 iframe ブロック**: 今は `frame_domains` がマニフェストに固定で、サイトの設定からホストを足せない。設定（`aegis.toml` と管理画面）に許可するホストの一覧を置き、マニフェストで受け入れを宣言したプラグインのブロックにだけ、サニタイズと CSP の `frame-src` の両方で効かせる案。投稿者ではなく管理者だけがホストを足せること、変更を監査ログに残すこと、`sandbox` の既定値を決めてから着手する。
+- [ ] **official-embeds の実機確認**: URL の読み取り・`src` の組み立て・サニタイズ後に iframe が残ることは単体テストと Wasm の実行で確かめた。実際のブラウザーで、各サービスの埋め込みが CSP（足したホストだけの `frame-src`）の下で表示されるか（埋め込みの中からさらに別のホストを iframe で読む・ポップアップを開くものが無いか。とくに Google マップ・カレンダー・フォーム、CodePen の「クリックで実行」）は確かめていない。同意を待つ埋め込み（`[embed].consent`）で、許可したあとに iframe が読み込まれて案内が隠れること、汎用の埋め込み（`official-embeds/iframe`）の `sandbox` で、よく使うサービス（Google フォーム・Typeform など）が動くことも、実際のブラウザーでは確かめていない。

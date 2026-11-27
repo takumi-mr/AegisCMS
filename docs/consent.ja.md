@@ -119,6 +119,21 @@ window.AegisConsent.open();                  // 設定を開く
 <a href="#" data-aegis-consent-open>Cookie の設定</a>
 ```
 
+### 2.3 プラグインのブロックの埋め込み
+
+動画・地図・フォームなど、プラグインのブロック（[`official-embeds`](../plugins/official-embeds/) など）が出す `<iframe>` は、`[embed].consent` に区分を書くと、その区分の同意まで読み込みません（[設定 2.23a](configuration.ja.md#223a-embed--プラグインのブロックの埋め込みiframe)）。プラグインに手を入れる必要はありません。
+
+```toml
+[embed]
+consent = "marketing"                       # [consent] の区分
+consent_exempt = ["www.openstreetmap.org"]  # 待たないホスト（Cookie を使わないものなど）
+```
+
+- ホストが、サニタイズしたあとのブロックの HTML で `src` を `data-src` に移し、`data-aegis-consent="<区分>"` を付けます（上の iframe の形と同じ）。プラグインが出した HTML の属性は信頼しません。
+- 待つ iframe があるブロックには、先頭に「この埋め込みは、Cookie の利用を許可すると表示されます。」と「Cookie の設定」ボタンを出します（`p.aegis-consent-note`。文言は `[theme].locale`。見た目は `consent.css` で、テーマで変えられます）。許可すると案内は隠れ、埋め込みが読み込まれます。
+- 対象は公開ページとプレビューだけです。コンテンツ API（`rendered_html`）・ヘッドレスの `html`・フィードは変えません（同意のスクリプトが無いので、クライアントが自分で同意を扱います）。
+- 区分は 1 つです（サービスごとに分けたいときは、`consent_exempt` で待たないものを外します）。`[consent]` が無効なら書けません。
+
 ## 3. テーマでバナーを作る(`templates/consent.html`)
 
 テーマに `templates/consent.html` を置くと、バナーの HTML・文言・見た目を丸ごと決められます。組み込みのテンプレートは `base.html` を継承しない**断片**で、サーバーが各ページの `</body>` の前に差し込みます(`base.html` を `extends` しないでください)。

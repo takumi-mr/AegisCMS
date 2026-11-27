@@ -567,6 +567,7 @@ export const PluginManager: React.FC<PluginManagerProps> = ({ session, onShowToa
                   const hooks = m?.capabilities.hooks ?? [];
                   const allowedDomains = m?.capabilities.network?.allowed_domains ?? [];
                   const frameDomains = m?.capabilities.embed?.frame_domains ?? [];
+                  const acceptsSiteDomains = m?.capabilities.embed?.site_domains === true;
                   const cspDomains = cspDirectives(m?.capabilities.csp);
                   const limits = m?.resource_limits;
                   const isToggling = togglingName === plugin.name;
@@ -674,6 +675,14 @@ export const PluginManager: React.FC<PluginManagerProps> = ({ session, onShowToa
                                   {t('plugins.frameDomains', {
                                     domains: frameDomains.join(', '),
                                   })}
+                                </span>
+                              </div>
+                            )}
+                            {acceptsSiteDomains && (
+                              <div className={styles.capItem}>
+                                <MonitorPlay size={13} className={styles.capItemIcon} />
+                                <span className={styles.capText}>
+                                  {t('plugins.siteFrameDomains')}
                                 </span>
                               </div>
                             )}

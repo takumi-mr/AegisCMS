@@ -277,6 +277,29 @@ async fn test_official_embeds_plugin_keeps_its_frames_after_sanitizing() {
             r#"<iframe src="https://docs.google.com/forms/d/e/1AbCdEfGhIjKlMnOp/viewform?embedded=true""#,
         ),
     ];
+    // 汎用の埋め込みは、管理者が許可したホストを渡したときだけサニタイズ後も残る
+    assert!(plugin.manifest().accepts_site_frame_domains());
+    let generic = plugin
+        .render_blocks(vec![block(
+            "official-embeds/iframe",
+            serde_json::json!({ "url": "https://forms.example.com/a", "title": "Survey" }),
+        )])
+        .await
+        .unwrap();
+    let generic = generic[0].as_deref().unwrap();
+    let mut allowed = plugin.manifest().frame_domains().to_vec();
+    assert!(
+        !aegis_ast::renderer::sanitize_html_fragment_with_frames(generic, &allowed)
+            .contains("<iframe")
+    );
+    allowed.push("forms.example.com".to_string());
+    let kept = aegis_ast::renderer::sanitize_html_fragment_with_frames(generic, &allowed);
+    assert!(
+        kept.contains(r#"<iframe src="https://forms.example.com/a" title="Survey""#)
+            && kept.contains("sandbox=\"allow-scripts"),
+        "{kept}"
+    );
+
     for (node, expected) in cases {
         let name = node.name.clone();
         let html = plugin.render_blocks(vec![node]).await.unwrap();

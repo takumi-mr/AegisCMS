@@ -518,6 +518,7 @@ EC のカートの見積もり・注文の確定時に呼び出されます（[�
 - **`abi_version`**: プラグインが前提にするこの ABI のバージョン（整数。現在は `2`。任意だが公式プラグイン・テンプレートは必ず書く。`2` は、`on-render-page` で `scripts`（構造化したスクリプトの注入。[5.3.3a](#533a-on_render_page-でスクリプトを足すscriptsabi-2)）を使うプラグイン。`1` のプラグインも読み込めるが、`extra_head` などに書いた `<script>` は取り除かれる）。ホストが対応するバージョンより新しい値、または `0` だと読み込まない。互換性を壊す変更を入れたときだけホストが上げる（[versioning.md](versioning.ja.md#2-プラグインの互換性)）。
 - **`resource_limits`**: メモリ上限（MB単位）、Fuel 上限、タイムアウト（ミリ秒単位）。
 - **`capabilities.embed.frame_domains`**: カスタムブロックの HTML に残せる `<iframe>` の配信元のホスト（CSP の `frame-src` にも足される）。形式は [plugin_hooks.md 3.2](plugin_hooks.ja.md#32-外部のページの埋め込み-capabilitiesembed)。
+- **`capabilities.embed.site_domains`**: `true` なら、サイトの管理者が許可したホスト（`[embed].frame_domains` と Settings › Headers）の `<iframe>` も残す。詳細は [plugin_hooks.md 3.2](plugin_hooks.ja.md#32-外部のページの埋め込み-capabilitiesembed)。
 - **`capabilities.inline_scripts`**: `on-render-page` の `scripts` でインラインのスクリプトを足す宣言（真偽値。既定 `false`）。形式は [5.3.3a](#533a-on_render_page-でスクリプトを足すscriptsabi-2)。外部のスクリプトのホストは `capabilities.csp.script_domains`。
 - **`capabilities.render_page.input`**: `on-render-page` に渡す重いフィールドの絞り込み。形式は [5.3.3](#533-on_render_page-に渡すフィールドの絞り込みcapabilitiesrender_pageinput)。
 - **`blocks`**: 本文に置けるカスタムブロックの宣言（名前・表示名・入力欄）。`render-blocks` フックが必要。形式は [plugin_hooks.md 3.1](plugin_hooks.ja.md#31-カスタムブロック-blocks)。

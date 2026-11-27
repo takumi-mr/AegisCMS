@@ -425,6 +425,9 @@ impl PluginManifest {
             if !embed.frame_domains.is_empty() && self.blocks.is_empty() {
                 return Err("embed.frame_domains is only for plugins with `blocks`".to_string());
             }
+            if embed.site_domains && self.blocks.is_empty() {
+                return Err("embed.site_domains is only for plugins with `blocks`".to_string());
+            }
         }
         if self.blocks.is_empty() {
             return Ok(());
@@ -654,6 +657,14 @@ impl PluginManifest {
             .unwrap_or(&[])
     }
 
+    /// サイトの管理者が許可したホストの `<iframe>` も受け入れるか（`capabilities.embed.site_domains`）
+    pub fn accepts_site_frame_domains(&self) -> bool {
+        self.capabilities
+            .embed
+            .as_ref()
+            .is_some_and(|e| e.site_domains)
+    }
+
     /// 本文に保存するブロック名（`<プラグイン名>/<ブロック名>`）がこのプラグインのブロックか
     pub fn declares_block(&self, full_name: &str) -> bool {
         full_name
@@ -745,6 +756,11 @@ pub struct EmbedCapability {
     /// ホスト名（例: `www.youtube-nocookie.com`）。完全一致のみ（サブドメインは含まない）
     #[serde(default)]
     pub frame_domains: Vec<String>,
+    /// `true` なら、サイトの管理者が許可したホスト（`[embed].frame_domains` と Admin Studio の
+    /// **Settings › Headers**）の `<iframe>` も、このプラグインのブロックに残す。どのホストを許すかは
+    /// プラグインではなく管理者が決める（汎用の埋め込みブロック向け）
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub site_domains: bool,
 }
 
 /// `embed.frame_domains` に書けるホスト名か（英小文字・数字・`-` のラベルを `.` でつないだもの。
@@ -1080,10 +1096,36 @@ mod tests {
         }
         // ブロックの無いプラグインには宣言できない
         assert!(with_embed(r#"["a.com"]"#, "[]").is_err());
+        assert!(!manifest.accepts_site_frame_domains());
         // 宣言しなければ何も許さない
         let plain =
             manifest_with_blocks(r#"[{"name": "a", "label": "A"}]"#, r#""render-blocks""#).unwrap();
         assert!(plain.frame_domains().is_empty());
+    }
+
+    #[test]
+    fn test_embed_site_domains() {
+        let parse = |embed: &str, blocks: &str| {
+            let json = format!(
+                r#"{{"name": "frames", "version": "1.0.0", "entrypoint": "plugin.wasm",
+                    "capabilities": {{"hooks": ["render-blocks"], "embed": {}}},
+                    "blocks": {}}}"#,
+                embed, blocks
+            );
+            let manifest = PluginManifest::from_json_with_defaults(&json, &DEFAULTS)
+                .map_err(|e| e.to_string())?;
+            manifest.validate_blocks().map(|_| manifest)
+        };
+        let block = r#"[{"name": "iframe", "label": "Frame"}]"#;
+        let manifest = parse(r#"{"site_domains": true}"#, block).unwrap();
+        assert!(manifest.accepts_site_frame_domains());
+        assert!(manifest.frame_domains().is_empty());
+        // ブロックの無いプラグインには宣言できない
+        assert!(parse(r#"{"site_domains": true}"#, "[]").is_err());
+        // 書かなければ受け入れない
+        assert!(!parse(r#"{"frame_domains": ["a.com"]}"#, block)
+            .unwrap()
+            .accepts_site_frame_domains());
     }
 
     #[test]

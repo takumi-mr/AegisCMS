@@ -96,6 +96,9 @@ pub struct AegisConfig {
     pub captcha: Option<aegis_captcha::SharedCaptchaConfig>,
     #[serde(default)]
     pub consent: crate::consent::ConsentConfig,
+    /// プラグインのブロックの埋め込み（`<iframe>`）: 管理者が許可するホストと、同意を待つ区分
+    #[serde(default)]
+    pub embed: crate::embeds::EmbedConfig,
     #[cfg(feature = "search")]
     #[serde(default)]
     pub search: crate::search::SearchConfig,

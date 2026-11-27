@@ -1523,6 +1523,7 @@
     "installFailed": "Failed to install plugin package",
     "installing": "Installing...",
     "frameDomains": "Embeds (iframe): {{domains}}",
+    "siteFrameDomains": "Embeds (iframe): hosts allowed in Settings › Headers",
     "cspDomains": "CSP {{directive}}: {{domains}}"
   },
   "site": {
@@ -1560,6 +1561,11 @@
     "customSectionHint": "Add arbitrary custom HTTP response headers to all public and admin pages.",
     "addCustomHeader": "Add Header",
     "noCustomHeaders": "No custom HTTP headers configured.",
+    "embedSectionTitle": "Hosts Allowed for Embeds",
+    "embedSectionHint": "Pages on these hosts can be embedded with a plugin block that accepts them (such as “Embed (allowed sites)” in official-embeds), and the hosts are added to the CSP frame-src. One host per line, without https:// (e.g. forms.example.com). Only add sites you trust.",
+    "embedHostsLabel": "Allowed hosts",
+    "embedConfigHosts": "Also allowed in the config file ([embed].frame_domains): {{hosts}}",
+    "embedNotInUse": "No enabled plugin accepts these hosts, so they currently have no effect. Enable a plugin such as official-embeds.",
     "headerNamePlaceholder": "Header-Name (e.g. Strict-Transport-Security)",
     "headerValuePlaceholder": "Header Value",
     "removeHeader": "Remove header",

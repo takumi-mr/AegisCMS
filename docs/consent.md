@@ -119,6 +119,21 @@ Place a link or button with `data-aegis-consent-open` in the footer or elsewhere
 <a href="#" data-aegis-consent-open>Cookie settings</a>
 ```
 
+### 2.3 Embeds in Plugin Blocks
+
+When you write a category in `[embed].consent`, the `<iframe>`s that plugin blocks output (videos, maps, forms, and so on, such as [`official-embeds`](../plugins/official-embeds/)) are not loaded until that category is consented to ([Configuration 2.23a](configuration.md#223a-embed--embeds-iframe-in-plugin-blocks)). The plugins need no changes.
+
+```toml
+[embed]
+consent = "marketing"                       # a [consent] category
+consent_exempt = ["www.openstreetmap.org"]  # hosts that do not wait (such as ones that use no cookies)
+```
+
+- The host moves `src` to `data-src` and adds `data-aegis-consent="<category>"` in the block's HTML after sanitizing it (the same form as the iframe above). It does not trust attributes in the HTML the plugin returned.
+- A block with an iframe that waits gets, at its top, "This embedded content is shown once you allow cookies for it." and a "Cookie settings" button (`p.aegis-consent-note`; the wording follows `[theme].locale`, and the look is in `consent.css`, which a theme can change). Once allowed, the note hides and the embed loads.
+- Only public pages and previews are affected. The content API (`rendered_html`), headless `html`, and feeds are left as they are (there is no consent script there, so clients handle consent themselves).
+- There is one category (to treat services differently, exclude the ones that need not wait with `consent_exempt`). It cannot be set while `[consent]` is disabled.
+
 ## 3. Building the Banner in a Theme (`templates/consent.html`)
 
 Placing `templates/consent.html` in a theme lets you decide the banner's HTML, wording, and look entirely. The built-in template is a **fragment** that does not extend `base.html`, and the server inserts it before `</body>` of each page (do not `extends` `base.html`).

@@ -84,6 +84,8 @@ A record of who did what and when: sign-ins, changes to users, content and setti
 
 The HTTP headers the server sends, including the browser protections (Content-Security-Policy, X-Frame-Options and others). Leave a field empty to use the built-in default, which is right for nearly every site. A wrong value can break the site or make it less safe, so change it only when you know why ([Content-Security-Policy](csp.md)).
 
+- **Hosts allowed for embeds**: the hosts that generic embed blocks (blocks of plugins that declare `capabilities.embed.site_domains` in the manifest, such as "Embed (allowed sites)" in `official-embeds`) can embed, one per line (without `https://`; e.g. `forms.example.com`; up to 50). These hosts are added to the CSP `frame-src` only while a plugin that accepts them is enabled. Hosts in `[embed].frame_domains` in the config file cannot be removed here (they are shown on the screen). When no plugin that accepts them is enabled, the screen says so. Authors can write any URL, so add only sites you trust. Changes are recorded in the audit log as `headers.update`.
+
 ### System
 
 Operating settings that you can change without restarting the server:

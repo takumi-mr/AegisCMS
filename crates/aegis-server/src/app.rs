@@ -1137,7 +1137,17 @@ async fn security_headers_middleware(
     };
     let headers_config = state.headers();
     // 有効なプラグインのカスタムブロックが埋め込む iframe の配信元を CSP の frame-src に足す
-    let frame_hosts = state.supervisor.read().await.frame_domains();
+    let mut frame_hosts = {
+        let supervisor = state.supervisor.read().await;
+        let mut hosts = supervisor.frame_domains();
+        // 管理者が許可したホストは、それを受け入れるプラグインが有効なときだけ
+        if supervisor.accepts_site_frame_domains() {
+            hosts.extend(crate::embeds::site_frame_domains(&state));
+        }
+        hosts
+    };
+    frame_hosts.sort();
+    frame_hosts.dedup();
     let captchas = &state.captcha;
     let others = [
         &captchas.contact,

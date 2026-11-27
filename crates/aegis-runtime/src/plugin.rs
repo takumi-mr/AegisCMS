@@ -209,6 +209,14 @@ impl PluginSupervisor {
         domains
     }
 
+    /// サイトの管理者が許可した埋め込みのホストを受け入れるプラグイン（`render-blocks` を宣言し、
+    /// `capabilities.embed.site_domains` が `true`）が有効か。有効なときだけ、そのホストを CSP に足す
+    pub fn accepts_site_frame_domains(&self) -> bool {
+        self.plugins.iter().any(|p| {
+            declares_hook(p.as_ref(), "render-blocks") && p.manifest().accepts_site_frame_domains()
+        })
+    }
+
     /// 有効なプラグインが要求する CSP ソースの集計
     pub fn csp_sources(&self) -> PluginCspSources {
         let mut script = Vec::new();

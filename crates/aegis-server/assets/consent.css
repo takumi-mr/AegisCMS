@@ -223,6 +223,29 @@
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
 }
 
+:where(.aegis-consent-note) {
+  margin: 0.75rem 0;
+  padding: 0.75rem 1rem;
+  border: 1px dashed rgba(127, 127, 127, 0.5);
+  border-radius: 8px;
+  font-size: 0.9em;
+}
+
+:where(.aegis-consent-note-button) {
+  margin-left: 0.5rem;
+  padding: 0.25rem 0.75rem;
+  border: 1px solid currentColor;
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+:where(.aegis-consent-note[hidden]) {
+  display: none;
+}
+
 @media (max-width: 30rem) {
   :where(.aegis-consent-actions) {
     flex-direction: column;

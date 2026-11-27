@@ -136,6 +136,44 @@ pub fn sanitize_html_fragment_with_frames(raw: &str, frame_domains: &[String]) -
     }
 }
 
+/// Holds back the `<iframe>`s in already-sanitized HTML until the visitor consents to `category`
+/// (`[consent]`): `src` becomes `data-src` and `data-aegis-consent="<category>"` is added, which the
+/// consent script turns back into `src` once the category is granted. Frames on `exempt_hosts`
+/// (exact host, case-insensitive) and frames without `src` are left as they are. Returns the HTML
+/// and the number of frames held back
+pub fn hold_frames_for_consent(
+    html: &str,
+    category: &str,
+    exempt_hosts: &[String],
+) -> (String, usize) {
+    let held = std::cell::Cell::new(0usize);
+    let mut output = Vec::with_capacity(html.len());
+    let settings = Settings::new().append_element_content_handler(element!("iframe[src]", |el| {
+        let src = el.get_attribute("src").unwrap_or_default();
+        let host = src
+            .trim()
+            .split_once("://")
+            .map(|(_, rest)| rest.split(['/', '?', '#']).next().unwrap_or(""))
+            .unwrap_or("");
+        if exempt_hosts.iter().any(|h| h.eq_ignore_ascii_case(host)) {
+            return Ok(());
+        }
+        el.remove_attribute("src");
+        el.set_attribute("data-src", &src)?;
+        el.set_attribute("data-aegis-consent", category)?;
+        held.set(held.get() + 1);
+        Ok(())
+    }));
+    let mut rewriter = HtmlRewriter::new(settings, |c: &[u8]| output.extend_from_slice(c));
+    if rewriter.write(html.as_bytes()).is_ok() && rewriter.end().is_ok() {
+        if let Ok(out) = String::from_utf8(output) {
+            return (out, held.get());
+        }
+    }
+    // 書き換えに失敗したら、同意の前に読み込まないよう iframe ごと取り除く
+    (sanitize_html_fragment(html), 0)
+}
+
 /// Renders custom HTML/JS inside an opaque-origin `<iframe sandbox="allow-scripts ...">`
 /// with automatic height synchronization via `postMessage`.
 fn render_sandboxed_html(raw: &str) -> String {
@@ -1073,6 +1111,29 @@ mod tests {
         assert_eq!(
             HtmlRenderer::render_nodes(&[BlockNode::new("core/callout")]),
             ""
+        );
+    }
+
+    #[test]
+    fn test_frames_are_held_back_until_consent() {
+        let html = r#"<div><iframe src="https://player.vimeo.com/video/1?dnt=1&amp;h=a" title="V"></iframe><iframe src="https://www.openstreetmap.org/export/embed.html" title="M"></iframe><iframe title="none"></iframe></div>"#;
+        let (out, held) =
+            hold_frames_for_consent(html, "marketing", &["WWW.openstreetmap.org".to_string()]);
+        assert_eq!(held, 1);
+        assert!(
+            out.contains(r#"<iframe title="V" data-src="https://player.vimeo.com/video/1?dnt=1&amp;h=a" data-aegis-consent="marketing"></iframe>"#),
+            "{}",
+            out
+        );
+        // 除外したホスト・src の無い iframe はそのまま
+        assert!(out.contains(
+            r#"<iframe src="https://www.openstreetmap.org/export/embed.html" title="M"></iframe>"#
+        ));
+        assert!(out.contains(r#"<iframe title="none"></iframe>"#));
+        // iframe が無ければ何も変えない
+        assert_eq!(
+            hold_frames_for_consent("<p>x</p>", "marketing", &[]),
+            ("<p>x</p>".to_string(), 0)
         );
     }
 
