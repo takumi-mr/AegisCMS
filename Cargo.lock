@@ -519,6 +519,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "aegis-plugin-react-island-template"
+version = "0.1.0"
+dependencies = [
+ "aegis-plugin-sdk",
+]
+
+[[package]]
 name = "aegis-plugin-reading-time"
 version = "0.2.2"
 dependencies = [
@@ -559,6 +566,13 @@ dependencies = [
  "aegis-plugin-sdk",
  "serde",
  "serde_json",
+]
+
+[[package]]
+name = "aegis-plugin-vue-island-template"
+version = "0.1.0"
+dependencies = [
+ "aegis-plugin-sdk",
 ]
 
 [[package]]

@@ -1,6 +1,7 @@
 use axum::{
     extract::{Multipart, Path, State},
-    http::StatusCode,
+    http::{header, StatusCode},
+    response::IntoResponse,
     Json,
 };
 use serde::{Deserialize, Serialize};
@@ -716,6 +717,92 @@ fn copy_dir_all(src: &std::path::Path, dst: &std::path::Path) -> std::io::Result
     Ok(())
 }
 
+/// `GET /plugins/{name}/assets/{*path}` — 有効化されているプラグインの `assets/` 配下の静的ファイルを配信する。
+///
+/// React / Vue などでビルドしたアイランド用 JS・CSS をプラグイン自身に同梱して、同一オリジン（Strict CSP
+/// の `script-src 'self'` / `style-src 'self'` 適合）で配信できるようにするためのエンドポイント。
+/// 無効・未ロードのプラグインや `assets/` 外へのパストラバーサルは拒否する。
+pub async fn get_plugin_asset(
+    State(state): State<Arc<AppState>>,
+    Path((plugin_name, rel_path)): Path<(String, String)>,
+) -> axum::response::Response {
+    if plugin_name.is_empty()
+        || plugin_name.contains('/')
+        || plugin_name.contains('\\')
+        || plugin_name.contains("..")
+    {
+        return (StatusCode::BAD_REQUEST, "Invalid plugin name").into_response();
+    }
+
+    // 有効化・ロード済みのプラグインのみ配信する
+    let is_enabled = {
+        let supervisor = state.supervisor.read().await;
+        supervisor
+            .plugins()
+            .iter()
+            .any(|p| p.manifest().name == plugin_name)
+    };
+    if !is_enabled {
+        return (StatusCode::NOT_FOUND, "Plugin asset not found").into_response();
+    }
+
+    let clean_path = std::path::Path::new(&rel_path);
+    for comp in clean_path.components() {
+        if matches!(
+            comp,
+            std::path::Component::ParentDir
+                | std::path::Component::Prefix(_)
+                | std::path::Component::RootDir
+        ) {
+            return (StatusCode::BAD_REQUEST, "Invalid asset path").into_response();
+        }
+    }
+
+    let assets_dir = state
+        .config
+        .paths
+        .plugins_dir
+        .join(&plugin_name)
+        .join("assets");
+    let Ok(canonical_assets_dir) = std::fs::canonicalize(&assets_dir) else {
+        return (StatusCode::NOT_FOUND, "Plugin assets directory not found").into_response();
+    };
+    let target = assets_dir.join(clean_path);
+    let Ok(canonical_target) = std::fs::canonicalize(&target) else {
+        return (StatusCode::NOT_FOUND, "Plugin asset not found").into_response();
+    };
+    // シンボリックリンクによる assets/ 外への脱出を防止
+    if !canonical_target.starts_with(&canonical_assets_dir) || !canonical_target.is_file() {
+        return (StatusCode::NOT_FOUND, "Plugin asset not found").into_response();
+    }
+
+    match std::fs::read(&canonical_target) {
+        Ok(bytes) => {
+            let mime = aegis_core::guess_content_type(
+                canonical_target
+                    .file_name()
+                    .and_then(|s| s.to_str())
+                    .unwrap_or(""),
+            );
+            let resp = (
+                [
+                    (header::CONTENT_TYPE, mime),
+                    (header::CACHE_CONTROL, "public, max-age=3600"),
+                    (header::X_CONTENT_TYPE_OPTIONS, "nosniff"),
+                ],
+                bytes,
+            )
+                .into_response();
+            let mut tags = aegis_cache::CacheTags::new();
+            tags.add_url(&format!("/plugins/{}/assets/{}", plugin_name, rel_path));
+            tags.add_tag("site-global");
+            tags.add_dependency("plugin", &plugin_name);
+            crate::cdn::apply_cache_tags(&state, resp, &tags)
+        }
+        Err(_) => (StatusCode::INTERNAL_SERVER_ERROR, "Failed to read asset").into_response(),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -733,6 +820,101 @@ mod tests {
             expires_at: String::new(),
             metadata: Default::default(),
         })
+    }
+
+    struct StubPlugin {
+        manifest: aegis_core::PluginManifest,
+    }
+
+    #[async_trait::async_trait]
+    impl aegis_runtime::AegisPlugin for StubPlugin {
+        fn manifest(&self) -> &aegis_core::PluginManifest {
+            &self.manifest
+        }
+    }
+
+    #[tokio::test]
+    async fn test_get_plugin_asset_serves_enabled_and_blocks_traversal() {
+        let dir =
+            std::env::temp_dir().join(format!("aegis_plugin_asset_test_{}", uuid::Uuid::new_v4()));
+        let enabled_assets = dir.join("my-island").join("assets");
+        let nested = enabled_assets.join("chunks");
+        let disabled_assets = dir.join("disabled-island").join("assets");
+        std::fs::create_dir_all(&nested).unwrap();
+        std::fs::create_dir_all(&disabled_assets).unwrap();
+        std::fs::write(enabled_assets.join("island.js"), "console.log('hi');").unwrap();
+        std::fs::write(nested.join("style.css"), ".card{color:red}").unwrap();
+        std::fs::write(dir.join("my-island").join("secret.txt"), "top-secret").unwrap();
+        std::fs::write(disabled_assets.join("island.js"), "disabled").unwrap();
+
+        let mut config = AegisConfig::default();
+        config.paths.plugins_dir = dir.clone();
+
+        let mut supervisor = PluginSupervisor::new();
+        supervisor.register(Arc::new(StubPlugin {
+            manifest: aegis_core::PluginManifest {
+                name: "my-island".to_string(),
+                ..Default::default()
+            },
+        }));
+        let state = test_state_with_config(config, supervisor).await;
+
+        // 1. 有効なプラグインの JS が正しい MIME とヘッダーで返る
+        let resp = get_plugin_asset(
+            State(state.clone()),
+            Path(("my-island".to_string(), "island.js".to_string())),
+        )
+        .await;
+        assert_eq!(resp.status(), StatusCode::OK);
+        assert_eq!(
+            resp.headers().get(header::CONTENT_TYPE).unwrap(),
+            "application/javascript"
+        );
+        assert_eq!(
+            resp.headers().get(header::X_CONTENT_TYPE_OPTIONS).unwrap(),
+            "nosniff"
+        );
+        let body = axum::body::to_bytes(resp.into_body(), 1 << 16)
+            .await
+            .unwrap();
+        assert_eq!(&body[..], b"console.log('hi');");
+
+        // 2. サブディレクトリの CSS も配信できる
+        let resp = get_plugin_asset(
+            State(state.clone()),
+            Path(("my-island".to_string(), "chunks/style.css".to_string())),
+        )
+        .await;
+        assert_eq!(resp.status(), StatusCode::OK);
+        assert_eq!(
+            resp.headers().get(header::CONTENT_TYPE).unwrap(),
+            "text/css"
+        );
+
+        // 3. 無効（未ロード）なプラグインは 404
+        let resp = get_plugin_asset(
+            State(state.clone()),
+            Path(("disabled-island".to_string(), "island.js".to_string())),
+        )
+        .await;
+        assert_eq!(resp.status(), StatusCode::NOT_FOUND);
+
+        // 4. パストラバーサルは 400 でブロックされる
+        let resp = get_plugin_asset(
+            State(state.clone()),
+            Path(("my-island".to_string(), "../secret.txt".to_string())),
+        )
+        .await;
+        assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+
+        let resp = get_plugin_asset(
+            State(state.clone()),
+            Path(("../my-island".to_string(), "island.js".to_string())),
+        )
+        .await;
+        assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[tokio::test]

@@ -574,6 +574,10 @@ pub fn router(config: &AegisConfig, state: Arc<AppState>) -> Router {
             "/theme/assets/{*path}",
             get(handlers::get_active_theme_asset),
         )
+        .route(
+            "/plugins/{name}/assets/{*path}",
+            get(handlers::get_plugin_asset),
+        )
         .route("/api/v1/widgets", get(handlers::list_widgets))
         .route("/widgets/{name}", get(handlers::get_widget_index))
         .route("/widgets/{name}/", get(handlers::get_widget_index))
@@ -957,6 +961,7 @@ async fn maintenance_middleware(
         || path.starts_with("/uploads/")
         || path.starts_with("/theme/")
         || path.starts_with("/themes/")
+        || path.starts_with("/plugins/")
         || path.starts_with("/widgets/")
         || path == "/health"
         || path == "/metrics"
