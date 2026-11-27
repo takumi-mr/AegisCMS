@@ -39,6 +39,7 @@ mod tests {
                 hooks,
                 render_page: None,
                 inline_scripts: false,
+                local_scripts: false,
             },
             resource_limits: PluginResourceLimits {
                 max_memory_mb: 16,

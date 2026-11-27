@@ -720,6 +720,11 @@ pub struct PluginCapabilities {
     /// ホストはインラインのスクリプトを捨てる（最小権限。docs/csp.md の 4）
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub inline_scripts: bool,
+    /// このサイトのパスのスクリプト（`PageRenderContext.scripts` の `external` で `/` から始まる URL。
+    /// プラグインが同梱した `/plugins/<自分>/assets/` の JS など）を公開ページに足す。宣言が無いと、
+    /// ホストはそのスクリプトを捨てる。ほかのプラグインのアセット（`/plugins/<別の名前>/`）は宣言があっても読めない
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub local_scripts: bool,
 }
 
 /// `on-render-page` の入力の宣言。Wasm への書き込み・JSON の読み書きは渡す量に比例するので、

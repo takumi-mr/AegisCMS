@@ -123,7 +123,8 @@ func (c *PageRenderContext) ComposedHTML() string {
 // InjectedScript は <head> に足すスクリプト 1 つ。ホストがマニフェストの宣言と照合して検査し、
 // タグを作る (属性はホストが決める)
 //
-//   - Kind "external": URL は、このサイトのパスか、capabilities.csp.script_domains にある https:// の URL
+//   - Kind "external": URL は、capabilities.csp.script_domains にある https:// の URL か、
+//     capabilities.local_scripts: true のときのこのサイトのパス（ほかのプラグインのアセットは不可）
 //   - Kind "inline": Code を <script> に入れる。マニフェストに capabilities.inline_scripts: true が要る
 //
 // Consent に区分 ("analytics" など) を入れると、ホストが同意のあとに実行する形で出す
@@ -142,7 +143,7 @@ func InlineScript(code string) InjectedScript {
 	return InjectedScript{Kind: "inline", Code: code}
 }
 
-// ExternalScript は外部のスクリプト (このサイトのパスか、script_domains にある https:// の URL)
+// ExternalScript は外部のスクリプト (script_domains にある https:// の URL か、local_scripts を宣言したときのこのサイトのパス)
 func ExternalScript(url string) InjectedScript {
 	return InjectedScript{Kind: "external", URL: url}
 }

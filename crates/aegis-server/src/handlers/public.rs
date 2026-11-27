@@ -1629,6 +1629,7 @@ mod tests {
                     csp: None,
                     render_page: None,
                     inline_scripts: false,
+                    local_scripts: false,
                     embed: None,
                     network: None,
                     storage: None,

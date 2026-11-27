@@ -939,6 +939,8 @@ export interface PluginCapabilities {
   } | null;
   /** The plugin adds inline scripts to the page (`PageRenderContext.scripts`); the host drops them without this */
   inline_scripts?: boolean;
+  /** The plugin adds scripts from paths on this site, such as its own `/plugins/<name>/assets/` */
+  local_scripts?: boolean;
 }
 
 export interface PluginResourceLimits {

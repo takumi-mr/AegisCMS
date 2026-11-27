@@ -28,6 +28,7 @@ import {
   RotateCcw,
   UploadCloud,
   MonitorPlay,
+  FileCode,
 } from 'lucide-react';
 import { Trans, useTranslation } from 'react-i18next';
 import { aegisApi, ApiError } from '../api/client';
@@ -568,6 +569,11 @@ export const PluginManager: React.FC<PluginManagerProps> = ({ session, onShowToa
                   const allowedDomains = m?.capabilities.network?.allowed_domains ?? [];
                   const frameDomains = m?.capabilities.embed?.frame_domains ?? [];
                   const acceptsSiteDomains = m?.capabilities.embed?.site_domains === true;
+                  // The plugin runs its own JavaScript on public pages (inline, or files on this site)
+                  const scriptKinds = [
+                    m?.capabilities.inline_scripts && t('plugins.inlineScripts'),
+                    m?.capabilities.local_scripts && t('plugins.localScripts'),
+                  ].filter(Boolean);
                   const cspDomains = cspDirectives(m?.capabilities.csp);
                   const limits = m?.resource_limits;
                   const isToggling = togglingName === plugin.name;
@@ -675,6 +681,14 @@ export const PluginManager: React.FC<PluginManagerProps> = ({ session, onShowToa
                                   {t('plugins.frameDomains', {
                                     domains: frameDomains.join(', '),
                                   })}
+                                </span>
+                              </div>
+                            )}
+                            {scriptKinds.length > 0 && (
+                              <div className={styles.capItem}>
+                                <FileCode size={13} className={styles.capItemIcon} />
+                                <span className={styles.capText}>
+                                  {t('plugins.runsScripts', { kinds: scriptKinds.join(', ') })}
                                 </span>
                               </div>
                             )}

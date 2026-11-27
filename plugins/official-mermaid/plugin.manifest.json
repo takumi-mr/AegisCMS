@@ -27,7 +27,8 @@
         "cdn.jsdelivr.net"
       ]
     },
-    "inline_scripts": true
+    "inline_scripts": true,
+    "local_scripts": true
   },
   "resource_limits": {
     "max_memory_mb": 16,
