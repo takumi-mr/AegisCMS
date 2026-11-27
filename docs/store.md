@@ -5,7 +5,7 @@
 # Package store (design, not implemented)
 
 > [!NOTE]
-> This is a design note. Nothing here is implemented yet. Once it is, this will be rewritten as a specification.
+> This is a design note. Implemented so far: fetching and verifying catalogs and the listing API (`GET /api/v1/store/packages`; settings in [configuration.md 2.28](configuration.md#228-store--package-store)). Installing from the store and the Admin Studio screen are not done yet. Once everything is, this will be rewritten as a specification.
 
 Lets admins pick published plugins and themes in Admin Studio and install or update them. The distribution side is **static files only** (a signed catalog and ZIP files); there is no dedicated HTTP server. AegisCMS reads the catalog, downloads a ZIP, and hands it to the existing ZIP installation ([installing packages and signatures](plugin_hooks.md#74-installing-from-a-zip-package-and-signatures)).
 
@@ -81,7 +81,7 @@ Packages are distributed from a repository separate from the main one (for examp
 
 ## 4. On the AegisCMS side
 
-### 4.1 Settings (draft)
+### 4.1 Settings
 
 ```toml
 [store]
@@ -94,6 +94,7 @@ public_key = "<Ed25519 public key for the catalog signature, 32 bytes hex>"
 ```
 
 - Catalogs are an array; one for now. Each key is used for its own catalog only.
+- Accepted sequences are recorded in the DB (`store.catalog_sequences` in `_aegis_settings`), shared by all servers and never lowered. Restoring a backup brings the record back to its value at that time; that only loosens the check until the next accepted catalog.
 - The key in the ZIP's `signature.json` must match the entry's `public_key`. `require_signatures` and `trusted_public_keys` under `[plugins]` / `[theme]` still apply; going through the store never relaxes them.
 
 ### 4.2 Flow
@@ -154,4 +155,3 @@ For authors who do not want to hand source to review at all, a tier that accepts
 - Where store installs go in Admin Studio (one idea: a "Store" tab on the plugin and theme screens).
 - How often to check for updates (start-up only, periodically, or when the screen opens), and where to cache the fetched catalog.
 - How to rotate keys (whether the catalog should announce the next key).
-- Where to remember `sequence` (DB or a file in the data directory), and what happens after a restore (`task restore`).

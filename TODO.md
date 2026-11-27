@@ -35,6 +35,5 @@
 設計は [store.md](docs/store.ja.md)。当面は公式のプラグイン・テーマだけを配る。上から順に着手する。
 
 - [ ] **配布用リポジトリの用意**: 本体とは別のリポジトリ（例: `aegis-store`）を作り、タグ（`<id>-v<version>`）の push で「ビルド → ZIP に署名 → Release → `catalog.json` の作り直しと署名 → Pages に出す」を行う CI を作る。カタログの鍵と ZIP の鍵を分け、Actions の secret に置く。`expires_at` を延ばす定期の作り直しも入れる。
-- [ ] **CMS 側のカタログ読み込み**: `[[store.catalogs]]` の設定、カタログの取得（https のみ・サイズ上限・タイムアウト・リダイレクト制限）、署名・`schema_version`・`sequence`（巻き戻しの拒否）・`expires_at` の検証。`sequence` の保存先と復元後の扱いは未決（store.md 7）。
-- [ ] **ストアからのインストール・更新 API**: ZIP の取得 → `size`・`sha256` の照合 → エントリの `public_key` と `signature.json` の鍵の一致 → 既存の ZIP インストール。`capabilities` がマニフェストと食い違えば拒否。監査ログに取得元を残す。
+- [ ] **ストアからのインストール・更新 API**: カタログの読み込みと一覧（`crates/aegis-server/src/store.rs`・`GET /api/v1/store/packages`）は済。ZIP の取得（`store::build_client` を使う） → `size`・`sha256` の照合 → エントリの `public_key` と `signature.json` の鍵の一致 → 既存の ZIP インストール。`capabilities` がマニフェストと食い違えば拒否。監査ログに取得元を残す。
 - [ ] **Admin Studio のストア画面**: 一覧、互換性のないものの無効化、インストール前の `capabilities` の確認、更新のお知らせ。

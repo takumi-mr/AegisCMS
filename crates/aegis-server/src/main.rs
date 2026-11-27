@@ -58,6 +58,7 @@ mod setup;
 mod site;
 mod ssrf;
 mod state;
+mod store;
 #[cfg(test)]
 mod strict_csp_tests;
 mod system;
@@ -1035,6 +1036,7 @@ async fn run_server() -> anyhow::Result<()> {
             }
             config.plugins.validate()?;
             config.theme.validate()?;
+            config.store.validate()?;
             config.commerce.validate()?;
             config.members.validate()?;
             config.comments.validate()?;
