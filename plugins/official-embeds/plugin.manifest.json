@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "entrypoint": "plugin.wasm",
   "display_name": "Embeds (Video, Maps, CodePen, Google Calendar & Forms)",
-  "description": "Adds blocks that embed external services in the body: YouTube and Vimeo videos, OpenStreetMap and Google Maps maps, CodePen pens, Google Calendar and Google Forms. Only the services' own players are framed, and their hosts are added to the CSP frame-src while the plugin is enabled.",
+  "description": "Adds blocks that embed external services in the body: YouTube and Vimeo videos, OpenStreetMap and Google Maps maps, CodePen pens, Google Calendar and Google Forms. A generic embed block frames pages on hosts the site's administrator allows. Only the services' own players are framed, and their hosts are added to the CSP frame-src while the plugin is enabled.",
   "author": "AegisCMS Core Team",
   "license": "MIT OR Apache-2.0",
   "tags": [
@@ -29,7 +29,8 @@
         "www.google.com",
         "calendar.google.com",
         "docs.google.com"
-      ]
+      ],
+      "site_domains": true
     }
   },
   "resource_limits": {
@@ -492,6 +493,70 @@
             "ja": "タイトル（読み上げ用）"
           },
           "default": ""
+        }
+      ]
+    },
+    {
+      "name": "iframe",
+      "label": {
+        "en": "Embed (allowed sites)",
+        "ja": "埋め込み（許可したサイト）"
+      },
+      "description": {
+        "en": "A page on a host the site's administrator allows (Settings › Headers)",
+        "ja": "サイトの管理者が許可したホストのページ（Settings › Headers）"
+      },
+      "fields": [
+        {
+          "name": "url",
+          "type": "url",
+          "label": {
+            "en": "Page URL",
+            "ja": "ページの URL"
+          },
+          "required": true,
+          "placeholder": "https://",
+          "default": "",
+          "help": {
+            "en": "An https:// URL on a host allowed in Settings › Headers (or [embed].frame_domains in the config file). Other hosts are not shown.",
+            "ja": "Settings › Headers（または設定ファイルの [embed].frame_domains）で許可したホストの https:// の URL。ほかのホストは表示されません。"
+          }
+        },
+        {
+          "name": "title",
+          "type": "string",
+          "label": {
+            "en": "Title (for screen readers)",
+            "ja": "タイトル（読み上げ用）"
+          },
+          "required": true,
+          "default": "",
+          "help": {
+            "en": "Describes the frame for screen readers. Empty uses the host name.",
+            "ja": "フレームの内容を読み上げで伝えます。空欄ならホスト名。"
+          }
+        },
+        {
+          "name": "height",
+          "type": "number",
+          "label": {
+            "en": "Height (px)",
+            "ja": "高さ（px）"
+          },
+          "default": 500,
+          "help": {
+            "en": "100 to 3000. Empty uses 500.",
+            "ja": "100〜3000。空欄なら 500。"
+          }
+        },
+        {
+          "name": "allow_fullscreen",
+          "type": "boolean",
+          "label": {
+            "en": "Allow full screen",
+            "ja": "全画面表示を許可"
+          },
+          "default": false
         }
       ]
     }

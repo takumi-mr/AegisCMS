@@ -81,8 +81,29 @@ pub const CONTACT_FORM_BLOCK: &str = "core/contact-form";
 /// `javascript:` URLs; `<iframe>`s only from the plugin's `embed.frame_domains`) inside
 /// `<div class="aegis-plugin-block" data-block="...">`. A block the
 /// plugin returns nothing for, or whose plugin fails, shows nothing. Only top-level blocks are
-/// handed to plugins. Top-level [`CONTACT_FORM_BLOCK`]s become the configured contact form
+/// handed to plugins. Top-level [`CONTACT_FORM_BLOCK`]s become the configured contact form.
+///
+/// This is the HTML for themed pages and previews: with `[embed].consent`, the plugin blocks'
+/// `<iframe>`s wait for the visitor's consent ([`crate::embeds::hold_for_consent`]). The content
+/// API and feeds use [`render_content_html_for_api`], which leaves them as they are
 pub async fn render_content(state: &AppState, blocks: &[BlockNode]) -> RenderedContent {
+    render_content_for(state, blocks, Target::Page).await
+}
+
+/// Where the body HTML goes
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Target {
+    /// A themed page or a preview (the consent script runs there)
+    Page,
+    /// JSON fields and feeds (no consent script)
+    Api,
+}
+
+async fn render_content_for(
+    state: &AppState,
+    blocks: &[BlockNode],
+    target: Target,
+) -> RenderedContent {
     let mut warnings = Vec::new();
     let supervisor = state.supervisor.read().await;
     // プラグインごとの（プラグイン、そのプラグインのブロックの位置）
@@ -129,10 +150,18 @@ pub async fn render_content(state: &AppState, blocks: &[BlockNode]) -> RenderedC
                 Vec::new()
             }
         };
-        let frame_domains = plugin.manifest().frame_domains();
+        // マニフェストで宣言したホストと、`site_domains` を宣言したプラグインなら管理者が許可したホスト
+        let mut frame_domains = plugin.manifest().frame_domains().to_vec();
+        if plugin.manifest().accepts_site_frame_domains() {
+            frame_domains.extend(crate::embeds::site_frame_domains(state));
+        }
         for (k, &i) in indexes.iter().enumerate() {
             let html = rendered.get(k).cloned().flatten();
-            prerendered.insert(i, plugin_block_html(&blocks[i].name, html, frame_domains));
+            let mut block = plugin_block_html(&blocks[i].name, html, &frame_domains);
+            if target == Target::Page && !block.is_empty() {
+                block = crate::embeds::hold_for_consent(state, block);
+            }
+            prerendered.insert(i, block);
         }
     }
     RenderedContent {
@@ -152,7 +181,7 @@ pub async fn render_content_html(state: &AppState, blocks: &[BlockNode]) -> Stri
 /// theme CSS, which is renamed the same way. Only this HTML string is rewritten, never the
 /// surrounding JSON/XML, so stored data such as `blocks` stays untouched
 pub async fn render_content_html_for_api(state: &AppState, blocks: &[BlockNode]) -> String {
-    let html = render_content_html(state, blocks).await;
+    let html = render_content_for(state, blocks, Target::Api).await.html;
     crate::namespace::rewrite(&html, &state.config.server.namespace()).into_owned()
 }
 
@@ -562,6 +591,220 @@ mod tests {
         );
         assert_eq!(html.matches("aegis-plugin-block").count(), 2);
         assert!(html.contains("<cards-unknown>"));
+    }
+
+    /// Renders each block as an `<iframe>` whose `src` is the block's `src` attribute
+    struct FramePlugin {
+        manifest: aegis_core::PluginManifest,
+    }
+
+    #[async_trait::async_trait]
+    impl AegisPlugin for FramePlugin {
+        fn manifest(&self) -> &aegis_core::PluginManifest {
+            &self.manifest
+        }
+
+        async fn render_blocks(
+            &self,
+            blocks: Vec<BlockNode>,
+        ) -> aegis_core::Result<Vec<Option<String>>> {
+            Ok(blocks
+                .iter()
+                .map(|b| {
+                    b.attributes["src"]
+                        .as_str()
+                        .map(|src| format!(r#"<iframe src="{}" title="t"></iframe>"#, src))
+                })
+                .collect())
+        }
+    }
+
+    fn frame_plugin(name: &str, embed: serde_json::Value) -> Arc<FramePlugin> {
+        let manifest = serde_json::from_value(serde_json::json!({
+            "name": name,
+            "version": "1.0.0",
+            "entrypoint": "plugin.wasm",
+            "capabilities": { "hooks": ["render-blocks"], "embed": embed },
+            "blocks": [{ "name": "frame", "label": "Frame" }]
+        }))
+        .unwrap();
+        Arc::new(FramePlugin { manifest })
+    }
+
+    #[tokio::test]
+    async fn test_site_frame_domains_apply_only_to_plugins_that_accept_them() {
+        let mut supervisor = aegis_runtime::PluginSupervisor::new();
+        supervisor.register(frame_plugin(
+            "fixed",
+            serde_json::json!({ "frame_domains": ["player.vimeo.com"] }),
+        ));
+        supervisor.register(frame_plugin(
+            "generic",
+            serde_json::json!({ "site_domains": true }),
+        ));
+        let config = crate::config::AegisConfig {
+            embed: crate::embeds::EmbedConfig {
+                frame_domains: vec!["forms.example.com".to_string()],
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+        let state = crate::test_support::test_state_with_config(config, supervisor).await;
+        // Admin Studio で足したホスト
+        state
+            .headers
+            .write()
+            .unwrap()
+            .embed_frame_domains
+            .push("maps.example.org".to_string());
+
+        let frame = |plugin: &str, src: &str| {
+            block(
+                &format!("{}/frame", plugin),
+                "",
+                serde_json::json!({ "src": src }),
+            )
+        };
+        let html = render_content_html(
+            &state,
+            &[
+                frame("fixed", "https://player.vimeo.com/video/1"),
+                frame("fixed", "https://forms.example.com/a"),
+                frame("generic", "https://forms.example.com/b"),
+                frame("generic", "https://maps.example.org/c"),
+                frame("generic", "https://player.vimeo.com/video/2"),
+                frame("generic", "https://evil.example/d"),
+            ],
+        )
+        .await;
+        assert!(
+            html.contains(r#"src="https://player.vimeo.com/video/1""#),
+            "{}",
+            html
+        );
+        // 管理者が許可したホストは、受け入れを宣言したプラグインのブロックにだけ効く
+        assert!(!html.contains("forms.example.com/a"), "{}", html);
+        assert!(
+            html.contains(r#"src="https://forms.example.com/b""#),
+            "{}",
+            html
+        );
+        assert!(
+            html.contains(r#"src="https://maps.example.org/c""#),
+            "{}",
+            html
+        );
+        // ほかのプラグインのマニフェストのホスト・許可していないホストは残らない
+        assert!(
+            !html.contains("video/2") && !html.contains("evil.example"),
+            "{}",
+            html
+        );
+        assert_eq!(
+            crate::embeds::site_frame_domains(&state),
+            ["forms.example.com", "maps.example.org"]
+        );
+    }
+
+    #[tokio::test]
+    async fn test_site_frame_domains_enter_the_csp_only_with_a_plugin_that_accepts_them() {
+        use tower::ServiceExt;
+        let csp = |plugin: Option<Arc<FramePlugin>>| async move {
+            let mut supervisor = aegis_runtime::PluginSupervisor::new();
+            if let Some(plugin) = plugin {
+                supervisor.register(plugin);
+            }
+            let config = crate::config::AegisConfig {
+                embed: crate::embeds::EmbedConfig {
+                    frame_domains: vec!["forms.example.com".to_string()],
+                    ..Default::default()
+                },
+                ..Default::default()
+            };
+            let state = crate::test_support::test_state_with_config(config, supervisor).await;
+            let app = crate::app::router(&state.config, state.clone());
+            let request = axum::http::Request::builder()
+                .uri("/health")
+                .body(axum::body::Body::empty())
+                .unwrap();
+            let response = app.oneshot(request).await.unwrap();
+            response.headers()["content-security-policy"]
+                .to_str()
+                .unwrap()
+                .to_string()
+        };
+        let with = csp(Some(frame_plugin(
+            "generic",
+            serde_json::json!({ "site_domains": true }),
+        )))
+        .await;
+        assert!(with.contains("https://forms.example.com"), "{}", with);
+        let fixed = csp(Some(frame_plugin(
+            "fixed",
+            serde_json::json!({ "frame_domains": ["player.vimeo.com"] }),
+        )))
+        .await;
+        assert!(!fixed.contains("forms.example.com"), "{}", fixed);
+        assert!(fixed.contains("https://player.vimeo.com"), "{}", fixed);
+        let none = csp(None).await;
+        assert!(!none.contains("forms.example.com"), "{}", none);
+    }
+
+    #[tokio::test]
+    async fn test_frames_wait_for_consent_on_pages_but_not_in_the_api() {
+        let mut supervisor = aegis_runtime::PluginSupervisor::new();
+        supervisor.register(frame_plugin(
+            "videos",
+            serde_json::json!({ "frame_domains": ["player.vimeo.com", "www.openstreetmap.org"] }),
+        ));
+        let mut config = crate::config::AegisConfig {
+            embed: crate::embeds::EmbedConfig {
+                consent: "marketing".to_string(),
+                consent_exempt: vec!["www.openstreetmap.org".to_string()],
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+        config.consent.enabled = true;
+        config.theme.locale = "ja".to_string();
+        let state = crate::test_support::test_state_with_config(config, supervisor).await;
+        let blocks = [
+            block(
+                "videos/frame",
+                "",
+                serde_json::json!({ "src": "https://player.vimeo.com/video/1" }),
+            ),
+            block(
+                "videos/frame",
+                "",
+                serde_json::json!({ "src": "https://www.openstreetmap.org/export/embed.html" }),
+            ),
+        ];
+
+        let page = render_content_html(&state, &blocks).await;
+        assert!(
+            page.contains(r#"<iframe title="t" data-src="https://player.vimeo.com/video/1" data-aegis-consent="marketing"></iframe>"#),
+            "{}",
+            page
+        );
+        // 待つブロックの先頭にだけ案内が入る
+        assert!(
+            page.contains(r#"<div class="aegis-plugin-block" data-block="videos/frame"><p class="aegis-consent-note" data-aegis-consent-note="marketing">この埋め込みは、Cookie の利用を許可すると表示されます。 <button type="button" class="aegis-consent-note-button" data-aegis-consent-open>Cookie の設定</button></p><iframe"#),
+            "{}",
+            page
+        );
+        assert_eq!(page.matches("aegis-consent-note\"").count(), 1, "{}", page);
+        // 除外したホストは待たない
+        assert!(page.contains(r#"<iframe src="https://www.openstreetmap.org/export/embed.html""#));
+
+        // コンテンツ API・フィードの HTML は変えない
+        let api = render_content_html_for_api(&state, &blocks).await;
+        assert!(
+            api.contains(r#"<iframe src="https://player.vimeo.com/video/1""#),
+            "{}",
+            api
+        );
+        assert!(!api.contains("data-aegis-consent"), "{}", api);
     }
 
     #[tokio::test]

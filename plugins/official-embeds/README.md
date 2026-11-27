@@ -6,14 +6,15 @@ An official plugin that adds blocks that embed pages of external services in the
 
 Blocks that depend on external sites are gathered in this plugin. Blocks that do not (buttons, cards, galleries, and so on) are in [`official-blocks`](../official-blocks/). A site that does not use embeds adds no hosts to its CSP as long as this plugin is not enabled.
 
-| Block                             | Input fields                                                                                         | Display                            |
-| --------------------------------- | ---------------------------------------------------------------------------------------------------- | ---------------------------------- |
-| `official-embeds/video`           | Video URL (required; YouTube, Vimeo), title (for screen readers), shape (16:9 / 4:3 / 9:16)          | A video player                     |
-| `official-embeds/openstreetmap`   | Latitude (required), longitude (required), zoom (1–19, default 15), place name                       | An OpenStreetMap map with a marker |
-| `official-embeds/codepen`         | Pen URL (required), first tab, height (200–1200px, default 400), run on click, title                 | A CodePen pen                      |
-| `official-embeds/google-map`      | Embed code (required), shape (16:10 / 4:3 / 1:1), place name                                         | A Google Maps map                  |
-| `official-embeds/google-calendar` | Calendar (required; an ID or the embed code), view (month / week / agenda), time zone, height, title | A Google Calendar                  |
-| `official-embeds/google-form`     | Form URL (required; a URL or the embed code), height (300–3000px, default 800), title                | A Google Forms form                |
+| Block                             | Input fields                                                                                                                | Display                                      |
+| --------------------------------- | --------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------- |
+| `official-embeds/video`           | Video URL (required; YouTube, Vimeo), title (for screen readers), shape (16:9 / 4:3 / 9:16)                                 | A video player                               |
+| `official-embeds/openstreetmap`   | Latitude (required), longitude (required), zoom (1–19, default 15), place name                                              | An OpenStreetMap map with a marker           |
+| `official-embeds/codepen`         | Pen URL (required), first tab, height (200–1200px, default 400), run on click, title                                        | A CodePen pen                                |
+| `official-embeds/google-map`      | Embed code (required), shape (16:10 / 4:3 / 1:1), place name                                                                | A Google Maps map                            |
+| `official-embeds/google-calendar` | Calendar (required; an ID or the embed code), view (month / week / agenda), time zone, height, title                        | A Google Calendar                            |
+| `official-embeds/google-form`     | Form URL (required; a URL or the embed code), height (300–3000px, default 800), title                                       | A Google Forms form                          |
+| `official-embeds/iframe`          | Page URL (required; a host the administrator allows), title (required), height (100–3000px, default 500), allow full screen | A page on an allowed site (with a `sandbox`) |
 
 ## Common Behavior
 
@@ -32,7 +33,7 @@ Blocks that depend on external sites are gathered in this plugin. Blocks that do
 | Google Forms    | `docs.google.com`          |
 
 - The CSP works per host. For example, adding `www.google.com` also lets other google.com pages be framed (only the `/maps/embed` URL this plugin builds goes into the body).
-- **Privacy**: showing an embed sends the viewer's IP address and other details to that service, and some services use cookies. State the external services you use in your privacy policy. Waiting for cookie consent (`[consent]`) before loading is not supported yet.
+- **Privacy**: showing an embed sends the viewer's IP address and other details to that service, and some services use cookies. State the external services you use in your privacy policy. When you write a consent category in `[embed].consent`, embeds are not loaded until that category is consented to ([Cookie consent 2.3](../../docs/consent.md#23-embeds-in-plugin-blocks); this plugin needs no settings).
 - It does not use server-side outbound network requests or the KVS (the viewer's browser loads the embeds).
 
 ## Video (YouTube, Vimeo)
@@ -70,6 +71,13 @@ Blocks that depend on external sites are gathered in this plugin. Blocks that do
 - Paste the code from the form's Send › `<>` (embed HTML), or the form's URL (`docs.google.com/forms/d/e/<ID>/viewform`).
 - Short links (`forms.gle/...`) cannot be used, because the ID is unknown without opening them. Open one in a browser and copy the full URL.
 - The form's height does not change automatically. Adjust "Height" to the number of questions (if it is too small, a scroll bar appears inside the form).
+
+## Embed (Allowed Sites)
+
+- A generic block that embeds pages on hosts the site's administrator allows. Allow hosts in Admin Studio's **Settings › Headers** ("Hosts Allowed for Embeds") or in `[embed].frame_domains` in the config file ([Configuration 2.23a](../../docs/configuration.md#223a-embed--embeds-iframe-in-plugin-blocks)). The manifest's `capabilities.embed.site_domains` declares that this plugin accepts those hosts.
+- This plugin does not know the list of allowed hosts. It only checks that the URL is `https://` and that the host name is well formed; iframes from hosts that are not allowed are removed by the server's sanitizing (they do not appear in the editor preview either).
+- It adds `sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox"`. The embedded page works, but it cannot move this site's page (the parent) to another URL.
+- The allowed hosts are added to the CSP `frame-src` while this plugin is enabled.
 
 ## Usage
 

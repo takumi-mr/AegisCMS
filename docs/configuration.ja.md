@@ -617,6 +617,23 @@ Cookie を使わないアクセス解析（[アクセス解析のドキュメン
 | `revision`      | integer | `1`                        | 増やすと、全員にもう一度聞く                                                                                          |
 | `categories`    | table[] | `analytics` と `marketing` | `[[consent.categories]]`（`id`・`label`・`description`。10 個まで）                                                   |
 
+### 2.23a `[embed]` — プラグインのブロックの埋め込み（iframe）
+
+プラグインのカスタムブロックが出す `<iframe>` についての、サイトの設定です。値が不正なときはサーバーが起動しません。
+
+```toml
+[embed]
+frame_domains = ["forms.example.com"]       # 管理者が許可するホスト（汎用の埋め込みブロック向け）
+consent = "marketing"                       # この区分の同意まで、埋め込みを読み込まない（空なら待たない）
+consent_exempt = ["www.openstreetmap.org"]  # 同意を待たないホスト
+```
+
+| キー             | 型       | 既定値 | 説明                                                                                                                                                                                                                                                                                                                                   |
+| ---------------- | -------- | ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `frame_domains`  | string[] | `[]`   | 管理者が許可するホスト（50 個まで。書き方は `embed.frame_domains` と同じホスト名だけ）。マニフェストで `capabilities.embed.site_domains` を宣言したプラグインのブロックに限り、このホストの `<iframe>` を残し、そのプラグインが有効な間は CSP の `frame-src` に足す。Admin Studio の **Settings › Headers** で足したものと合わせて使う |
+| `consent`        | string   | `""`   | `[consent]` の区分の ID。公開ページ・プレビューのプラグインのブロックの `<iframe>` を、この区分の同意まで読み込まない（[Cookie の同意 2.2](./consent.ja.md#23-プラグインのブロックの埋め込み)）。`[consent]` が無効なら書けない                                                                                                        |
+| `consent_exempt` | string[] | `[]`   | 同意を待たないホスト（Cookie を使わない埋め込みなど）。`consent` が要る                                                                                                                                                                                                                                                                |
+
 ### 2.24 `[captcha]` — 共通の CAPTCHA
 
 Cloudflare Turnstile・hCaptcha・reCAPTCHA などの CAPTCHA を、`targets` に挙げた送信先にまとめてかけます（[問い合わせフォーム 1.2](./contact.ja.md#12-captcha任意)）。キーを 1 か所に書き、どこにかけるかを `targets` で切り替えます。`targets` が空・重複、またはキーが不正なときはサーバーが起動しません。
@@ -868,6 +885,11 @@ policy_url = ""
 message = ""
 reopen_button = true
 revision = 1
+
+[embed]
+frame_domains = []
+consent = ""
+consent_exempt = []
 
 [comments]
 enabled = false

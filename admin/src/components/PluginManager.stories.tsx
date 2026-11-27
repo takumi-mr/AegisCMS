@@ -55,7 +55,10 @@ const PLUGINS: PluginInfo[] = [
       description: 'Video, map, CodePen and Google embed blocks.',
       capabilities: {
         hooks: ['render-blocks'],
-        embed: { frame_domains: ['www.youtube-nocookie.com', 'player.vimeo.com'] },
+        embed: {
+          frame_domains: ['www.youtube-nocookie.com', 'player.vimeo.com'],
+          site_domains: true,
+        },
       },
     }),
   },
@@ -203,6 +206,8 @@ export const Default: Story = {
     await expect(
       await canvas.findByText(/www\.youtube-nocookie\.com, player\.vimeo\.com/)
     ).toBeVisible();
+    // 管理者が許可したホストを受け入れるプラグインは、そのことが出る
+    await expect(canvas.getByText(/hosts allowed in Settings › Headers/)).toBeVisible();
   },
 };
 

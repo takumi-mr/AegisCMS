@@ -163,6 +163,8 @@ Wasm プラグインは、本文に置けるブロックを足せます（作り
 - 保存するのはブロック名と属性だけで、HTML は**表示のたびに**プラグインが作ります。プラグインを更新すると、保存し直さなくても表示が変わります。
 - プラグインが返した HTML は、カスタム HTML ブロックの標準モードと同じくサニタイズしてから出力します（`<script>`・`on*` 属性・`javascript:` の URL などは残りません）。外側は `<div class="aegis-plugin-block" data-block="<名前>">` です。
 - `<iframe>` は、プラグインがマニフェストで宣言したホスト（`capabilities.embed.frame_domains`）のものだけが残り、そのホストは CSP の `frame-src` にも自動で足されます（[plugin_hooks.md 3.2](plugin_hooks.ja.md#32-外部のページの埋め込み-capabilitiesembed)）。動画・地図などの埋め込みはこの仕組みで行い（`official-embeds`）、カスタム HTML ブロックは使いません（標準モードでは `<iframe>` が消え、サンドボックスモードでは中のプレーヤーにも制限が掛かります）。
+- マニフェストで `capabilities.embed.site_domains` を宣言したプラグイン（`official-embeds/iframe`）のブロックでは、サイトの管理者が許可したホスト（Settings › Headers・`[embed].frame_domains`）の `<iframe>` も残ります。投稿者はホストを足せません。
+- `[embed].consent` を設定すると、公開ページではブロックの `<iframe>` を Cookie の同意まで読み込みません（[consent.md 2.3](consent.ja.md#23-プラグインのブロックの埋め込み)）。
 - プラグインを無効にしてもブロックは消えません。Admin Studio には「プラグインが無効」と表示され、公開ページには表示されません。
 
 Markdown では 1 行で書き、属性は JSON のオブジェクトです（属性が無ければ省略できます）。

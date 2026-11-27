@@ -617,6 +617,23 @@ A consent banner for not running ads, analytics, and external embeds that requir
 | `revision`      | integer | `1`                         | Increasing it asks everyone again                                                                                         |
 | `categories`    | table[] | `analytics` and `marketing` | `[[consent.categories]]` (`id`, `label`, `description`; up to 10)                                                         |
 
+### 2.23a `[embed]` — Embeds (iframe) in Plugin Blocks
+
+Site settings for the `<iframe>`s that plugin custom blocks output. If values are invalid, the server does not start.
+
+```toml
+[embed]
+frame_domains = ["forms.example.com"]       # hosts the administrator allows (for generic embed blocks)
+consent = "marketing"                       # do not load embeds until this category is consented to (empty: do not wait)
+consent_exempt = ["www.openstreetmap.org"]  # hosts that do not wait for consent
+```
+
+| Key              | Type     | Default | Description                                                                                                                                                                                                                                                                                                                                                                           |
+| ---------------- | -------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `frame_domains`  | string[] | `[]`    | Hosts the administrator allows (up to 50; host names only, written like `embed.frame_domains`). Only in the blocks of plugins that declare `capabilities.embed.site_domains` in the manifest are `<iframe>`s from these hosts kept, and while such a plugin is enabled they are added to the CSP `frame-src`. Used together with those added in Admin Studio's **Settings › Headers** |
+| `consent`        | string   | `""`    | A `[consent]` category ID. The `<iframe>`s of plugin blocks on public pages and previews are not loaded until this category is consented to ([Cookie consent 2.2](./consent.md#23-embeds-in-plugin-blocks)). Cannot be set while `[consent]` is disabled                                                                                                                              |
+| `consent_exempt` | string[] | `[]`    | Hosts that do not wait for consent (such as embeds that use no cookies). Requires `consent`                                                                                                                                                                                                                                                                                           |
+
 ### 2.24 `[captcha]` — Shared CAPTCHA
 
 Applies a CAPTCHA such as Cloudflare Turnstile, hCaptcha, or reCAPTCHA together to the destinations listed in `targets` ([Contact form 1.2](./contact.md#12-captcha-optional)). Write the keys in one place and switch where it applies with `targets`. If `targets` is empty or duplicated, or the keys are invalid, the server does not start.
@@ -868,6 +885,11 @@ policy_url = ""
 message = ""
 reopen_button = true
 revision = 1
+
+[embed]
+frame_domains = []
+consent = ""
+consent_exempt = []
 
 [comments]
 enabled = false

@@ -17,6 +17,8 @@
  * - Scripts and iframes that need consent wait until it is given:
  *     <script type="text/plain" data-aegis-consent="marketing" src="https://..."></script>
  *     <iframe data-aegis-consent="marketing" data-src="https://..."></iframe>
+ *   A note with data-aegis-consent-note="<category>" (put above embeds that wait) is hidden once
+ *   the category is granted.
  * - window.AegisConsent: has(id), get(), open(), onChange(fn), destroy(). Event "aegis:consent" on document.
  */
 (function () {
@@ -109,6 +111,11 @@
       } else if (element.hasAttribute('data-src')) {
         element.setAttribute('src', element.getAttribute('data-src'));
       }
+    });
+    // The notes the server put above held-back embeds ("shown once you allow cookies")
+    var notes = document.querySelectorAll('[data-aegis-consent-note]');
+    Array.prototype.forEach.call(notes, function (note) {
+      if (granted(note.getAttribute('data-aegis-consent-note'))) note.hidden = true;
     });
   }
 

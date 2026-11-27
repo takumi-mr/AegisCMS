@@ -26,6 +26,7 @@ export const HeaderManager: React.FC<HeaderManagerProps> = ({ onShowToast }) => 
   const [permissionsPolicy, setPermissionsPolicy] = useState<string>('');
   const [coop, setCoop] = useState<string>('');
   const [customHeaders, setCustomHeaders] = useState<CustomHeader[]>([]);
+  const [embedHosts, setEmbedHosts] = useState<string>('');
 
   const [isSaving, setIsSaving] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
@@ -39,7 +40,14 @@ export const HeaderManager: React.FC<HeaderManagerProps> = ({ onShowToast }) => 
     setPermissionsPolicy(loaded.permissions_policy ?? '');
     setCoop(loaded.cross_origin_opener_policy ?? '');
     setCustomHeaders(loaded.custom_headers.map((h) => ({ name: h.name, value: h.value })));
+    setEmbedHosts((loaded.embed_frame_domains ?? []).join('\n'));
   };
+
+  /** One host per line (blank lines are ignored; the server lowercases and checks them) */
+  const embedHostList = embedHosts
+    .split('\n')
+    .map((h) => h.trim())
+    .filter((h) => h.length > 0);
 
   useEffect(() => {
     let cancelled = false;
@@ -95,6 +103,7 @@ export const HeaderManager: React.FC<HeaderManagerProps> = ({ onShowToast }) => 
         permissions_policy: permissionsPolicy.trim() || null,
         cross_origin_opener_policy: coop.trim() || null,
         custom_headers: validCustomHeaders,
+        embed_frame_domains: embedHostList,
       });
       apply(updated);
       onShowToast(t('headers.saved'));
@@ -113,7 +122,11 @@ export const HeaderManager: React.FC<HeaderManagerProps> = ({ onShowToast }) => 
       referrerPolicy.trim() !== (settings.referrer_policy ?? '') ||
       permissionsPolicy.trim() !== (settings.permissions_policy ?? '') ||
       coop.trim() !== (settings.cross_origin_opener_policy ?? '') ||
-      JSON.stringify(customHeaders) !== JSON.stringify(settings.custom_headers));
+      JSON.stringify(customHeaders) !== JSON.stringify(settings.custom_headers) ||
+      JSON.stringify(embedHostList) !== JSON.stringify(settings.embed_frame_domains ?? []));
+
+  const configEmbedHosts = settings?.config_embed_frame_domains ?? [];
+  const hasEmbedHosts = embedHostList.length > 0 || configEmbedHosts.length > 0;
 
   return (
     <main className={styles.main}>
@@ -316,6 +329,41 @@ export const HeaderManager: React.FC<HeaderManagerProps> = ({ onShowToast }) => 
                     </Button>
                   </div>
                 ))
+              )}
+            </div>
+          </div>
+
+          {/* Hosts allowed for embeds */}
+          <div className={styles.section}>
+            <div className={styles.sectionHeader}>
+              <div className={styles.sectionTitle}>{t('headers.embedSectionTitle')}</div>
+            </div>
+            <p className={styles.hint}>{t('headers.embedSectionHint')}</p>
+            <div className={styles.card}>
+              <label className={styles.cardLabel} htmlFor="headers-embed-hosts">
+                {t('headers.embedHostsLabel')}
+              </label>
+              <Field className={styles.textareaField}>
+                <textarea
+                  id="headers-embed-hosts"
+                  className={styles.textarea}
+                  value={embedHosts}
+                  onChange={(e) => setEmbedHosts(e.target.value)}
+                  placeholder="forms.example.com"
+                  rows={3}
+                  disabled={!settings}
+                  spellCheck={false}
+                />
+              </Field>
+              {configEmbedHosts.length > 0 && (
+                <p className={styles.hint}>
+                  {t('headers.embedConfigHosts', { hosts: configEmbedHosts.join(', ') })}
+                </p>
+              )}
+              {settings && hasEmbedHosts && !settings.embed_frame_domains_in_use && (
+                <p className={styles.hint} role="status">
+                  {t('headers.embedNotInUse')}
+                </p>
               )}
             </div>
           </div>

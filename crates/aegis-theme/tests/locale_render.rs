@@ -340,6 +340,7 @@ fn plain_texts() -> Vec<(&'static str, &'static str, &'static str)> {
                 && !key.starts_with("access.")
                 // サーバーのコードが画面に出す文言（テンプレートには現れない）
                 && *key != "forum.former_user"
+                && *key != "consent.embed_waiting"
                 && en != ja
                 && !en.contains(['{', '<'])
         })

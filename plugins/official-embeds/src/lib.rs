@@ -9,6 +9,10 @@
 //! - `official-embeds/google-calendar`: `calendar`（埋め込みの HTML・URL か、カレンダー ID）・`mode`・
 //!   `timezone`・`height`・`title`
 //! - `official-embeds/google-form`: `url`（フォームの URL か、埋め込みの HTML）・`height`・`title`
+//! - `official-embeds/iframe`: `url`・`title`・`height`・`allow_fullscreen`。サイトの管理者が許可したホスト
+//!   （`[embed].frame_domains` と Admin Studio の **Settings › Headers**。マニフェストの
+//!   `capabilities.embed.site_domains`）のページを埋め込む。許可していないホストの iframe はホストが
+//!   サニタイズで取り除くので、このプラグインはホストを判断しない。既定で `sandbox` を付ける
 //!
 //! 外部のサイトに依存するブロックは、すべてこのプラグインに置く（`official-blocks` には置かない）。
 //! プラグインを有効にしたときだけ、埋め込み先のホストが CSP の `frame-src` に入るようにするため。
@@ -630,6 +634,69 @@ fn render_google_form(block: &BlockNode) -> Option<String> {
     ))
 }
 
+// ---------------------------------------------------------------------------
+// 汎用の埋め込み（管理者が許可したホスト）
+
+/// 汎用の埋め込みに付ける `sandbox`。スクリプト・フォーム・ポップアップは動くが、埋め込んだページが
+/// このサイトのページ（親）を別の URL に移すこと（`allow-top-navigation`）は許さない
+const GENERIC_SANDBOX: &str =
+    "allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox";
+
+/// 汎用の埋め込みの URL。`https://` で、ホストが英小文字・数字・`-`・`.` だけ（ユーザー情報・ポート無し）。
+/// ホストは英小文字にそろえる。ホストを許すかどうかは、ホスト（サーバー）のサニタイズが決める
+fn parse_frame_url(input: &str) -> Option<String> {
+    let input = input.trim();
+    let rest = input
+        .get(..8)
+        .filter(|scheme| scheme.eq_ignore_ascii_case("https://"))
+        .map(|_| &input[8..])?;
+    if input.len() > 2048
+        || input.chars().any(|c| {
+            c.is_whitespace() || c.is_control() || matches!(c, '"' | '\'' | '<' | '>' | '\\' | '`')
+        })
+    {
+        return None;
+    }
+    let end = rest.find(['/', '?', '#']).unwrap_or(rest.len());
+    let host = rest[..end].to_ascii_lowercase();
+    let labels: Vec<&str> = host.split('.').collect();
+    let host_ok = labels.len() >= 2
+        && labels.iter().all(|l| {
+            !l.is_empty()
+                && !l.starts_with('-')
+                && !l.ends_with('-')
+                && l.bytes()
+                    .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-')
+        });
+    host_ok.then(|| format!("https://{}{}", host, &rest[end..]))
+}
+
+fn render_iframe(block: &BlockNode) -> Option<String> {
+    let src = parse_frame_url(attr(block, "url"))?;
+    let title = attr(block, "title");
+    let title = if title.is_empty() {
+        // 読み上げのためのタイトルが無ければ、ホスト名を使う
+        src["https://".len()..]
+            .split(['/', '?', '#'])
+            .next()
+            .unwrap_or("")
+            .to_string()
+    } else {
+        title.to_string()
+    };
+    let fullscreen = if flag(block, "allow_fullscreen") {
+        " allowfullscreen"
+    } else {
+        ""
+    };
+    Some(format!(
+        r#"<div class="oe-frame oe-iframe"><iframe src="{}" title="{}" height="{}" loading="lazy" referrerpolicy="strict-origin-when-cross-origin" sandbox="{GENERIC_SANDBOX}"{fullscreen}></iframe></div>"#,
+        escape(&src),
+        escape(&title),
+        height(block, 500, 100, 3000)
+    ))
+}
+
 impl Plugin for EmbedsPlugin {
     fn render_blocks(&mut self, blocks: Vec<BlockNode>) -> Result<Vec<Option<String>>> {
         let mut styled = false;
@@ -643,6 +710,7 @@ impl Plugin for EmbedsPlugin {
                     "official-embeds/google-map" => render_google_map(block),
                     "official-embeds/google-calendar" => render_google_calendar(block),
                     "official-embeds/google-form" => render_google_form(block),
+                    "official-embeds/iframe" => render_iframe(block),
                     _ => None,
                 }?;
                 // スタイルは最初に表示するブロックにだけ付ける
@@ -1113,8 +1181,60 @@ mod tests {
                 "codepen",
                 "google-map",
                 "google-calendar",
-                "google-form"
+                "google-form",
+                "iframe"
             ]
         );
+        // 汎用の埋め込みは、管理者が許可したホストを受け入れる
+        assert_eq!(manifest["capabilities"]["embed"]["site_domains"], true);
+    }
+
+    #[test]
+    fn renders_a_generic_frame_with_a_sandbox() {
+        assert_eq!(
+            parse_frame_url(" https://Forms.Example.com/a?b=1&c=2#x ").as_deref(),
+            Some("https://forms.example.com/a?b=1&c=2#x")
+        );
+        assert_eq!(
+            parse_frame_url("https://forms.example.com").as_deref(),
+            Some("https://forms.example.com")
+        );
+        for bad in [
+            "http://forms.example.com/a",
+            "//forms.example.com/a",
+            "javascript:alert(1)",
+            "https://user@forms.example.com/",
+            "https://forms.example.com:8443/",
+            "https://forms/",
+            "https://forms.example.com/a b",
+            "https://forms.example.com/\"onload=\"x",
+            "https://forms.example.com/<x>",
+            "https://*.example.com/",
+        ] {
+            assert_eq!(parse_frame_url(bad), None, "{}", bad);
+        }
+        let html = render(vec![
+            block(
+                "iframe",
+                &[
+                    ("url", json!("https://forms.example.com/a?b=1&c=2")),
+                    ("title", json!("Survey")),
+                    ("height", json!(50)),
+                    ("allow_fullscreen", json!(true)),
+                ],
+            ),
+            block("iframe", &[("url", json!("https://maps.example.org/"))]),
+            block("iframe", &[("url", json!("http://maps.example.org/"))]),
+        ]);
+        let first = html[0].as_deref().unwrap();
+        assert!(first.contains(r#"<iframe src="https://forms.example.com/a?b=1&amp;c=2" title="Survey" height="100" loading="lazy" referrerpolicy="strict-origin-when-cross-origin" sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox" allowfullscreen></iframe>"#), "{}", first);
+        let second = html[1].as_deref().unwrap();
+        assert!(
+            second.contains(r#"title="maps.example.org" height="500""#),
+            "{}",
+            second
+        );
+        assert!(!second.contains("allowfullscreen"));
+        assert_eq!(html[2], None);
     }
 }

@@ -672,6 +672,12 @@ export interface HeaderSettings {
   permissions_policy: string | null;
   cross_origin_opener_policy: string | null;
   custom_headers: CustomHeader[];
+  /** Hosts the administrator allows for generic embed blocks (set here) */
+  embed_frame_domains: string[];
+  /** `[embed].frame_domains` in the config file (read-only, used together with the above) */
+  config_embed_frame_domains: string[];
+  /** Whether an enabled plugin accepts the allowed hosts (`capabilities.embed.site_domains`) */
+  embed_frame_domains_in_use: boolean;
   defaults: HeaderDefaults;
 }
 
@@ -683,6 +689,8 @@ export interface UpdateHeaderSettings {
   permissions_policy?: string | null;
   cross_origin_opener_policy?: string | null;
   custom_headers?: CustomHeader[];
+  /** Omit to keep the current list; `[]` clears it */
+  embed_frame_domains?: string[];
 }
 
 /** A notification kind with built-in sample values (`GET /api/v1/notifications`) */
@@ -920,7 +928,7 @@ export interface PluginCapabilities {
   storage?: { kv_namespace: string } | null;
   hooks: string[];
   /** Hosts whose `<iframe>`s the plugin's blocks may embed (also added to the CSP `frame-src`) */
-  embed?: { frame_domains: string[] } | null;
+  embed?: { frame_domains: string[]; site_domains?: boolean } | null;
   /** Hosts the plugin adds to the Content-Security-Policy, by directive (`script_domains` → `script-src`) */
   csp?: {
     script_domains?: string[];

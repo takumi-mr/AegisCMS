@@ -23,6 +23,7 @@ mod config_env;
 mod consent;
 mod cors;
 mod deploy;
+mod embeds;
 mod handlers;
 mod headers;
 #[cfg(feature = "headless")]
@@ -1041,6 +1042,7 @@ async fn run_server() -> anyhow::Result<()> {
             if config.consent.enabled {
                 config.consent.validate()?;
             }
+            config.embed.validate(&config.consent)?;
             config.forum.validate()?;
             config.notifications.validate()?;
             config.cdn.validate()?;

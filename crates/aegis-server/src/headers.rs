@@ -18,6 +18,8 @@ pub const REFERRER_POLICY_SETTING: &str = "headers.referrer_policy";
 pub const PERMISSIONS_POLICY_SETTING: &str = "headers.permissions_policy";
 pub const COOP_SETTING: &str = "headers.cross_origin_opener_policy";
 pub const CUSTOM_HEADERS_SETTING: &str = "headers.custom_headers";
+/// 管理者が許可する埋め込みのホスト（JSON の配列。[`crate::embeds`]）
+pub const EMBED_FRAME_DOMAINS_SETTING: &str = "headers.embed_frame_domains";
 
 /// デフォルトの防御ヘッダー値
 pub const DEFAULT_CONTENT_SECURITY_POLICY: &str = aegis_core::csp::DEFAULT_PUBLIC_CSP;
@@ -88,6 +90,10 @@ pub struct HeaderOverrides {
     pub cross_origin_opener_policy: Option<String>,
     /// 任意のカスタムヘッダー一覧
     pub custom_headers: Vec<CustomHeader>,
+    /// 管理者が許可する埋め込みのホスト（`capabilities.embed.site_domains` を宣言したプラグインのブロックの
+    /// `<iframe>` に効き、CSP の `frame-src` に足す。設定ファイルの `[embed].frame_domains` と合わせて使う）
+    #[serde(default)]
+    pub embed_frame_domains: Vec<String>,
 }
 
 impl HeaderOverrides {
@@ -96,6 +102,13 @@ impl HeaderOverrides {
             .get(CUSTOM_HEADERS_SETTING)
             .and_then(|raw| serde_json::from_str::<Vec<CustomHeader>>(raw).ok())
             .unwrap_or_default();
+        let embed_frame_domains = settings
+            .get(EMBED_FRAME_DOMAINS_SETTING)
+            .and_then(|raw| serde_json::from_str::<Vec<String>>(raw).ok())
+            .unwrap_or_default()
+            .into_iter()
+            .filter(|h| aegis_core::manifest::is_valid_frame_domain(h))
+            .collect();
 
         Self {
             content_security_policy: settings.get(CSP_SETTING).cloned(),
@@ -105,6 +118,7 @@ impl HeaderOverrides {
             permissions_policy: settings.get(PERMISSIONS_POLICY_SETTING).cloned(),
             cross_origin_opener_policy: settings.get(COOP_SETTING).cloned(),
             custom_headers,
+            embed_frame_domains,
         }
     }
 

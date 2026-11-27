@@ -163,6 +163,8 @@ Wasm plugins can add blocks that can be placed in the body (for how to build the
 - What is saved is only the block name and attributes, and the plugin builds the HTML **on every display**. When you update the plugin, the display changes without re-saving.
 - The HTML a plugin returns is sanitized in the same way as the custom HTML block's standard mode before output (`<script>`, `on*` attributes, `javascript:` URLs, etc. do not remain). The outside is `<div class="aegis-plugin-block" data-block="<name>">`.
 - For `<iframe>`, only those from hosts the plugin declared in the manifest (`capabilities.embed.frame_domains`) remain, and those hosts are also added automatically to the CSP `frame-src` ([plugin_hooks.md 3.2](plugin_hooks.md#32-embedding-external-pages-capabilitiesembed)). Embedding videos, maps, and so on uses this mechanism (`official-embeds`) and not the custom HTML block (in standard mode the `<iframe>` disappears, and in sandbox mode restrictions also apply to the player inside).
+- In the blocks of plugins that declare `capabilities.embed.site_domains` in the manifest (`official-embeds/iframe`), `<iframe>`s from hosts the site's administrator allows (Settings › Headers, `[embed].frame_domains`) also remain. Authors cannot add hosts.
+- With `[embed].consent`, the blocks' `<iframe>`s on public pages are not loaded until cookie consent is given ([consent.md 2.3](consent.md#23-embeds-in-plugin-blocks)).
 - Disabling a plugin does not make its blocks disappear. Admin Studio shows "Plugin disabled", and they are not shown on public pages.
 
 In Markdown they are written on one line, with attributes as a JSON object (omittable if there are no attributes).
