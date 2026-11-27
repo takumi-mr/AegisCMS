@@ -157,12 +157,12 @@ Classes for changing the look in a theme:
 
 ## 4. Plugin Blocks
 
-Wasm plugins can add blocks that can be placed in the body (for how to build them, see [plugin_hooks.md 1.10](plugin_hooks.md#110-render-blocks)). Examples are the official plugin [`official-blocks`](../plugins/official-blocks)'s button (`official-blocks/button`), link card (`official-blocks/link-card`), video (`official-blocks/video`; YouTube, Vimeo), audio (`official-blocks/audio`), file download (`official-blocks/file`), map (`official-blocks/map`; OpenStreetMap), image gallery (`official-blocks/gallery`), FAQ (`official-blocks/faq`), steps (`official-blocks/steps`), columns (`official-blocks/columns`), image and text (`official-blocks/media-text`), image with caption (`official-blocks/figure`), timeline (`official-blocks/timeline`), chat bubbles (`official-blocks/chat`), tabs (`official-blocks/tabs`), stats (`official-blocks/stats`), definition list (`official-blocks/definition-list`), and rating (`official-blocks/rating`; with schema.org Review), as well as the official plugin [`official-charts`](../plugins/official-charts)'s chart (`official-charts/chart`; bar, stacked bar, horizontal bar, line, and donut with multi-series support).
+Wasm plugins can add blocks that can be placed in the body (for how to build them, see [plugin_hooks.md 1.10](plugin_hooks.md#110-render-blocks)). Examples are the official plugin [`official-blocks`](../plugins/official-blocks)'s button (`official-blocks/button`), link card (`official-blocks/link-card`), audio (`official-blocks/audio`), file download (`official-blocks/file`), image gallery (`official-blocks/gallery`), FAQ (`official-blocks/faq`), steps (`official-blocks/steps`), columns (`official-blocks/columns`), image and text (`official-blocks/media-text`), image with caption (`official-blocks/figure`), timeline (`official-blocks/timeline`), chat bubbles (`official-blocks/chat`), tabs (`official-blocks/tabs`), stats (`official-blocks/stats`), definition list (`official-blocks/definition-list`), and rating (`official-blocks/rating`; with schema.org Review), as well as the official plugin [`official-charts`](../plugins/official-charts)'s chart (`official-charts/chart`; bar, stacked bar, horizontal bar, line, and donut with multi-series support), and the official plugin [`official-embeds`](../plugins/official-embeds)'s embeds of external services (video `official-embeds/video`: YouTube, Vimeo; maps `official-embeds/openstreetmap` and `official-embeds/google-map`; `official-embeds/codepen`; `official-embeds/google-calendar`; `official-embeds/google-form`). Blocks that depend on external sites are gathered in `official-embeds` and not put in `official-blocks` (so that the embedded hosts enter the CSP only when it is enabled).
 
 - The blocks of enabled plugins line up in Admin Studio's add-block button (`GET /api/v1/blocks`). The edit screen shows a form of the input fields declared in the plugin's manifest.
 - What is saved is only the block name and attributes, and the plugin builds the HTML **on every display**. When you update the plugin, the display changes without re-saving.
 - The HTML a plugin returns is sanitized in the same way as the custom HTML block's standard mode before output (`<script>`, `on*` attributes, `javascript:` URLs, etc. do not remain). The outside is `<div class="aegis-plugin-block" data-block="<name>">`.
-- For `<iframe>`, only those from hosts the plugin declared in the manifest (`capabilities.embed.frame_domains`) remain, and those hosts are also added automatically to the CSP `frame-src` ([plugin_hooks.md 3.2](plugin_hooks.md#32-embedding-external-pages-capabilitiesembed)). Video embedding uses this mechanism and not the custom HTML block (in standard mode the `<iframe>` disappears, and in sandbox mode restrictions also apply to the player inside).
+- For `<iframe>`, only those from hosts the plugin declared in the manifest (`capabilities.embed.frame_domains`) remain, and those hosts are also added automatically to the CSP `frame-src` ([plugin_hooks.md 3.2](plugin_hooks.md#32-embedding-external-pages-capabilitiesembed)). Embedding videos, maps, and so on uses this mechanism (`official-embeds`) and not the custom HTML block (in standard mode the `<iframe>` disappears, and in sandbox mode restrictions also apply to the player inside).
 - Disabling a plugin does not make its blocks disappear. Admin Studio shows "Plugin disabled", and they are not shown on public pages.
 
 In Markdown they are written on one line, with attributes as a JSON object (omittable if there are no attributes).
@@ -172,13 +172,15 @@ In Markdown they are written on one line, with attributes as a JSON object (omit
 
 ::: official-blocks/link-card {"url": "https://github.com/takumi-mr/aegiscms", "title": "AegisCMS"}
 
-::: official-blocks/video {"url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ", "aspect": "16x9"}
+::: official-embeds/video {"url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ", "aspect": "16x9"}
 
 ::: official-blocks/audio {"url": "/uploads/episode-1.mp3", "title": "Episode 1"}
 
 ::: official-blocks/file {"url": "/uploads/guide.pdf", "title": "Getting started guide", "size": "PDF, 2.4 MB"}
 
-::: official-blocks/map {"latitude": 35.6812, "longitude": 139.7671, "zoom": 16, "title": "Tokyo Station"}
+::: official-embeds/openstreetmap {"latitude": 35.6812, "longitude": 139.7671, "zoom": 16, "title": "Tokyo Station"}
+
+::: official-embeds/codepen {"url": "https://codepen.io/<user>/pen/<ID>", "tab": "css"}
 
 ::: official-blocks/gallery {"images": [{"image": "/uploads/a.jpg", "caption": "Exterior"}, {"image": "/uploads/b.jpg", "caption": "Interior"}], "columns": "2"}
 

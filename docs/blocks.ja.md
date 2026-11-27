@@ -157,12 +157,12 @@ Q&A や補足の詳細に使います。HTML 標準の `<details>` / `<summary>`
 
 ## 4. プラグインのブロック
 
-Wasm プラグインは、本文に置けるブロックを足せます（作り方は [plugin_hooks.md 1.10](plugin_hooks.ja.md#110-render-blocks)）。公式プラグイン [`official-blocks`](../plugins/official-blocks) のボタン（`official-blocks/button`）・リンクカード（`official-blocks/link-card`）・動画（`official-blocks/video`。YouTube・Vimeo）・音声（`official-blocks/audio`）・ファイルのダウンロード（`official-blocks/file`）・地図（`official-blocks/map`。OpenStreetMap）・画像ギャラリー（`official-blocks/gallery`）・FAQ（`official-blocks/faq`）・手順（`official-blocks/steps`）・カラム（`official-blocks/columns`）・画像と文章（`official-blocks/media-text`）・キャプションつきの画像（`official-blocks/figure`）・タイムライン（`official-blocks/timeline`）・吹き出し（`official-blocks/chat`）・タブ（`official-blocks/tabs`）・数値（`official-blocks/stats`）・定義リスト（`official-blocks/definition-list`）・評価（`official-blocks/rating`。schema.org の Review つき）や、公式プラグイン [`official-charts`](../plugins/official-charts) のグラフ（`official-charts/chart`。縦棒・積み上げ棒・横棒・折れ線・ドーナツ、複数系列対応）が例です。
+Wasm プラグインは、本文に置けるブロックを足せます（作り方は [plugin_hooks.md 1.10](plugin_hooks.ja.md#110-render-blocks)）。公式プラグイン [`official-blocks`](../plugins/official-blocks) のボタン（`official-blocks/button`）・リンクカード（`official-blocks/link-card`）・音声（`official-blocks/audio`）・ファイルのダウンロード（`official-blocks/file`）・画像ギャラリー（`official-blocks/gallery`）・FAQ（`official-blocks/faq`）・手順（`official-blocks/steps`）・カラム（`official-blocks/columns`）・画像と文章（`official-blocks/media-text`）・キャプションつきの画像（`official-blocks/figure`）・タイムライン（`official-blocks/timeline`）・吹き出し（`official-blocks/chat`）・タブ（`official-blocks/tabs`）・数値（`official-blocks/stats`）・定義リスト（`official-blocks/definition-list`）・評価（`official-blocks/rating`。schema.org の Review つき）や、公式プラグイン [`official-charts`](../plugins/official-charts) のグラフ（`official-charts/chart`。縦棒・積み上げ棒・横棒・折れ線・ドーナツ、複数系列対応）、公式プラグイン [`official-embeds`](../plugins/official-embeds) の外部のサービスの埋め込み（動画 `official-embeds/video`。YouTube・Vimeo／地図 `official-embeds/openstreetmap`・`official-embeds/google-map`／`official-embeds/codepen`／`official-embeds/google-calendar`／`official-embeds/google-form`）が例です。外部のサイトに依存するブロックは `official-embeds` にまとめ、`official-blocks` には置きません（有効にしたときだけ、埋め込み先のホストが CSP に入るように）。
 
 - 有効なプラグインのブロックは、Admin Studio のブロックの追加ボタンに並びます（`GET /api/v1/blocks`）。編集画面には、プラグインのマニフェストで宣言した入力欄のフォームが出ます。
 - 保存するのはブロック名と属性だけで、HTML は**表示のたびに**プラグインが作ります。プラグインを更新すると、保存し直さなくても表示が変わります。
 - プラグインが返した HTML は、カスタム HTML ブロックの標準モードと同じくサニタイズしてから出力します（`<script>`・`on*` 属性・`javascript:` の URL などは残りません）。外側は `<div class="aegis-plugin-block" data-block="<名前>">` です。
-- `<iframe>` は、プラグインがマニフェストで宣言したホスト（`capabilities.embed.frame_domains`）のものだけが残り、そのホストは CSP の `frame-src` にも自動で足されます（[plugin_hooks.md 3.2](plugin_hooks.ja.md#32-外部のページの埋め込み-capabilitiesembed)）。動画の埋め込みはこの仕組みで行い、カスタム HTML ブロックは使いません（標準モードでは `<iframe>` が消え、サンドボックスモードでは中のプレーヤーにも制限が掛かります）。
+- `<iframe>` は、プラグインがマニフェストで宣言したホスト（`capabilities.embed.frame_domains`）のものだけが残り、そのホストは CSP の `frame-src` にも自動で足されます（[plugin_hooks.md 3.2](plugin_hooks.ja.md#32-外部のページの埋め込み-capabilitiesembed)）。動画・地図などの埋め込みはこの仕組みで行い（`official-embeds`）、カスタム HTML ブロックは使いません（標準モードでは `<iframe>` が消え、サンドボックスモードでは中のプレーヤーにも制限が掛かります）。
 - プラグインを無効にしてもブロックは消えません。Admin Studio には「プラグインが無効」と表示され、公開ページには表示されません。
 
 Markdown では 1 行で書き、属性は JSON のオブジェクトです（属性が無ければ省略できます）。
@@ -172,13 +172,15 @@ Markdown では 1 行で書き、属性は JSON のオブジェクトです（�
 
 ::: official-blocks/link-card {"url": "https://github.com/takumi-mr/aegiscms", "title": "AegisCMS"}
 
-::: official-blocks/video {"url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ", "aspect": "16x9"}
+::: official-embeds/video {"url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ", "aspect": "16x9"}
 
 ::: official-blocks/audio {"url": "/uploads/episode-1.mp3", "title": "第 1 回"}
 
 ::: official-blocks/file {"url": "/uploads/guide.pdf", "title": "導入ガイド", "size": "PDF・2.4 MB"}
 
-::: official-blocks/map {"latitude": 35.6812, "longitude": 139.7671, "zoom": 16, "title": "東京駅"}
+::: official-embeds/openstreetmap {"latitude": 35.6812, "longitude": 139.7671, "zoom": 16, "title": "東京駅"}
+
+::: official-embeds/codepen {"url": "https://codepen.io/<ユーザー>/pen/<ID>", "tab": "css"}
 
 ::: official-blocks/gallery {"images": [{"image": "/uploads/a.jpg", "caption": "外観"}, {"image": "/uploads/b.jpg", "caption": "店内"}], "columns": "2"}
 

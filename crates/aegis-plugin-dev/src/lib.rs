@@ -756,8 +756,8 @@ fn fixtures() -> Value {
                     "attributes": { "label": "Get Started", "url": "https://example.com" }
                 },
                 {
-                    "name": "official-blocks/video",
-                    "attributes": { "url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ" }
+                    "name": "official-blocks/link-card",
+                    "attributes": { "url": "https://example.com/docs", "title": "Read the docs" }
                 }
             ]
         },

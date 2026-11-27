@@ -3,14 +3,8 @@
 //!
 //! - `official-blocks/button`: `label`・`url`・`style`（`primary` / `secondary`）・`align`（`left` / `center`）
 //! - `official-blocks/link-card`: `url`・`title`・`description`・`image`
-//! - `official-blocks/video`: `url`（YouTube・Vimeo）・`title`・`aspect`（`16x9` / `4x3` / `9x16`）。
-//!   プレーヤーの URL はこのプラグインが動画の ID から組み立て（`www.youtube-nocookie.com`・
-//!   `player.vimeo.com`、マニフェストの `capabilities.embed.frame_domains`）、利用者の HTML は使わない
-//!
 //! - `official-blocks/audio`: `url`・`title`。ブラウザ標準のプレーヤー（読み込みは再生するまで待つ）
 //! - `official-blocks/file`: `url`・`title`・`description`・`size`（表示用の文字列）。ダウンロード用のリンク
-//! - `official-blocks/map`: `latitude`・`longitude`・`zoom`・`title`。OpenStreetMap の埋め込み
-//!   （`www.openstreetmap.org`、マニフェストの `capabilities.embed.frame_domains`）。住所からの検索はしない
 //! - `official-blocks/gallery`: `images`（`list`: `image`・`caption`。24 枚まで）・`columns`（2〜4）
 //! - `official-blocks/faq`: `items`（`list`: `question`・`answer`）。`<details>` で開閉し、schema.org の
 //!   FAQPage を microdata で付ける（`<script>` の JSON-LD はサニタイズで消える）
@@ -31,6 +25,9 @@
 //! - `official-blocks/definition-list`: `items`（`list`: `term`・`description`。100 件まで）。`<dl>`
 //! - `official-blocks/rating`: `name`・`item_type`・`rating`（1〜5、0.5 刻み）・`summary`・`author`・
 //!   `scores`（`list`: `label`・`score`。10 件まで）。星の評価で、schema.org の Review を microdata で付ける
+//!
+//! 外部のサイトを `<iframe>` で埋め込むブロック（動画・地図など）は、このプラグインには置かない。
+//! 公式プラグイン `official-embeds` に置く（有効にしたときだけ、埋め込み先のホストが CSP に入るように）。
 //!
 //! 見た目は最初のブロックの前に 1 回だけ入れる `<style>`。配置・余白は `:where()` で詳細度 0
 //! （テーマの CSS が優先）。リンクの色と下線だけは、テーマの本文のリンクの指定（`.prose a` など）に
@@ -59,10 +56,6 @@ const STYLES: &str = "<style>\
 :where(.ob-card-site){display:block;opacity:.6;font-size:.8em;margin-top:.4rem;overflow-wrap:anywhere}\
 :where(.ob-card-image){flex:0 0 30%;max-width:200px;background:rgba(127,127,127,.1)}\
 :where(.ob-card-image) img{width:100%;height:100%;object-fit:cover;display:block}\
-:where(.ob-video){width:100%;margin:1.5rem 0;border-radius:10px;overflow:hidden;background:#000;aspect-ratio:16/9}\
-:where(.ob-video-4x3){aspect-ratio:4/3}\
-:where(.ob-video-9x16){aspect-ratio:9/16;max-width:360px;margin-left:auto;margin-right:auto}\
-:where(.ob-video) iframe{display:block;width:100%;height:100%;border:0}\
 :where(.ob-audio){margin:1.5rem 0}\
 :where(.ob-audio) figcaption{font-size:.9em;opacity:.75;margin-bottom:.4rem}\
 :where(.ob-audio) audio{display:block;width:100%}\
@@ -73,10 +66,6 @@ const STYLES: &str = "<style>\
 :where(.ob-file-body){flex:1;min-width:0}\
 :where(.ob-file-title){display:block;font-weight:700;overflow-wrap:anywhere}\
 :where(.ob-file-meta){display:block;opacity:.7;font-size:.85em}\
-:where(.ob-map){margin:1.5rem 0}\
-:where(.ob-map-frame){width:100%;aspect-ratio:16/10;border-radius:10px;overflow:hidden;background:rgba(127,127,127,.1)}\
-:where(.ob-map-frame) iframe{display:block;width:100%;height:100%;border:0}\
-:where(.ob-map) figcaption{font-size:.85em;opacity:.75;margin-top:.4rem}\
 :where(.ob-gallery){display:grid;gap:.6rem;margin:1.5rem 0;grid-template-columns:repeat(var(--ob-cols,3),minmax(0,1fr))}\
 :where(.ob-gallery-2){--ob-cols:2}:where(.ob-gallery-4){--ob-cols:4}\
 @media(max-width:640px){:where(.ob-gallery){--ob-cols:2}}\
@@ -305,158 +294,6 @@ fn render_link_card(block: &BlockNode) -> Option<String> {
     ))
 }
 
-/// 埋め込む動画
-#[derive(Debug, PartialEq)]
-enum Video {
-    /// 動画 ID と再生開始位置（秒）
-    YouTube { id: String, start: Option<u32> },
-    /// 動画 ID と限定公開の動画のハッシュ
-    Vimeo { id: String, hash: Option<String> },
-}
-
-impl Video {
-    /// プレーヤーの URL（`embed.frame_domains` のホストだけを使う）
-    fn player_url(&self) -> String {
-        match self {
-            Video::YouTube { id, start } => match start {
-                Some(s) if *s > 0 => {
-                    format!("https://www.youtube-nocookie.com/embed/{}?start={}", id, s)
-                }
-                _ => format!("https://www.youtube-nocookie.com/embed/{}", id),
-            },
-            Video::Vimeo { id, hash } => match hash {
-                Some(h) => format!("https://player.vimeo.com/video/{}?h={}&dnt=1", id, h),
-                None => format!("https://player.vimeo.com/video/{}?dnt=1", id),
-            },
-        }
-    }
-
-    fn provider(&self) -> &'static str {
-        match self {
-            Video::YouTube { .. } => "YouTube",
-            Video::Vimeo { .. } => "Vimeo",
-        }
-    }
-}
-
-fn is_youtube_id(id: &str) -> bool {
-    id.len() == 11
-        && id
-            .bytes()
-            .all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'_')
-}
-
-/// `90`、`90s`、`1m30s`、`1h2m3s` を秒にする
-fn parse_start(value: &str) -> Option<u32> {
-    if let Ok(seconds) = value.parse::<u32>() {
-        return Some(seconds);
-    }
-    let mut total: u32 = 0;
-    let mut number = String::new();
-    for c in value.chars() {
-        if c.is_ascii_digit() {
-            number.push(c);
-            continue;
-        }
-        let n: u32 = number.parse().ok()?;
-        number.clear();
-        total = total.checked_add(match c {
-            'h' => n.checked_mul(3600)?,
-            'm' => n.checked_mul(60)?,
-            's' => n,
-            _ => return None,
-        })?;
-    }
-    number.is_empty().then_some(total)
-}
-
-/// YouTube（`watch?v=`・`youtu.be/`・`shorts/`・`embed/`・`live/`）か Vimeo の URL を読む
-fn parse_video(url: &str) -> Option<Video> {
-    let url = url.trim();
-    let rest = url
-        .strip_prefix("https://")
-        .or_else(|| url.strip_prefix("http://"))?;
-    let (host, path_and_query) = match rest.find(['/', '?', '#']) {
-        Some(i) => (&rest[..i], &rest[i..]),
-        None => (rest, ""),
-    };
-    let host = host.to_ascii_lowercase();
-    let (path, query) = match path_and_query.split_once('?') {
-        Some((p, q)) => (p, q.split('#').next().unwrap_or("")),
-        None => (path_and_query.split('#').next().unwrap_or(""), ""),
-    };
-    let param = |name: &str| {
-        query
-            .split('&')
-            .filter_map(|kv| kv.split_once('='))
-            .find(|(k, _)| *k == name)
-            .map(|(_, v)| v)
-    };
-    let segments: Vec<&str> = path.split('/').filter(|s| !s.is_empty()).collect();
-
-    match host.as_str() {
-        "youtube.com"
-        | "www.youtube.com"
-        | "m.youtube.com"
-        | "youtube-nocookie.com"
-        | "www.youtube-nocookie.com"
-        | "youtu.be" => {
-            let id = if host == "youtu.be" {
-                segments.first().copied()
-            } else {
-                match segments.as_slice() {
-                    ["watch"] => param("v"),
-                    ["shorts" | "embed" | "live", id, ..] => Some(*id),
-                    _ => None,
-                }
-            }?;
-            if !is_youtube_id(id) {
-                return None;
-            }
-            let start = param("t").or_else(|| param("start")).and_then(parse_start);
-            Some(Video::YouTube {
-                id: id.to_string(),
-                start,
-            })
-        }
-        "vimeo.com" | "www.vimeo.com" | "player.vimeo.com" => {
-            let (id, hash) = match segments.as_slice() {
-                ["video", id, ..] => (*id, param("h")),
-                [id, hash, ..] => (*id, Some(*hash)),
-                [id] => (*id, param("h")),
-                _ => return None,
-            };
-            if id.is_empty() || !id.bytes().all(|b| b.is_ascii_digit()) {
-                return None;
-            }
-            let hash = hash.filter(|h| !h.is_empty() && h.bytes().all(|b| b.is_ascii_hexdigit()));
-            Some(Video::Vimeo {
-                id: id.to_string(),
-                hash: hash.map(str::to_string),
-            })
-        }
-        _ => None,
-    }
-}
-
-fn render_video(block: &BlockNode) -> Option<String> {
-    let video = parse_video(attr(block, "url"))?;
-    let aspect = match attr(block, "aspect") {
-        "4x3" => "4x3",
-        "9x16" => "9x16",
-        _ => "16x9",
-    };
-    let title = match attr(block, "title") {
-        "" => video.provider(),
-        title => title,
-    };
-    Some(format!(
-        r#"<div class="ob-video ob-video-{aspect}"><iframe src="{}" title="{}" loading="lazy" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; fullscreen" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe></div>"#,
-        escape(&video.player_url()),
-        escape(title)
-    ))
-}
-
 /// 数値の入力欄の値（数値でも、文字列で保存されていても読む）
 fn number(block: &BlockNode, name: &str) -> Option<f64> {
     let value = block.attributes.get(name)?;
@@ -508,45 +345,6 @@ fn render_file(block: &BlockNode) -> Option<String> {
     Some(format!(
         r#"<a class="ob-file" href="{}" download><span class="ob-file-icon" aria-hidden="true">&#x2B07;</span><span class="ob-file-body"><span class="ob-file-title">{}</span>{meta}</span></a>"#,
         escape(url),
-        escape(title)
-    ))
-}
-
-/// 地図の中心から、埋め込み（OpenStreetMap）に渡す表示範囲 `(左, 下, 右, 上)` を求める。
-/// `zoom` が大きいほど狭い範囲になる（幅は約 2 タイル、高さは幅の 6 割に緯度の補正をかけたもの）
-fn map_bbox(lat: f64, lon: f64, zoom: u32) -> (f64, f64, f64, f64) {
-    let lon_span = 360.0 / f64::from(1u32 << zoom) * 2.0;
-    let lat_span = lon_span * 0.6 * lat.to_radians().cos();
-    (
-        (lon - lon_span / 2.0).max(-180.0),
-        (lat - lat_span / 2.0).max(-85.0),
-        (lon + lon_span / 2.0).min(180.0),
-        (lat + lat_span / 2.0).min(85.0),
-    )
-}
-
-fn render_map(block: &BlockNode) -> Option<String> {
-    let lat = number(block, "latitude").filter(|v| (-85.0..=85.0).contains(v))?;
-    let lon = number(block, "longitude").filter(|v| (-180.0..=180.0).contains(v))?;
-    let zoom = number(block, "zoom")
-        .map(|z| z.round().clamp(1.0, 19.0) as u32)
-        .unwrap_or(15);
-    let (west, south, east, north) = map_bbox(lat, lon, zoom);
-    let title = match attr(block, "title") {
-        "" => "Map",
-        title => title,
-    };
-    let embed = format!(
-        "https://www.openstreetmap.org/export/embed.html?bbox={west:.5},{south:.5},{east:.5},{north:.5}&layer=mapnik&marker={lat:.5},{lon:.5}"
-    );
-    let large = format!(
-        "https://www.openstreetmap.org/?mlat={lat:.5}&mlon={lon:.5}#map={zoom}/{lat:.5}/{lon:.5}"
-    );
-    Some(format!(
-        r#"<figure class="ob-map"><div class="ob-map-frame"><iframe src="{}" title="{}" loading="lazy" referrerpolicy="strict-origin-when-cross-origin"></iframe></div><figcaption><a href="{}" rel="noopener" target="_blank">{}</a> &copy; OpenStreetMap</figcaption></figure>"#,
-        escape(&embed),
-        escape(title),
-        escape(&large),
         escape(title)
     ))
 }
@@ -1078,10 +876,8 @@ impl Plugin for BlocksPlugin {
                 let html = match block.name.as_str() {
                     "official-blocks/button" => render_button(block),
                     "official-blocks/link-card" => render_link_card(block),
-                    "official-blocks/video" => render_video(block),
                     "official-blocks/audio" => render_audio(block),
                     "official-blocks/file" => render_file(block),
-                    "official-blocks/map" => render_map(block),
                     "official-blocks/gallery" => render_gallery(block),
                     "official-blocks/faq" => render_faq(block),
                     "official-blocks/steps" => render_steps(block),
@@ -1202,43 +998,6 @@ mod tests {
         assert!(file.contains(r#"href="/uploads/guide.pdf" download"#));
         assert!(file.contains("Setup · 2.4 MB"));
         assert_eq!(html[3], None);
-    }
-
-    #[test]
-    fn renders_maps_with_a_bounding_box_around_the_marker() {
-        use serde_json::json;
-        let map = |lat: serde_json::Value, lon: serde_json::Value, zoom: serde_json::Value| {
-            json_block(
-                "map",
-                &[
-                    ("latitude", lat),
-                    ("longitude", lon),
-                    ("zoom", zoom),
-                    ("title", json!("Tokyo & co")),
-                ],
-            )
-        };
-        let html = BlocksPlugin
-            .render_blocks(vec![
-                map(json!(35.68), json!("139.76"), json!(15)),
-                map(json!(95.0), json!(0), json!(15)),
-                map(json!(0), json!(200), json!(15)),
-                json_block("map", &[]),
-            ])
-            .unwrap();
-        let ok = html[0].as_deref().unwrap();
-        assert!(ok.contains("https://www.openstreetmap.org/export/embed.html?bbox=139."));
-        assert!(ok.contains("&amp;marker=35.68000,139.76000"));
-        assert!(ok.contains("title=\"Tokyo &amp; co\""));
-        assert!(ok.contains("#map=15/35.68000/139.76000"));
-        assert_eq!(&html[1..], &[None, None, None]);
-        // 拡大するほど範囲は狭い
-        let (w1, _, e1, _) = map_bbox(35.0, 139.0, 10);
-        let (w2, _, e2, _) = map_bbox(35.0, 139.0, 16);
-        assert!(e1 - w1 > e2 - w2);
-        // 範囲は地図の限界を超えない
-        let (_, s, _, n) = map_bbox(84.9, 0.0, 1);
-        assert!(s >= -85.0 && n <= 85.0);
     }
 
     #[test]
@@ -1710,112 +1469,5 @@ mod tests {
         // スタイルは実際に表示する最初のブロックに付く
         let last = html[4].as_deref().unwrap();
         assert!(last.starts_with("<style>") && last.contains("ob-button-secondary"));
-    }
-
-    #[test]
-    fn reads_youtube_and_vimeo_urls() {
-        let yt = |id: &str, start: Option<u32>| {
-            Some(Video::YouTube {
-                id: id.to_string(),
-                start,
-            })
-        };
-        assert_eq!(
-            parse_video("https://www.youtube.com/watch?v=dQw4w9WgXcQ"),
-            yt("dQw4w9WgXcQ", None)
-        );
-        assert_eq!(
-            parse_video("https://youtube.com/watch?feature=x&v=dQw4w9WgXcQ&t=1m30s"),
-            yt("dQw4w9WgXcQ", Some(90))
-        );
-        assert_eq!(
-            parse_video("https://youtu.be/dQw4w9WgXcQ?t=42"),
-            yt("dQw4w9WgXcQ", Some(42))
-        );
-        assert_eq!(
-            parse_video("https://www.youtube.com/shorts/dQw4w9WgXcQ"),
-            yt("dQw4w9WgXcQ", None)
-        );
-        assert_eq!(
-            parse_video("https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ?start=5"),
-            yt("dQw4w9WgXcQ", Some(5))
-        );
-        assert_eq!(
-            parse_video("http://m.youtube.com/watch?v=dQw4w9WgXcQ#x"),
-            yt("dQw4w9WgXcQ", None)
-        );
-        assert_eq!(
-            parse_video("https://vimeo.com/76979871"),
-            Some(Video::Vimeo {
-                id: "76979871".to_string(),
-                hash: None
-            })
-        );
-        assert_eq!(
-            parse_video("https://vimeo.com/76979871/abc123ff"),
-            Some(Video::Vimeo {
-                id: "76979871".to_string(),
-                hash: Some("abc123ff".to_string())
-            })
-        );
-        assert_eq!(
-            parse_video("https://player.vimeo.com/video/76979871?h=abc1"),
-            Some(Video::Vimeo {
-                id: "76979871".to_string(),
-                hash: Some("abc1".to_string())
-            })
-        );
-        for bad in [
-            "https://www.youtube.com/watch?v=short",
-            "https://www.youtube.com/watch?v=dQw4w9WgXcQ\"x",
-            "https://youtube.com.evil.example/watch?v=dQw4w9WgXcQ",
-            "https://evil.example/youtu.be/dQw4w9WgXcQ",
-            "javascript:alert(1)",
-            "https://vimeo.com/abc",
-            "https://vimeo.com/channels/staffpicks",
-            "dQw4w9WgXcQ",
-        ] {
-            assert_eq!(parse_video(bad), None, "{}", bad);
-        }
-        assert_eq!(parse_start("1h2m3s"), Some(3723));
-        assert_eq!(parse_start("x"), None);
-        assert_eq!(parse_start("10m5"), None);
-    }
-
-    #[test]
-    fn renders_videos_from_the_declared_players_only() {
-        let html = BlocksPlugin
-            .render_blocks(vec![
-                block(
-                    "video",
-                    &[
-                        ("url", "https://youtu.be/dQw4w9WgXcQ?t=42"),
-                        ("title", "Demo \"1\""),
-                    ],
-                ),
-                block(
-                    "video",
-                    &[("url", "https://vimeo.com/76979871"), ("aspect", "9x16")],
-                ),
-                block("video", &[("url", "https://example.com/video.mp4")]),
-            ])
-            .unwrap();
-        let first = html[0].as_deref().unwrap();
-        assert!(first.contains(r#"<div class="ob-video ob-video-16x9"><iframe src="https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ?start=42" title="Demo &quot;1&quot;" loading="lazy""#), "{}", first);
-        let second = html[1].as_deref().unwrap();
-        assert!(second.contains(r#"class="ob-video ob-video-9x16"><iframe src="https://player.vimeo.com/video/76979871?dnt=1" title="Vimeo""#), "{}", second);
-        assert_eq!(html[2], None);
-
-        // プレーヤーのホストはマニフェストの embed.frame_domains と一致していること
-        let manifest: serde_json::Value =
-            serde_json::from_str(include_str!("../plugin.manifest.json")).unwrap();
-        let domains = manifest["capabilities"]["embed"]["frame_domains"].clone();
-        for host in ["www.youtube-nocookie.com", "player.vimeo.com"] {
-            assert!(
-                domains.as_array().unwrap().iter().any(|d| d == host),
-                "{}",
-                host
-            );
-        }
     }
 }
