@@ -2,17 +2,15 @@
   "name": "official-blocks",
   "version": "0.4.1",
   "entrypoint": "plugin.wasm",
-  "display_name": "Content Blocks (Buttons, Cards, Media, Maps & Layouts)",
-  "description": "Adds button, link card, video, audio, file download, map, image gallery, FAQ, steps, columns and image-with-text blocks to the editor. Also a small example of the render-blocks hook and of embedding with capabilities.embed.",
+  "display_name": "Content Blocks (Buttons, Cards, Media & Layouts)",
+  "description": "Adds button, link card, audio, file download, image gallery, FAQ, steps, columns, image-with-text and other layout blocks to the editor. Also a small example of the render-blocks hook. Blocks that embed external services (video, maps) are in official-embeds.",
   "author": "AegisCMS Core Team",
   "license": "MIT OR Apache-2.0",
   "tags": [
     "blocks",
     "editor",
     "content",
-    "video",
     "audio",
-    "map",
     "gallery",
     "faq",
     "columns"
@@ -22,14 +20,7 @@
   "capabilities": {
     "hooks": [
       "render-blocks"
-    ],
-    "embed": {
-      "frame_domains": [
-        "www.youtube-nocookie.com",
-        "player.vimeo.com",
-        "www.openstreetmap.org"
-      ]
-    }
+    ]
   },
   "resource_limits": {
     "max_memory_mb": 16,
@@ -174,75 +165,6 @@
       ]
     },
     {
-      "name": "video",
-      "label": {
-        "en": "Video",
-        "ja": "動画"
-      },
-      "description": {
-        "en": "A YouTube or Vimeo video",
-        "ja": "YouTube・Vimeo の動画"
-      },
-      "fields": [
-        {
-          "name": "url",
-          "type": "url",
-          "label": {
-            "en": "Video URL",
-            "ja": "動画の URL"
-          },
-          "required": true,
-          "placeholder": "https://www.youtube.com/watch?v=...",
-          "default": "",
-          "help": {
-            "en": "A YouTube (youtube.com, youtu.be, Shorts) or Vimeo URL. YouTube's start time (t=90 or t=1m30s) is kept.",
-            "ja": "YouTube（youtube.com・youtu.be・ショート）か Vimeo の URL。YouTube の再生開始位置（t=90、t=1m30s）も使えます。"
-          }
-        },
-        {
-          "name": "title",
-          "type": "string",
-          "label": {
-            "en": "Title (for screen readers)",
-            "ja": "タイトル（読み上げ用）"
-          },
-          "default": ""
-        },
-        {
-          "name": "aspect",
-          "type": "select",
-          "label": {
-            "en": "Shape",
-            "ja": "形"
-          },
-          "default": "16x9",
-          "options": [
-            {
-              "value": "16x9",
-              "label": {
-                "en": "Wide (16:9)",
-                "ja": "横長（16:9）"
-              }
-            },
-            {
-              "value": "4x3",
-              "label": {
-                "en": "Standard (4:3)",
-                "ja": "標準（4:3）"
-              }
-            },
-            {
-              "value": "9x16",
-              "label": {
-                "en": "Vertical (9:16, Shorts)",
-                "ja": "縦長（9:16・ショート）"
-              }
-            }
-          ]
-        }
-      ]
-    },
-    {
       "name": "audio",
       "label": {
         "en": "Audio",
@@ -332,73 +254,6 @@
           "help": {
             "en": "Shown as written (for example PDF, 2.4 MB).",
             "ja": "書いたとおりに表示します（例: PDF・2.4 MB）。"
-          }
-        }
-      ]
-    },
-    {
-      "name": "map",
-      "label": {
-        "en": "Map",
-        "ja": "地図"
-      },
-      "description": {
-        "en": "An OpenStreetMap map with a marker",
-        "ja": "マーカーつきの OpenStreetMap の地図"
-      },
-      "fields": [
-        {
-          "name": "latitude",
-          "type": "number",
-          "label": {
-            "en": "Latitude",
-            "ja": "緯度"
-          },
-          "required": true,
-          "placeholder": "35.6812",
-          "help": {
-            "en": "-85 to 85. Right-click a place on openstreetmap.org to copy its coordinates.",
-            "ja": "-85〜85。openstreetmap.org で場所を右クリックすると座標をコピーできます。"
-          }
-        },
-        {
-          "name": "longitude",
-          "type": "number",
-          "label": {
-            "en": "Longitude",
-            "ja": "経度"
-          },
-          "required": true,
-          "placeholder": "139.7671",
-          "help": {
-            "en": "-180 to 180.",
-            "ja": "-180〜180。"
-          }
-        },
-        {
-          "name": "zoom",
-          "type": "number",
-          "label": {
-            "en": "Zoom",
-            "ja": "拡大率"
-          },
-          "default": 15,
-          "help": {
-            "en": "1 (the world) to 19 (a building). Empty uses 15.",
-            "ja": "1（世界）〜19（建物）。空欄なら 15。"
-          }
-        },
-        {
-          "name": "title",
-          "type": "string",
-          "label": {
-            "en": "Place name",
-            "ja": "場所の名前"
-          },
-          "default": "",
-          "help": {
-            "en": "Shown under the map and read aloud for the frame.",
-            "ja": "地図の下に出し、フレームの読み上げにも使います。"
           }
         }
       ]

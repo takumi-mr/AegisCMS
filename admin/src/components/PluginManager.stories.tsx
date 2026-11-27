@@ -47,12 +47,12 @@ const PLUGINS: PluginInfo[] = [
     }),
   },
   {
-    name: 'official-blocks',
+    name: 'official-embeds',
     is_enabled: false,
     is_installed: true,
     manifest: manifest({
-      name: 'official-blocks',
-      description: 'Button, link card and video blocks.',
+      name: 'official-embeds',
+      description: 'Video, map, CodePen and Google embed blocks.',
       capabilities: {
         hooks: ['render-blocks'],
         embed: { frame_domains: ['www.youtube-nocookie.com', 'player.vimeo.com'] },

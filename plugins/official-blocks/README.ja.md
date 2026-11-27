@@ -2,42 +2,28 @@
 
 [English](README.md) | **日本語**
 
-本文に置けるボタン・リンクカード・動画・音声・ファイル・地図・画像ギャラリー・FAQ・手順・カラム・画像と文章・キャプションつきの画像・タイムライン・吹き出し・タブ・数値・定義リスト・評価（レビュー）のブロックを足す公式プラグインです。プラグインでカスタムブロックを作るときのお手本でもあります（[`render-blocks` フック](../../docs/plugin_hooks.ja.md#110-render-blocks)、動画は[外部のページの埋め込み](../../docs/plugin_hooks.ja.md#32-外部のページの埋め込み-capabilitiesembed)）。
+本文に置けるボタン・リンクカード・音声・ファイル・画像ギャラリー・FAQ・手順・カラム・画像と文章・キャプションつきの画像・タイムライン・吹き出し・タブ・数値・定義リスト・評価（レビュー）のブロックを足す公式プラグインです。プラグインでカスタムブロックを作るときのお手本でもあります（[`render-blocks` フック](../../docs/plugin_hooks.ja.md#110-render-blocks)）。
 
-| ブロック                          | 入力欄                                                                              | 表示                                                         |
-| --------------------------------- | ----------------------------------------------------------------------------------- | ------------------------------------------------------------ |
-| `official-blocks/button`          | 文字（必須）・リンク先（必須）・見た目（塗りつぶし / 枠線）・位置（左 / 中央）      | ボタンの形のリンク                                           |
-| `official-blocks/link-card`       | リンク先（必須）・タイトル（必須）・説明・画像                                      | タイトル・説明・画像と、外部のリンクならホスト名を出すカード |
-| `official-blocks/video`           | 動画の URL（必須。YouTube・Vimeo）・タイトル（読み上げ用）・形（16:9 / 4:3 / 9:16） | 動画のプレーヤー                                             |
-| `official-blocks/audio`           | 音声の URL（必須）・タイトル                                                        | ブラウザー標準の音声プレーヤー（再生するまで読み込まない）   |
-| `official-blocks/file`            | ファイルの URL（必須）・タイトル（必須）・説明・サイズ（書いたとおりに表示）        | ダウンロード用のカード                                       |
-| `official-blocks/map`             | 緯度（必須）・経度（必須）・拡大率（1〜19、既定 15）・場所の名前                    | マーカーつきの OpenStreetMap の地図                          |
-| `official-blocks/gallery`         | 画像と説明（必須。項目を増やせる）・列の数（2〜4、既定 3）                          | 画像のグリッド（狭い画面では 2 列）                          |
-| `official-blocks/faq`             | 質問と答え（必須。項目を増やせる）                                                  | 開閉する FAQ（schema.org の FAQPage の microdata つき）      |
-| `official-blocks/steps`           | 見出しと説明（必須。項目を増やせる）                                                | 番号と線でつないだ手順                                       |
-| `official-blocks/columns`         | 画像・見出し・文章（必須。項目を増やせる。4 列まで）                                | 等分の列（狭い画面では縦に積む）                             |
-| `official-blocks/media-text`      | 画像（必須）・画像の説明・見出し・文章・画像の位置（左 / 右）                       | 画像と文章の横並び（狭い画面では縦に積む）                   |
-| `official-blocks/figure`          | 画像（必須）・画像の説明（alt）・キャプション                                       | 画像と、その下のキャプション（`<figcaption>`）               |
-| `official-blocks/timeline`        | 日付・見出し・説明（必須。項目を増やせる）                                          | 縦線でつなぐ年表（沿革・ロードマップ）                       |
-| `official-blocks/chat`            | 名前・アイコン・位置（左 / 右）・セリフ（必須。項目を増やせる）                     | アイコンと名前つきの吹き出しの会話                           |
-| `official-blocks/tabs`            | タブの名前と内容（必須。項目を増やせる。8 つまで）・形式（文章 / コード）           | 切り替えるタブ（JavaScript なし）                            |
-| `official-blocks/stats`           | 数字・単位・ラベル（必須。項目を増やせる。6 つまで）                                | 大きな数字を並べるカード                                     |
-| `official-blocks/definition-list` | 用語と説明（必須。項目を増やせる）                                                  | `<dl>` の一覧（狭い画面では縦に積む）                        |
-| `official-blocks/rating`          | 対象の名前（必須）・対象の種類・評価 1〜5（必須）・要約・評価した人・項目別スコア   | 星の評価のボックス（schema.org の Review の microdata つき） |
+動画（YouTube・Vimeo）・地図（OpenStreetMap・Google マップ）など、外部のサービスを `<iframe>` で埋め込むブロックは、公式プラグイン [`official-embeds`](../official-embeds/) にあります。このプラグインは外部のサイトに依存せず、CSP にホストを足しません。
 
-## 動画
-
-- YouTube は `youtube.com/watch?v=`・`youtu.be/`・`youtube.com/shorts/`・`youtube.com/embed/`・`youtube.com/live/` の URL を読み、再生開始位置（`t=90`・`t=1m30s`・`start=90`）も使います。Vimeo は `vimeo.com/<ID>`（限定公開の `vimeo.com/<ID>/<ハッシュ>`）と `player.vimeo.com/video/<ID>`。
-- 入力された URL から動画の ID だけを取り出し、プレーヤーの URL はこのプラグインが組み立てます。YouTube はプライバシー強化モード（`www.youtube-nocookie.com`）、Vimeo は `dnt=1`（視聴の記録をしない）です。
-- 埋め込めるのはマニフェストの `capabilities.embed.frame_domains`（`www.youtube-nocookie.com`・`player.vimeo.com`）だけで、このホストは有効にしている間 CSP の `frame-src` に自動で足されます。
-- 読めない URL のブロックは表示しません。
-- 動画を見ると YouTube・Vimeo に閲覧者の IP アドレスなどが送られます。プライバシーポリシーに外部の動画サービスを使うことを書いてください。
-
-## 地図
-
-- OpenStreetMap の埋め込み（`www.openstreetmap.org`）です。API キーは要りません。住所からの検索はせず、緯度・経度で指定します（openstreetmap.org で場所を右クリックすると座標をコピーできます）。
-- 緯度は -85〜85、経度は -180〜180 の範囲外だとブロックを表示しません。地図の下に「大きな地図で見る」リンクと著作権表示（© OpenStreetMap）を出します。
-- `www.openstreetmap.org` は `capabilities.embed.frame_domains` に宣言してあり、有効にしている間は CSP の `frame-src` に足されます。地図を見ると OpenStreetMap に閲覧者の IP アドレスなどが送られます。
+| ブロック                          | 入力欄                                                                            | 表示                                                         |
+| --------------------------------- | --------------------------------------------------------------------------------- | ------------------------------------------------------------ |
+| `official-blocks/button`          | 文字（必須）・リンク先（必須）・見た目（塗りつぶし / 枠線）・位置（左 / 中央）    | ボタンの形のリンク                                           |
+| `official-blocks/link-card`       | リンク先（必須）・タイトル（必須）・説明・画像                                    | タイトル・説明・画像と、外部のリンクならホスト名を出すカード |
+| `official-blocks/audio`           | 音声の URL（必須）・タイトル                                                      | ブラウザー標準の音声プレーヤー（再生するまで読み込まない）   |
+| `official-blocks/file`            | ファイルの URL（必須）・タイトル（必須）・説明・サイズ（書いたとおりに表示）      | ダウンロード用のカード                                       |
+| `official-blocks/gallery`         | 画像と説明（必須。項目を増やせる）・列の数（2〜4、既定 3）                        | 画像のグリッド（狭い画面では 2 列）                          |
+| `official-blocks/faq`             | 質問と答え（必須。項目を増やせる）                                                | 開閉する FAQ（schema.org の FAQPage の microdata つき）      |
+| `official-blocks/steps`           | 見出しと説明（必須。項目を増やせる）                                              | 番号と線でつないだ手順                                       |
+| `official-blocks/columns`         | 画像・見出し・文章（必須。項目を増やせる。4 列まで）                              | 等分の列（狭い画面では縦に積む）                             |
+| `official-blocks/media-text`      | 画像（必須）・画像の説明・見出し・文章・画像の位置（左 / 右）                     | 画像と文章の横並び（狭い画面では縦に積む）                   |
+| `official-blocks/figure`          | 画像（必須）・画像の説明（alt）・キャプション                                     | 画像と、その下のキャプション（`<figcaption>`）               |
+| `official-blocks/timeline`        | 日付・見出し・説明（必須。項目を増やせる）                                        | 縦線でつなぐ年表（沿革・ロードマップ）                       |
+| `official-blocks/chat`            | 名前・アイコン・位置（左 / 右）・セリフ（必須。項目を増やせる）                   | アイコンと名前つきの吹き出しの会話                           |
+| `official-blocks/tabs`            | タブの名前と内容（必須。項目を増やせる。8 つまで）・形式（文章 / コード）         | 切り替えるタブ（JavaScript なし）                            |
+| `official-blocks/stats`           | 数字・単位・ラベル（必須。項目を増やせる。6 つまで）                              | 大きな数字を並べるカード                                     |
+| `official-blocks/definition-list` | 用語と説明（必須。項目を増やせる）                                                | `<dl>` の一覧（狭い画面では縦に積む）                        |
+| `official-blocks/rating`          | 対象の名前（必須）・対象の種類・評価 1〜5（必須）・要約・評価した人・項目別スコア | 星の評価のボックス（schema.org の Review の microdata つき） |
 
 ## 複数の項目を持つブロック（ギャラリー・FAQ・手順・カラム）
 
@@ -75,7 +61,7 @@ enabled = ["official-blocks"]
 
 - 必須の入力欄が空のブロックや、`http(s)`・`mailto`・相対 URL 以外のリンク先のブロックは表示しません。
 - 配置・余白は詳細度 0 の CSS（`:where()`）、リンクの色と下線だけはテーマの本文のリンクの指定に負けないようクラス 2 つの詳細度（`.ob-button-row .ob-button` など）です。色はテーマの `--accent` と、塗りつぶしのボタンの文字の `--accent-contrast`（無ければ白。明るい `--accent` のテーマでは暗い色を指定する）を使います。テーマで変えるときは、それより詳細度の高いセレクタで指定します。
-- サーバーから外部への通信や KVS は使いません（動画は閲覧者のブラウザーがプレーヤーを読み込みます）。
+- サーバーから外部への通信や KVS は使いません。
 
 ## ビルド
 

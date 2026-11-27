@@ -196,43 +196,93 @@ async fn test_official_blocks_plugin_renders_its_blocks() {
         .await
         .unwrap();
     assert_eq!(html.len(), 2);
-    assert_eq!(
-        plugin.manifest().frame_domains(),
-        [
-            "www.youtube-nocookie.com",
-            "player.vimeo.com",
-            "www.openstreetmap.org"
-        ]
-    );
-    // 地図は宣言したホストの iframe として、サニタイズ後も残る
-    let map = plugin
-        .render_blocks(vec![block(
-            "official-blocks/map",
-            serde_json::json!({ "latitude": 35.68, "longitude": 139.76 }),
-        )])
-        .await
-        .unwrap();
-    let map = aegis_ast::renderer::sanitize_html_fragment_with_frames(
-        map[0].as_deref().unwrap(),
-        plugin.manifest().frame_domains(),
-    );
-    assert!(map.contains("<iframe src=\"https://www.openstreetmap.org/export/embed.html?bbox="));
-    let video = plugin
-        .render_blocks(vec![block(
-            "official-blocks/video",
-            serde_json::json!({ "url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ" }),
-        )])
-        .await
-        .unwrap();
-    assert!(video[0]
-        .as_deref()
-        .unwrap()
-        .contains(r#"<iframe src="https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ""#));
+    // 外部のサイトを埋め込むブロックは official-embeds にあり、このプラグインは CSP にホストを足さない
+    assert!(plugin.manifest().frame_domains().is_empty());
     assert!(html[0]
         .as_deref()
         .unwrap()
         .contains(r#"<a class="ob-button ob-button-primary" href="/start">Get started</a>"#));
     assert_eq!(html[1], None);
+}
+
+/// 公式プラグイン `official-embeds` のビルド済み `plugin.wasm` で、どのブロックの iframe も
+/// 宣言したホストのものとしてサニタイズ後に残ること
+#[tokio::test]
+async fn test_official_embeds_plugin_keeps_its_frames_after_sanitizing() {
+    let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../plugins/official-embeds");
+    let plugin = load(&WasmEngine::new().unwrap(), &dir);
+    plugin.manifest().validate_blocks().unwrap();
+    assert_eq!(
+        plugin.manifest().frame_domains(),
+        [
+            "www.youtube-nocookie.com",
+            "player.vimeo.com",
+            "www.openstreetmap.org",
+            "codepen.io",
+            "www.google.com",
+            "calendar.google.com",
+            "docs.google.com"
+        ]
+    );
+
+    let block = |name: &str, attributes: serde_json::Value| {
+        let mut node = BlockNode::new(name);
+        node.attributes = attributes;
+        node
+    };
+    let cases = [
+        (
+            block(
+                "official-embeds/video",
+                serde_json::json!({ "url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ" }),
+            ),
+            r#"<iframe src="https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ""#,
+        ),
+        (
+            block(
+                "official-embeds/openstreetmap",
+                serde_json::json!({ "latitude": 35.68, "longitude": 139.76 }),
+            ),
+            r#"<iframe src="https://www.openstreetmap.org/export/embed.html?bbox="#,
+        ),
+        (
+            block(
+                "official-embeds/codepen",
+                serde_json::json!({ "url": "https://codepen.io/alice/pen/QWErty" }),
+            ),
+            r#"<iframe src="https://codepen.io/alice/embed/QWErty?default-tab=result""#,
+        ),
+        (
+            block(
+                "official-embeds/google-map",
+                serde_json::json!({ "embed": "<iframe src=\"https://www.google.com/maps/embed?pb=!1m18!1m12\" width=\"600\"></iframe>" }),
+            ),
+            r#"<iframe src="https://www.google.com/maps/embed?pb=!1m18!1m12""#,
+        ),
+        (
+            block(
+                "official-embeds/google-calendar",
+                serde_json::json!({ "calendar": "alice@example.com", "height": 500 }),
+            ),
+            r#"<iframe src="https://calendar.google.com/calendar/embed?src=alice%40example.com""#,
+        ),
+        (
+            block(
+                "official-embeds/google-form",
+                serde_json::json!({ "url": "https://docs.google.com/forms/d/e/1AbCdEfGhIjKlMnOp/viewform" }),
+            ),
+            r#"<iframe src="https://docs.google.com/forms/d/e/1AbCdEfGhIjKlMnOp/viewform?embedded=true""#,
+        ),
+    ];
+    for (node, expected) in cases {
+        let name = node.name.clone();
+        let html = plugin.render_blocks(vec![node]).await.unwrap();
+        let clean = aegis_ast::renderer::sanitize_html_fragment_with_frames(
+            html[0].as_deref().unwrap(),
+            plugin.manifest().frame_domains(),
+        );
+        assert!(clean.contains(expected), "{name}: {clean}");
+    }
 }
 
 /// 公式プラグイン `official-charts` のビルド済み `plugin.wasm` で、マニフェストの `blocks` が検証を通り、

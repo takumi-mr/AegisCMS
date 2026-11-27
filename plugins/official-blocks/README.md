@@ -2,16 +2,16 @@
 
 **English** | [日本語](README.ja.md)
 
-An official plugin that adds blocks you can place in the body: button, link card, video, audio, file, map, image gallery, FAQ, steps, columns, image and text, image with caption, timeline, chat bubbles, tabs, stats, definition list, and rating (review). It is also a model example for building custom blocks with plugins (the [`render-blocks` hook](../../docs/plugin_hooks.md#110-render-blocks); for video, [embedding external pages](../../docs/plugin_hooks.md#32-embedding-external-pages-capabilitiesembed). Both links are Japanese documents).
+An official plugin that adds blocks you can place in the body: button, link card, audio, file, image gallery, FAQ, steps, columns, image and text, image with caption, timeline, chat bubbles, tabs, stats, definition list, and rating (review). It is also a model example for building custom blocks with plugins (the [`render-blocks` hook](../../docs/plugin_hooks.md#110-render-blocks)).
+
+Blocks that embed external services in an `<iframe>`, such as videos (YouTube, Vimeo) and maps (OpenStreetMap, Google Maps), are in the official plugin [`official-embeds`](../official-embeds/). This plugin depends on no external site and adds no hosts to the CSP.
 
 | Block                             | Input fields                                                                                               | Display                                                                            |
 | --------------------------------- | ---------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
 | `official-blocks/button`          | Text (required), link target (required), look (filled / outlined), position (left / center)                | A link shaped like a button                                                        |
 | `official-blocks/link-card`       | Link target (required), title (required), description, image                                               | A card showing the title, description, image, and the host name for external links |
-| `official-blocks/video`           | Video URL (required; YouTube, Vimeo), title (for screen readers), shape (16:9 / 4:3 / 9:16)                | A video player                                                                     |
 | `official-blocks/audio`           | Audio URL (required), title                                                                                | The browser's standard audio player (not loaded until played)                      |
 | `official-blocks/file`            | File URL (required), title (required), description, size (shown as written)                                | A card for downloading                                                             |
-| `official-blocks/map`             | Latitude (required), longitude (required), zoom (1–19, default 15), place name                             | An OpenStreetMap map with a marker                                                 |
 | `official-blocks/gallery`         | Images and descriptions (required; items can be added), number of columns (2–4, default 3)                 | An image grid (2 columns on narrow screens)                                        |
 | `official-blocks/faq`             | Questions and answers (required; items can be added)                                                       | A collapsible FAQ (with schema.org FAQPage microdata)                              |
 | `official-blocks/steps`           | Headings and descriptions (required; items can be added)                                                   | Steps connected by numbers and a line                                              |
@@ -24,20 +24,6 @@ An official plugin that adds blocks you can place in the body: button, link card
 | `official-blocks/stats`           | Number, unit, label (required; items can be added; up to 6)                                                | Cards showing big numbers                                                          |
 | `official-blocks/definition-list` | Terms and descriptions (required; items can be added)                                                      | A `<dl>` list (stacked vertically on narrow screens)                               |
 | `official-blocks/rating`          | Name of the subject (required), type of subject, rating 1–5 (required), summary, reviewer, per-item scores | A star rating box (with schema.org Review microdata)                               |
-
-## Video
-
-- For YouTube, it reads `youtube.com/watch?v=`, `youtu.be/`, `youtube.com/shorts/`, `youtube.com/embed/`, and `youtube.com/live/` URLs, and also uses the start time (`t=90`, `t=1m30s`, `start=90`). For Vimeo: `vimeo.com/<ID>` (unlisted `vimeo.com/<ID>/<hash>`) and `player.vimeo.com/video/<ID>`.
-- It extracts only the video ID from the entered URL, and the plugin builds the player URL itself. YouTube uses privacy-enhanced mode (`www.youtube-nocookie.com`), and Vimeo uses `dnt=1` (no tracking of views).
-- Only the manifest's `capabilities.embed.frame_domains` (`www.youtube-nocookie.com`, `player.vimeo.com`) can be embedded, and these hosts are added automatically to the CSP `frame-src` while the plugin is enabled.
-- Blocks with an unreadable URL are not shown.
-- Watching a video sends the viewer's IP address and other details to YouTube / Vimeo. State in your privacy policy that you use external video services.
-
-## Map
-
-- It is an OpenStreetMap embed (`www.openstreetmap.org`). No API key is needed. It does not search by address; you specify latitude and longitude (right-click a place on openstreetmap.org to copy its coordinates).
-- If the latitude is outside -85 to 85 or the longitude is outside -180 to 180, the block is not shown. Below the map it shows a "View larger map" link and the copyright notice (© OpenStreetMap).
-- `www.openstreetmap.org` is declared in `capabilities.embed.frame_domains` and is added to the CSP `frame-src` while the plugin is enabled. Viewing a map sends the viewer's IP address and other details to OpenStreetMap.
 
 ## Blocks with Multiple Items (Gallery, FAQ, Steps, Columns)
 
@@ -75,7 +61,7 @@ enabled = ["official-blocks"]
 
 - Blocks with an empty required input field, and blocks whose link target is other than `http(s)`, `mailto`, or a relative URL, are not shown.
 - Layout and spacing use zero-specificity CSS (`:where()`); only the link color and underline use a specificity of two classes (such as `.ob-button-row .ob-button`) so they do not lose to the theme's body link styles. Colors use the theme's `--accent` and, for the text of filled buttons, `--accent-contrast` (white if absent; specify a dark color on themes with a light `--accent`). To change them in a theme, specify with a selector of higher specificity.
-- It does not use server-side outbound network requests or the KVS (for video, the viewer's browser loads the player).
+- It does not use server-side outbound network requests or the KVS.
 
 ## Build
 

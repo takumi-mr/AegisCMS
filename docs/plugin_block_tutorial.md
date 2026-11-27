@@ -248,5 +248,5 @@ When you fix the plugin's code, just rebuild and replace `plugin.wasm`. **Withou
 ## What to Read Next
 
 - [Plugin hooks `render-blocks` (1.10)](plugin_hooks.md#110-render-blocks), [the `blocks` declaration (3.1)](plugin_hooks.md#31-custom-blocks-blocks)
-- A model: [`plugins/official-blocks`](../plugins/official-blocks) (buttons, link cards, video. A real example with external site embeds and input validation)
+- Models: [`plugins/official-blocks`](../plugins/official-blocks) (buttons, link cards, galleries, and so on. A real example with input validation) and [`plugins/official-embeds`](../plugins/official-embeds) (video, maps, CodePen, Google Calendar, Forms. A real example of embedding external sites)
 - [Plugin dev server](plugin_dev_server.md), [Wasm plugin development guide](plugin_sdk_guide.md)
