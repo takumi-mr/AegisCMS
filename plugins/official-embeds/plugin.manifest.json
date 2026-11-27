@@ -1,6 +1,6 @@
 {
   "name": "official-embeds",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "entrypoint": "plugin.wasm",
   "display_name": "Embeds (Video, Maps, CodePen, Google Calendar & Forms)",
   "description": "Adds blocks that embed external services in the body: YouTube and Vimeo videos, OpenStreetMap and Google Maps maps, CodePen pens, Google Calendar and Google Forms. A generic embed block frames pages on hosts the site's administrator allows. Only the services' own players are framed, and their hosts are added to the CSP frame-src while the plugin is enabled.",

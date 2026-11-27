@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.5.0](https://github.com/takumi-mr/AegisCMS/compare/sdk/tinygo/v0.4.0...sdk/tinygo/v0.5.0) (2026-11-27)
+
+
+### ⚠ BREAKING CHANGES
+
+* **plugin:** a plugin that adds a script from a path on the site must declare "local_scripts": true in capabilities; without it the host drops the script.
+
+### Features
+
+* **plugin:** require capabilities.local_scripts for scripts from paths on the site ([#423](https://github.com/takumi-mr/AegisCMS/issues/423)) ([f1b0608](https://github.com/takumi-mr/AegisCMS/commit/f1b0608b4749b9b1bdda78a4e236ed1a44e2c274))
+
 ## [0.4.0](https://github.com/takumi-mr/AegisCMS/compare/sdk/tinygo/v0.3.0...sdk/tinygo/v0.4.0) (2026-11-10)
 
 
