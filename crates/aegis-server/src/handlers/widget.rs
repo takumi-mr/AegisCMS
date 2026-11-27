@@ -6,7 +6,10 @@
 //!
 //! - 公開ページでは `<iframe sandbox="allow-scripts allow-forms" ...>` に隔離してマウントする
 //!   （`allow-same-origin` を付けないため、親ページの DOM や管理者セッションには触れられない）
-//! - 配信エンドポイント `/widgets/{name}/{*path}` はパストラバーサルとシンボリックリンク脱出を防止する
+//! - 配信エンドポイント `/widgets/{name}/{*path}` はパストラバーサルとシンボリックリンク脱出を防止し、
+//!   ドットファイル（`.env`・`.git/` など）は配信しない
+//! - ウィジェットの HTML は、直接開かれても iframe と同じ制限で動くよう、ミドルウェアが
+//!   `Content-Security-Policy` に `sandbox allow-scripts allow-forms` を足す（`app::security_headers_middleware`）
 
 use std::path::Path as FilePath;
 use std::sync::Arc;
@@ -99,22 +102,27 @@ pub async fn get_widget_asset(
     serve_widget_file(&state, &name, effective)
 }
 
+/// 配信してよい相対パスか: `..`・ルート・ドライブを含まず、どの部分も `.` で始まらない
+/// （`.env`・`.git/config` などを配信しない）。ウィジェットとプラグインのアセットの配信で使う
+pub(crate) fn is_safe_asset_path(rel_path: &str) -> bool {
+    !rel_path.is_empty()
+        && FilePath::new(rel_path).components().all(|comp| match comp {
+            std::path::Component::Normal(part) => {
+                part.to_str().is_some_and(|p| !p.starts_with('.'))
+            }
+            std::path::Component::CurDir => true,
+            _ => false,
+        })
+}
+
 fn serve_widget_file(state: &AppState, name: &str, rel_path: &str) -> axum::response::Response {
     if !is_valid_widget_name(name) {
         return (StatusCode::BAD_REQUEST, "Invalid widget name").into_response();
     }
-
-    let clean_path = FilePath::new(rel_path);
-    for comp in clean_path.components() {
-        if matches!(
-            comp,
-            std::path::Component::ParentDir
-                | std::path::Component::Prefix(_)
-                | std::path::Component::RootDir
-        ) {
-            return (StatusCode::BAD_REQUEST, "Invalid asset path").into_response();
-        }
+    if !is_safe_asset_path(rel_path) {
+        return (StatusCode::BAD_REQUEST, "Invalid asset path").into_response();
     }
+    let clean_path = FilePath::new(rel_path);
 
     let widget_dir = state.config.paths.widgets_dir.join(name);
     let Ok(canonical_widget_dir) = std::fs::canonicalize(&widget_dir) else {
@@ -311,6 +319,19 @@ mod tests {
 
         let resp = get_widget_index(State(state.clone()), Path("../etc".to_string())).await;
         assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+
+        // 3a. ドットファイルは配信しない
+        std::fs::write(sim_dir.join(".env"), "SECRET=1").unwrap();
+        std::fs::create_dir_all(sim_dir.join(".git")).unwrap();
+        std::fs::write(sim_dir.join(".git").join("config"), "x").unwrap();
+        for hidden in [".env", ".git/config", "assets/../.env", "./.env"] {
+            let resp = get_widget_asset(
+                State(state.clone()),
+                Path(("price-sim".to_string(), hidden.to_string())),
+            )
+            .await;
+            assert_eq!(resp.status(), StatusCode::BAD_REQUEST, "{hidden}");
+        }
 
         // 4. block_html が安全な sandbox iframe を生成し、高さをクランプする
         let attrs = json!({

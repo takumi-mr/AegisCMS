@@ -35,6 +35,8 @@ Admin Studio ではブロックごとに編集するか、Markdown で書きま�
 | `core/html`         | `mode`（`sanitized` / `sandbox`）                                                                                                             | ` ```html ` / ` ```html:sandbox `                                          | [カスタム HTML](theme_authoring_guide.ja.md#31-どの-url-でどのテンプレートが使われるか)                                                                                                                                                          |
 | `core/widget`       | `name`（`widgets/<name>/index.html` の名前）、`height`（100〜3000px、既定 400）、`title`（任意）、`params`（URL ハッシュで渡す任意文字列）    | `[WIDGET name="price-sim" height=400]`                                     | `widgets/<name>/` 配下に置いた静的 HTML/JS/CSS（React / Vue ビルド物など）を `<iframe sandbox="allow-scripts allow-forms">` に隔離して自動マウント                                                                                               |
 
+`core/widget` のウィジェット（`/widgets/<name>/`）の HTML は、URL を直接開かれても iframe と同じ制限で動くよう、`Content-Security-Policy` に `sandbox allow-scripts allow-forms` を付けて返します（サイトの Cookie・Admin Studio のセッション・同じオリジンの API に触れられません）。`.` で始まるファイル・ディレクトリ（`.env`・`.git/` など）は配信しません。`params` は URL を作れば誰でも渡せるので、ウィジェットは値を信頼せずに扱ってください（`innerHTML` に入れない）。
+
 `<プラグイン名>/<ブロック名>` のブロックは、そのプラグインが描画します（[4. プラグインのブロック](#4-プラグインのブロック)）。それ以外の知らない名前のブロックは、名前の `/` を `-` にしたカスタム要素（`<my-plugin-card>`）として出力します。
 
 ### 1.1 表
