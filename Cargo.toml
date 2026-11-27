@@ -32,6 +32,8 @@ members = [
     "crates/aegis-plugin-dev",
     "sdk/templates/rust",
     "sdk/templates/rust-block",
+    "sdk/templates/react-island",
+    "sdk/templates/vue-island",
     "plugins/official-code-enhancer",
     "plugins/official-mermaid",
     "plugins/official-plantuml",

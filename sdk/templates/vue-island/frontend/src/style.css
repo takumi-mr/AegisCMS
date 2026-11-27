@@ -1,0 +1,43 @@
+.vi-card {
+  margin: 1.5rem 0;
+  padding: 1.25rem 1.5rem;
+  border: 1px solid rgba(127, 127, 127, 0.25);
+  border-radius: 12px;
+  background: rgba(127, 127, 127, 0.05);
+}
+
+.vi-title {
+  margin: 0 0 0.75rem;
+  font-size: 1.05rem;
+  font-weight: 600;
+}
+
+.vi-controls {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.vi-value {
+  min-width: 3rem;
+  text-align: center;
+  font-size: 1.25rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.vi-btn {
+  padding: 0.4rem 0.9rem;
+  border: 1px solid rgba(127, 127, 127, 0.35);
+  border-radius: 8px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.vi-btn--primary {
+  border-color: var(--accent, #10b981);
+  background: var(--accent, #10b981);
+  color: #ffffff;
+}

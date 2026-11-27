@@ -1,0 +1,15 @@
+[package]
+name = "aegis-plugin-react-island-template"
+version = "0.1.0"
+edition = "2021"
+authors = ["AegisCMS Plugin Developer"]
+description = "Official Rust + React (Vite) island template for an interactive custom block plugin"
+
+[lints]
+workspace = true
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+aegis-plugin-sdk = { path = "../../../crates/aegis-plugin-sdk", version = "0.11.0" }
