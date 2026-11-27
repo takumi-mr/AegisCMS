@@ -30,7 +30,7 @@ Packages are distributed from a repository separate from the main one (for examp
    ├─ GitHub Pages:    https://<owner>.github.io/aegis-store/catalog.json
    │                   https://<owner>.github.io/aegis-store/catalog.json.sig
    └─ GitHub Releases: https://github.com/<owner>/aegis-store/releases/download/<tag>/<file>.zip
-                         (downloads are redirected with 302 to objects.githubusercontent.com)
+                         (downloads are redirected with 302 to release-assets.githubusercontent.com)
 
  AegisCMS (each site)
    fetch catalog.json → verify signature and rollback → show the list

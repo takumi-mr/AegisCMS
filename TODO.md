@@ -17,6 +17,7 @@
 
 - 公式プラグインおよび `sdk/templates/*`・`sdk/examples/*`（`sdk/tinygo/examples/hooks` を含む）の `plugin.wasm` はリポジトリにコミット済みで、バージョンや SDK を変えても自動では再ビルドされない（`version` は manifest にだけあり、Wasm には入らない）。ソースや SDK を変えたときは各自再生成してから出す。
 - `admin/package.json` の `overrides`（`glob` → `minimatch ^11.0.5`）は、Dependabot の minimatch の警告（11.0.1 未満が対象）を避けるための一時的なもの。`@storybook/react-vite` が固定する `@joshwooding/vite-plugin-react-docgen-typescript@0.7` が `glob@13`（`minimatch ^10`）に依存するため。react-vite が新しい docgen プラグイン（`glob` に依存しない 0.9 系）に上がったら外す。`npm audit` に残る `glob` の警告（moderate）は、修正が react-vite のメジャーダウングレードになるため対応しない。
+- [AegisCMS-Store](https://github.com/takumi-mr/AegisCMS-Store) の `store.json` は `aegis_ref = "v0.11.0"` で、`official-embeds`（v0.11.0 より後に追加）を載せていない。次のリリースで `aegis_ref` を上げるときに `packages` へ戻す。カタログの公開鍵は `f0addc0ea8e0d47a0fa8706ccb06e8352e3042174228cb567a92ec6c30ec15e9`（`[[store.catalogs]].public_key` に書く値）。
 
 ---
 
@@ -34,6 +35,5 @@
 
 設計は [store.md](docs/store.ja.md)。当面は公式のプラグイン・テーマだけを配る。上から順に着手する。
 
-- [ ] **配布用リポジトリの初回公開**: [AegisCMS-Store](https://github.com/takumi-mr/AegisCMS-Store) にスクリプトとワークフロー（`Publish`）は用意済み。鍵を作って secret（`CATALOG_SIGNING_KEY`・`PACKAGE_SIGNING_KEY`）に登録し、Pages の Source を GitHub Actions にして初回の公開を行う。そのあと、実際の Pages のカタログを `[store]` に設定し、`GET /api/v1/store/packages` で取得できること（`objects.githubusercontent.com` へのリダイレクトを含む）を確かめる。
 - [ ] **ストアからのインストール・更新 API**: カタログの読み込みと一覧（`crates/aegis-server/src/store.rs`・`GET /api/v1/store/packages`）は済。ZIP の取得（`store::build_client` を使う） → `size`・`sha256` の照合 → エントリの `public_key` と `signature.json` の鍵の一致 → 既存の ZIP インストール。`capabilities` がマニフェストと食い違えば拒否。監査ログに取得元を残す。
 - [ ] **Admin Studio のストア画面**: 一覧、互換性のないものの無効化、インストール前の `capabilities` の確認、更新のお知らせ。

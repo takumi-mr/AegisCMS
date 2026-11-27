@@ -30,7 +30,7 @@ Admin Studio から、配布されているプラグインとテーマを選ん�
    ├─ GitHub Pages:    https://<owner>.github.io/aegis-store/catalog.json
    │                   https://<owner>.github.io/aegis-store/catalog.json.sig
    └─ GitHub Releases: https://github.com/<owner>/aegis-store/releases/download/<tag>/<file>.zip
-                         （ダウンロードは objects.githubusercontent.com へ 302 で転送される）
+                         （ダウンロードは release-assets.githubusercontent.com へ 302 で転送される）
 
  AegisCMS（各サイト）
    catalog.json を取得 → 署名・巻き戻しを検証 → 一覧を表示
