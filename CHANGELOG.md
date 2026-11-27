@@ -1,5 +1,30 @@
 # Changelog
 
+## [0.12.0](https://github.com/takumi-mr/AegisCMS/compare/v0.11.0...v0.12.0) (2026-11-27)
+
+
+### ⚠ BREAKING CHANGES
+
+* **plugin:** a plugin that adds a script from a path on the site must declare "local_scripts": true in capabilities; without it the host drops the script.
+* **plugin:** official-blocks/video and official-blocks/map are removed. Enable official-embeds and use official-embeds/video and official-embeds/openstreetmap instead.
+
+### Features
+
+* **blocks:** add core/widget block to mount static widgets in sandboxed iframes ([#419](https://github.com/takumi-mr/AegisCMS/issues/419)) ([70c93df](https://github.com/takumi-mr/AegisCMS/commit/70c93df0eda181598b9ef1f43998fb2fc1bf7ab4))
+* **plugin:** add official-embeds and move video and map blocks out of official-blocks ([#416](https://github.com/takumi-mr/AegisCMS/issues/416)) ([7a7c0c1](https://github.com/takumi-mr/AegisCMS/commit/7a7c0c1782db69553dd2232fec84b5901efe68bf))
+* **plugin:** require capabilities.local_scripts for scripts from paths on the site ([#423](https://github.com/takumi-mr/AegisCMS/issues/423)) ([f1b0608](https://github.com/takumi-mr/AegisCMS/commit/f1b0608b4749b9b1bdda78a4e236ed1a44e2c274))
+* **plugins:** serve bundled plugin assets and add React/Vue island block templates ([#418](https://github.com/takumi-mr/AegisCMS/issues/418)) ([34ef278](https://github.com/takumi-mr/AegisCMS/commit/34ef278d8e6a9d577fe9ebb24bedfecfdf1e88e7))
+* **server:** let embeds wait for cookie consent and allow admin-approved embed hosts ([#420](https://github.com/takumi-mr/AegisCMS/issues/420)) ([fe3c670](https://github.com/takumi-mr/AegisCMS/commit/fe3c6702cbaa0ff6c35aa3c8e112ec4e4d479db2))
+* **theme:** allow themes to override the maintenance page via maintenance.html ([#415](https://github.com/takumi-mr/AegisCMS/issues/415)) ([9375dad](https://github.com/takumi-mr/AegisCMS/commit/9375dadcfd5224c2eaf2fad42486dfe5cc9ae920))
+
+
+### Bug Fixes
+
+* **plugin:** bump the SDK requirement of the island templates on release ([#426](https://github.com/takumi-mr/AegisCMS/issues/426)) ([1c2eb0f](https://github.com/takumi-mr/AegisCMS/commit/1c2eb0fb1f40f6c0e20044810304233b67856130))
+* **plugin:** purge the CDN when plugins are switched or their settings change ([#425](https://github.com/takumi-mr/AegisCMS/issues/425)) ([d303879](https://github.com/takumi-mr/AegisCMS/commit/d303879ddb848cbca43c81156bb7457811918f46))
+* **server:** never allow the site's own host for generic embeds ([#424](https://github.com/takumi-mr/AegisCMS/issues/424)) ([5710005](https://github.com/takumi-mr/AegisCMS/commit/57100051e64595b5fe95de1cb1dab085404a634a))
+* **server:** never serve plugin assets or widgets as unsandboxed documents ([#422](https://github.com/takumi-mr/AegisCMS/issues/422)) ([d0ccaeb](https://github.com/takumi-mr/AegisCMS/commit/d0ccaeb4511f58de040c5d191a52edf71b8b3629))
+
 ## [0.11.0](https://github.com/takumi-mr/AegisCMS/compare/v0.10.0...v0.11.0) (2026-11-22)
 
 

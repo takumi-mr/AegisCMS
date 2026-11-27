@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.5.0](https://github.com/takumi-mr/AegisCMS/compare/plugin-official-blocks-v0.4.1...plugin-official-blocks-v0.5.0) (2026-11-27)
+
+
+### ⚠ BREAKING CHANGES
+
+* **plugin:** official-blocks/video and official-blocks/map are removed. Enable official-embeds and use official-embeds/video and official-embeds/openstreetmap instead.
+
+### Features
+
+* **plugin:** add official-embeds and move video and map blocks out of official-blocks ([#416](https://github.com/takumi-mr/AegisCMS/issues/416)) ([7a7c0c1](https://github.com/takumi-mr/AegisCMS/commit/7a7c0c1782db69553dd2232fec84b5901efe68bf))
+
 ## [0.4.1](https://github.com/takumi-mr/AegisCMS/compare/plugin-official-blocks-v0.4.0...plugin-official-blocks-v0.4.1) (2026-11-15)
 
 
