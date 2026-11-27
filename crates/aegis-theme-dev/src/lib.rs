@@ -800,6 +800,7 @@ const PAGE_TEMPLATES: &[&str] = &[
     "article.html",
     "page.html",
     "404.html",
+    "maintenance.html",
     "blank.html",
     "products.html",
     "product.html",

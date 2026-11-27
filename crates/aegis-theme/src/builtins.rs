@@ -846,6 +846,28 @@ pub const NOT_FOUND_TEMPLATE: &str = r#"{% extends "base.html" %}
 {% endblock %}
 "#;
 
+pub const MAINTENANCE_TEMPLATE: &str = r#"<!DOCTYPE html>
+<html lang="{{ locale }}">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{{ site_title }} - {{ t("maintenance.title") }}</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; background-color: #f8fafc; color: #1e293b; }
+        .box { background: white; padding: 2.5rem; border-radius: 0.75rem; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); max-width: 480px; width: 90%; text-align: center; }
+        h1 { font-size: 1.5rem; font-weight: 600; margin-top: 0; margin-bottom: 1rem; color: #0f172a; }
+        p { line-height: 1.6; color: #64748b; margin-bottom: 0; }
+    </style>
+</head>
+<body>
+    <div class="box">
+        <h1>{{ site_title }}</h1>
+        <p>{{ fields.message }}</p>
+    </div>
+</body>
+</html>
+"#;
+
 /// ショップのページ共通のスタイル・ナビゲーション・カートのスクリプト（各ショップテンプレートに含める）。
 /// どのテーマの `base.html` の中でも読めるよう、色はテーマの文字色を基準にした半透明で指定する
 pub const SHOP_COMMON_TEMPLATE: &str = r#"{% filter inline_style %}

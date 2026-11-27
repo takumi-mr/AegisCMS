@@ -173,6 +173,10 @@ fn contexts() -> Vec<PageRenderContext> {
         ..base("article.html")
     });
     out.push(base("404.html"));
+    out.push(PageRenderContext {
+        fields: object(json!({ "message": "Under maintenance." })),
+        ..base("maintenance.html")
+    });
     // ショップ
     let product = |stock: Value| {
         object(json!({
