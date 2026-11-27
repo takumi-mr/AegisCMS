@@ -2,7 +2,8 @@
 //!
 //! カタログ（`catalog.json`）と署名（`catalog.json.sig`）を取得し、設定した公開鍵での署名・
 //! `schema_version`・`sequence`（巻き戻しの拒否）・`expires_at` を確かめてから使う。
-//! ZIP の取得とインストールはここでは行わない
+//! ストアからのインストールでは、ZIP を取得してカタログの `size`・`sha256` と照合し、展開した中身が
+//! カタログのエントリ（ID・バージョン・署名の鍵・`capabilities`）と一致することを確かめる
 
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -12,6 +13,7 @@ use aegis_core::{AegisError, Result};
 use aegis_db::DatabaseAdapter;
 use ring::signature;
 use serde::{Deserialize, Serialize};
+use sha2::Digest;
 
 use crate::ssrf::{is_private_or_loopback_host, PublicOnlyResolver};
 
@@ -200,6 +202,20 @@ impl CatalogVersion {
             .as_deref()
             .is_none_or(|v| aegis_core::check_min_aegis_version(v).is_ok())
     }
+
+    fn semver(&self) -> Option<semver::Version> {
+        semver::Version::parse(&self.version).ok()
+    }
+}
+
+impl CatalogPackage {
+    /// このサーバーで動く最も新しいバージョン
+    pub fn latest_compatible(&self) -> Option<&CatalogVersion> {
+        self.versions
+            .iter()
+            .filter(|v| v.is_compatible())
+            .max_by_key(|v| v.semver())
+    }
 }
 
 /// カタログを使えない理由。`code` は API の応答に出す機械可読な値
@@ -369,6 +385,138 @@ async fn fetch_limited(
         body.extend_from_slice(&chunk);
     }
     Ok(body)
+}
+
+/// ストアから入れるパッケージ（カタログのエントリ）。展開した中身との照合と、監査ログに使う
+pub struct StoreSource<'a> {
+    pub catalog: &'a str,
+    pub kind: PackageKind,
+    pub id: &'a str,
+    pub version: &'a CatalogVersion,
+}
+
+impl StoreSource<'_> {
+    /// 検証済みのパッケージ（署名は `validate_*_package` が確かめたあと）が、カタログのエントリと一致するか。
+    /// ID・バージョン・`capabilities`（テーマは `csp`）が同じで、`signature.json` があり、その鍵がエントリの
+    /// `public_key` であること。ストア経由では、署名を必須にしていないサーバーでも署名の無いものは断る
+    pub fn check_package(&self, pkg_root: &std::path::Path) -> Result<()> {
+        let invalid = |m: String| Err(AegisError::Validation(m));
+        let (manifest_file, id_field) = match self.kind {
+            PackageKind::Plugin => ("plugin.manifest.json", "name"),
+            PackageKind::Theme => ("theme.json", "id"),
+        };
+        let raw: serde_json::Value = read_json(&pkg_root.join(manifest_file))?;
+        if raw.get(id_field).and_then(|v| v.as_str()) != Some(self.id) {
+            return invalid(format!(
+                "The package {} is not '{}' as the catalog says",
+                manifest_file, self.id
+            ));
+        }
+        if raw.get("version").and_then(|v| v.as_str()) != Some(self.version.version.as_str()) {
+            return invalid(format!(
+                "The package version is not {} as the catalog says",
+                self.version.version
+            ));
+        }
+        let empty = || serde_json::json!({});
+        let capabilities = match self.kind {
+            PackageKind::Plugin => raw.get("capabilities").cloned().unwrap_or_else(empty),
+            PackageKind::Theme => raw
+                .get("csp")
+                .map(|csp| serde_json::json!({ "csp": csp }))
+                .unwrap_or_else(empty),
+        };
+        let listed = if self.version.capabilities.is_null() {
+            empty()
+        } else {
+            self.version.capabilities.clone()
+        };
+        if capabilities != listed {
+            return invalid(
+                "The package capabilities differ from the ones listed in the catalog".to_string(),
+            );
+        }
+        let sig_path = pkg_root.join("signature.json");
+        if !sig_path.is_file() {
+            return invalid("Packages from the store must be signed (signature.json)".to_string());
+        }
+        let sig: aegis_core::PackageSignature = read_json(&sig_path)?;
+        if !sig
+            .public_key
+            .trim()
+            .eq_ignore_ascii_case(self.version.public_key.trim())
+        {
+            return invalid(
+                "The package is signed by a key other than the one in the catalog".to_string(),
+            );
+        }
+        Ok(())
+    }
+
+    /// 監査ログの `details.source`
+    pub fn audit_details(&self) -> serde_json::Value {
+        serde_json::json!({
+            "catalog": self.catalog,
+            "url": self.version.url,
+            "sha256": self.version.sha256,
+        })
+    }
+}
+
+fn read_json<T: serde::de::DeserializeOwned>(path: &std::path::Path) -> Result<T> {
+    let text = std::fs::read_to_string(path).map_err(AegisError::Io)?;
+    serde_json::from_str(&text).map_err(|e| {
+        AegisError::Validation(format!(
+            "Invalid {}: {}",
+            path.file_name().unwrap_or_default().to_string_lossy(),
+            e
+        ))
+    })
+}
+
+/// パッケージのインストールに失敗した理由（アップロードとストアで共通）
+#[derive(Debug)]
+pub enum InstallError {
+    /// パッケージの中身が不正（展開・検証・カタログとの照合）
+    Invalid(String),
+    /// サーバー側の失敗（一時ディレクトリ・ファイルの配置）
+    Internal(String),
+}
+
+/// ZIP の取得に失敗した理由
+#[derive(Debug, thiserror::Error)]
+pub enum PackageFetchError {
+    #[error("Failed to fetch the package: {0}")]
+    Fetch(String),
+    #[error("The package does not match the catalog: {0}")]
+    Mismatch(String),
+}
+
+/// カタログのエントリの ZIP を取得し、`size`・`sha256` と照合する（`size` を超える応答は途中で止める）
+pub async fn fetch_package(
+    client: &reqwest::Client,
+    version: &CatalogVersion,
+) -> std::result::Result<Vec<u8>, PackageFetchError> {
+    let bytes = fetch_limited(client, &version.url, version.size)
+        .await
+        .map_err(|e| match e {
+            CatalogError::Fetch(m) => PackageFetchError::Fetch(m),
+            other => PackageFetchError::Fetch(other.to_string()),
+        })?;
+    if bytes.len() as u64 != version.size {
+        return Err(PackageFetchError::Mismatch(format!(
+            "size is {} bytes, the catalog says {}",
+            bytes.len(),
+            version.size
+        )));
+    }
+    let digest = hex::encode(sha2::Sha256::digest(&bytes));
+    if !digest.eq_ignore_ascii_case(version.sha256.trim()) {
+        return Err(PackageFetchError::Mismatch(
+            "sha256 differs from the catalog".to_string(),
+        ));
+    }
+    Ok(bytes)
 }
 
 /// カタログ 1 つを取得して確かめる。受け入れたら `sequence` を記録する
@@ -572,6 +720,123 @@ mod tests {
             verify_value(&duplicate, None),
             Err(CatalogError::Malformed(_))
         ));
+    }
+
+    fn version_entry(v: &str, min: Option<&str>) -> CatalogVersion {
+        CatalogVersion {
+            version: v.into(),
+            min_aegis_version: min.map(Into::into),
+            capabilities: json!({ "hooks": ["on-render-page"] }),
+            url: format!("https://example.com/{v}.zip"),
+            sha256: "a".repeat(64),
+            size: 1,
+            public_key: "b".repeat(64),
+        }
+    }
+
+    #[test]
+    fn latest_compatible_skips_versions_this_server_cannot_run() {
+        let package = CatalogPackage {
+            id: "seo-tools".into(),
+            kind: PackageKind::Plugin,
+            name: "SEO Tools".into(),
+            description: String::new(),
+            publisher: "official".into(),
+            license: None,
+            versions: vec![
+                version_entry("1.2.0", None),
+                version_entry("1.10.0", None),
+                version_entry("9.0.0", Some("999.0.0")),
+            ],
+        };
+        assert_eq!(package.latest_compatible().unwrap().version, "1.10.0");
+    }
+
+    /// 署名した `plugin.manifest.json` だけのパッケージを作り、その鍵（hex）を返す
+    fn signed_plugin(dir: &std::path::Path, manifest: serde_json::Value) -> String {
+        std::fs::write(
+            dir.join("plugin.manifest.json"),
+            serde_json::to_vec(&manifest).unwrap(),
+        )
+        .unwrap();
+        let (private, public) = aegis_core::generate_ed25519_keypair().unwrap();
+        aegis_core::sign_package_dir(dir, &private).unwrap();
+        public
+    }
+
+    #[test]
+    fn store_packages_must_match_their_catalog_entry() {
+        let manifest = json!({
+            "name": "seo-tools",
+            "version": "1.2.0",
+            "capabilities": { "hooks": ["on-render-page"] }
+        });
+        let dir = tempfile::tempdir().unwrap();
+        let key = signed_plugin(dir.path(), manifest);
+        let mut entry = version_entry("1.2.0", None);
+        entry.public_key = key;
+        let source = |version: &CatalogVersion, id: &str| -> Result<()> {
+            StoreSource {
+                catalog: "official",
+                kind: PackageKind::Plugin,
+                id,
+                version,
+            }
+            .check_package(dir.path())
+        };
+        source(&entry, "seo-tools").unwrap();
+
+        assert!(source(&entry, "other").is_err(), "another id");
+        let mut other_version = entry.clone();
+        other_version.version = "1.3.0".into();
+        assert!(
+            source(&other_version, "seo-tools").is_err(),
+            "another version"
+        );
+        let mut other_caps = entry.clone();
+        other_caps.capabilities = json!({ "hooks": [] });
+        assert!(
+            source(&other_caps, "seo-tools").is_err(),
+            "other capabilities"
+        );
+        let mut other_key = entry.clone();
+        other_key.public_key = "c".repeat(64);
+        assert!(source(&other_key, "seo-tools").is_err(), "another key");
+
+        std::fs::remove_file(dir.path().join("signature.json")).unwrap();
+        assert!(source(&entry, "seo-tools").is_err(), "unsigned");
+    }
+
+    #[test]
+    fn themes_compare_their_csp() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(
+            dir.path().join("theme.json"),
+            serde_json::to_vec(&json!({
+                "id": "roastery",
+                "version": "1.0.0",
+                "csp": { "style_domains": ["fonts.googleapis.com"] }
+            }))
+            .unwrap(),
+        )
+        .unwrap();
+        let (private, public) = aegis_core::generate_ed25519_keypair().unwrap();
+        aegis_core::sign_package_dir(dir.path(), &private).unwrap();
+        let mut entry = version_entry("1.0.0", None);
+        entry.public_key = public;
+        entry.capabilities = json!({ "csp": { "style_domains": ["fonts.googleapis.com"] } });
+        let check = |entry: &CatalogVersion| {
+            StoreSource {
+                catalog: "official",
+                kind: PackageKind::Theme,
+                id: "roastery",
+                version: entry,
+            }
+            .check_package(dir.path())
+        };
+        check(&entry).unwrap();
+        entry.capabilities = serde_json::Value::Null;
+        assert!(check(&entry).is_err());
     }
 
     #[test]

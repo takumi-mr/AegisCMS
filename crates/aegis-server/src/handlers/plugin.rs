@@ -13,6 +13,7 @@ use crate::audit::AuditContext;
 use crate::auth::authorize::RequireRole;
 use crate::auth::AdminSession;
 use crate::state::AppState;
+use crate::store::InstallError;
 use aegis_auth::SessionData;
 use aegis_core::{AegisError, AuditAction, AuditActor, AuditOutcome};
 use aegis_runtime::{PluginInfo, PluginSupervisor, WasmPluginLoader};
@@ -584,21 +585,43 @@ pub async fn install_plugin(
         )
     })?;
 
+    let actor = AuditActor {
+        user_id: session.user_id,
+        role: session.role,
+    };
+    install_plugin_package(&state, actor, &audit, &bytes, None)
+        .await
+        .map(Json)
+        .map_err(|e| match e {
+            InstallError::Invalid(m) => api_error(
+                StatusCode::BAD_REQUEST,
+                format!("Package validation failed: {}", m),
+            ),
+            InstallError::Internal(m) => api_error(StatusCode::INTERNAL_SERVER_ERROR, m),
+        })
+}
+
+/// プラグインの ZIP を検証して `plugins_dir/<name>/` に置く（アップロードとストアで共通）。
+/// `from_store` があれば、カタログのエントリと中身（ID・バージョン・署名の鍵・`capabilities`）が
+/// 一致することも確かめ、監査ログに取得元を残す。有効化はしない
+pub(crate) async fn install_plugin_package(
+    state: &AppState,
+    actor: AuditActor,
+    audit: &AuditContext,
+    bytes: &[u8],
+    from_store: Option<&crate::store::StoreSource<'_>>,
+) -> Result<PluginInfo, InstallError> {
     let temp_root = std::env::temp_dir().join(format!(
         "aegis_plugin_inst_{}_{}",
         std::process::id(),
         uuid::Uuid::new_v4()
     ));
     let _ = std::fs::remove_dir_all(&temp_root);
-    std::fs::create_dir_all(&temp_root).map_err(|e| {
-        api_error(
-            StatusCode::INTERNAL_SERVER_ERROR,
-            format!("Failed to create temp dir: {}", e),
-        )
-    })?;
+    std::fs::create_dir_all(&temp_root)
+        .map_err(|e| InstallError::Internal(format!("Failed to create temp dir: {}", e)))?;
 
     let res = (|| -> aegis_core::Result<(aegis_core::PluginManifest, std::path::PathBuf)> {
-        aegis_core::extract_zip_safely(&bytes, &temp_root, None)?;
+        aegis_core::extract_zip_safely(bytes, &temp_root, None)?;
         let pkg_root = find_plugin_package_root(&temp_root)?;
 
         let trusted_keys = if state.config.plugins.trusted_public_keys.is_empty() {
@@ -612,6 +635,9 @@ pub async fn install_plugin(
             trusted_keys,
             state.config.plugins.require_signatures,
         )?;
+        if let Some(source) = from_store {
+            source.check_package(&pkg_root)?;
+        }
 
         Ok((manifest, pkg_root))
     })();
@@ -620,74 +646,58 @@ pub async fn install_plugin(
         Ok(val) => val,
         Err(e) => {
             let _ = std::fs::remove_dir_all(&temp_root);
-            return Err(api_error(
-                StatusCode::BAD_REQUEST,
-                format!("Package validation failed: {}", e),
-            ));
+            return Err(InstallError::Invalid(e.to_string()));
         }
     };
 
     let plugins_dir = &state.config.paths.plugins_dir;
     let target_dir = plugins_dir.join(&manifest.name);
 
-    if target_dir.exists() {
-        if let Err(e) = std::fs::remove_dir_all(&target_dir) {
-            let _ = std::fs::remove_dir_all(&temp_root);
-            return Err(api_error(
-                StatusCode::INTERNAL_SERVER_ERROR,
-                format!("Failed to remove existing plugin directory: {}", e),
-            ));
+    let placed = (|| -> std::result::Result<(), String> {
+        if target_dir.exists() {
+            std::fs::remove_dir_all(&target_dir)
+                .map_err(|e| format!("Failed to remove existing plugin directory: {}", e))?;
+        } else {
+            std::fs::create_dir_all(plugins_dir)
+                .map_err(|e| format!("Failed to create plugins dir: {}", e))?;
         }
-    } else if let Err(e) = std::fs::create_dir_all(plugins_dir) {
-        let _ = std::fs::remove_dir_all(&temp_root);
-        return Err(api_error(
-            StatusCode::INTERNAL_SERVER_ERROR,
-            format!("Failed to create plugins dir: {}", e),
-        ));
-    }
-
-    if let Err(e) = copy_dir_all(&pkg_root, &target_dir) {
-        let _ = std::fs::remove_dir_all(&temp_root);
-        return Err(api_error(
-            StatusCode::INTERNAL_SERVER_ERROR,
-            format!("Failed to install plugin files: {}", e),
-        ));
-    }
-
+        copy_dir_all(&pkg_root, &target_dir)
+            .map_err(|e| format!("Failed to install plugin files: {}", e))
+    })();
     let _ = std::fs::remove_dir_all(&temp_root);
+    placed.map_err(InstallError::Internal)?;
 
+    let mut details = json!({
+        "version": manifest.version,
+        "display_name": manifest.display_name,
+    });
+    if let Some(source) = from_store {
+        details["source"] = source.audit_details();
+    }
     state
         .audit
         .record(
             audit
                 .event(AuditAction::PluginInstall, AuditOutcome::Success)
-                .with_actor(Some(AuditActor {
-                    user_id: session.user_id,
-                    role: session.role,
-                }))
+                .with_actor(Some(actor))
                 .with_resource("plugin", Some(manifest.name.clone()))
-                .with_details(json!({
-                    "version": manifest.version,
-                    "display_name": manifest.display_name,
-                })),
+                .with_details(details),
         )
         .await;
 
     let enabled = state.plugin_registry.enabled().await;
-    let list = plugin_list(&state, &enabled).await?;
-    let info = list
-        .into_iter()
-        .find(|p| p.name == manifest.name)
-        .unwrap_or(PluginInfo {
-            name: manifest.name.clone(),
-            is_enabled: enabled.contains(&manifest.name),
-            is_installed: true,
-            problem: None,
-            manifest: Some(manifest),
-            settings: Default::default(),
-        });
-
-    Ok(Json(info))
+    let listed = plugin_list(state, &enabled)
+        .await
+        .ok()
+        .and_then(|list| list.into_iter().find(|p| p.name == manifest.name));
+    Ok(listed.unwrap_or(PluginInfo {
+        name: manifest.name.clone(),
+        is_enabled: enabled.contains(&manifest.name),
+        is_installed: true,
+        problem: None,
+        manifest: Some(manifest),
+        settings: Default::default(),
+    }))
 }
 
 fn find_plugin_package_root(dir: &std::path::Path) -> aegis_core::Result<std::path::PathBuf> {

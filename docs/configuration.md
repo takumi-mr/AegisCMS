@@ -694,7 +694,12 @@ It is read at startup, so restart the server after changing it. To stop one assi
 
 ### 2.28 `[store]` — Package store
 
-Reads the list of plugins and themes from signed catalogs (design and plans: [store.md](store.md)). For now this covers only the listing (`GET /api/v1/store/packages`, `admin`); installing from the store is not available yet.
+Reads the list of plugins and themes from signed catalogs (design and plans: [store.md](store.md)). APIs (both `admin`):
+
+- `GET /api/v1/store/packages`: the package list, with the installed version, the newest version that runs on this server, and whether an update is available.
+- `POST /api/v1/store/install`: `{"catalog": "official", "kind": "plugin" | "theme", "id": "...", "version": "..."}` (without `version`, the newest version that runs on this server). Downloads the ZIP and installs it only when the catalog's `size` and `sha256` match and the package's ID, version, signing key and `capabilities` (`csp` for themes) match the catalog. A package with the same ID is replaced (updated). It is not enabled. Even on servers that do not require signatures (`require_signatures = false`), unsigned packages are never installed from the store. Failure `code`s: `catalog_*`, `package_not_found`, `version_not_found`, `incompatible_version`, `package_fetch_failed`, `package_mismatch`, `package_invalid`, `plugins_disabled`. The audit log (`plugin.install` / `theme.install`) records the source in `details.source`.
+
+There is no Admin Studio screen yet.
 
 | Key                 | Default   | Description                                                                                                                                                                                                                                       |
 | ------------------- | --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |

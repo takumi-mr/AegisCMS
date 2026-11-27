@@ -35,6 +35,5 @@
 
 設計は [store.md](docs/store.ja.md)。当面は公式のプラグイン・テーマだけを配る。上から順に着手する。
 
-- [ ] **ストアからのインストール・更新 API**: カタログの読み込みと一覧（`crates/aegis-server/src/store.rs`・`GET /api/v1/store/packages`）は済。ZIP の取得（`store::build_client` を使う） → `size`・`sha256` の照合 → エントリの `public_key` と `signature.json` の鍵の一致 → 既存の ZIP インストール。`capabilities` がマニフェストと食い違えば拒否。監査ログに取得元を残す。
-- [ ] **Admin Studio のストア画面**: 一覧、互換性のないものの無効化、インストール前の `capabilities` の確認、更新のお知らせ。
-- [ ] **公式パッケージの別リポジトリへの移行**: 計画と対象は [store.md 7](docs/store.ja.md#7-公式パッケージの別リポジトリへの移行計画)。インストール API の後に、新しいリポジトリへ「先に移す」もの（ads・clarity・embeds・link-embed・charts・share-buttons・reading-time・back-to-top・code-lines・lightbox・external-links）をテストごと移し、ストアの取得元を切り替えてから本体から消す（`feat!:`）。mermaid・plantuml は既定で有効にするのをやめてから、テーマは翻訳をテーマ側に持てるようにしてから。
+- [ ] **Admin Studio のストア画面**: API（`GET /api/v1/store/packages`・`POST /api/v1/store/install`）は済。一覧、互換性のないものの無効化、インストール前の `capabilities` の確認、更新のお知らせ、インストール後に有効化へ進む導線。
+- [ ] **公式パッケージの別リポジトリへの移行**: 計画と対象は [store.md 7](docs/store.ja.md#7-公式パッケージの別リポジトリへの移行計画)。新しいリポジトリは [AegisCMS-Plugin](https://github.com/takumi-mr/AegisCMS-Plugin)。そこへ「先に移す」もの（ads・clarity・embeds・link-embed・charts・share-buttons・reading-time・back-to-top・code-lines・lightbox・external-links）をテストごと移し、ストアの取得元を切り替えてから本体から消す（`feat!:`）。mermaid・plantuml は既定で有効にするのをやめてから、テーマは翻訳をテーマ側に持てるようにしてから。

@@ -5,7 +5,7 @@
 # パッケージストア（設計・未実装）
 
 > [!NOTE]
-> この文書は設計メモです。実装済みはカタログの取得・検証と一覧の API（`GET /api/v1/store/packages`）まで（設定は [configuration.md の 2.28](configuration.ja.md#228-store--パッケージストア)）。ストアからのインストールと Admin Studio の画面はまだです。すべて実装したら仕様の文書に書き直します。
+> この文書は設計メモです。実装済みはカタログの取得・検証、一覧の API（`GET /api/v1/store/packages`）、ストアからのインストール（`POST /api/v1/store/install`）まで（設定と API は [configuration.md の 2.28](configuration.ja.md#228-store--パッケージストア)）。Admin Studio の画面はまだです。すべて実装したら仕様の文書に書き直します。
 
 Admin Studio から、配布されているプラグインとテーマを選んでインストール・更新できるようにします。配る側は**静的なファイルだけ**（署名したカタログと ZIP）で、専用の HTTP サーバーは作りません。CMS 側は、カタログを読み、ZIP を取得して、既存の ZIP インストール（[プラグインのインストールと署名](plugin_hooks.ja.md#74-zip-パッケージからのインストールと署名)）に渡します。
 

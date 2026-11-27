@@ -563,6 +563,10 @@ pub fn router(config: &AegisConfig, state: Arc<AppState>) -> Router {
             get(handlers::store::list_store_packages),
         )
         .route(
+            "/api/v1/store/install",
+            post(handlers::store::install_store_package),
+        )
+        .route(
             "/api/v1/themes/active",
             get(handlers::get_active_theme).put(handlers::switch_active_theme),
         )

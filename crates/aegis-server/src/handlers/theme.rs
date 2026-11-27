@@ -13,6 +13,7 @@ use crate::audit::AuditContext;
 use crate::auth::authorize::RequireRole;
 use crate::auth::{AdminSession, ViewerSession};
 use crate::state::AppState;
+use crate::store::InstallError;
 use aegis_cache::CacheTags;
 use aegis_core::{guess_content_type, AuditAction, AuditOutcome};
 use aegis_theme::ThemeInfo;
@@ -124,21 +125,42 @@ pub async fn install_theme(
         )
     })?;
 
+    let actor = aegis_core::AuditActor {
+        user_id: session.user_id,
+        role: session.role,
+    };
+    install_theme_package(&state, actor, &audit_ctx, &bytes, None)
+        .await
+        .map(Json)
+        .map_err(|e| match e {
+            InstallError::Invalid(m) => (
+                StatusCode::BAD_REQUEST,
+                format!("Theme package validation failed: {}", m),
+            ),
+            InstallError::Internal(m) => (StatusCode::INTERNAL_SERVER_ERROR, m),
+        })
+}
+
+/// テーマの ZIP を検証して `themes_dir/<id>/` に置く（アップロードとストアで共通）。
+/// `from_store` があれば、カタログのエントリと中身が一致することも確かめる。有効化はしない
+pub(crate) async fn install_theme_package(
+    state: &AppState,
+    actor: aegis_core::AuditActor,
+    audit_ctx: &AuditContext,
+    bytes: &[u8],
+    from_store: Option<&crate::store::StoreSource<'_>>,
+) -> Result<ThemeInfo, InstallError> {
     let temp_root = std::env::temp_dir().join(format!(
         "aegis_theme_inst_{}_{}",
         std::process::id(),
         uuid::Uuid::new_v4()
     ));
     let _ = std::fs::remove_dir_all(&temp_root);
-    std::fs::create_dir_all(&temp_root).map_err(|e| {
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            format!("Failed to create temp dir: {}", e),
-        )
-    })?;
+    std::fs::create_dir_all(&temp_root)
+        .map_err(|e| InstallError::Internal(format!("Failed to create temp dir: {}", e)))?;
 
     let res = (|| -> aegis_core::Result<(aegis_theme::ThemeManifest, std::path::PathBuf)> {
-        aegis_core::extract_zip_safely(&bytes, &temp_root, None)?;
+        aegis_core::extract_zip_safely(bytes, &temp_root, None)?;
         let pkg_root = find_theme_package_root(&temp_root)?;
 
         let trusted_keys = if state.config.theme.trusted_public_keys.is_empty() {
@@ -152,6 +174,9 @@ pub async fn install_theme(
             trusted_keys,
             state.config.theme.require_signatures,
         )?;
+        if let Some(source) = from_store {
+            source.check_package(&pkg_root)?;
+        }
 
         Ok((manifest, pkg_root))
     })();
@@ -160,60 +185,46 @@ pub async fn install_theme(
         Ok(val) => val,
         Err(e) => {
             let _ = std::fs::remove_dir_all(&temp_root);
-            return Err((
-                StatusCode::BAD_REQUEST,
-                format!("Theme package validation failed: {}", e),
-            ));
+            return Err(InstallError::Invalid(e.to_string()));
         }
     };
 
     let themes_dir = state.theme.themes_dir();
     let target_dir = themes_dir.join(&manifest.id);
 
-    if target_dir.exists() {
-        if let Err(e) = std::fs::remove_dir_all(&target_dir) {
-            let _ = std::fs::remove_dir_all(&temp_root);
-            return Err((
-                StatusCode::INTERNAL_SERVER_ERROR,
-                format!("Failed to remove existing theme directory: {}", e),
-            ));
+    let placed = (|| -> std::result::Result<(), String> {
+        if target_dir.exists() {
+            std::fs::remove_dir_all(&target_dir)
+                .map_err(|e| format!("Failed to remove existing theme directory: {}", e))?;
+        } else {
+            std::fs::create_dir_all(themes_dir)
+                .map_err(|e| format!("Failed to create themes dir: {}", e))?;
         }
-    } else if let Err(e) = std::fs::create_dir_all(themes_dir) {
-        let _ = std::fs::remove_dir_all(&temp_root);
-        return Err((
-            StatusCode::INTERNAL_SERVER_ERROR,
-            format!("Failed to create themes dir: {}", e),
-        ));
-    }
-
-    if let Err(e) = copy_dir_all(&pkg_root, &target_dir) {
-        let _ = std::fs::remove_dir_all(&temp_root);
-        return Err((
-            StatusCode::INTERNAL_SERVER_ERROR,
-            format!("Failed to install theme files: {}", e),
-        ));
-    }
-
+        copy_dir_all(&pkg_root, &target_dir)
+            .map_err(|e| format!("Failed to install theme files: {}", e))
+    })();
     let _ = std::fs::remove_dir_all(&temp_root);
+    placed.map_err(InstallError::Internal)?;
 
+    let mut details = json!({
+        "theme_id": manifest.id,
+        "version": manifest.version,
+        "name": manifest.name,
+    });
+    if let Some(source) = from_store {
+        details["source"] = source.audit_details();
+    }
     state
         .audit
         .record(
             audit_ctx
                 .event(AuditAction::ThemeInstall, AuditOutcome::Success)
-                .with_actor(Some(aegis_core::AuditActor {
-                    user_id: session.user_id,
-                    role: session.role,
-                }))
-                .with_details(json!({
-                    "theme_id": manifest.id,
-                    "version": manifest.version,
-                    "name": manifest.name,
-                })),
+                .with_actor(Some(actor))
+                .with_details(details),
         )
         .await;
 
-    let info = state
+    Ok(state
         .theme
         .get_theme_info(&manifest.id)
         .unwrap_or(ThemeInfo {
@@ -222,9 +233,7 @@ pub async fn install_theme(
             has_assets: target_dir.join("assets").exists(),
             preview_url: None,
             manifest,
-        });
-
-    Ok(Json(info))
+        }))
 }
 
 fn find_theme_package_root(dir: &std::path::Path) -> aegis_core::Result<std::path::PathBuf> {
