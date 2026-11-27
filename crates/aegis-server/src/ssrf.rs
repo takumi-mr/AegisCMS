@@ -86,6 +86,28 @@ impl reqwest::dns::Resolve for PublicOnlyResolver {
     }
 }
 
+/// 接続してはいけない宛先か（SSRF 防御）。`http` / `https` 以外・ホストの無い URL・`localhost`・
+/// 公開されていない IP アドレス（プライベート・リンクローカル・ユニークローカル・IPv4 射影など）。
+/// ホスト名が内部のアドレスに解決される場合は、接続のたびに [`PublicOnlyResolver`] が止める。
+/// IP を直書きした URL は名前解決を通らないので、接続の前とリダイレクトのたびにこれで確かめる
+pub(crate) fn is_private_or_loopback_host(url_str: &str) -> bool {
+    let Ok(parsed) = url::Url::parse(url_str) else {
+        return true;
+    };
+    if !matches!(parsed.scheme(), "http" | "https") {
+        return true;
+    }
+    match parsed.host() {
+        None => true,
+        Some(url::Host::Ipv4(ip)) => !is_public_ip(std::net::IpAddr::V4(ip)),
+        Some(url::Host::Ipv6(ip)) => !is_public_ip(std::net::IpAddr::V6(ip)),
+        Some(url::Host::Domain(domain)) => {
+            let domain = domain.trim_end_matches('.').to_ascii_lowercase();
+            domain == "localhost" || domain.ends_with(".localhost")
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

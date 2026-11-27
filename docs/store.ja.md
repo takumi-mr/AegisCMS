@@ -5,7 +5,7 @@
 # パッケージストア（設計・未実装）
 
 > [!NOTE]
-> この文書は設計メモです。まだ実装していません。実装したら仕様の文書に書き直します。
+> この文書は設計メモです。実装済みはカタログの取得・検証と一覧の API（`GET /api/v1/store/packages`）まで（設定は [configuration.md の 2.28](configuration.ja.md#228-store--パッケージストア)）。ストアからのインストールと Admin Studio の画面はまだです。すべて実装したら仕様の文書に書き直します。
 
 Admin Studio から、配布されているプラグインとテーマを選んでインストール・更新できるようにします。配る側は**静的なファイルだけ**（署名したカタログと ZIP）で、専用の HTTP サーバーは作りません。CMS 側は、カタログを読み、ZIP を取得して、既存の ZIP インストール（[プラグインのインストールと署名](plugin_hooks.ja.md#74-zip-パッケージからのインストールと署名)）に渡します。
 
@@ -30,7 +30,7 @@ Admin Studio から、配布されているプラグインとテーマを選ん�
    ├─ GitHub Pages:    https://<owner>.github.io/aegis-store/catalog.json
    │                   https://<owner>.github.io/aegis-store/catalog.json.sig
    └─ GitHub Releases: https://github.com/<owner>/aegis-store/releases/download/<tag>/<file>.zip
-                         （ダウンロードは objects.githubusercontent.com へ 302 で転送される）
+                         （ダウンロードは release-assets.githubusercontent.com へ 302 で転送される）
 
  AegisCMS（各サイト）
    catalog.json を取得 → 署名・巻き戻しを検証 → 一覧を表示
@@ -81,7 +81,7 @@ Admin Studio から、配布されているプラグインとテーマを選ん�
 
 ## 4. CMS 側の処理
 
-### 4.1 設定（案）
+### 4.1 設定
 
 ```toml
 [store]
@@ -93,7 +93,10 @@ url = "https://<owner>.github.io/aegis-store/catalog.json"
 public_key = "<カタログ署名の Ed25519 公開鍵、32 バイトの hex>"
 ```
 
-- カタログは配列で、当面は 1 つ。各カタログの鍵は、そのカタログにだけ使う。
+- カタログは配列で、各カタログの鍵は、そのカタログにだけ使う。
+- `[[store.catalogs]]` を書かなければ、公式のカタログ（AegisCMS-Store。URL と公開鍵は `store.rs` の `OFFICIAL_CATALOG_*`）を読む。書くと置き換わる。`enabled` の既定は `false`（黙って外部に通信しない）。
+- 公式のカタログの公開鍵はサーバーに組み込まれているので、鍵を替えると、新しい鍵を持つ版に更新したサーバーだけが読める。カタログの秘密鍵は GitHub の secret とは別に控えておく。
+- 受け入れた `sequence` は DB（`_aegis_settings` の `store.catalog_sequences`）に記録する。複数のサーバーで共有され、記録は下げない。バックアップから復元すると記録も復元時点の値に戻るが、検査が緩むだけで、次に受け入れたカタログから元に戻る。
 - ZIP の `signature.json` の鍵は、カタログのエントリの `public_key` と一致することを確かめる。`[plugins]` / `[theme]` の `require_signatures`・`trusted_public_keys` はそのまま効く（ストア経由でも緩めない）。
 
 ### 4.2 流れ
@@ -114,7 +117,7 @@ public_key = "<カタログ署名の Ed25519 公開鍵、32 バイトの hex>"
 
 - 秘密鍵はリポジトリに置かない。CI で署名するなら Actions の secret に入れる。
 - **カタログの鍵**と **ZIP の鍵**は分ける。ZIP の鍵だけが漏れても、カタログに無い ZIP は配れない。カタログの鍵だけが漏れても、ZIP の署名は偽れない。
-- 鍵を替えるときは、CMS の設定（`store.catalogs[].public_key`）を新旧の両方を受け入れられる形にしてから移る（未決。[7](#7-未決事項)）。
+- 鍵を替えるときは、CMS の設定（`store.catalogs[].public_key`）を新旧の両方を受け入れられる形にしてから移る（未決。[8](#8-未決事項)）。
 
 公開の流れ（CI の例）: タグを push → ビルド → ZIP に署名 → Release を作る → `catalog.json` を作り直して署名 → Pages に出す。手で行うのはタグの push だけにする。ダウンロード数は Releases のアセットの数で見られる。
 
@@ -149,9 +152,26 @@ public_key = "<カタログ署名の Ed25519 公開鍵、32 バイトの hex>"
 - **バイナリのみでも配れる根拠は Wasm のサンドボックス**。宣言していない権限は実行時に止まるので、権限を絞れば、ソースを見なくても被害の範囲を限られる。逆に、強い権限を持つものはソースを見ない限り載せない。
 - カタログのエントリに区分（`review`: `"reviewed"` / `"unreviewed"`）を持たせ、Admin Studio の一覧とインストール前の確認画面に出す。運用者がバイナリのみの区分を設定で受け入れないようにもできる（例: `[store] allow_unreviewed = false`）。
 
-## 7. 未決事項
+## 7. 公式パッケージの別リポジトリへの移行（計画）
+
+本体のテストに使っていない公式プラグイン・テーマと、外部のサービスに依存するものは、本体から別のリポジトリ（例: `AegisCMS-Plugins`）へ移し、ストアから配る。AegisCMS-Store の `store.json` は取得元（`sources`）を複数持てるので、移したものはそのリポジトリのタグから配る。
+
+| 区分             | 対象                                                                                                                                                                                                                                              | 理由                                                                                                                                                                                               |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 本体に残す       | `official-blocks`・`official-code-enhancer`・`official-page-toc`・`official-post-navigation`・`official-shop-rules`・`official-order-notifier`、テーマ `default`                                                                                  | 本体のコード・既定値・テスト（Admin Studio の E2E、EC・通知、プラグイン管理）が名前で使う。`official-post-navigation` は本体（`handlers/public.rs`）が設定を読む。`default` はテーマエンジンの前提 |
+| 先に移す         | `official-ads`・`official-clarity`・`official-embeds`・`official-link-embed`・`official-charts`・`official-share-buttons`・`official-reading-time`・`official-back-to-top`・`official-code-lines`・`official-lightbox`・`official-external-links` | 本体で使うのは各プラグインの動作のテスト（`aegis-runtime/tests/sdk_plugins.rs`）だけで、それはプラグインと一緒に移せる                                                                             |
+| 準備してから移す | `official-mermaid`・`official-plantuml`、テーマ `default` 以外                                                                                                                                                                                    | mermaid・plantuml は `config/default.toml` で既定で有効（無いとサーバーが起動しない）。テーマの翻訳文は本体の `aegis-theme/src/messages.rs` にあり、テーマ側に持たせる仕組みが要る                 |
+
+順番:
+
+1. ストアが複数の取得元から配れるようにする（済。AegisCMS-Store の `store.json` の `sources`）。
+2. ストアからのインストール API を作る。同梱をやめても、利用者がストアから入れ直せるようにするため。
+3. 新しいリポジトリに「先に移す」ものを、各プラグインのテストと一緒に移す。テストは本体の `aegis-runtime` をタグで参照して動かす。ストアの `store.json` で取得元を切り替える（バージョンを上げてから出す）。
+4. 本体から消す（ディレクトリ・workspace のメンバー・Taskfile・release-please の設定・`sdk_plugins.rs` の該当テスト・ドキュメント）。同梱をやめるのは利用者にとって破壊的変更なので `feat!:` で出し、移行の手順（ストアから入れ直す）を書く。
+5. mermaid・plantuml を既定で有効にするのをやめてから移す。テーマは翻訳をテーマ側に持てるようにしてから移す。
+
+## 8. 未決事項
 
 - ストア経由のインストールを Admin Studio のどの画面に置くか（プラグイン・テーマの画面に「ストア」のタブを足す案）。
 - 更新の確認の頻度（起動時のみ・定期・画面を開いたとき）と、取得したカタログのキャッシュの置き場。
 - 鍵の切り替えの手順（カタログに次の鍵を予告する欄を持たせるか）。
-- `sequence` を覚える場所（DB か、データディレクトリのファイルか）と、復元（`task restore`）のあとの扱い。

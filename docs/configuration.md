@@ -692,6 +692,49 @@ The MCP server for AI assistants (`POST /mcp`) and the OAuth endpoints it signs 
 
 It is read at startup, so restart the server after changing it. To stop one assistant only, revoke its token in Admin Studio (My profile › API tokens).
 
+### 2.28 `[store]` — Package store
+
+Reads the list of plugins and themes from signed catalogs (design and plans: [store.md](store.md)). For now this covers only the listing (`GET /api/v1/store/packages`, `admin`); installing from the store is not available yet.
+
+| Key                 | Default   | Description                                                                                                                                                                                                                                       |
+| ------------------- | --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `enabled`           | `false`   | `true` turns the store on. While `false`, the API answers `404 store_disabled`                                                                                                                                                                    |
+| `max_catalog_bytes` | `1048576` | Size limit for `catalog.json` (bytes)                                                                                                                                                                                                             |
+| `timeout_secs`      | `15`      | Timeout for each fetch (seconds)                                                                                                                                                                                                                  |
+| `catalogs`          | official  | Catalogs to read (`[[store.catalogs]]`). Without any, the official catalog (below) is read. Writing some replaces it (list the official one too to keep it). An empty list (`catalogs = []`) with `enabled = true` stops the server from starting |
+
+Keys of `[[store.catalogs]]`:
+
+| Key          | Description                                                                                              |
+| ------------ | -------------------------------------------------------------------------------------------------------- |
+| `name`       | Identifier (lowercase letters, digits, `-`, `_`; unique)                                                 |
+| `url`        | URL of `catalog.json` (`https://` only). The signature is fetched from the same URL with `.sig` appended |
+| `public_key` | Ed25519 public key that verifies the catalog signature (32 bytes hex)                                    |
+
+To read only the official catalog, `enabled` is enough:
+
+```toml
+[store]
+enabled = true
+```
+
+The default official catalog (published by [AegisCMS-Store](https://github.com/takumi-mr/AegisCMS-Store)) is shown below. To add another catalog, list the official one as well:
+
+```toml
+[[store.catalogs]]
+name = "official"
+url = "https://takumi-mr.github.io/AegisCMS-Store/catalog.json"
+public_key = "f0addc0ea8e0d47a0fa8706ccb06e8352e3042174228cb567a92ec6c30ec15e9"
+
+[[store.catalogs]]
+name = "mine"
+url = "https://example.com/aegis-store/catalog.json"
+public_key = "<64 hex characters>"
+```
+
+- Fetches connect only to public IP addresses and follow at most 3 redirects, only to public `https://` hosts. Proxy environment variables are not used, and catalogs on an internal network cannot be read.
+- A catalog with a bad signature, an unknown `schema_version`, a passed `expires_at`, or a `sequence` older than the last accepted one is not used; the `catalogs` part of the listing response gives the reason (`code`). Accepted sequences are kept in the DB (`store.catalog_sequences` in `_aegis_settings`).
+
 ## 3. A Complete Example
 
 A parseable-as-is example with every item written out.

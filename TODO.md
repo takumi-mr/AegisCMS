@@ -17,6 +17,7 @@
 
 - 公式プラグインおよび `sdk/templates/*`・`sdk/examples/*`（`sdk/tinygo/examples/hooks` を含む）の `plugin.wasm` はリポジトリにコミット済みで、バージョンや SDK を変えても自動では再ビルドされない（`version` は manifest にだけあり、Wasm には入らない）。ソースや SDK を変えたときは各自再生成してから出す。
 - `admin/package.json` の `overrides`（`glob` → `minimatch ^11.0.5`）は、Dependabot の minimatch の警告（11.0.1 未満が対象）を避けるための一時的なもの。`@storybook/react-vite` が固定する `@joshwooding/vite-plugin-react-docgen-typescript@0.7` が `glob@13`（`minimatch ^10`）に依存するため。react-vite が新しい docgen プラグイン（`glob` に依存しない 0.9 系）に上がったら外す。`npm audit` に残る `glob` の警告（moderate）は、修正が react-vite のメジャーダウングレードになるため対応しない。
+- [AegisCMS-Store](https://github.com/takumi-mr/AegisCMS-Store) の `store.json` は取得元 `core` を `v0.11.0` で取り出していて、`official-embeds`（v0.11.0 より後に追加）を載せていない。次のリリースで `sources.core.ref` を上げるときに `packages` へ戻す。公式のカタログの URL と公開鍵は `store.rs` の既定値（`OFFICIAL_CATALOG_*`）。カタログの鍵を替えると、その値を持つ版のサーバーだけが読める（新旧の鍵を並べる仕組みは store.md 8 の未決事項）。
 
 ---
 
@@ -34,7 +35,6 @@
 
 設計は [store.md](docs/store.ja.md)。当面は公式のプラグイン・テーマだけを配る。上から順に着手する。
 
-- [ ] **配布用リポジトリの用意**: 本体とは別のリポジトリ（例: `aegis-store`）を作り、タグ（`<id>-v<version>`）の push で「ビルド → ZIP に署名 → Release → `catalog.json` の作り直しと署名 → Pages に出す」を行う CI を作る。カタログの鍵と ZIP の鍵を分け、Actions の secret に置く。`expires_at` を延ばす定期の作り直しも入れる。
-- [ ] **CMS 側のカタログ読み込み**: `[[store.catalogs]]` の設定、カタログの取得（https のみ・サイズ上限・タイムアウト・リダイレクト制限）、署名・`schema_version`・`sequence`（巻き戻しの拒否）・`expires_at` の検証。`sequence` の保存先と復元後の扱いは未決（store.md 7）。
-- [ ] **ストアからのインストール・更新 API**: ZIP の取得 → `size`・`sha256` の照合 → エントリの `public_key` と `signature.json` の鍵の一致 → 既存の ZIP インストール。`capabilities` がマニフェストと食い違えば拒否。監査ログに取得元を残す。
+- [ ] **ストアからのインストール・更新 API**: カタログの読み込みと一覧（`crates/aegis-server/src/store.rs`・`GET /api/v1/store/packages`）は済。ZIP の取得（`store::build_client` を使う） → `size`・`sha256` の照合 → エントリの `public_key` と `signature.json` の鍵の一致 → 既存の ZIP インストール。`capabilities` がマニフェストと食い違えば拒否。監査ログに取得元を残す。
 - [ ] **Admin Studio のストア画面**: 一覧、互換性のないものの無効化、インストール前の `capabilities` の確認、更新のお知らせ。
+- [ ] **公式パッケージの別リポジトリへの移行**: 計画と対象は [store.md 7](docs/store.ja.md#7-公式パッケージの別リポジトリへの移行計画)。インストール API の後に、新しいリポジトリへ「先に移す」もの（ads・clarity・embeds・link-embed・charts・share-buttons・reading-time・back-to-top・code-lines・lightbox・external-links）をテストごと移し、ストアの取得元を切り替えてから本体から消す（`feat!:`）。mermaid・plantuml は既定で有効にするのをやめてから、テーマは翻訳をテーマ側に持てるようにしてから。

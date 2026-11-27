@@ -37,6 +37,7 @@ pub mod site;
 pub mod site_assets;
 pub mod sso;
 pub mod storage;
+pub mod store;
 pub mod storefront;
 pub mod subscription;
 pub mod tags;

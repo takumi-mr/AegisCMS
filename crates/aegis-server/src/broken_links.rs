@@ -17,7 +17,7 @@ use aegis_db::ContentListQuery;
 use jiff::Timestamp;
 use serde::{Deserialize, Serialize};
 
-use crate::ssrf::{is_public_ip, PublicOnlyResolver};
+use crate::ssrf::{is_private_or_loopback_host, PublicOnlyResolver};
 use crate::state::AppState;
 
 /// 追うリダイレクトの回数の上限
@@ -376,27 +376,6 @@ async fn check_external_link(
                 }
                 Err(e) => Err((None, e.to_string())),
             }
-        }
-    }
-}
-
-/// 検査してはいけない宛先か（SSRF 防御）。`http` / `https` 以外・ホストの無い URL・`localhost`・
-/// 公開されていない IP アドレス（プライベート・リンクローカル・ユニークローカル・IPv4 射影など）。
-/// ホスト名が内部のアドレスに解決される場合は、接続のたびに [`PublicOnlyResolver`] が止める
-fn is_private_or_loopback_host(url_str: &str) -> bool {
-    let Ok(parsed) = url::Url::parse(url_str) else {
-        return true;
-    };
-    if !matches!(parsed.scheme(), "http" | "https") {
-        return true;
-    }
-    match parsed.host() {
-        None => true,
-        Some(url::Host::Ipv4(ip)) => !is_public_ip(std::net::IpAddr::V4(ip)),
-        Some(url::Host::Ipv6(ip)) => !is_public_ip(std::net::IpAddr::V6(ip)),
-        Some(url::Host::Domain(domain)) => {
-            let domain = domain.trim_end_matches('.').to_ascii_lowercase();
-            domain == "localhost" || domain.ends_with(".localhost")
         }
     }
 }

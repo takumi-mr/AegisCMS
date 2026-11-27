@@ -5,7 +5,7 @@
 # Package store (design, not implemented)
 
 > [!NOTE]
-> This is a design note. Nothing here is implemented yet. Once it is, this will be rewritten as a specification.
+> This is a design note. Implemented so far: fetching and verifying catalogs and the listing API (`GET /api/v1/store/packages`; settings in [configuration.md 2.28](configuration.md#228-store--package-store)). Installing from the store and the Admin Studio screen are not done yet. Once everything is, this will be rewritten as a specification.
 
 Lets admins pick published plugins and themes in Admin Studio and install or update them. The distribution side is **static files only** (a signed catalog and ZIP files); there is no dedicated HTTP server. AegisCMS reads the catalog, downloads a ZIP, and hands it to the existing ZIP installation ([installing packages and signatures](plugin_hooks.md#74-installing-from-a-zip-package-and-signatures)).
 
@@ -30,7 +30,7 @@ Packages are distributed from a repository separate from the main one (for examp
    ├─ GitHub Pages:    https://<owner>.github.io/aegis-store/catalog.json
    │                   https://<owner>.github.io/aegis-store/catalog.json.sig
    └─ GitHub Releases: https://github.com/<owner>/aegis-store/releases/download/<tag>/<file>.zip
-                         (downloads are redirected with 302 to objects.githubusercontent.com)
+                         (downloads are redirected with 302 to release-assets.githubusercontent.com)
 
  AegisCMS (each site)
    fetch catalog.json → verify signature and rollback → show the list
@@ -81,7 +81,7 @@ Packages are distributed from a repository separate from the main one (for examp
 
 ## 4. On the AegisCMS side
 
-### 4.1 Settings (draft)
+### 4.1 Settings
 
 ```toml
 [store]
@@ -93,7 +93,10 @@ url = "https://<owner>.github.io/aegis-store/catalog.json"
 public_key = "<Ed25519 public key for the catalog signature, 32 bytes hex>"
 ```
 
-- Catalogs are an array; one for now. Each key is used for its own catalog only.
+- Catalogs are an array; each key is used for its own catalog only.
+- Without `[[store.catalogs]]`, the official catalog (AegisCMS-Store; URL and public key are `OFFICIAL_CATALOG_*` in `store.rs`) is read. Writing some replaces it. `enabled` defaults to `false` (no outgoing requests unless asked for).
+- The official catalog key is built into the server, so after rotating it only servers updated to a version with the new key can read the catalog. Keep a copy of the catalog private key outside the GitHub secret.
+- Accepted sequences are recorded in the DB (`store.catalog_sequences` in `_aegis_settings`), shared by all servers and never lowered. Restoring a backup brings the record back to its value at that time; that only loosens the check until the next accepted catalog.
 - The key in the ZIP's `signature.json` must match the entry's `public_key`. `require_signatures` and `trusted_public_keys` under `[plugins]` / `[theme]` still apply; going through the store never relaxes them.
 
 ### 4.2 Flow
@@ -114,7 +117,7 @@ public_key = "<Ed25519 public key for the catalog signature, 32 bytes hex>"
 
 - Private keys never go into a repository. When CI signs, the key lives in an Actions secret.
 - The **catalog key** and the **ZIP key** are separate. A leaked ZIP key cannot ship a ZIP that is not in the catalog; a leaked catalog key cannot forge ZIP signatures.
-- To rotate a key, first make AegisCMS accept both old and new keys (`store.catalogs[].public_key`), then switch (open question, [7](#7-open-questions)).
+- To rotate a key, first make AegisCMS accept both old and new keys (`store.catalogs[].public_key`), then switch (open question, [8](#8-open-questions)).
 
 Publishing (CI example): push a tag → build → sign the ZIP → create the Release → regenerate and sign `catalog.json` → deploy to Pages. Pushing the tag is the only manual step. Download counts are available from the Releases assets.
 
@@ -149,9 +152,26 @@ For authors who do not want to hand source to review at all, a tier that accepts
 - **The Wasm sandbox is what makes binary-only acceptable.** Undeclared permissions are stopped at run time, so with narrow permissions the damage is bounded without reading the source. Conversely, anything with strong permissions is never listed without reading its source.
 - Catalog entries carry the tier (`review`: `"reviewed"` / `"unreviewed"`), shown in the Admin Studio list and on the confirmation screen. Operators can refuse the binary-only tier in settings (for example `[store] allow_unreviewed = false`).
 
-## 7. Open questions
+## 7. Moving official packages to another repository (plan)
+
+Official plugins and themes that the core tests do not use, and those that depend on outside services, move from the core to another repository (for example `AegisCMS-Plugins`) and are distributed through the store. AegisCMS-Store's `store.json` can list several sources, so moved packages are built from that repository's tags.
+
+| Group                | Packages                                                                                                                                                                                                                                          | Why                                                                                                                                                                                                                               |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Stay in the core     | `official-blocks`, `official-code-enhancer`, `official-page-toc`, `official-post-navigation`, `official-shop-rules`, `official-order-notifier`, theme `default`                                                                                   | Core code, defaults and tests (Admin Studio E2E, commerce and notifications, plugin management) use them by name. The core reads `official-post-navigation`'s settings (`handlers/public.rs`). The theme engine assumes `default` |
+| Move first           | `official-ads`, `official-clarity`, `official-embeds`, `official-link-embed`, `official-charts`, `official-share-buttons`, `official-reading-time`, `official-back-to-top`, `official-code-lines`, `official-lightbox`, `official-external-links` | The core only uses them in each plugin's own tests (`aegis-runtime/tests/sdk_plugins.rs`), which can move with them                                                                                                               |
+| Move after preparing | `official-mermaid`, `official-plantuml`, themes other than `default`                                                                                                                                                                              | mermaid and plantuml are enabled by default in `config/default.toml` (the server does not start without them). Theme strings live in the core's `aegis-theme/src/messages.rs`; themes need a way to carry their own               |
+
+Order:
+
+1. Let the store build from several sources (done: `sources` in AegisCMS-Store's `store.json`).
+2. Build the store install API, so users can reinstall from the store once packages are no longer bundled.
+3. Move the "move first" packages to the new repository together with their tests, which run against the core's `aegis-runtime` pinned to a tag. Switch their source in `store.json` (bump the version before publishing).
+4. Remove them from the core (directories, workspace members, Taskfile, release-please config, the matching tests in `sdk_plugins.rs`, docs). Unbundling is a breaking change for users, so release it as `feat!:` with migration steps (reinstall from the store).
+5. Stop enabling mermaid and plantuml by default, then move them. Move themes once they can carry their own strings.
+
+## 8. Open questions
 
 - Where store installs go in Admin Studio (one idea: a "Store" tab on the plugin and theme screens).
 - How often to check for updates (start-up only, periodically, or when the screen opens), and where to cache the fetched catalog.
 - How to rotate keys (whether the catalog should announce the next key).
-- Where to remember `sequence` (DB or a file in the data directory), and what happens after a restore (`task restore`).
