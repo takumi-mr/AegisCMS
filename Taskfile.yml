@@ -29,7 +29,7 @@ tasks:
       - cargo run -p aegis-plugin-dev -- {{.CLI_ARGS}}
 
   dev:theme:
-    desc: 'テーマを開発用サーバー (DB 不要、保存で自動リロード、ポート 8090) で確認。task dev:theme -- themes/trailhead'
+    desc: 'テーマを開発用サーバー (DB 不要、保存で自動リロード、ポート 8090) で確認。task dev:theme -- themes/default'
     cmds:
       - cargo run -p aegis-theme-dev -- {{.CLI_ARGS}}
 
@@ -289,7 +289,7 @@ tasks:
       - cargo run -p aegis-runtime --bin build_sample_wasm
 
   theme:new:
-    desc: '新しいテーマのひな形を生成 (例: task theme:new -- my-theme, task theme:new -- my-theme --from trailhead)'
+    desc: '新しいテーマのひな形を生成 (例: task theme:new -- my-theme, task theme:new -- my-theme --from default)'
     cmds:
       - node scripts/new-theme.mjs {{.CLI_ARGS}}
 

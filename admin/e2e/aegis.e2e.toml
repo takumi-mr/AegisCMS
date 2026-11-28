@@ -22,7 +22,9 @@ schemas_dir = "schemas"
 plugins_dir = "target/e2e/plugins"
 bundled_plugins_dir = "test-plugins"
 admin_dist_dir = "admin/dist"
-themes_dir = "themes"
+# インストールしたテーマ（start-server.mjs が test-themes/ を写す）。同梱のテーマは themes/
+themes_dir = "target/e2e/themes"
+bundled_themes_dir = "themes"
 
 # プラグインはテストの中で Admin Studio から有効にする
 [plugins]

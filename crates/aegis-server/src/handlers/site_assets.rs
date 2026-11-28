@@ -210,8 +210,22 @@ mod tests {
     async fn test_the_active_themes_declared_hosts_reach_the_csp() {
         let config = AegisConfig::default();
         let mut state = test_app_state(config.clone(), PluginSupervisor::new(), Vec::new()).await;
-        let themes = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../themes");
-        state.theme = std::sync::Arc::new(aegis_theme::ThemeEngine::new(&themes, "roastery"));
+        let themes = std::env::temp_dir().join(format!(
+            "aegis_csp_theme_{}_{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::create_dir_all(themes.join("fonts").join("templates")).unwrap();
+        std::fs::write(
+            themes.join("fonts").join("theme.json"),
+            r#"{"id": "fonts", "name": "Fonts", "version": "1.0.0",
+                "csp": {"style_domains": ["fonts.googleapis.com"], "font_domains": ["fonts.gstatic.com"]}}"#,
+        )
+        .unwrap();
+        state.theme = std::sync::Arc::new(aegis_theme::ThemeEngine::new(&themes, "fonts"));
         let app = crate::app::router(&config, std::sync::Arc::new(state));
         let res = app
             .oneshot(Request::get("/").body(Body::empty()).unwrap())

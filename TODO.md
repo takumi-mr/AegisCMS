@@ -15,7 +15,6 @@
 
 ## 技術メモ・申し送り事項
 
-- 公式プラグインおよび `sdk/templates/*`・`sdk/examples/*`（`sdk/tinygo/examples/hooks` を含む）の `plugin.wasm` はリポジトリにコミット済みで、バージョンや SDK を変えても自動では再ビルドされない（`version` は manifest にだけあり、Wasm には入らない）。ソースや SDK を変えたときは各自再生成してから出す。
 - `admin/package.json` の `overrides`（`glob` → `minimatch ^11.0.5`）は、Dependabot の minimatch の警告（11.0.1 未満が対象）を避けるための一時的なもの。`@storybook/react-vite` が固定する `@joshwooding/vite-plugin-react-docgen-typescript@0.7` が `glob@13`（`minimatch ^10`）に依存するため。react-vite が新しい docgen プラグイン（`glob` に依存しない 0.9 系）に上がったら外す。`npm audit` に残る `glob` の警告（moderate）は、修正が react-vite のメジャーダウングレードになるため対応しない。
 - 公式のカタログの URL と公開鍵は `store.rs` の既定値（`OFFICIAL_CATALOG_*`）。カタログの鍵を替えると、その値を持つ版のサーバーだけが読める（新旧の鍵を並べる仕組みは store.md 8 の未決事項）。
 
@@ -36,4 +35,3 @@
 設計は [store.md](docs/store.ja.md)。当面は公式のプラグイン・テーマだけを配る。上から順に着手する。
 
 - [ ] **ストアの更新のお知らせ**: 一覧・インストール・更新の画面（プラグイン・テーマの画面の「ストア」のタブ）は済。更新があることは、今はストアのタブを開いたときにしか分からない。「インストール済み」のタブのカードやナビゲーションに出すか、カタログを取得する頻度とキャッシュ（[store.md 8](docs/store.ja.md#8-未決事項)）と合わせて決める。
-- [ ] **テーマの移行（手順 10）**: テーマが文言を持つ仕組み（`locales/<言語>.json`）は済で、同梱のテーマの文言は各テーマに移した。`default` 以外のテーマを AegisCMS-Plugin に移し、ストアの取得元を切り替え、本体から消す（`feat!:`）。ストアに出ているテーマ（本体 v0.12.0 から作ったもの）には `locales/` が無く、v0.13.0 の本体では文言のキーがそのまま出るので、バージョンを上げて出し直す。

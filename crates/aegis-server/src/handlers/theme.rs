@@ -206,6 +206,19 @@ pub(crate) async fn install_theme_package(
     let _ = std::fs::remove_dir_all(&temp_root);
     placed.map_err(InstallError::Internal)?;
 
+    // 動いているテーマを入れ直した（更新した・設定の active が入れる前から指していた）ときは、読み直す。
+    // 読み直さないと、コンパイル済みのテンプレート・CSP・文言が古いまま（無かったテーマは組み込みのまま）
+    if manifest.id == state.theme.active_theme() {
+        if let Err(e) = state.theme.set_active_theme(&manifest.id) {
+            tracing::warn!(
+                "Installed the active theme '{}' but could not reload it: {}",
+                manifest.id,
+                e
+            );
+        }
+        crate::cdn::purge_site_global(state).await;
+    }
+
     let mut details = json!({
         "theme_id": manifest.id,
         "version": manifest.version,

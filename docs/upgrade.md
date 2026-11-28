@@ -12,7 +12,7 @@
 
 ## Steps for Specific Versions
 
-### Updating to v0.13.0: the official plugins come from the store
+### Updating to v0.13.0: the official plugins and themes come from the store
 
 From v0.13.0, **no plugin is bundled with AegisCMS**. Every official plugin (`official-*`) is installed from the [package store](store.md) instead: `official-ads`, `official-back-to-top`, `official-blocks`, `official-charts`, `official-clarity`, `official-code-enhancer`, `official-code-lines`, `official-embeds`, `official-external-links`, `official-lightbox`, `official-link-embed`, `official-mermaid`, `official-order-notifier`, `official-page-toc`, `official-plantuml`, `official-post-navigation`, `official-reading-time`, `official-share-buttons`, `official-shop-rules`.
 
@@ -22,6 +22,8 @@ If you have none of them enabled, there is nothing to do. If you have any enable
 2. Update as described below. Use the new shipped configuration for `[paths]` (or set `plugins_dir = "data/plugins"` and `bundled_plugins_dir = "plugins"` yourself, [configuration 2.5](configuration.md#25-paths--directories)), so that what you install stays across updates.
 3. Install them again from the **Store** tab of Admin Studio › Plugins. The store is on unless your configuration has `[store]` `enabled = false` ([configuration 2.28](configuration.md#228-store--package-store)). You can also use `POST /api/v1/store/install` (`{"catalog": "official", "kind": "plugin", "id": "official-charts"}`, [configuration 2.28](configuration.md#228-store--package-store)), or download the ZIP from [the store's Releases](https://github.com/takumi-mr/AegisCMS-Store/releases) and upload it on the same tab.
 4. Enable them again.
+
+**Themes** too: only `default` and `wordpress-classic` (the starter of the WordPress theme import) are bundled. `app-shell`, `cyber-neon`, `emerald-luxury`, `minimal-editorial`, `roastery` and `trailhead` are installed from the Store tab of Admin Studio › Themes. A site whose active theme is one of them keeps starting, but shows the built-in look until the theme is installed; installing it brings the theme back at once (the active theme setting is kept). They now keep their text in `locales/`; the store's 1.1.0 versions have it.
 
 The shipped `config/default.toml` also **no longer enables any plugin** (it used to enable `official-code-enhancer`, `official-mermaid` and `official-plantuml`). A site that runs with the shipped file loses code highlighting and diagrams until it installs and enables them from the Store tab, where they are listed as recommended. A site that copied the old `[plugins]` section still lists them, so it follows the steps above.
 

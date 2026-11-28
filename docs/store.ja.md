@@ -164,7 +164,7 @@ public_key = "<カタログ署名の Ed25519 公開鍵、32 バイトの hex>"
 | 本体が設定を読む    | `official-post-navigation`                                                                                                                                                                                                                        | 前後の記事を、本体がこのプラグインの設定（`mode`・`same_category`・`fallback_to_all`・`order_by`）で選ぶ（`handlers/public.rs`・`related.rs`）           |
 | テーマ              | `default` 以外のテーマ                                                                                                                                                                                                                            | テーマの翻訳文は本体の `aegis-theme/src/messages.rs` にあり、テーマ側に持たせる仕組みが要る                                                              |
 
-順番（1〜9 は済。残りはテーマ）:
+順番（すべて済）:
 
 1. ストアが複数の取得元から配れるようにする（AegisCMS-Store の `store.json` の `sources`）。
 2. ストアからのインストール API（`POST /api/v1/store/install`）と、Admin Studio のストアのタブを作る。
@@ -175,7 +175,7 @@ public_key = "<カタログ署名の Ed25519 公開鍵、32 バイトの hex>"
 7. **既定では何も有効にしない**（済。`config/default.toml` と、AegisCMS-Store の `store.json` の `recommended`）。同梱の設定でコードのハイライト・Mermaid・PlantUML を有効にするのをやめる。ストアのタブに、おすすめのパッケージ（カタログで印を付ける）を短く並べ、1 クリックで入れられるようにする。起動時には通信しない。
 8. （済。AegisCMS-Plugin のタグ `v2026.11.28.1`）残りのプラグインを、テストごと AegisCMS-Plugin に移し、`store.json` の取得元を切り替える。
 9. （v0.13.0 で済）本体から消し、移行の手順を付けて `feat!:` で出す。Docker のイメージとリリースのアーカイブには、プラグインが入らなくなる。`bundled_plugins_dir` は、自分でイメージを作る人のために残す。
-10. テーマは、翻訳をテーマ側に持てるようにしてから移す。
+10. （v0.13.0 で済。AegisCMS-Plugin のタグ `v2026.11.28.2`）テーマは、翻訳をテーマ側に持てるようにしてから移す（`locales/`）。`default` と `wordpress-classic` は本体に残す（テーマエンジンは `default` に戻り、WordPress のテーマの取り込みは `wordpress-classic` を土台にする）。
 
 ## 8. 未決事項
 

@@ -21,7 +21,9 @@ schemas_dir = "schemas"
 # ストアから入れたプラグインはここ（リポジトリの plugins/ には書き込まない）
 plugins_dir = "examples/coffee-shop/plugins"
 admin_dist_dir = "admin/dist"
-themes_dir = "themes"
+# ストアから入れたテーマはここ（リポジトリの themes/ には書き込まない）
+themes_dir = "examples/coffee-shop/themes"
+bundled_themes_dir = "themes"
 
 [theme]
 active = "roastery"

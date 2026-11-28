@@ -12,12 +12,12 @@ In the admin screen you can moderate threads by pinning, locking, deleting, and 
 
 ![Admin Studio thread moderation](../../docs/images/forum-admin.png)
 
-| Content                                                                                                                                   | Location                                                                                |
-| ----------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
-| Settings (member accounts, forum, dedicated database, rate limiting of consecutive posts, theme)                                          | [`aegis.toml`](aegis.toml)                                                              |
-| The "Trailhead" theme (top page, announcements, static pages. The forum pages use the built-in templates with the theme's colors applied) | [`themes/trailhead/`](../../themes/trailhead)                                           |
-| Data to load (4 members, 5 forum categories, 8 threads, 18 replies, 2 announcements, 2 static pages) and the loading script               | [`seed.mjs`](seed.mjs)                                                                  |
-| Databases (not tracked by Git)                                                                                                            | `site.db` (articles, users, etc.) and `forum.db` (the forum). Created when you start it |
+| Content                                                                                                                                   | Location                                                                                       |
+| ----------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| Settings (member accounts, forum, dedicated database, rate limiting of consecutive posts, theme)                                          | [`aegis.toml`](aegis.toml)                                                                     |
+| The "Trailhead" theme (top page, announcements, static pages. The forum pages use the built-in templates with the theme's colors applied) | [`themes/trailhead/`](https://github.com/takumi-mr/AegisCMS-Plugin/tree/main/themes/trailhead) |
+| Data to load (4 members, 5 forum categories, 8 threads, 18 replies, 2 announcements, 2 static pages) and the loading script               | [`seed.mjs`](seed.mjs)                                                                         |
+| Databases (not tracked by Git)                                                                                                            | `site.db` (articles, users, etc.) and `forum.db` (the forum). Created when you start it        |
 
 ## Starting It
 
@@ -35,6 +35,8 @@ task demo:forum:seed
 ```
 
 <http://127.0.0.1:8080/> is the site, <http://127.0.0.1:8080/forum> is the forum, and <http://127.0.0.1:8080/admin/> is the admin screen.
+
+The "Trailhead" theme is an official package that is not bundled. In the admin screen, open Settings › Themes › Store and install **Trailhead**; `aegis.toml` already selects it, so the site uses it as soon as it is installed.
 
 | User                    | Role     | What they can do                                             |
 | ----------------------- | -------- | ------------------------------------------------------------ |

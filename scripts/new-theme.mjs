@@ -54,14 +54,14 @@ Arguments:
 
 Options:
   --title, -t <title>        Display name of the theme (e.g. "Sunset Glow")
-  --from, -f <theme>         Copy an existing theme (e.g. trailhead, roastery) as the starting point
+  --from, -f <theme>         Copy an existing theme (e.g. default) as the starting point
   --force                    Overwrite target directory if it already exists
   --help, -h                 Show this help message
 
 Examples:
   task theme:new -- modern-blog
   task theme:new -- coffee-craft --title "Coffee Craft"
-  task theme:new -- custom-trailhead --from trailhead
+  task theme:new -- my-default --from default
 `);
 }
 

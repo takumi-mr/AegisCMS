@@ -12,7 +12,7 @@
 
 ## バージョンごとの手順
 
-### v0.13.0 への更新: 公式プラグインはストアから入れる
+### v0.13.0 への更新: 公式プラグインとテーマはストアから入れる
 
 v0.13.0 から、**AegisCMS はプラグインを同梱しません**。公式プラグイン（`official-*`）は、すべて[パッケージストア](store.ja.md)から入れます: `official-ads`・`official-back-to-top`・`official-blocks`・`official-charts`・`official-clarity`・`official-code-enhancer`・`official-code-lines`・`official-embeds`・`official-external-links`・`official-lightbox`・`official-link-embed`・`official-mermaid`・`official-order-notifier`・`official-page-toc`・`official-plantuml`・`official-post-navigation`・`official-reading-time`・`official-share-buttons`・`official-shop-rules`。
 
@@ -22,6 +22,8 @@ v0.13.0 から、**AegisCMS はプラグインを同梱しません**。公式�
 2. 下の手順で更新します。`[paths]` は新しい同梱の設定を使います（または自分で `plugins_dir = "data/plugins"`・`bundled_plugins_dir = "plugins"` にします。[設定の 2.5](configuration.ja.md#25-paths--ディレクトリ)）。入れたものが、次からの更新でも残るようにするためです。
 3. Admin Studio › Plugins の**ストア**のタブから入れ直します。設定で `[store]` の `enabled = false` にしていなければ、ストアは使えます（[設定の 2.28](configuration.ja.md#228-store--パッケージストア)）。ほかに、`POST /api/v1/store/install`（`{"catalog": "official", "kind": "plugin", "id": "official-charts"}`。[設定の 2.28](configuration.ja.md#228-store--パッケージストア)）を使うか、[ストアの Releases](https://github.com/takumi-mr/AegisCMS-Store/releases) から ZIP をダウンロードし、同じタブでアップロードしても入れられます。
 4. もう一度有効にします。
+
+**テーマ**も同じです。同梱するのは `default` と `wordpress-classic`（WordPress のテーマの取り込みの土台）だけになりました。`app-shell`・`cyber-neon`・`emerald-luxury`・`minimal-editorial`・`roastery`・`trailhead` は、Admin Studio › Themes のストアのタブから入れます。これらを使っているサイトは起動はしますが、テーマを入れるまで組み込みの見た目になります。入れるとすぐに元のテーマに戻ります（どのテーマを使うかの設定は残っています）。文言は `locales/` に持つようになり、ストアの 1.1.0 にはそれが入っています。
 
 同梱の `config/default.toml` も、**プラグインを何も有効にしなくなりました**（以前は `official-code-enhancer`・`official-mermaid`・`official-plantuml` を有効にしていました）。同梱のファイルのまま動かしているサイトでは、ストアのタブ（おすすめとして並びます）から入れて有効にするまで、コードのハイライトと図が出なくなります。以前の `[plugins]` を写したサイトは、それらを挙げたままなので、上の手順に従います。
 

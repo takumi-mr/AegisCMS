@@ -180,7 +180,7 @@ pub enum ScriptSource {
 - 書けるのは `style_domains`（`style-src`）・`font_domains`（`font-src`）・`img_domains`（`img-src`）。**スクリプトのホストは宣言できない**（テーマのスクリプトは、自分のファイルか `inline_script()`）。
 - ホスト名だけ（ワイルドカード・スキーム・ポート・パスは不可）、一覧ごとに 10 個まで。誤りのあるテーマは導入できず、動いているテーマの誤りは無視する（警告を出す）。
 - 管理画面の「テーマ」のカードに、「ほかのサイトから読み込む: …（訪問者の IP アドレスが送られます）」と出る。外部のフォントの CDN には、訪問者の IP アドレスが届くので、プライバシーポリシーに書く。
-- 同梱のテーマのうち、Google Fonts を読む `emerald-luxury`・`minimal-editorial`・`roastery`・`trailhead` が宣言している（`cyber-neon` は読まない）。
+- 公式のテーマ（ストアから入れる）のうち、Google Fonts を読む `emerald-luxury`・`minimal-editorial`・`roastery`・`trailhead` が宣言している（`cyber-neon` は読まない）。
 
 管理者が管理画面で CSP を上書きしているときも、宣言したホストは足される（プラグインの `capabilities.csp` と同じ）。
 

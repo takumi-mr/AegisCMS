@@ -14,13 +14,13 @@ In the admin screen you can manage products and check orders and sales.
 
 ![Admin Studio order list and sales report](../../docs/images/commerce-orders.png)
 
-| Content                                                                                                                            | Location                                          |
-| ---------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------- |
-| Settings (shop, shipping fees and coupons, theme, bank transfer instructions, notifications)                                       | [`aegis.toml`](aegis.toml)                        |
-| The "Roastery" theme (top page, articles, static pages. The shop pages use the built-in templates with the theme's colors applied) | [`themes/roastery/`](../../themes/roastery)       |
-| Data to load (4 categories, 9 products, 3 articles, 2 static pages) and the loading script                                         | [`seed.mjs`](seed.mjs)                            |
-| Product images                                                                                                                     | [`images/`](images)                               |
-| Database and uploaded files (not tracked by Git)                                                                                   | `shop.db`, `uploads/` (created when you start it) |
+| Content                                                                                                                            | Location                                                                                     |
+| ---------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| Settings (shop, shipping fees and coupons, theme, bank transfer instructions, notifications)                                       | [`aegis.toml`](aegis.toml)                                                                   |
+| The "Roastery" theme (top page, articles, static pages. The shop pages use the built-in templates with the theme's colors applied) | [`themes/roastery/`](https://github.com/takumi-mr/AegisCMS-Plugin/tree/main/themes/roastery) |
+| Data to load (4 categories, 9 products, 3 articles, 2 static pages) and the loading script                                         | [`seed.mjs`](seed.mjs)                                                                       |
+| Product images                                                                                                                     | [`images/`](images)                                                                          |
+| Database and uploaded files (not tracked by Git)                                                                                   | `shop.db`, `uploads/` (created when you start it)                                            |
 
 ## Starting It
 
@@ -39,7 +39,10 @@ task demo:shop:seed
 
 <http://127.0.0.1:8080/> is the shop, and <http://127.0.0.1:8080/admin/> is the admin screen (`owner` / `sample-password`).
 
-The shipping fee and coupons come from the official plugin `official-shop-rules`, which is not bundled. In the admin screen, open Settings › Plugins › Store, install **Shop Rules**, and enable it on the Installed tab. Its settings are already in `aegis.toml`.
+The theme and the shipping rules are official packages that are not bundled; install them once from the store in the admin screen:
+
+- Settings › Themes › Store: install **Roastery**. `aegis.toml` already selects it, so the site uses it as soon as it is installed.
+- Settings › Plugins › Store: install **Shop Rules** (shipping fee and coupons), then enable it on the Installed tab. Its settings are already in `aegis.toml`.
 
 Without go-task:
 
@@ -51,7 +54,7 @@ node examples/coffee-shop/seed.mjs      # in another terminal
 
 `seed.mjs` skips slugs that already exist, so you can run it as many times as you like. To load into a different server or user, specify `--url` / `--user` / `--password` (or the environment variable `AEGIS_SEED_PASSWORD`).
 
-To start over, stop the server and delete `shop.db*`, `uploads/` and `plugins/` in `examples/coffee-shop/`.
+To start over, stop the server and delete `shop.db*`, `uploads/`, `plugins/` and `themes/` in `examples/coffee-shop/`.
 
 ## What You Can Try
 

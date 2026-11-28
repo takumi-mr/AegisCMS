@@ -369,3 +369,68 @@ async fn test_install_signed_plugin_and_require_signatures_policy() {
     let _ = std::fs::remove_dir_all(&plugins_dir);
     let _ = std::fs::remove_dir_all(&themes_dir);
 }
+
+/// 動いているテーマを入れ直す（ストアの更新など）と、再起動せずに新しいテンプレートで描く
+#[tokio::test]
+async fn test_reinstalling_the_active_theme_reloads_it() {
+    let (state, token, plugins_dir, themes_dir) = test_site().await;
+    let router = crate::app::router(&state.config, state.clone());
+    let install = |html: &'static str, version: &'static str| {
+        let router = router.clone();
+        let token = token.clone();
+        async move {
+            let mut zip_buf = Vec::new();
+            {
+                let mut writer = zip::ZipWriter::new(Cursor::new(&mut zip_buf));
+                let options = zip::write::SimpleFileOptions::default();
+                writer.start_file("live/theme.json", options).unwrap();
+                writer
+                    .write_all(
+                        format!(r#"{{"id": "live", "name": "Live", "version": "{version}"}}"#)
+                            .as_bytes(),
+                    )
+                    .unwrap();
+                writer
+                    .start_file("live/templates/base.html", options)
+                    .unwrap();
+                writer.write_all(html.as_bytes()).unwrap();
+                writer.finish().unwrap();
+            }
+            let boundary = "---------------------------boundary12345";
+            let body = make_multipart_body(boundary, "file", "live.zip", &zip_buf);
+            let req = Request::builder()
+                .method("POST")
+                .uri("/api/v1/themes/install")
+                .header("authorization", format!("Bearer {}", token))
+                .header(
+                    "content-type",
+                    format!("multipart/form-data; boundary={}", boundary),
+                )
+                .body(Body::from(body))
+                .unwrap();
+            assert_eq!(router.oneshot(req).await.unwrap().status(), StatusCode::OK);
+        }
+    };
+
+    install("<p>version one</p>", "1.0.0").await;
+    state.theme.set_active_theme("live").unwrap();
+    let ctx = aegis_core::PageRenderContext::default();
+    assert!(state
+        .theme
+        .render("base.html", &ctx)
+        .unwrap()
+        .contains("version one"));
+
+    install("<p>version two</p>", "1.1.0").await;
+    assert!(
+        state
+            .theme
+            .render("base.html", &ctx)
+            .unwrap()
+            .contains("version two"),
+        "the active theme still renders the templates compiled before the update"
+    );
+
+    let _ = std::fs::remove_dir_all(&plugins_dir);
+    let _ = std::fs::remove_dir_all(&themes_dir);
+}
