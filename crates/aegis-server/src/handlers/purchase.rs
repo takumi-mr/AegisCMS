@@ -122,6 +122,17 @@ fn checkout_form(
     ]
 }
 
+/// 明細（1 行目）の商品に Stripe の税コードを付ける（`[members.purchase.stripe].tax_code`）。
+/// Managed Payments を有効にしたアカウントは、これが無いと決済ページを作れない。空なら何もしない
+pub(crate) fn push_tax_code(form: &mut Vec<(String, String)>, tax_code: &str) {
+    if !tax_code.is_empty() {
+        form.push((
+            "line_items[0][price_data][product_data][tax_code]".into(),
+            tax_code.into(),
+        ));
+    }
+}
+
 /// 購入を始める: 記事・会員を確かめ、Checkout Session を作って、`pending` の購入を記録する
 async fn start_purchase(
     state: &AppState,
@@ -212,7 +223,7 @@ async fn start_purchase(
     let success_url = format!("{cancel_url}?purchased=1");
 
     let purchase_id = uuid::Uuid::new_v4().to_string();
-    let form = checkout_form(
+    let mut form = checkout_form(
         &purchase_id,
         &record.title,
         price,
@@ -221,6 +232,7 @@ async fn start_purchase(
         &success_url,
         &cancel_url,
     );
+    push_tax_code(&mut form, config.article_tax_code());
     let checkout = stripe_client(state)?
         .create_checkout_session(&form, &format!("aegis-purchase-{purchase_id}"))
         .await
@@ -897,6 +909,16 @@ mod tests {
         assert_eq!(get("line_items[0][price_data][unit_amount]"), "500");
         assert_eq!(get("line_items[0][price_data][currency]"), "jpy");
         assert_eq!(get("payment_intent_data[metadata][purchase_id]"), "p1");
+    }
+
+    #[test]
+    fn the_tax_code_is_sent_only_when_set() {
+        let key = "line_items[0][price_data][product_data][tax_code]";
+        let mut form = Vec::new();
+        push_tax_code(&mut form, "");
+        assert!(form.is_empty());
+        push_tax_code(&mut form, "txcd_10000000");
+        assert_eq!(form, vec![(key.to_string(), "txcd_10000000".to_string())]);
     }
 
     #[test]

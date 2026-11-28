@@ -203,6 +203,7 @@ async_payment_due_hours = 72 # コンビニ払いなど後払いの支払い期�
 
 - Webhook は署名（`Stripe-Signature`、HMAC-SHA256、時刻の許容差 5 分）を確かめ、注文 ID・Checkout Session ID・**金額と通貨が注文と一致する**ときだけ `paid` にします。不一致は監査ログ `order.update`（`failure`、`problem: amount_mismatch`）に残ります。
 - 期限切れで取り消した後に支払われた場合は `paid_after_cancel` として監査ログとエラーログに残します（返金してください）。
+- ショップは Stripe の **Managed Payments**（Stripe が販売者として税を扱う仕組み。新しいアカウントでは既定で有効なことがある）に対応していません（商品の税コードを送らない。送料や物の商品は対象外）。有効なアカウントでは Stripe が決済ページの作成を断るので、Stripe のダッシュボードで Managed Payments を無効にしてください。会員の記事の購入・サブスクは `[members.purchase.stripe].tax_code` で対応できます（[会員 16](./members.ja.md#16-購入記事の単独購入サブスク)）。
 - 商品と送料などの加算は Stripe の明細に表示します。割引（負の金額）がある場合は、注文全体を 1 行（`Order {番号}`）にまとめます（金額は同じ）。
 - 同じ注文で Checkout Session を二重に作らないよう、`Idempotency-Key` を付けます。Session を作れなかった注文は取り消して在庫を戻し、`502` を返します。
 

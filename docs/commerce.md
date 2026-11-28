@@ -204,6 +204,7 @@ async_payment_due_hours = 72 # payment deadline for deferred payments such as co
 
 - The webhook verifies the signature (`Stripe-Signature`, HMAC-SHA256, time tolerance 5 minutes) and makes the order `paid` only when the order ID, the Checkout Session ID, and **the amount and currency match the order**. A mismatch is left in the audit log `order.update` (`failure`, `problem: amount_mismatch`).
 - If payment arrives after cancellation due to expiry, it is left in the audit log and error log as `paid_after_cancel` (please refund).
+- The shop does not support Stripe's **Managed Payments** (Stripe handles tax as the seller; it can be on by default for new accounts): it sends no product tax codes, and shipping and physical goods are not eligible. On an account with it enabled, Stripe refuses to create the payment page, so turn Managed Payments off in the Stripe dashboard. Members' article purchases and subscriptions can use it through `[members.purchase.stripe].tax_code` ([Members 16](./members.md#16-purchases-single-article-purchases-and-subscriptions)).
 - Products and additions such as shipping are shown on Stripe's line items. When there is a discount (a negative amount), the whole order is combined into one line (`Order {number}`) (the amount is the same).
 - An `Idempotency-Key` is attached so that a Checkout Session is not created twice for the same order. For an order whose Session could not be created, the order is cancelled, inventory is restored, and `502` is returned.
 

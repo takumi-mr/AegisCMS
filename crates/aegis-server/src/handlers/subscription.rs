@@ -247,7 +247,7 @@ async fn start_subscription(
         .find(|c| !c.is_empty());
 
     let base = state.config.members.public_url.trim().trim_end_matches('/');
-    let form = subscription_form(
+    let mut form = subscription_form(
         plan,
         &config.currency,
         &member.id,
@@ -256,6 +256,7 @@ async fn start_subscription(
         &format!("{base}/account?subscribed=1"),
         &format!("{base}/account"),
     );
+    crate::handlers::purchase::push_tax_code(&mut form, config.plan_tax_code(plan));
     let checkout = stripe_client(state)?
         .create_checkout_session(&form, &format!("aegis-subscribe-{}", uuid::Uuid::new_v4()))
         .await

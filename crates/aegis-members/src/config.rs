@@ -101,6 +101,9 @@ pub struct PlanConfig {
     pub interval: PlanInterval,
     #[serde(default = "default_interval_count")]
     pub interval_count: u32,
+    /// Stripe の商品の税コード（`txcd_` と 8 桁）。空なら `[members.purchase.stripe].tax_code`
+    #[serde(default)]
+    pub tax_code: String,
 }
 
 fn default_interval_count() -> u32 {
@@ -139,6 +142,10 @@ pub struct PurchaseStripeConfig {
     pub webhook_secret: String,
     /// API の URL（テスト用のモックサーバーに向けるときだけ変える）
     pub api_base: String,
+    /// Stripe の商品の税コード（`txcd_` と 8 桁。例 `txcd_10000000`）。記事の購入と、`tax_code` の無い
+    /// プランに付ける。Stripe の Managed Payments を有効にしたアカウントでは必須（無いと決済ページを
+    /// 作れない）。空なら付けない
+    pub tax_code: String,
 }
 
 impl Default for PurchaseStripeConfig {
@@ -147,8 +154,17 @@ impl Default for PurchaseStripeConfig {
             secret_key: String::new(),
             webhook_secret: String::new(),
             api_base: "https://api.stripe.com".to_string(),
+            tax_code: String::new(),
         }
     }
+}
+
+/// Stripe の税コードの形（`txcd_` と 8 桁の数字）か。空は「付けない」なので正しい
+fn is_valid_tax_code(code: &str) -> bool {
+    code.is_empty()
+        || code
+            .strip_prefix("txcd_")
+            .is_some_and(|digits| digits.len() == 8 && digits.chars().all(|c| c.is_ascii_digit()))
 }
 
 fn value_or_env(value: &str, env: &str) -> String {
@@ -202,6 +218,12 @@ impl PurchaseConfig {
                 "needs [members.purchase.stripe].secret_key and webhook_secret                  (or AEGIS_STRIPE_SECRET_KEY / AEGIS_MEMBERS_STRIPE_WEBHOOK_SECRET)",
             );
         }
+        if !is_valid_tax_code(self.stripe.tax_code.trim()) {
+            return bad(&format!(
+                "stripe.tax_code must be a Stripe product tax code such as \"txcd_10000000\" (got {:?})",
+                self.stripe.tax_code
+            ));
+        }
         for (i, plan) in self.plans.iter().enumerate() {
             let id_ok = (1..=32).contains(&plan.id.len())
                 && plan
@@ -243,8 +265,27 @@ impl PurchaseConfig {
                     plan.interval.as_str()
                 ));
             }
+            if !is_valid_tax_code(plan.tax_code.trim()) {
+                return bad(&format!(
+                    "plan '{}' has a tax_code that is not a Stripe product tax code such as \"txcd_10000000\" (got {:?})",
+                    plan.id, plan.tax_code
+                ));
+            }
         }
         Ok(())
+    }
+
+    /// 記事の購入に付ける税コード（空なら付けない）
+    pub fn article_tax_code(&self) -> &str {
+        self.stripe.tax_code.trim()
+    }
+
+    /// プランに付ける税コード。プランに無ければ `[members.purchase.stripe].tax_code`（空なら付けない）
+    pub fn plan_tax_code<'a>(&'a self, plan: &'a PlanConfig) -> &'a str {
+        match plan.tax_code.trim() {
+            "" => self.article_tax_code(),
+            code => code,
+        }
     }
 
     /// プランを ID で探す
@@ -427,6 +468,7 @@ mod tests {
                 amount,
                 interval,
                 interval_count: count,
+                tax_code: String::new(),
             };
         let with = |plans: Vec<PlanConfig>| {
             let mut config = base();
@@ -465,6 +507,25 @@ interval = \"month\"
         )
         .unwrap();
         assert_eq!(toml_plans.purchase.plans[0].interval_count, 1);
+
+        // 税コード: 空は付けない。プランに無ければ [members.purchase.stripe] のものを使う
+        let mut taxed = with(vec![plan("monthly", "paid", 800, PlanInterval::Month, 1)]);
+        assert_eq!(taxed.purchase.article_tax_code(), "");
+        taxed.purchase.stripe.tax_code = "txcd_10000000".to_string();
+        taxed.validate().unwrap();
+        let monthly = taxed.purchase.plans[0].clone();
+        assert_eq!(taxed.purchase.plan_tax_code(&monthly), "txcd_10000000");
+        let mut saas = monthly.clone();
+        saas.tax_code = "txcd_10103000".to_string();
+        assert_eq!(taxed.purchase.plan_tax_code(&saas), "txcd_10103000");
+        for bad in ["10000000", "txcd_1000", "txcd_1000000x", "TXCD_10000000"] {
+            let mut config = taxed.clone();
+            config.purchase.stripe.tax_code = bad.to_string();
+            assert!(config.validate().is_err(), "{bad}");
+            let mut config = taxed.clone();
+            config.purchase.plans[0].tax_code = bad.to_string();
+            assert!(config.validate().is_err(), "plan {bad}");
+        }
 
         // 使わない設定なら見ない
         let mut off = base();
