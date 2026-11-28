@@ -35,5 +35,5 @@
 
 設計は [store.md](docs/store.ja.md)。当面は公式のプラグイン・テーマだけを配る。上から順に着手する。
 
-- [ ] **Admin Studio のストア画面**: API（`GET /api/v1/store/packages`・`POST /api/v1/store/install`）は済。一覧、互換性のないものの無効化、インストール前の `capabilities` の確認、更新のお知らせ、インストール後に有効化へ進む導線。
+- [ ] **ストアの更新のお知らせ**: 一覧・インストール・更新の画面（プラグイン・テーマの画面の「ストア」のタブ）は済。更新があることは、今はストアのタブを開いたときにしか分からない。「インストール済み」のタブのカードやナビゲーションに出すか、カタログを取得する頻度とキャッシュ（[store.md 8](docs/store.ja.md#8-未決事項)）と合わせて決める。
 - [ ] **mermaid・plantuml とテーマの移行（手順 5）**: mermaid・plantuml は `config/default.toml` で既定で有効にするのをやめてから。テーマは翻訳（`aegis-theme/src/messages.rs`）をテーマ側に持てるようにしてから。

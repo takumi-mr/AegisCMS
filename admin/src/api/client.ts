@@ -54,6 +54,9 @@ import type {
   ReviewPage,
   ReviewStatus,
   PluginInfo,
+  StoreInstallRequest,
+  StoreInstallResponse,
+  StorePackagesResponse,
   PluginOrder,
   PreviewRequest,
   PreviewResult,
@@ -1409,6 +1412,20 @@ export const aegisApi = {
       '/themes/install',
       { method: 'POST', body: form },
       i18n.t('api.installThemeFailed')
+    );
+  },
+
+  /** Packages of the configured store catalogs (admin); failed catalogs are reported in `catalogs` */
+  async listStorePackages(): Promise<StorePackagesResponse> {
+    return request('/store/packages', {}, i18n.t('api.storeFailed'));
+  },
+
+  /** Downloads, verifies and installs a store package (admin). It is not enabled */
+  async installStorePackage(req: StoreInstallRequest): Promise<StoreInstallResponse> {
+    return request(
+      '/store/install',
+      { method: 'POST', headers: JSON_HEADERS, body: JSON.stringify(req) },
+      i18n.t('api.storeInstallFailed')
     );
   },
 

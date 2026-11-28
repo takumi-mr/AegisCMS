@@ -35,11 +35,15 @@ How search engines and crawlers see the site. Changes apply immediately to publi
 
 ### Themes
 
-The look of the public site. Each installed theme is a card with a preview. **Activate** switches the site to it, and you can open the public site in a new tab to check. Installing a new theme means placing it on the server ([Theme authoring guide](theme_authoring_guide.md)); the marketplace tab is not available yet.
+The look of the public site. Each installed theme is a card with a preview. **Activate** switches the site to it, and you can open the public site in a new tab to check. To add a theme, install it from the **Store** tab, upload a ZIP there, or place it on the server ([Theme authoring guide](theme_authoring_guide.md)).
+
+### Store (on the Themes and Plugins screens)
+
+The packages of the [package store](store.md), for administrators. Each card shows the version, whether it is installed, and whether a newer version runs on this server. **Install** (or **Update to v…**) first shows what the package will be allowed to do (its hooks, the hosts it talks to or embeds, what it adds to the CSP); the package is installed only if it matches the catalog's checksum and signature. Installing does not enable it: turn the plugin on, or switch to the theme, on the Installed tab. A catalog that cannot be used (for example, its signature does not verify) is shown with the reason, and the store tab says so when `[store].enabled = false`.
 
 ### Plugins
 
-The extensions installed on the server. Open a plugin to change its settings. Which plugins are turned on is decided on the server ([Configuration reference](configuration.md#26-runtime--wasm-plugin-runtime)); a plugin that is installed but not turned on is shown as disabled.
+The extensions installed on the server. Open a plugin to change its settings. Which plugins are turned on is decided on the server ([Configuration reference](configuration.md#26-runtime--wasm-plugin-runtime)); a plugin that is installed but not turned on is shown as disabled. To add a plugin, install it from the **Store** tab or upload a ZIP there.
 
 ### Categories and Tags
 

@@ -5,7 +5,7 @@
 # Package store (design, not implemented)
 
 > [!NOTE]
-> This is a design note. Implemented so far: fetching and verifying catalogs, the listing API (`GET /api/v1/store/packages`) and installing from the store (`POST /api/v1/store/install`); settings and APIs in [configuration.md 2.28](configuration.md#228-store--package-store). The Admin Studio screen is not done yet. Once everything is, this will be rewritten as a specification.
+> This is a design note. Implemented so far: fetching and verifying catalogs, the listing API (`GET /api/v1/store/packages`) and installing from the store (`POST /api/v1/store/install`); settings and APIs in [configuration.md 2.28](configuration.md#228-store--package-store). and the Admin Studio screen (a **Store** tab on the Themes and Plugins screens, [admin-settings.md](admin-settings.md#store-on-the-themes-and-plugins-screens)). Once the open questions are settled, this will be rewritten as a specification.
 
 Lets admins pick published plugins and themes in Admin Studio and install or update them. The distribution side is **static files only** (a signed catalog and ZIP files); there is no dedicated HTTP server. AegisCMS reads the catalog, downloads a ZIP, and hands it to the existing ZIP installation ([installing packages and signatures](plugin_hooks.md#74-installing-from-a-zip-package-and-signatures)).
 
@@ -172,6 +172,5 @@ Order:
 
 ## 8. Open questions
 
-- Where store installs go in Admin Studio (one idea: a "Store" tab on the plugin and theme screens).
-- How often to check for updates (start-up only, periodically, or when the screen opens), and where to cache the fetched catalog.
+- How often to check for updates, and where to cache the fetched catalog. Today the catalogs are fetched each time the Store tab opens, and updates are shown only there (not yet on the Installed tab or elsewhere).
 - How to rotate keys (whether the catalog should announce the next key).

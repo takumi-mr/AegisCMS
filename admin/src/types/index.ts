@@ -1479,3 +1479,74 @@ export interface QueriesResponse {
   queries: QueryItem[];
   total: number;
 }
+
+/** `plugin` or `theme` (package store) */
+export type StorePackageKind = 'plugin' | 'theme';
+
+/** A version of a store package (`GET /api/v1/store/packages`) */
+export interface StoreVersion {
+  version: string;
+  min_aegis_version?: string;
+  /** Copy of the manifest's `capabilities` (plugins), or `{ csp }` (themes) */
+  capabilities: Record<string, unknown>;
+  url: string;
+  sha256: string;
+  size: number;
+  public_key: string;
+  /** Runs on this server (`min_aegis_version`) */
+  compatible: boolean;
+}
+
+/** A package listed by a store catalog */
+export interface StorePackage {
+  /** Name of the catalog it was listed in (`[[store.catalogs]].name`) */
+  catalog: string;
+  id: string;
+  kind: StorePackageKind;
+  name: string;
+  description: string;
+  publisher: string;
+  license?: string;
+  /** Installed version (omitted when not installed) */
+  installed_version?: string;
+  /** Newest version that runs on this server */
+  latest_compatible?: string;
+  /** Installed, and `latest_compatible` is newer */
+  update_available: boolean;
+  /** Newest first */
+  versions: StoreVersion[];
+}
+
+/** How fetching and verifying one catalog went */
+export interface StoreCatalogStatus {
+  name: string;
+  url: string;
+  ok: boolean;
+  sequence?: number;
+  generated_at?: string;
+  expires_at?: string;
+  /** Machine-readable reason when `ok` is false (`catalog_bad_signature`, ...) */
+  code?: string;
+  error?: string;
+}
+
+export interface StorePackagesResponse {
+  catalogs: StoreCatalogStatus[];
+  packages: StorePackage[];
+}
+
+/** `POST /api/v1/store/install` */
+export interface StoreInstallRequest {
+  catalog: string;
+  kind: StorePackageKind;
+  id: string;
+  /** Newest compatible version when omitted */
+  version?: string;
+}
+
+export interface StoreInstallResponse {
+  catalog: string;
+  kind: StorePackageKind;
+  id: string;
+  version: string;
+}
