@@ -30,6 +30,8 @@ pub const CATALOG_SCHEMA_VERSION: u32 = 1;
 
 /// カタログごとに最後に受け入れた `sequence`（`_aegis_settings`。JSON の `{"<name>": <sequence>}`）
 const SEQUENCE_SETTING: &str = "store.catalog_sequences";
+/// カタログが予告した次の鍵（カタログ名 → [`AnnouncedKey`] の JSON）
+const NEXT_KEYS_SETTING: &str = "store.catalog_next_keys";
 
 /// カタログの取得で許すリダイレクトの回数
 const MAX_REDIRECTS: usize = 3;
@@ -162,6 +164,14 @@ pub struct Catalog {
     pub generated_at: jiff::Timestamp,
     /// これを過ぎたカタログは拒否する
     pub expires_at: jiff::Timestamp,
+    /// 次に署名に使う鍵の予告（32 バイトの hex）。今の鍵で署名したカタログに書き、受け入れたサーバーが
+    /// 記録する。鍵を替えたあとのカタログも、記録した鍵で確かめられる（docs/store.md 5）
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub next_public_key: Option<String>,
+    /// 新しい鍵で署名したカタログに、その前の鍵を書く。予告を受け取れなかったサーバーに、鍵が替わったことを
+    /// 伝えるためだけに使う（信頼の根拠にはしない）
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub previous_public_key: Option<String>,
     pub packages: Vec<CatalogPackage>,
 }
 
@@ -238,6 +248,11 @@ pub enum CatalogError {
     Fetch(String),
     #[error("The catalog signature is invalid")]
     BadSignature,
+    #[error(
+        "The catalog is signed with a new key that this server does not know yet: update AegisCMS, \
+         or set the store's new public key in [[store.catalogs]] (see docs/store.md)"
+    )]
+    KeyRotated,
     #[error("Unsupported catalog schema_version {0} (this server reads {CATALOG_SCHEMA_VERSION})")]
     UnsupportedSchema(u32),
     #[error("The catalog is malformed: {0}")]
@@ -253,6 +268,7 @@ impl CatalogError {
         match self {
             Self::Fetch(_) => "catalog_fetch_failed",
             Self::BadSignature => "catalog_bad_signature",
+            Self::KeyRotated => "catalog_key_rotated",
             Self::UnsupportedSchema(_) => "catalog_unsupported_schema",
             Self::Malformed(_) => "catalog_malformed",
             Self::Rollback { .. } => "catalog_rollback",
@@ -261,8 +277,8 @@ impl CatalogError {
     }
 }
 
-/// 取得したカタログを確かめる。署名 → `schema_version` → 形 → `sequence` → `expires_at` の順。
-/// 署名を確かめる前は中身を解析しない
+/// 取得したカタログを 1 つの鍵で確かめる（テスト用。本体は [`verify_catalog_with_keys`] を使う）
+#[cfg(test)]
 pub fn verify_catalog(
     body: &[u8],
     signature_file: &[u8],
@@ -270,15 +286,72 @@ pub fn verify_catalog(
     last_sequence: Option<u64>,
     now: jiff::Timestamp,
 ) -> std::result::Result<Catalog, CatalogError> {
-    let public_key = decode_hex_len(public_key_hex, 32).ok_or(CatalogError::BadSignature)?;
+    verify_catalog_with_keys(
+        body,
+        signature_file,
+        &[public_key_hex.to_string()],
+        last_sequence,
+        now,
+    )
+    .map(|(catalog, _)| catalog)
+}
+
+/// 取得したカタログを確かめる。署名 → `schema_version` → 形 → `sequence` → `expires_at` の順。
+/// 署名を確かめる前は中身を解析しない。信頼する鍵（設定の鍵と、予告を記録した次の鍵）のどれかで
+/// 確かめられればよく、確かめられた鍵の位置（`trusted` の添字）も返す。
+///
+/// どの鍵でも確かめられず、署名されていない本文の `previous_public_key` が信頼する鍵のどれかなら、
+/// 鍵が替わったのに予告を受け取れなかったとみなして [`CatalogError::KeyRotated`] を返す
+/// （知らせる文言を変えるだけで、本文の鍵は使わない）
+pub fn verify_catalog_with_keys(
+    body: &[u8],
+    signature_file: &[u8],
+    trusted: &[String],
+    last_sequence: Option<u64>,
+    now: jiff::Timestamp,
+) -> std::result::Result<(Catalog, usize), CatalogError> {
     let sig = std::str::from_utf8(signature_file)
         .ok()
         .and_then(|s| decode_hex_len(s, 64))
         .ok_or(CatalogError::BadSignature)?;
-    signature::UnparsedPublicKey::new(&signature::ED25519, &public_key)
-        .verify(body, &sig)
-        .map_err(|_| CatalogError::BadSignature)?;
+    let Some(key_index) = trusted.iter().position(|key| {
+        decode_hex_len(key, 32).is_some_and(|public_key| {
+            signature::UnparsedPublicKey::new(&signature::ED25519, &public_key)
+                .verify(body, &sig)
+                .is_ok()
+        })
+    }) else {
+        return Err(if announces_previous_key(body, trusted) {
+            CatalogError::KeyRotated
+        } else {
+            CatalogError::BadSignature
+        });
+    };
+    let catalog = parse_verified_catalog(body, last_sequence, now)?;
+    Ok((catalog, key_index))
+}
 
+/// 署名を確かめられなかった本文が、信頼する鍵を「前の鍵」として挙げているか
+fn announces_previous_key(body: &[u8], trusted: &[String]) -> bool {
+    #[derive(Deserialize)]
+    struct Hint {
+        previous_public_key: Option<String>,
+    }
+    serde_json::from_slice::<Hint>(body)
+        .ok()
+        .and_then(|hint| hint.previous_public_key)
+        .is_some_and(|previous| {
+            trusted
+                .iter()
+                .any(|key| key.trim().eq_ignore_ascii_case(previous.trim()))
+        })
+}
+
+fn parse_verified_catalog(
+    body: &[u8],
+    last_sequence: Option<u64>,
+    now: jiff::Timestamp,
+) -> std::result::Result<Catalog, CatalogError> {
     #[derive(Deserialize)]
     struct Header {
         schema_version: u32,
@@ -308,6 +381,17 @@ pub fn verify_catalog(
 
 /// 各エントリの形を確かめる。署名済みのカタログに誤りがあれば、一部を黙って捨てずに全体を断る
 fn check_entries(catalog: &Catalog) -> std::result::Result<(), String> {
+    for (field, key) in [
+        ("next_public_key", &catalog.next_public_key),
+        ("previous_public_key", &catalog.previous_public_key),
+    ] {
+        if key
+            .as_deref()
+            .is_some_and(|k| decode_hex_len(k, 32).is_none())
+        {
+            return Err(format!("{field} must be 32 bytes (64 hex characters)"));
+        }
+    }
     let mut ids = std::collections::HashSet::new();
     for package in &catalog.packages {
         if !aegis_core::is_valid_plugin_name(&package.id) {
@@ -608,14 +692,14 @@ pub async fn cached_catalog(
     let json = cache.get(&cache_key(&catalog.name)).await.ok().flatten()?;
     let cached: CachedCatalog = serde_json::from_str(&json).ok()?;
     let last = load_sequences(db).await.get(&catalog.name).copied();
-    match verify_catalog(
+    match verify_catalog_with_keys(
         cached.body.as_bytes(),
         cached.signature.as_bytes(),
-        &catalog.public_key,
+        &trusted_keys(db, catalog).await,
         last,
         jiff::Timestamp::now(),
     ) {
-        Ok(verified) => Some((verified, cached.fetched_at)),
+        Ok((verified, _)) => Some((verified, cached.fetched_at)),
         Err(e) => {
             tracing::debug!(
                 "Ignoring the cached store catalog '{}': {}",
@@ -649,19 +733,106 @@ async fn load_catalog_raw(
         fetch_limited(client, &sig_url, MAX_SIGNATURE_BYTES),
     )?;
     let last = load_sequences(db).await.get(&catalog.name).copied();
-    let verified = verify_catalog(
-        &body,
-        &sig,
-        &catalog.public_key,
-        last,
-        jiff::Timestamp::now(),
-    )?;
+    let trusted = trusted_keys(db, catalog).await;
+    let (verified, key_index) =
+        verify_catalog_with_keys(&body, &sig, &trusted, last, jiff::Timestamp::now()).map_err(
+            |e| {
+                if matches!(e, CatalogError::KeyRotated) {
+                    tracing::warn!(
+                        "The store catalog '{}' moved to a new signing key this server does not know: \
+                         update AegisCMS, or set the new public key in [[store.catalogs]] (docs/store.md)",
+                        catalog.name
+                    );
+                }
+                e
+            },
+        )?;
     if last.is_none_or(|last| verified.sequence > last) {
         if let Err(e) = record_sequence(db, &catalog.name, verified.sequence).await {
             tracing::warn!("Failed to record the store catalog sequence: {}", e);
         }
     }
+    // 予告は、設定の鍵で確かめたカタログのものだけを受け入れる（予告された鍵が次の鍵を予告しても、
+    // 本体を更新して設定の鍵が替わるまでは使わない）
+    if key_index == 0 {
+        if let Err(e) = record_announced_key(db, catalog, verified.next_public_key.as_deref()).await
+        {
+            tracing::warn!("Failed to record the store catalog's next key: {}", e);
+        }
+    }
     Ok((verified, body, sig))
+}
+
+/// カタログが予告した次の鍵と、それを予告した鍵（設定の鍵）
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+struct AnnouncedKey {
+    announced_by: String,
+    next: String,
+}
+
+async fn load_announced_keys(db: &dyn DatabaseAdapter) -> HashMap<String, AnnouncedKey> {
+    match db.list_settings().await {
+        Ok(settings) => settings
+            .get(NEXT_KEYS_SETTING)
+            .and_then(|json| serde_json::from_str(json).ok())
+            .unwrap_or_default(),
+        Err(e) => {
+            tracing::warn!("Failed to read the store catalogs' next keys: {}", e);
+            HashMap::new()
+        }
+    }
+}
+
+/// カタログを確かめるときに信頼する鍵: 設定の鍵（`[[store.catalogs]].public_key`、公式は組み込み）と、
+/// その鍵で確かめたカタログが予告した次の鍵。設定の鍵が替わったら（本体を更新した）、前の予告は使わない
+/// （漏れた古い鍵で予告された鍵が、更新のあとまで残らないように）
+pub async fn trusted_keys(db: &dyn DatabaseAdapter, catalog: &StoreCatalogConfig) -> Vec<String> {
+    let mut keys = vec![catalog.public_key.clone()];
+    if let Some(announced) = load_announced_keys(db).await.remove(&catalog.name) {
+        if announced
+            .announced_by
+            .eq_ignore_ascii_case(catalog.public_key.trim())
+            && !announced
+                .next
+                .eq_ignore_ascii_case(catalog.public_key.trim())
+        {
+            keys.push(announced.next);
+        }
+    }
+    keys
+}
+
+static NEXT_KEYS_LOCK: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
+
+/// 設定の鍵で確かめたカタログの予告を記録する。予告が無くなっていれば記録を消す（取りやめた切り替え）
+async fn record_announced_key(
+    db: &dyn DatabaseAdapter,
+    catalog: &StoreCatalogConfig,
+    next: Option<&str>,
+) -> Result<()> {
+    let _guard = NEXT_KEYS_LOCK.lock().await;
+    let mut announced = load_announced_keys(db).await;
+    let wanted = next
+        .map(|next| next.trim().to_ascii_lowercase())
+        .filter(|next| !next.eq_ignore_ascii_case(catalog.public_key.trim()))
+        .map(|next| AnnouncedKey {
+            announced_by: catalog.public_key.trim().to_ascii_lowercase(),
+            next,
+        });
+    if announced.get(&catalog.name) == wanted.as_ref() {
+        return Ok(());
+    }
+    match wanted {
+        Some(entry) => {
+            announced.insert(catalog.name.clone(), entry);
+        }
+        None => {
+            announced.remove(&catalog.name);
+        }
+    }
+    let json =
+        serde_json::to_string(&announced).map_err(|e| AegisError::Internal(e.to_string()))?;
+    db.set_setting(NEXT_KEYS_SETTING, &json).await
 }
 
 /// 記録した `sequence` を読む。読めなければ空（巻き戻しの検査は、次に受け入れたときから効く）
@@ -767,6 +938,111 @@ mod tests {
         let mut value = catalog_json(6);
         value["packages"][0]["recommended"] = json!(true);
         assert!(verify_value(&value, None).unwrap().packages[0].recommended);
+    }
+
+    #[test]
+    fn accepts_a_catalog_signed_with_any_trusted_key() {
+        let (old, new) = (keypair(), keypair());
+        let trusted = [public_hex(&old), public_hex(&new)];
+        let body = serde_json::to_vec(&catalog_json(3)).unwrap();
+        let (_, used) =
+            verify_catalog_with_keys(&body, &sign(&new, &body), &trusted, None, now()).unwrap();
+        assert_eq!(used, 1);
+        let (_, used) =
+            verify_catalog_with_keys(&body, &sign(&old, &body), &trusted, None, now()).unwrap();
+        assert_eq!(used, 0);
+    }
+
+    /// 予告を受け取れなかったサーバー: 新しい鍵のカタログが前の鍵として自分の鍵を挙げていれば、
+    /// 鍵が替わったと知らせる。挙げていない・ほかの鍵を挙げているなら、ただの署名の誤り
+    #[test]
+    fn a_server_that_missed_the_announcement_is_told_the_key_changed() {
+        let (old, new) = (keypair(), keypair());
+        let trusted = [public_hex(&old)];
+        let mut value = catalog_json(4);
+        value["previous_public_key"] = json!(public_hex(&old).to_ascii_uppercase());
+        let body = serde_json::to_vec(&value).unwrap();
+        assert!(matches!(
+            verify_catalog_with_keys(&body, &sign(&new, &body), &trusted, None, now()),
+            Err(CatalogError::KeyRotated)
+        ));
+        assert_eq!(CatalogError::KeyRotated.code(), "catalog_key_rotated");
+
+        for previous in [None, Some(public_hex(&keypair()))] {
+            let mut value = catalog_json(4);
+            if let Some(previous) = previous {
+                value["previous_public_key"] = json!(previous);
+            }
+            let body = serde_json::to_vec(&value).unwrap();
+            assert!(matches!(
+                verify_catalog_with_keys(&body, &sign(&new, &body), &trusted, None, now()),
+                Err(CatalogError::BadSignature)
+            ));
+        }
+    }
+
+    #[test]
+    fn a_malformed_announced_key_is_refused() {
+        let key = keypair();
+        let mut value = catalog_json(5);
+        value["next_public_key"] = json!("not-a-key");
+        let err = verify_value(&value, None).unwrap_err();
+        assert!(
+            matches!(err, CatalogError::Malformed(ref m) if m.contains("next_public_key")),
+            "{err}"
+        );
+        // A well-formed one is read
+        value["next_public_key"] = json!(public_hex(&key));
+        assert_eq!(
+            verify_value(&value, None).unwrap().next_public_key,
+            Some(public_hex(&key))
+        );
+    }
+
+    #[tokio::test]
+    async fn the_announced_key_is_trusted_only_while_its_announcer_is_configured() {
+        let db = aegis_db::SqliteAdapter::connect("sqlite::memory:", 1)
+            .await
+            .unwrap();
+        db.init().await.unwrap();
+        let (old, new) = (keypair(), keypair());
+        let config = |key: &Ed25519KeyPair| StoreCatalogConfig {
+            name: "official".into(),
+            url: "https://example.com/catalog.json".into(),
+            public_key: public_hex(key),
+        };
+
+        // Announced by a catalog verified with the configured key: trusted next to it
+        record_announced_key(
+            &db,
+            &config(&old),
+            Some(&public_hex(&new).to_ascii_uppercase()),
+        )
+        .await
+        .unwrap();
+        assert_eq!(
+            trusted_keys(&db, &config(&old)).await,
+            [public_hex(&old), public_hex(&new)]
+        );
+
+        // After the core is updated with another built-in key, the old announcement is not used
+        assert_eq!(trusted_keys(&db, &config(&new)).await, [public_hex(&new)]);
+        assert_eq!(
+            trusted_keys(&db, &config(&keypair())).await.len(),
+            1,
+            "a key announced under another configured key is ignored"
+        );
+
+        // A withdrawn announcement (the catalog no longer has one) is removed
+        record_announced_key(&db, &config(&old), None)
+            .await
+            .unwrap();
+        assert_eq!(trusted_keys(&db, &config(&old)).await, [public_hex(&old)]);
+        // Announcing the configured key itself changes nothing
+        record_announced_key(&db, &config(&old), Some(&public_hex(&old)))
+            .await
+            .unwrap();
+        assert_eq!(trusted_keys(&db, &config(&old)).await, [public_hex(&old)]);
     }
 
     #[test]

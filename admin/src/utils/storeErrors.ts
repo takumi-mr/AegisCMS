@@ -6,6 +6,7 @@ const ERROR_CODES = [
   'catalog_not_found',
   'catalog_fetch_failed',
   'catalog_bad_signature',
+  'catalog_key_rotated',
   'catalog_malformed',
   'catalog_unsupported_schema',
   'catalog_expired',

@@ -295,3 +295,25 @@ export const AnotherSourceIsNotUpdated: Story = {
     await expect(within(card).queryByRole('button')).toBeNull();
   },
 };
+
+/** A server that missed the announcement of a new catalog key is told what to do */
+export const CatalogKeyRotated: Story = {
+  beforeEach: storeApi({
+    catalogs: [
+      {
+        name: 'official',
+        url: 'https://takumi-mr.github.io/AegisCMS-Store/catalog.json',
+        ok: false,
+        code: 'catalog_key_rotated',
+        error: 'The catalog is signed with a new key that this server does not know yet',
+      },
+    ],
+    packages: [],
+  }),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(await canvas.findByRole('alert')).toHaveTextContent(
+      /moved to a new signing key that this server does not know yet\. Update AegisCMS/
+    );
+  },
+};
