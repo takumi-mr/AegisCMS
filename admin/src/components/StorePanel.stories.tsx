@@ -1,0 +1,237 @@
+import type { Meta, StoryObj } from '@storybook/react-vite';
+import { expect, fn, userEvent, waitFor, within } from 'storybook/test';
+import type { StorePackage, StorePackagesResponse, StoreVersion } from '../types';
+import { mockApi, type MockRequest } from '../../.storybook/mockApi';
+import { StorePanel } from './StorePanel';
+
+const version = (v: string, extra: Partial<StoreVersion> = {}): StoreVersion => ({
+  version: v,
+  min_aegis_version: '0.1.0',
+  capabilities: {},
+  url: `https://example.com/${v}.zip`,
+  sha256: '0'.repeat(64),
+  size: 137418,
+  public_key: 'e'.repeat(64),
+  compatible: true,
+  ...extra,
+});
+
+const pkg = (p: Partial<StorePackage> & Pick<StorePackage, 'id' | 'name'>): StorePackage => ({
+  catalog: 'official',
+  kind: 'plugin',
+  description: `${p.name} description`,
+  publisher: 'official',
+  license: 'MIT OR Apache-2.0',
+  update_available: false,
+  versions: [version('1.0.0')],
+  latest_compatible: '1.0.0',
+  ...p,
+});
+
+const listing: StorePackagesResponse = {
+  catalogs: [
+    {
+      name: 'official',
+      url: 'https://takumi-mr.github.io/AegisCMS-Store/catalog.json',
+      ok: true,
+      sequence: 12,
+    },
+  ],
+  packages: [
+    pkg({
+      id: 'official-ads',
+      name: 'Ad & Banner Delivery',
+      versions: [
+        version('0.3.1', {
+          capabilities: {
+            hooks: ['on-render-page', 'render-blocks'],
+            csp: { script_domains: ['pagead2.googlesyndication.com'] },
+          },
+        }),
+      ],
+      latest_compatible: '0.3.1',
+    }),
+    pkg({
+      id: 'official-charts',
+      name: 'Charts',
+      installed_version: '0.1.0',
+      latest_compatible: '0.2.0',
+      update_available: true,
+      versions: [version('0.2.0'), version('0.1.0')],
+    }),
+    pkg({ id: 'official-lightbox', name: 'Lightbox', installed_version: '1.0.0' }),
+    pkg({
+      id: 'official-future',
+      name: 'Future Plugin',
+      latest_compatible: undefined,
+      versions: [version('2.0.0', { min_aegis_version: '9.0.0', compatible: false })],
+    }),
+    pkg({ id: 'minimal-editorial', name: 'Minimal Editorial', kind: 'theme' }),
+  ],
+};
+
+let installs: MockRequest[] = [];
+
+const storeApi =
+  (response: unknown = listing) =>
+  () =>
+    mockApi((req) => {
+      if (req.path === '/store/packages') return response;
+      if (req.path === '/store/install' && req.method === 'POST') {
+        installs.push(req);
+        const body = req.body as { kind: string; id: string; catalog: string; version: string };
+        return { ...body, installed: {} };
+      }
+      return undefined;
+    });
+
+const meta = {
+  title: 'Settings/StorePanel',
+  component: StorePanel,
+  beforeEach: () => {
+    installs = [];
+    return storeApi()();
+  },
+  args: { kind: 'plugin', canInstall: true, onInstalled: fn(), onShowToast: fn() },
+} satisfies Meta<typeof StorePanel>;
+export default meta;
+type Story = StoryObj<typeof meta>;
+
+export const Plugins: Story = {
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(await canvas.findByText('Ad & Banner Delivery')).toBeVisible();
+    // Only packages of this kind
+    await expect(canvas.queryByText('Minimal Editorial')).toBeNull();
+    await expect(canvas.getByText('v0.1.0 installed, v0.2.0 available')).toBeVisible();
+    await expect(canvas.getByText('Installed (v1.0.0)')).toBeVisible();
+    await expect(canvas.getByText('Needs AegisCMS 9.0.0 or later')).toBeVisible();
+    // Nothing to do for an up-to-date or incompatible package
+    await expect(canvas.queryByRole('button', { name: /Lightbox/ })).toBeNull();
+    await expect(canvas.queryByRole('button', { name: /Future Plugin/ })).toBeNull();
+
+    await userEvent.type(canvas.getByRole('searchbox'), 'chart');
+    await expect(canvas.queryByText('Ad & Banner Delivery')).toBeNull();
+    await expect(canvas.getByText('Charts')).toBeVisible();
+  },
+};
+
+export const Themes: Story = {
+  args: { kind: 'theme' },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(await canvas.findByText('Minimal Editorial')).toBeVisible();
+    await expect(canvas.queryByText('Ad & Banner Delivery')).toBeNull();
+  },
+};
+
+export const InstallShowsWhatItMayDoFirst: Story = {
+  play: async ({ canvasElement, args }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(
+      await canvas.findByRole('button', { name: 'Install Ad & Banner Delivery' })
+    );
+
+    const dialog = within(await within(document.body).findByRole('dialog'));
+    const caps = dialog.getByTestId('store-capabilities');
+    await expect(caps).toHaveTextContent('on-render-page, render-blocks');
+    await expect(caps).toHaveTextContent('script-src: pagead2.googlesyndication.com');
+    await expect(installs).toHaveLength(0);
+
+    await userEvent.click(dialog.getByRole('button', { name: 'Install' }));
+    await waitFor(() => expect(args.onInstalled).toHaveBeenCalled());
+    await expect(installs[0].body).toEqual({
+      catalog: 'official',
+      kind: 'plugin',
+      id: 'official-ads',
+      version: '0.3.1',
+    });
+    await expect(args.onShowToast).toHaveBeenCalledWith(
+      'Installed Ad & Banner Delivery v0.3.1',
+      'success'
+    );
+  },
+};
+
+export const UpdateInstallsTheLatestCompatible: Story = {
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(await canvas.findByRole('button', { name: 'Update Charts to v0.2.0' }));
+    const dialog = within(await within(document.body).findByRole('dialog'));
+    await expect(dialog.getByText('It replaces the installed v0.1.0.')).toBeVisible();
+    await userEvent.click(dialog.getByRole('button', { name: 'Install' }));
+    await waitFor(() => expect(installs).toHaveLength(1));
+    await expect((installs[0].body as { version: string }).version).toBe('0.2.0');
+  },
+};
+
+export const FailedInstallShowsTheReason: Story = {
+  // Its own spy: the meta's spy also counts calls from the other stories
+  args: { onInstalled: fn() },
+  beforeEach: () =>
+    mockApi((req) =>
+      req.path === '/store/packages'
+        ? listing
+        : {
+            status: 422,
+            body: { error: 'Package does not match the catalog', code: 'package_mismatch' },
+          }
+    ),
+  play: async ({ canvasElement, args }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(
+      await canvas.findByRole('button', { name: 'Install Ad & Banner Delivery' })
+    );
+    const dialog = within(await within(document.body).findByRole('dialog'));
+    await userEvent.click(dialog.getByRole('button', { name: 'Install' }));
+    await waitFor(() =>
+      expect(args.onShowToast).toHaveBeenCalledWith(
+        'The downloaded package does not match the catalog, so it was not installed.',
+        'error'
+      )
+    );
+    await expect(args.onInstalled).not.toHaveBeenCalled();
+  },
+};
+
+export const CatalogRejected: Story = {
+  beforeEach: storeApi({
+    catalogs: [
+      {
+        name: 'official',
+        url: 'https://takumi-mr.github.io/AegisCMS-Store/catalog.json',
+        ok: false,
+        code: 'catalog_bad_signature',
+        error: 'Catalog signature does not verify',
+      },
+    ],
+    packages: [],
+  }),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(await canvas.findByRole('alert')).toHaveTextContent(
+      "The catalog “official” could not be used: The catalog's signature is not valid."
+    );
+  },
+};
+
+export const StoreDisabled: Story = {
+  beforeEach: storeApi({
+    status: 404,
+    body: { error: 'The package store is disabled', code: 'store_disabled' },
+  }),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(
+      await canvas.findByText(/The package store is turned off on this server/)
+    ).toBeVisible();
+  },
+};
+
+export const NotAdmin: Story = {
+  args: { canInstall: false },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.getByText('Only administrators can install from the store.')).toBeVisible();
+  },
+};

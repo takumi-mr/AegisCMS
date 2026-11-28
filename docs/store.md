@@ -5,7 +5,7 @@
 # Package store (design, not implemented)
 
 > [!NOTE]
-> This is a design note. Implemented so far: fetching and verifying catalogs, the listing API (`GET /api/v1/store/packages`) and installing from the store (`POST /api/v1/store/install`); settings and APIs in [configuration.md 2.28](configuration.md#228-store--package-store). The Admin Studio screen is not done yet. Once everything is, this will be rewritten as a specification.
+> This is a design note. Implemented so far: fetching and verifying catalogs, the listing API (`GET /api/v1/store/packages`) and installing from the store (`POST /api/v1/store/install`); settings and APIs in [configuration.md 2.28](configuration.md#228-store--package-store). and the Admin Studio screen (a **Store** tab on the Themes and Plugins screens, [admin-settings.md](admin-settings.md#store-on-the-themes-and-plugins-screens)). Once the open questions are settled, this will be rewritten as a specification.
 
 Lets admins pick published plugins and themes in Admin Studio and install or update them. The distribution side is **static files only** (a signed catalog and ZIP files); there is no dedicated HTTP server. AegisCMS reads the catalog, downloads a ZIP, and hands it to the existing ZIP installation ([installing packages and signatures](plugin_hooks.md#74-installing-from-a-zip-package-and-signatures)).
 
@@ -94,7 +94,7 @@ public_key = "<Ed25519 public key for the catalog signature, 32 bytes hex>"
 ```
 
 - Catalogs are an array; each key is used for its own catalog only.
-- Without `[[store.catalogs]]`, the official catalog (AegisCMS-Store; URL and public key are `OFFICIAL_CATALOG_*` in `store.rs`) is read. Writing some replaces it. `enabled` defaults to `false` (no outgoing requests unless asked for).
+- Without `[[store.catalogs]]`, the official catalog (AegisCMS-Store; URL and public key are `OFFICIAL_CATALOG_*` in `store.rs`) is read. Writing some replaces it. `enabled` defaults to `true`; the catalog is fetched only when an administrator opens the Store tab or calls the API (no requests at start-up or in the background).
 - The official catalog key is built into the server, so after rotating it only servers updated to a version with the new key can read the catalog. Keep a copy of the catalog private key outside the GitHub secret.
 - Accepted sequences are recorded in the DB (`store.catalog_sequences` in `_aegis_settings`), shared by all servers and never lowered. Restoring a backup brings the record back to its value at that time; that only loosens the check until the next accepted catalog.
 - The key in the ZIP's `signature.json` must match the entry's `public_key`. `require_signatures` and `trusted_public_keys` under `[plugins]` / `[theme]` still apply; going through the store never relaxes them.
@@ -179,6 +179,5 @@ Order (1 to 4 are done):
 
 ## 8. Open questions
 
-- Where store installs go in Admin Studio (one idea: a "Store" tab on the plugin and theme screens).
-- How often to check for updates (start-up only, periodically, or when the screen opens), and where to cache the fetched catalog.
+- How often to check for updates, and where to cache the fetched catalog. Today the catalogs are fetched each time the Store tab opens, and updates are shown only there (not yet on the Installed tab or elsewhere).
 - How to rotate keys (whether the catalog should announce the next key).

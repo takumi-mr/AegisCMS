@@ -58,3 +58,7 @@ channels = ["log"]
 [comments]
 enabled = true
 content_types = ["article"]
+
+# ストアは既定で有効だが、テストは外部のカタログに通信しない
+[store]
+enabled = false

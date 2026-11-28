@@ -13,7 +13,6 @@ import {
   Settings,
   Database,
   Globe,
-  Clock,
   Cpu,
   Eye,
   EyeOff,
@@ -38,6 +37,7 @@ import { isAdmin } from '../utils/roles';
 import { declaredSettings, settingProblem, undeclaredSettings } from '../utils/pluginSettings';
 import { cx } from '../utils/cx';
 import { PluginSettingField } from './PluginSettingField';
+import { StorePanel } from './StorePanel';
 import styles from './PluginManager.module.css';
 
 const CSP_DIRECTIVES = [
@@ -437,8 +437,7 @@ export const PluginManager: React.FC<PluginManagerProps> = ({ session, onShowToa
               onClick={() => setActiveTab('market')}
             >
               <ShoppingBag size={16} />
-              <span>{t('plugins.ecosystem')}</span>
-              <span className={styles.tabBadge}>Zero-Trust</span>
+              <span>{t('store.tab')}</span>
             </button>
           </div>
         </div>
@@ -800,68 +799,13 @@ export const PluginManager: React.FC<PluginManagerProps> = ({ session, onShowToa
         )}
 
         {activeTab === 'market' && (
-          <div className={styles.ecoHero}>
-            <h2 className={styles.ecoHeroTitle}>{t('plugins.ecoTitle')}</h2>
-            <p className={styles.description}>{t('plugins.ecoDesc')}</p>
-
-            <div className={styles.ecoFeatures}>
-              <div className={styles.ecoFeatureCard}>
-                <ShieldCheck size={28} className={styles.ecoFeatureIcon} />
-                <h3 className={styles.ecoFeatureTitle}>{t('plugins.featSandboxTitle')}</h3>
-                <p className={styles.ecoFeatureDesc}>{t('plugins.featSandboxDesc')}</p>
-              </div>
-
-              <div className={styles.ecoFeatureCard}>
-                <Globe size={28} className={styles.ecoFeatureIcon} />
-                <h3 className={styles.ecoFeatureTitle}>{t('plugins.featCapabilityTitle')}</h3>
-                <p className={styles.ecoFeatureDesc}>{t('plugins.featCapabilityDesc')}</p>
-              </div>
-
-              <div className={styles.ecoFeatureCard}>
-                <Clock size={28} className={styles.ecoFeatureIcon} />
-                <h3 className={styles.ecoFeatureTitle}>{t('plugins.featSpeedTitle')}</h3>
-                <p className={styles.ecoFeatureDesc}>{t('plugins.featSpeedDesc')}</p>
-              </div>
-            </div>
-
-            <div className={styles.ecoOfficialList}>
-              <h3 className={styles.ecoFeatureTitle}>{t('plugins.officialPluginsTitle')}</h3>
-
-              <div className={styles.ecoOfficialItem}>
-                <div className={styles.ecoOfficialLeft}>
-                  <Blocks size={24} color="#6366f1" />
-                  <div>
-                    <div className={styles.ecoOfficialName}>official-stripe</div>
-                    <div className={styles.ecoOfficialDesc}>{t('plugins.officialStripeDesc')}</div>
-                  </div>
-                </div>
-                <span className={styles.hookTag}>calculate-order, order-status</span>
-              </div>
-
-              <div className={styles.ecoOfficialItem}>
-                <div className={styles.ecoOfficialLeft}>
-                  <Blocks size={24} color="#10b981" />
-                  <div>
-                    <div className={styles.ecoOfficialName}>official-resend</div>
-                    <div className={styles.ecoOfficialDesc}>{t('plugins.officialResendDesc')}</div>
-                  </div>
-                </div>
-                <span className={styles.hookTag}>notify-event</span>
-              </div>
-
-              <div className={styles.ecoOfficialItem}>
-                <div className={styles.ecoOfficialLeft}>
-                  <Blocks size={24} color="#f59e0b" />
-                  <div>
-                    <div className={styles.ecoOfficialName}>official-turnstile</div>
-                    <div className={styles.ecoOfficialDesc}>
-                      {t('plugins.officialTurnstileDesc')}
-                    </div>
-                  </div>
-                </div>
-                <span className={styles.hookTag}>validate-submission</span>
-              </div>
-            </div>
+          <div className={styles.storeTab}>
+            <StorePanel
+              kind="plugin"
+              canInstall={canConfigure}
+              onInstalled={reloadPlugins}
+              onShowToast={onShowToast}
+            />
 
             {/* Direct Plugin ZIP Import Box */}
             <div className={styles.importBox}>

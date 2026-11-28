@@ -20,7 +20,7 @@ v0.13.0 から、次の公式プラグインは AegisCMS に同梱されなく�
 
 1. 有効にしているものを控えてから、無効にします（Admin Studio › Plugins、または `[plugins].enabled` から外す）。
 2. 下の手順で更新します。`[paths]` は新しい同梱の設定を使います（または自分で `plugins_dir = "data/plugins"`・`bundled_plugins_dir = "plugins"` にします。[設定の 2.5](configuration.ja.md#25-paths--ディレクトリ)）。入れたものが、次からの更新でも残るようにするためです。
-3. 入れ直します。`POST /api/v1/store/install`（`{"catalog": "official", "kind": "plugin", "id": "official-charts"}`。[設定の 2.28](configuration.ja.md#228-store--パッケージストア)）を使うか、[ストアの Releases](https://github.com/takumi-mr/AegisCMS-Store/releases) から ZIP をダウンロードし、Admin Studio › Plugins でアップロードします。
+3. Admin Studio › Plugins の**ストア**のタブから入れ直します。設定で `[store]` の `enabled = false` にしていなければ、ストアは使えます（[設定の 2.28](configuration.ja.md#228-store--パッケージストア)）。ほかに、`POST /api/v1/store/install`（`{"catalog": "official", "kind": "plugin", "id": "official-charts"}`。[設定の 2.28](configuration.ja.md#228-store--パッケージストア)）を使うか、[ストアの Releases](https://github.com/takumi-mr/AegisCMS-Store/releases) から ZIP をダウンロードし、同じタブでアップロードしても入れられます。
 4. もう一度有効にします。
 
 ## 更新する

@@ -842,89 +842,6 @@
   cursor: not-allowed;
 }
 
-/* Ecosystem styles */
-.ecoHero {
-  background: linear-gradient(135deg, rgba(99, 102, 241, 0.12) 0%, rgba(168, 85, 247, 0.08) 100%);
-  border: 1px solid rgba(99, 102, 241, 0.25);
-  border-radius: 16px;
-  padding: 2.5rem;
-  display: flex;
-  flex-direction: column;
-  gap: 1.5rem;
-}
-
-.ecoHeroTitle {
-  font-size: 1.5rem;
-  font-weight: 700;
-  color: var(--text-primary);
-}
-
-.ecoFeatures {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-  gap: 1.5rem;
-}
-
-.ecoFeatureCard {
-  background: var(--inset);
-  border: 1px solid rgb(var(--overlay-rgb) / 0.06);
-  border-radius: 12px;
-  padding: 1.5rem;
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-}
-
-.ecoFeatureIcon {
-  color: var(--accent);
-}
-
-.ecoFeatureTitle {
-  font-size: 1.05rem;
-  font-weight: 600;
-  color: var(--text-primary);
-}
-
-.ecoFeatureDesc {
-  font-size: 0.85rem;
-  color: var(--text-muted);
-  line-height: 1.5;
-}
-
-.ecoOfficialList {
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-}
-
-.ecoOfficialItem {
-  background: var(--bg-surface);
-  border: 1px solid rgb(var(--overlay-rgb) / 0.08);
-  border-radius: 12px;
-  padding: 1.25rem;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-}
-
-.ecoOfficialLeft {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-}
-
-.ecoOfficialName {
-  font-size: 1rem;
-  font-weight: 600;
-  color: var(--text-primary);
-}
-
-.ecoOfficialDesc {
-  font-size: 0.85rem;
-  color: var(--text-muted);
-}
-
 /* Hook order of the enabled plugins */
 .orderPanel {
   background: var(--bg-surface);
@@ -1080,11 +997,6 @@
   .tab {
     white-space: nowrap;
   }
-
-  .ecoOfficialItem {
-    flex-direction: column;
-    align-items: flex-start;
-  }
 }
 
 .importBox {
@@ -1113,4 +1025,10 @@
   color: var(--text-muted);
   font-size: 0.9rem;
   max-width: 500px;
+}
+
+.storeTab {
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
 }

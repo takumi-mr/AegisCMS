@@ -41,7 +41,7 @@ const MAX_SIGNATURE_BYTES: u64 = 1024;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
 pub struct StoreConfig {
-    /// ストアを使うか（既定: `false`）
+    /// ストアを使うか（既定: `true`。カタログを取得するのは、管理者が一覧・インストールの API を呼んだときだけ）
     pub enabled: bool,
     /// 読むカタログ（`[[store.catalogs]]`）。書かなければ公式のカタログ。書くと置き換わる
     pub catalogs: Vec<StoreCatalogConfig>,
@@ -54,7 +54,7 @@ pub struct StoreConfig {
 impl Default for StoreConfig {
     fn default() -> Self {
         Self {
-            enabled: false,
+            enabled: true,
             catalogs: vec![StoreCatalogConfig::official()],
             max_catalog_bytes: 1024 * 1024,
             timeout_secs: 15,
@@ -872,7 +872,7 @@ mod tests {
     #[test]
     fn the_official_catalog_is_the_default() {
         let config = StoreConfig::default();
-        assert!(!config.enabled);
+        assert!(config.enabled);
         assert_eq!(config.catalogs.len(), 1);
         assert_eq!(config.catalogs[0].url, OFFICIAL_CATALOG_URL);
         let enabled = StoreConfig {

@@ -35,7 +35,7 @@
 
 設計は [store.md](docs/store.ja.md)。当面は公式のプラグイン・テーマだけを配る。上から順に着手する。
 
-- [ ] **Admin Studio のストア画面**: API（`GET /api/v1/store/packages`・`POST /api/v1/store/install`）は済。一覧、互換性のないものの無効化、インストール前の `capabilities` の確認、更新のお知らせ、インストール後に有効化へ進む導線。
+- [ ] **ストアの更新のお知らせ**: 一覧・インストール・更新の画面（プラグイン・テーマの画面の「ストア」のタブ）は済。更新があることは、今はストアのタブを開いたときにしか分からない。「インストール済み」のタブのカードやナビゲーションに出すか、カタログを取得する頻度とキャッシュ（[store.md 8](docs/store.ja.md#8-未決事項)）と合わせて決める。
 - [ ] **テスト用のプラグイン（移行の手順 5）**: 計画は [store.md 7](docs/store.ja.md#7-公式パッケージの別リポジトリへの移行計画)。本体のテスト（`handlers/plugin.rs` の切り替え・`shop_tests.rs`・`notify_plugins.rs`・`aegis-runtime/tests/sdk_plugins.rs` の blocks・code-enhancer）、E2E（`plugins.spec.ts`・`csp.spec.ts`）、診断（`docker/pentest/pentest.toml`）が使う公式プラグインを、テスト用のプラグイン（Rust の SDK で作る。同梱しない）に置き換える。
 - [ ] **前後の記事を本体の設定に（手順 6）**: `official-post-navigation` の `mode`・`same_category`・`fallback_to_all`・`order_by` を本体の設定にし、Admin Studio で変えられるようにする。新しい設定が無ければ古いプラグインの設定も読み、警告を出す。
 - [ ] **既定で何も有効にしない・おすすめの表示（手順 7）**: `config/default.toml` とベンチマークの設定で code-enhancer・mermaid・plantuml を有効にするのをやめる。カタログでおすすめに印を付け（AegisCMS-Store）、ストアのタブに並べて 1 クリックで入れられるようにする。

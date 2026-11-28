@@ -5,7 +5,7 @@
 # パッケージストア（設計・未実装）
 
 > [!NOTE]
-> この文書は設計メモです。実装済みはカタログの取得・検証、一覧の API（`GET /api/v1/store/packages`）、ストアからのインストール（`POST /api/v1/store/install`）まで（設定と API は [configuration.md の 2.28](configuration.ja.md#228-store--パッケージストア)）。Admin Studio の画面はまだです。すべて実装したら仕様の文書に書き直します。
+> この文書は設計メモです。実装済みはカタログの取得・検証、一覧の API（`GET /api/v1/store/packages`）、ストアからのインストール（`POST /api/v1/store/install`）まで（設定と API は [configuration.md の 2.28](configuration.ja.md#228-store--パッケージストア)）。Admin Studio の画面（テーマ・プラグインの画面の**ストア**のタブ。[admin-settings.md](admin-settings.ja.md#ストアテーマプラグインの画面)）まで。未決事項が決まったら仕様の文書に書き直します。
 
 Admin Studio から、配布されているプラグインとテーマを選んでインストール・更新できるようにします。配る側は**静的なファイルだけ**（署名したカタログと ZIP）で、専用の HTTP サーバーは作りません。CMS 側は、カタログを読み、ZIP を取得して、既存の ZIP インストール（[プラグインのインストールと署名](plugin_hooks.ja.md#74-zip-パッケージからのインストールと署名)）に渡します。
 
@@ -94,7 +94,7 @@ public_key = "<カタログ署名の Ed25519 公開鍵、32 バイトの hex>"
 ```
 
 - カタログは配列で、各カタログの鍵は、そのカタログにだけ使う。
-- `[[store.catalogs]]` を書かなければ、公式のカタログ（AegisCMS-Store。URL と公開鍵は `store.rs` の `OFFICIAL_CATALOG_*`）を読む。書くと置き換わる。`enabled` の既定は `false`（黙って外部に通信しない）。
+- `[[store.catalogs]]` を書かなければ、公式のカタログ（AegisCMS-Store。URL と公開鍵は `store.rs` の `OFFICIAL_CATALOG_*`）を読む。書くと置き換わる。`enabled` の既定は `true`。カタログを取得するのは、管理者がストアのタブを開いたときか API を呼んだときだけ（起動時や裏では通信しない）。
 - 公式のカタログの公開鍵はサーバーに組み込まれているので、鍵を替えると、新しい鍵を持つ版に更新したサーバーだけが読める。カタログの秘密鍵は GitHub の secret とは別に控えておく。
 - 受け入れた `sequence` は DB（`_aegis_settings` の `store.catalog_sequences`）に記録する。複数のサーバーで共有され、記録は下げない。バックアップから復元すると記録も復元時点の値に戻るが、検査が緩むだけで、次に受け入れたカタログから元に戻る。
 - ZIP の `signature.json` の鍵は、カタログのエントリの `public_key` と一致することを確かめる。`[plugins]` / `[theme]` の `require_signatures`・`trusted_public_keys` はそのまま効く（ストア経由でも緩めない）。
@@ -179,6 +179,5 @@ public_key = "<カタログ署名の Ed25519 公開鍵、32 バイトの hex>"
 
 ## 8. 未決事項
 
-- ストア経由のインストールを Admin Studio のどの画面に置くか（プラグイン・テーマの画面に「ストア」のタブを足す案）。
-- 更新の確認の頻度（起動時のみ・定期・画面を開いたとき）と、取得したカタログのキャッシュの置き場。
+- 更新の確認の頻度と、取得したカタログのキャッシュの置き場。今はストアのタブを開くたびにカタログを取得し、更新はそのタブにだけ出す（「インストール済み」のタブなどにはまだ出さない）。
 - 鍵の切り替えの手順（カタログに次の鍵を予告する欄を持たせるか）。
