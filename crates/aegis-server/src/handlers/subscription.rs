@@ -398,6 +398,18 @@ fn period_end(subscription: &Value) -> Option<String> {
         .map(|t| t.to_rfc3339_auto())
 }
 
+/// 解約が予約されているか。新しい API は、Customer Portal で「期間の終わりに解約」したときも
+/// `cancel_at_period_end` を `false` のままにし、`cancel_at` に終わりの時刻を入れる。どちらの欄も
+/// 無い（通知に含まれない）ときは `None`
+fn scheduled_cancel(subscription: &Value) -> Option<bool> {
+    let flag = subscription["cancel_at_period_end"].as_bool();
+    let at = subscription.get("cancel_at").map(|v| !v.is_null());
+    match (flag, at) {
+        (None, None) => None,
+        (flag, at) => Some(flag.unwrap_or(false) || at.unwrap_or(false)),
+    }
+}
+
 async fn record(
     state: &AppState,
     audit: &AuditContext,
@@ -529,7 +541,7 @@ async fn start_from_checkout(
     };
     let now = jiff::Timestamp::now().to_rfc3339_auto();
     let customer = session["customer"].as_str().unwrap_or_default().to_string();
-    let cancel_at_period_end = remote["cancel_at_period_end"].as_bool().unwrap_or(false);
+    let cancel_at_period_end = scheduled_cancel(&remote).unwrap_or(false);
 
     if let Some(mut existing) = state
         .db
@@ -616,7 +628,7 @@ async fn sync_subscription(
     if let Some(end) = period_end(remote) {
         record_now.current_period_end = end;
     }
-    if let Some(flag) = remote["cancel_at_period_end"].as_bool() {
+    if let Some(flag) = scheduled_cancel(remote) {
         record_now.cancel_at_period_end = flag;
     }
     if let Some(customer) = remote["customer"].as_str() {
@@ -768,5 +780,20 @@ mod tests {
         assert_eq!(period_end(&old), period_end(&new));
         assert!(period_end(&old).is_some());
         assert!(period_end(&json!({})).is_none());
+    }
+
+    #[test]
+    fn a_scheduled_cancel_is_read_from_either_api_shape() {
+        // 古い API: 期間の終わりに解約
+        let old = json!({ "cancel_at_period_end": true, "cancel_at": null });
+        // 新しい API（2026-11-18 の Customer Portal で確かめた形）: 旗は false、時刻だけが入る
+        let new = json!({ "cancel_at_period_end": false, "cancel_at": 1_798_445_637 });
+        assert_eq!(scheduled_cancel(&old), Some(true));
+        assert_eq!(scheduled_cancel(&new), Some(true));
+        // 予約の取り消し
+        let undone = json!({ "cancel_at_period_end": false, "cancel_at": null });
+        assert_eq!(scheduled_cancel(&undone), Some(false));
+        // どちらの欄も無い通知は、記録を変えない
+        assert_eq!(scheduled_cancel(&json!({ "status": "active" })), None);
     }
 }

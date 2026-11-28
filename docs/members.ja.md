@@ -484,7 +484,7 @@ interval_count = 1       # 3 で「3 か月ごと」
 | `transaction_id`                        | Payment Intent の ID（返金の突き合わせ）                                             |
 | `created_at` / `paid_at` / `updated_at` |                                                                                      |
 
-サブスクの記録 `_aegis_subscriptions`: `member_id`・`plan_id`・`level`・`status`（`active` / `past_due` / `cancelled`）・Stripe の customer / subscription ID・`current_period_end`・`cancel_at_period_end`。**有効なレベル = `member.level` と、契約中のプランの `level` の高いほう**。契約中とは、状態が `active` / `past_due` で、`current_period_end` を過ぎていない（Webhook の遅れに備えて 3 日の猶予がある）こと。`level` は契約した時点のプランのレベルを写し、プランを設定から消しても契約中は変わらない。レベルが `[members].levels` から消えたときは無視する（制限が外れない）。
+サブスクの記録 `_aegis_subscriptions`: `member_id`・`plan_id`・`level`・`status`（`active` / `past_due` / `cancelled`）・Stripe の customer / subscription ID・`current_period_end`・`cancel_at_period_end`（解約の予約。Stripe の `cancel_at_period_end` か `cancel_at` のどちらかが入っていれば予約あり。新しい API の Customer Portal は、期間の終わりの解約でも `cancel_at` だけを入れる）。**有効なレベル = `member.level` と、契約中のプランの `level` の高いほう**。契約中とは、状態が `active` / `past_due` で、`current_period_end` を過ぎていない（Webhook の遅れに備えて 3 日の猶予がある）こと。`level` は契約した時点のプランのレベルを写し、プランを設定から消しても契約中は変わらない。レベルが `[members].levels` から消えたときは無視する（制限が外れない）。
 
 ### 16.4 記事単独購入の流れ
 
