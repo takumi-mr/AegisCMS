@@ -1022,7 +1022,7 @@ mod tests {
         let _ = std::fs::remove_dir_all(&plugins_dir);
     }
 
-    /// The repository's `plugins/` (official plugins with their built Wasm), switchable at runtime
+    /// The repository's `test-plugins/` (test plugins with their built Wasm), switchable at runtime
     async fn switchable_state(
         enabled: &[&str],
         configure: impl FnOnce(&mut AegisConfig),
@@ -1037,7 +1037,8 @@ mod tests {
         shared: Option<&Shared>,
         cdn: Option<Arc<dyn aegis_cache::CdnPurger>>,
     ) -> Arc<AppState> {
-        let plugins_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../plugins");
+        let plugins_dir =
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../test-plugins");
         let mut config = AegisConfig::default();
         config.paths.plugins_dir = plugins_dir.clone();
         configure(&mut config);
@@ -1136,79 +1137,60 @@ mod tests {
     async fn test_switching_plugins_purges_the_cdn() {
         let purger = Arc::new(aegis_cache::RecordingCdnPurger::new());
         let state = switchable_server(
-            &["official-code-enhancer"],
+            &["test-page"],
             |config| config.cdn.enabled = true,
             None,
             Some(purger.clone()),
         )
         .await;
-        set_enabled(&state, "official-code-enhancer", false)
-            .await
-            .unwrap();
+        set_enabled(&state, "test-page", false).await.unwrap();
         let tags: Vec<String> = purger.take_batches().into_iter().flatten().collect();
         assert_eq!(tags, ["site-global"]);
         // 変わらないときはパージしない
-        set_enabled(&state, "official-code-enhancer", false)
-            .await
-            .unwrap();
+        set_enabled(&state, "test-page", false).await.unwrap();
         assert!(purger.take_batches().is_empty());
     }
 
     #[tokio::test]
     async fn test_enable_and_disable_plugins_without_restart() {
-        let state = switchable_state(&["official-code-enhancer"], |_| {}).await;
+        let state = switchable_state(&["test-page"], |_| {}).await;
         let enhancer = state.supervisor.read().await.plugins()[0].clone();
 
         // Enabling appends to the hook order and keeps the loaded instance
-        let list = set_enabled(&state, "official-shop-rules", true)
-            .await
-            .unwrap();
+        let list = set_enabled(&state, "test-shop", true).await.unwrap();
         let enabled: Vec<&str> = list
             .iter()
             .filter(|p| p.is_enabled)
             .map(|p| p.name.as_str())
             .collect();
-        assert_eq!(
-            enabled,
-            vec!["official-code-enhancer", "official-shop-rules"]
-        );
-        assert_eq!(
-            loaded_names(&state).await,
-            vec!["official-code-enhancer", "official-shop-rules"]
-        );
+        assert_eq!(enabled, vec!["test-page", "test-shop"]);
+        assert_eq!(loaded_names(&state).await, vec!["test-page", "test-shop"]);
         assert!(Arc::ptr_eq(
             &enhancer,
             &state.supervisor.read().await.plugins()[0]
         ));
         assert_eq!(
             saved_list(&state).await.as_deref(),
-            Some(r#"["official-code-enhancer","official-shop-rules"]"#)
+            Some(r#"["test-page","test-shop"]"#)
         );
 
         // Enabling again changes nothing
-        set_enabled(&state, "official-shop-rules", true)
-            .await
-            .unwrap();
+        set_enabled(&state, "test-shop", true).await.unwrap();
         assert_eq!(loaded_names(&state).await.len(), 2);
 
-        let list = set_enabled(&state, "official-code-enhancer", false)
-            .await
-            .unwrap();
+        let list = set_enabled(&state, "test-page", false).await.unwrap();
         assert!(
             !list
                 .iter()
-                .find(|p| p.name == "official-code-enhancer")
+                .find(|p| p.name == "test-page")
                 .unwrap()
                 .is_enabled
         );
-        assert_eq!(loaded_names(&state).await, vec!["official-shop-rules"]);
-        assert_eq!(
-            state.plugin_registry.enabled().await,
-            vec!["official-shop-rules"]
-        );
+        assert_eq!(loaded_names(&state).await, vec!["test-shop"]);
+        assert_eq!(state.plugin_registry.enabled().await, vec!["test-shop"]);
         assert_eq!(
             saved_list(&state).await.as_deref(),
-            Some(r#"["official-shop-rules"]"#)
+            Some(r#"["test-shop"]"#)
         );
 
         // A plugin that is not installed is rejected and nothing changes
@@ -1222,37 +1204,32 @@ mod tests {
             set_enabled(&state, "../plugins", true).await.unwrap_err(),
             StatusCode::BAD_REQUEST
         );
-        assert_eq!(loaded_names(&state).await, vec!["official-shop-rules"]);
+        assert_eq!(loaded_names(&state).await, vec!["test-shop"]);
         assert_eq!(
             saved_list(&state).await.as_deref(),
-            Some(r#"["official-shop-rules"]"#)
+            Some(r#"["test-shop"]"#)
         );
     }
 
     #[tokio::test]
     async fn test_plugin_switch_is_refused_when_it_cannot_apply() {
         // A plugin used as a notification channel cannot be disabled
-        let state = switchable_state(&["official-order-notifier"], |config| {
+        let state = switchable_state(&["test-notify"], |config| {
             config.notifications.enabled = true;
-            config.notifications.channels = vec![aegis_notify::ChannelKind::Plugin(
-                "official-order-notifier".into(),
-            )];
+            config.notifications.channels =
+                vec![aegis_notify::ChannelKind::Plugin("test-notify".into())];
         })
         .await;
         assert_eq!(
-            set_enabled(&state, "official-order-notifier", false)
-                .await
-                .unwrap_err(),
+            set_enabled(&state, "test-notify", false).await.unwrap_err(),
             StatusCode::CONFLICT
         );
-        assert_eq!(loaded_names(&state).await, vec!["official-order-notifier"]);
+        assert_eq!(loaded_names(&state).await, vec!["test-notify"]);
 
         // Without the Wasm runtime ([runtime].enable_wasm_plugins = false) there is nothing to switch
         let state = test_state_with_config(AegisConfig::default(), PluginSupervisor::new()).await;
         assert_eq!(
-            set_enabled(&state, "official-shop-rules", true)
-                .await
-                .unwrap_err(),
+            set_enabled(&state, "test-shop", true).await.unwrap_err(),
             StatusCode::CONFLICT
         );
         assert_eq!(saved_list(&state).await, None);
@@ -1281,8 +1258,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_reorder_plugins_and_reset_to_the_configuration() {
-        let state =
-            switchable_state(&["official-code-enhancer", "official-shop-rules"], |_| {}).await;
+        let state = switchable_state(&["test-page", "test-shop"], |_| {}).await;
         let Json(order) = get_plugin_order(State(state.clone()), admin())
             .await
             .unwrap();
@@ -1291,13 +1267,9 @@ mod tests {
 
         // The new order must name exactly the enabled plugins
         for wrong in [
-            &["official-shop-rules"][..],
-            &["official-shop-rules", "official-shop-rules"],
-            &[
-                "official-shop-rules",
-                "official-code-enhancer",
-                "official-order-notifier",
-            ],
+            &["test-shop"][..],
+            &["test-shop", "test-shop"],
+            &["test-shop", "test-page", "test-notify"],
         ] {
             assert_eq!(
                 set_order(&state, wrong).await.unwrap_err(),
@@ -1305,49 +1277,35 @@ mod tests {
             );
         }
         // The same order changes nothing
-        let order = set_order(&state, &["official-code-enhancer", "official-shop-rules"])
+        let order = set_order(&state, &["test-page", "test-shop"])
             .await
             .unwrap();
         assert!(!order.customized);
         assert_eq!(saved_list(&state).await, None);
 
-        let order = set_order(&state, &["official-shop-rules", "official-code-enhancer"])
+        let order = set_order(&state, &["test-shop", "test-page"])
             .await
             .unwrap();
-        assert_eq!(
-            order.enabled,
-            vec!["official-shop-rules", "official-code-enhancer"]
-        );
+        assert_eq!(order.enabled, vec!["test-shop", "test-page"]);
         assert!(order.customized);
-        assert_eq!(
-            loaded_names(&state).await,
-            vec!["official-shop-rules", "official-code-enhancer"]
-        );
+        assert_eq!(loaded_names(&state).await, vec!["test-shop", "test-page"]);
         assert_eq!(
             saved_list(&state).await.as_deref(),
-            Some(r#"["official-shop-rules","official-code-enhancer"]"#)
+            Some(r#"["test-shop","test-page"]"#)
         );
 
         // Resetting drops the saved list: enabled plugins and order come from [plugins].enabled
-        set_enabled(&state, "official-order-notifier", true)
-            .await
-            .unwrap();
+        set_enabled(&state, "test-notify", true).await.unwrap();
         let order = reset_order(&state).await.unwrap();
-        assert_eq!(
-            order.enabled,
-            vec!["official-code-enhancer", "official-shop-rules"]
-        );
+        assert_eq!(order.enabled, vec!["test-page", "test-shop"]);
         assert!(!order.customized);
         assert_eq!(saved_list(&state).await, None);
-        assert_eq!(
-            loaded_names(&state).await,
-            vec!["official-code-enhancer", "official-shop-rules"]
-        );
+        assert_eq!(loaded_names(&state).await, vec!["test-page", "test-shop"]);
     }
 
     #[tokio::test]
     async fn test_switches_reach_the_other_servers() {
-        let (first, second) = two_servers(&["official-code-enhancer"]).await;
+        let (first, second) = two_servers(&["test-page"]).await;
         // Each server listens from startup (see cluster::spawn_listener)
         let mut on_first = first.bus.subscribe();
         let mut on_second = second.bus.subscribe();
@@ -1356,14 +1314,9 @@ mod tests {
             crate::cluster::handle(state, message).await;
         }
 
-        set_enabled(&first, "official-shop-rules", true)
-            .await
-            .unwrap();
+        set_enabled(&first, "test-shop", true).await.unwrap();
         deliver(&second, &mut on_second).await;
-        assert_eq!(
-            loaded_names(&second).await,
-            vec!["official-code-enhancer", "official-shop-rules"]
-        );
+        assert_eq!(loaded_names(&second).await, vec!["test-page", "test-shop"]);
         // The server that switched gets its own message too: it already has the list
         let before = first.supervisor.read().await.plugins()[1].clone();
         deliver(&first, &mut on_first).await;
@@ -1372,27 +1325,24 @@ mod tests {
             &first.supervisor.read().await.plugins()[1]
         ));
 
-        set_order(&second, &["official-shop-rules", "official-code-enhancer"])
+        set_order(&second, &["test-shop", "test-page"])
             .await
             .unwrap();
         deliver(&first, &mut on_first).await;
         deliver(&second, &mut on_second).await;
-        assert_eq!(
-            loaded_names(&first).await,
-            vec!["official-shop-rules", "official-code-enhancer"]
-        );
+        assert_eq!(loaded_names(&first).await, vec!["test-shop", "test-page"]);
         assert_eq!(
             first.plugin_registry.enabled().await,
             second.plugin_registry.enabled().await
         );
 
         // Settings saved on one server replace what the other holds in memory
-        get_effective_plugin_settings(&second, "official-shop-rules").await;
+        get_effective_plugin_settings(&second, "test-shop").await;
         let _ = update_plugin_settings(
             State(first.clone()),
             admin(),
             AuditContext::default(),
-            Path("official-shop-rules".to_string()),
+            Path("test-shop".to_string()),
             Json(UpdatePluginSettingsRequest {
                 settings: HashMap::from([("shipping_fee".to_string(), "900".to_string())]),
             }),
@@ -1402,7 +1352,7 @@ mod tests {
         deliver(&first, &mut on_first).await;
         deliver(&second, &mut on_second).await;
         assert_eq!(
-            get_effective_plugin_settings(&second, "official-shop-rules")
+            get_effective_plugin_settings(&second, "test-shop")
                 .await
                 .get("shipping_fee")
                 .map(String::as_str),
@@ -1412,7 +1362,7 @@ mod tests {
         // A missed message (e.g. Redis was unreachable) is caught up by the resync after reconnecting
         reset_order(&first).await.unwrap();
         crate::cluster::handle(&second, aegis_cache::BusMessage::Resync).await;
-        assert_eq!(loaded_names(&second).await, vec!["official-code-enhancer"]);
+        assert_eq!(loaded_names(&second).await, vec!["test-page"]);
     }
 
     /// Settings a plugin declares in its manifest (`settings`) are checked on save; keys it does not
@@ -1421,7 +1371,7 @@ mod tests {
     async fn test_declared_plugin_settings_are_validated() {
         let mut config = AegisConfig::default();
         config.paths.plugins_dir =
-            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../plugins");
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../test-plugins");
         let state = test_state_with_config(config, PluginSupervisor::new()).await;
         let put = |pairs: &[(&str, &str)]| {
             let state = state.clone();
@@ -1434,7 +1384,7 @@ mod tests {
                     State(state),
                     admin(),
                     AuditContext::default(),
-                    Path("official-page-toc".to_string()),
+                    Path("test-page".to_string()),
                     Json(UpdatePluginSettingsRequest { settings }),
                 )
                 .await
@@ -1446,7 +1396,7 @@ mod tests {
             ("top_offset_px", "9999"),
             ("position", "top"),
             ("accent_color", "red;} body{display:none"),
-            ("show_toc", "true"),
+            ("show_marker", "true"),
         ])
         .await
         .unwrap_err();
@@ -1464,13 +1414,10 @@ mod tests {
             .unwrap()
             .contains("400 or less"));
         // Nothing was saved
-        let Json(saved) = get_plugin_settings(
-            State(state.clone()),
-            admin(),
-            Path("official-page-toc".to_string()),
-        )
-        .await
-        .unwrap();
+        let Json(saved) =
+            get_plugin_settings(State(state.clone()), admin(), Path("test-page".to_string()))
+                .await
+                .unwrap();
         assert_eq!(saved["settings"], json!({}));
 
         // Valid values are saved; an empty declared value means "unset" and is dropped;
@@ -1500,14 +1447,11 @@ mod tests {
         let state = test_state_with_config(AegisConfig::default(), PluginSupervisor::new()).await;
 
         // 1. Initial settings (empty)
-        let Json(res) = get_plugin_settings(
-            State(state.clone()),
-            admin(),
-            Path("official-shop-rules".to_string()),
-        )
-        .await
-        .unwrap();
-        assert_eq!(res["name"], "official-shop-rules");
+        let Json(res) =
+            get_plugin_settings(State(state.clone()), admin(), Path("test-shop".to_string()))
+                .await
+                .unwrap();
+        assert_eq!(res["name"], "test-shop");
         assert_eq!(res["settings"], json!({}));
 
         // 2. Update settings
@@ -1519,7 +1463,7 @@ mod tests {
             State(state.clone()),
             admin(),
             AuditContext::default(),
-            Path("official-shop-rules".to_string()),
+            Path("test-shop".to_string()),
             Json(UpdatePluginSettingsRequest {
                 settings: new_settings.clone(),
             }),
@@ -1527,18 +1471,15 @@ mod tests {
         .await
         .unwrap();
 
-        assert_eq!(updated["name"], "official-shop-rules");
+        assert_eq!(updated["name"], "test-shop");
         assert_eq!(updated["settings"]["shipping_fee"], "700");
         assert_eq!(updated["settings"]["coupons"], "SALE20:20%");
 
         // 3. Fetch again to verify persistence in cache & state
-        let Json(fetched) = get_plugin_settings(
-            State(state.clone()),
-            admin(),
-            Path("official-shop-rules".to_string()),
-        )
-        .await
-        .unwrap();
+        let Json(fetched) =
+            get_plugin_settings(State(state.clone()), admin(), Path("test-shop".to_string()))
+                .await
+                .unwrap();
         assert_eq!(fetched["settings"]["shipping_fee"], "700");
 
         // 4. Invalid name rejected

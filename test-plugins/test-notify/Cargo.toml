@@ -1,0 +1,15 @@
+[package]
+name = "aegis-test-plugin-notify"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "Test plugin for AegisCMS's own tests: a notification channel and order-status webhook that post JSON through the host"
+
+[lints]
+workspace = true
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+aegis-plugin-sdk = { path = "../../crates/aegis-plugin-sdk" }

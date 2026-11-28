@@ -1,0 +1,114 @@
+{
+  "name": "test-page",
+  "version": "0.1.0",
+  "entrypoint": "plugin.wasm",
+  "display_name": "Test Page",
+  "description": "For AegisCMS's own tests only (not shipped). Marks articles with an inline script, adds a block with its own style, and declares settings of every type.",
+  "author": "AegisCMS Core Team",
+  "license": "MIT OR Apache-2.0",
+  "tags": ["test"],
+  "min_aegis_version": "0.1.0",
+  "abi_version": 2,
+  "capabilities": {
+    "render_page": {
+      "input": ["fields"]
+    },
+    "hooks": ["on-render-page", "render-blocks"],
+    "inline_scripts": true,
+    "csp": {
+      "script_domains": ["scripts.example.com"]
+    }
+  },
+  "resource_limits": {
+    "max_memory_mb": 16,
+    "max_fuel_units": 20000000,
+    "execution_timeout_ms": 250
+  },
+  "blocks": [
+    {
+      "name": "box",
+      "label": {
+        "en": "Test box",
+        "ja": "テストの箱"
+      },
+      "description": {
+        "en": "A text in a box styled by the block's own CSS",
+        "ja": "ブロック自身の CSS で囲んだ文字"
+      },
+      "fields": [
+        {
+          "name": "text",
+          "type": "text",
+          "label": {
+            "en": "Text",
+            "ja": "文字"
+          },
+          "required": true
+        }
+      ]
+    }
+  ],
+  "settings": [
+    {
+      "key": "show_marker",
+      "type": "boolean",
+      "label": {
+        "en": "Mark articles",
+        "ja": "記事に印を付ける"
+      },
+      "default": true
+    },
+    {
+      "key": "position",
+      "type": "select",
+      "label": {
+        "en": "Position",
+        "ja": "位置"
+      },
+      "default": "right",
+      "options": [
+        {
+          "value": "right",
+          "label": {
+            "en": "Right",
+            "ja": "右"
+          }
+        },
+        {
+          "value": "left",
+          "label": {
+            "en": "Left",
+            "ja": "左"
+          }
+        }
+      ]
+    },
+    {
+      "key": "accent_color",
+      "type": "color",
+      "label": {
+        "en": "Accent color",
+        "ja": "強調色"
+      }
+    },
+    {
+      "key": "top_offset_px",
+      "type": "number",
+      "label": {
+        "en": "Top offset (px)",
+        "ja": "上からの位置 (px)"
+      },
+      "min": 0,
+      "max": 400,
+      "default": 0
+    },
+    {
+      "key": "title",
+      "type": "string",
+      "label": {
+        "en": "Title",
+        "ja": "見出し"
+      }
+    }
+  ]
+}

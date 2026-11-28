@@ -629,6 +629,27 @@ dependencies = [
 ]
 
 [[package]]
+name = "aegis-test-plugin-notify"
+version = "0.1.0"
+dependencies = [
+ "aegis-plugin-sdk",
+]
+
+[[package]]
+name = "aegis-test-plugin-page"
+version = "0.1.0"
+dependencies = [
+ "aegis-plugin-sdk",
+]
+
+[[package]]
+name = "aegis-test-plugin-shop"
+version = "0.1.0"
+dependencies = [
+ "aegis-plugin-sdk",
+]
+
+[[package]]
 name = "aegis-theme"
 version = "0.12.0"
 dependencies = [

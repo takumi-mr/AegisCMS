@@ -245,7 +245,7 @@ test("under the strict CSP, a plugin's inline script runs because the host hashe
       title: `Plugin ${slug}`,
       slug,
       status: 'published',
-      // Two headings, so official-page-toc adds its table of contents and its inline script
+      // An article, so test-page adds its mark and its inline script
       blocks: [
         { name: 'core/heading', attributes: { level: 2 }, text: 'One' },
         { name: 'core/paragraph', attributes: {}, text: 'First part.' },
@@ -257,7 +257,7 @@ test("under the strict CSP, a plugin's inline script runs because the host hashe
   expect(created.ok()).toBeTruthy();
 
   const enable = (enabled: boolean) =>
-    page.request.put(`${SERVER}/api/v1/plugins/official-page-toc/enabled`, {
+    page.request.put(`${SERVER}/api/v1/plugins/test-page/enabled`, {
       headers: auth,
       data: { enabled },
     });
@@ -269,8 +269,8 @@ test("under the strict CSP, a plugin's inline script runs because the host hashe
     // No `unsafe-inline`: the plugin's inline script is allowed by its hash only
     expect(scriptSrc).not.toContain('unsafe-inline');
     expect(scriptSrc).toContain("'sha256-");
-    // The script ran: it sets the progress bar's transform (the server sends no style attribute)
-    await expect(page.locator('.apt-fill')).toHaveAttribute('style', /scaleY/);
+    // The script ran: it adds a class to the plugin's mark
+    await expect(page.locator('.tp-mark')).toHaveClass(/tp-ran/);
     expect(scriptViolations(await violations(page))).toEqual([]);
     expect(errors).toEqual([]);
   } finally {
@@ -288,7 +288,7 @@ test('a plugin script in the themed-page preview runs by its hash, as on the pub
   const { id: token } = await login.json();
   const auth = { Authorization: `Bearer ${token}` };
   const enable = (enabled: boolean) =>
-    page.request.put(`${SERVER}/api/v1/plugins/official-page-toc/enabled`, {
+    page.request.put(`${SERVER}/api/v1/plugins/test-page/enabled`, {
       headers: auth,
       data: { enabled },
     });
@@ -320,7 +320,7 @@ test('a plugin script in the themed-page preview runs by its hash, as on the pub
     expect(csp).toContain('sandbox allow-scripts');
     expect(csp).toContain("'sha256-");
     expect(csp).not.toMatch(/script-src[^;]*unsafe-inline/);
-    await expect(page.locator('.apt-fill')).toHaveAttribute('style', /scaleY/);
+    await expect(page.locator('.tp-mark')).toHaveClass(/tp-ran/);
   } finally {
     await enable(false);
   }
@@ -364,7 +364,7 @@ test("the body HTML preview keeps a plugin block's own <style>, in a sandboxed f
   const { id: token } = await login.json();
   const auth = { Authorization: `Bearer ${token}` };
   const enable = (enabled: boolean) =>
-    page.request.put(`${SERVER}/api/v1/plugins/official-blocks/enabled`, {
+    page.request.put(`${SERVER}/api/v1/plugins/test-page/enabled`, {
       headers: auth,
       data: { enabled },
     });
@@ -382,8 +382,8 @@ test("the body HTML preview keeps a plugin block's own <style>, in a sandboxed f
         blocks: [
           { name: 'core/paragraph', attributes: {}, text: 'Body text' },
           {
-            name: 'official-blocks/button',
-            attributes: { label: 'Go', url: 'https://example.org/', style: 'primary' },
+            name: 'test-page/box',
+            attributes: { text: 'Go' },
           },
         ],
       },
@@ -396,9 +396,7 @@ test("the body HTML preview keeps a plugin block's own <style>, in a sandboxed f
     const response = await page.goto(`${SERVER}/api/v1${bodyUrl}`);
     expect(response!.headers()['content-security-policy']).toContain('sandbox allow-scripts');
     await expect(page.getByText('Body text')).toBeVisible();
-    const display = await page
-      .locator('a.ob-button')
-      .evaluate((el) => getComputedStyle(el).display);
+    const display = await page.locator('.tp-box').evaluate((el) => getComputedStyle(el).display);
     expect(display).toBe('inline-block');
   } finally {
     await enable(false);

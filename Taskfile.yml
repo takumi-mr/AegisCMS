@@ -343,6 +343,15 @@ tasks:
       - cmd: cp target/wasm32-unknown-unknown/release/aegis_plugin_plantuml.wasm plugins/official-plantuml/plugin.wasm
         platforms: [linux, darwin]
 
+  plugin:build:test:
+    desc: 本体のテスト用のプラグイン (test-plugins/*) を Wasm にビルドし test-plugins/*/plugin.wasm を更新 (要 rustup target add wasm32-unknown-unknown)
+    cmds:
+      - cargo build -p aegis-test-plugin-page -p aegis-test-plugin-shop -p aegis-test-plugin-notify --target wasm32-unknown-unknown --release
+      - cmd: cmd /c "copy /y target\wasm32-unknown-unknown\release\aegis_test_plugin_page.wasm test-plugins\test-page\plugin.wasm && copy /y target\wasm32-unknown-unknown\release\aegis_test_plugin_shop.wasm test-plugins\test-shop\plugin.wasm && copy /y target\wasm32-unknown-unknown\release\aegis_test_plugin_notify.wasm test-plugins\test-notify\plugin.wasm"
+        platforms: [windows]
+      - cmd: cp target/wasm32-unknown-unknown/release/aegis_test_plugin_page.wasm test-plugins/test-page/plugin.wasm && cp target/wasm32-unknown-unknown/release/aegis_test_plugin_shop.wasm test-plugins/test-shop/plugin.wasm && cp target/wasm32-unknown-unknown/release/aegis_test_plugin_notify.wasm test-plugins/test-notify/plugin.wasm
+        platforms: [linux, darwin]
+
   plugin:build:shop:
     desc: 公式 EC プラグイン (official-shop-rules / official-order-notifier) を Wasm にビルドし plugins/*/plugin.wasm を更新
     cmds:

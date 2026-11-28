@@ -1,0 +1,23 @@
+{
+  "name": "test-notify",
+  "version": "0.1.0",
+  "entrypoint": "plugin.wasm",
+  "display_name": "Test Notify",
+  "description": "For AegisCMS's own tests only (not shipped). As a notification channel, posts staff notifications to webhook_url; on order status changes listed in notify_on, posts the order. The tests point allowed_domains at their local server.",
+  "author": "AegisCMS Core Team",
+  "license": "MIT OR Apache-2.0",
+  "tags": ["test"],
+  "min_aegis_version": "0.1.0",
+  "abi_version": 2,
+  "capabilities": {
+    "network": {
+      "allowed_domains": ["hooks.example.com"]
+    },
+    "hooks": ["on-order-status-changed", "send-notification"]
+  },
+  "resource_limits": {
+    "max_memory_mb": 16,
+    "max_fuel_units": 50000000,
+    "execution_timeout_ms": 10000
+  }
+}

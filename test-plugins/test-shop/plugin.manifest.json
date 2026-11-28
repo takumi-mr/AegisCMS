@@ -1,0 +1,23 @@
+{
+  "name": "test-shop",
+  "version": "0.1.0",
+  "entrypoint": "plugin.wasm",
+  "display_name": "Test Shop",
+  "description": "For AegisCMS's own tests only (not shipped). Adds a shipping fee and one coupon to orders, and counts the coupon's uses in its KV store. Settings (not declared): shipping_fee, coupon = \"CODE:percent[:max_uses]\".",
+  "author": "AegisCMS Core Team",
+  "license": "MIT OR Apache-2.0",
+  "tags": ["test"],
+  "min_aegis_version": "0.1.0",
+  "abi_version": 2,
+  "capabilities": {
+    "storage": {
+      "kv_namespace": "test_shop"
+    },
+    "hooks": ["calculate-order", "on-order-status-changed"]
+  },
+  "resource_limits": {
+    "max_memory_mb": 16,
+    "max_fuel_units": 20000000,
+    "execution_timeout_ms": 250
+  }
+}

@@ -949,11 +949,11 @@ async fn test_storefront_pages_are_not_found_when_shop_is_disabled() {
     }
 }
 
-/// The compiled official plugins (`plugins/official-shop-rules`, `plugins/official-order-notifier`)
-/// on the real Wasm host: settings from `[plugins.settings]`, KV in the cache backend, and the
-/// notifier's webhook on a local server (its manifest's allowed_domains pointed at 127.0.0.1)
+/// Wasm plugins in the checkout (`test-plugins/test-shop`, `test-plugins/test-notify`) on the real
+/// host: settings from `[plugins.settings]`, KV in the cache backend, a refusal shown to the buyer,
+/// and the webhook on a local server (the manifest's allowed_domains pointed at 127.0.0.1)
 #[tokio::test]
-async fn test_official_wasm_plugins_in_checkout() {
+async fn test_wasm_plugins_in_checkout() {
     use aegis_runtime::{HostServices, WasmEngine, WasmPluginInstance};
 
     // Local webhook receiver
@@ -977,12 +977,11 @@ async fn test_official_wasm_plugins_in_checkout() {
     config.commerce.enabled = true;
     config.plugins = toml::from_str(&format!(
         r#"
-        enabled = ["official-shop-rules", "official-order-notifier"]
-        [settings.official-shop-rules]
+        enabled = ["test-shop", "test-notify"]
+        [settings.test-shop]
         shipping_fee = 600
-        free_shipping_over = 10000
-        coupons = "WELCOME:10%:1"
-        [settings.official-order-notifier]
+        coupon = "WELCOME:10%:1"
+        [settings.test-notify]
         webhook_url = "{}"
         notify_on = "paid"
         "#,
@@ -995,10 +994,10 @@ async fn test_official_wasm_plugins_in_checkout() {
         crate::plugin_host::ServerHostServices::new_unrestricted(cache, config.plugins.clone())
             .unwrap(),
     );
-    let plugins_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../plugins");
+    let plugins_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../test-plugins");
     let engine = WasmEngine::new().unwrap();
     let mut supervisor = PluginSupervisor::new();
-    for name in ["official-shop-rules", "official-order-notifier"] {
+    for name in ["test-shop", "test-notify"] {
         let dir = plugins_dir.join(name);
         let mut manifest = aegis_core::PluginManifest::from_json_with_defaults(
             &std::fs::read_to_string(dir.join("plugin.manifest.json")).unwrap(),
@@ -1060,7 +1059,7 @@ async fn test_official_wasm_plugins_in_checkout() {
         member_id: None,
     };
 
-    // 8,000 - 10% + 600 shipping (under the 10,000 threshold)
+    // 8,000 - 10% + 600 shipping
     let quote = commerce.quote(&request(Some("welcome"))).await.unwrap();
     let adjustments: Vec<_> = quote
         .adjustments
@@ -1070,8 +1069,8 @@ async fn test_official_wasm_plugins_in_checkout() {
     assert_eq!(
         adjustments,
         vec![
-            ("Coupon WELCOME", -800, "official-shop-rules"),
-            ("Shipping", 600, "official-shop-rules"),
+            ("Coupon WELCOME", -800, "test-shop"),
+            ("Shipping", 600, "test-shop"),
         ]
     );
     assert_eq!(quote.total, 7800);
@@ -1102,7 +1101,7 @@ async fn test_official_wasm_plugins_in_checkout() {
         .await
         .unwrap();
 
-    // The notifier posts the paid order; the shop rules count the coupon's use
+    // test-notify posts the paid order; test-shop counts the coupon's use
     for _ in 0..200 {
         if !received.lock().unwrap().is_empty() {
             break;
@@ -1111,12 +1110,11 @@ async fn test_official_wasm_plugins_in_checkout() {
     }
     let posted = received.lock().unwrap().clone();
     assert_eq!(posted.len(), 1, "only 'paid' is in notify_on");
-    let text = posted[0]["text"].as_str().unwrap();
-    assert!(text.contains("Order paid"), "{}", text);
-    assert!(text.contains("¥7,800"), "{}", text);
+    assert_eq!(posted[0]["status"], "paid");
+    assert_eq!(posted[0]["total"], 7800);
     for _ in 0..200 {
         if services
-            .kv_get("official_shop_rules:coupon:WELCOME:uses")
+            .kv_get("test_shop:coupon:WELCOME:uses")
             .await
             .unwrap()
             .is_some()
