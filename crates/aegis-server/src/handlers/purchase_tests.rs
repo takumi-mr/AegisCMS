@@ -942,12 +942,12 @@ async fn test_a_subscription_grants_the_level_until_it_ends() {
     assert_eq!(again.status, StatusCode::CONFLICT);
     assert_eq!(again.json()["code"], "already_subscribed");
 
-    // 解約の予約と、支払いの失敗では、期間の終わりまで読める
-    site.webhook(
-        subscription_event("customer.subscription.updated", "sub_1", "active", true),
-        WEBHOOK_SECRET,
-    )
-    .await;
+    // 解約の予約と、支払いの失敗では、期間の終わりまで読める。新しい API の Customer Portal は、
+    // 期間の終わりの解約でも `cancel_at_period_end` を false のままにし、`cancel_at` だけを入れる
+    let mut scheduled =
+        subscription_event("customer.subscription.updated", "sub_1", "active", false);
+    scheduled["data"]["object"]["cancel_at"] = json!(jiff::Timestamp::now().as_second() + 86_400);
+    site.webhook(scheduled, WEBHOOK_SECRET).await;
     assert!(
         site.state
             .db
