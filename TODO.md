@@ -26,5 +26,8 @@
 上から順に着手する。
 
 - [ ] **会員の購入・サブスクの実機確認**: 設計は [members.md 16](docs/members.ja.md#16-購入記事の単独購入サブスク)。実装（記事の単独購入・サブスク・管理画面・マイページ）は済で、Stripe はモックでしか確かめていない。Stripe のテストモードで、決済ページ・Webhook（`checkout.session.completed` / `customer.subscription.*` / `charge.refunded`）・Customer Portal・返金を一度通す。新しい API バージョンで契約の期間の終わりが `items` に移っている点（`current_period_end`）は両対応にしてあるが、実物の応答では未確認。
-- [ ] **official-clarity の実機確認**（プラグインは [AegisCMS-Plugin](https://github.com/takumi-mr/AegisCMS-Plugin) にある）: 単体テストと Wasm の実行で、起動コードが同意を待つ形で入り、録画しないページに入らないことは確かめた。実際の Clarity での動作（CSP のホストで読み込み・送信がブロックされないか、`scripts.clarity.ms` が要るか）は、プロジェクト ID を入れたサイトで確かめていない。
-- [ ] **official-embeds の実機確認**（プラグインは AegisCMS-Plugin にある）: URL の読み取り・`src` の組み立て・サニタイズ後に iframe が残ることは単体テストと Wasm の実行で確かめた。実際のブラウザーで、各サービスの埋め込みが CSP（足したホストだけの `frame-src`）の下で表示されるか（埋め込みの中からさらに別のホストを iframe で読む・ポップアップを開くものが無いか。とくに Google マップ・カレンダー・フォーム、CodePen の「クリックで実行」）は確かめていない。同意を待つ埋め込み（`[embed].consent`）で、許可したあとに iframe が読み込まれて案内が隠れること、汎用の埋め込み（`official-embeds/iframe`）の `sandbox` で、よく使うサービス（Google フォーム・Typeform など）が動くことも、実際のブラウザーでは確かめていない。
+- [ ] **official-embeds の実機確認（残り）**（プラグインは AegisCMS-Plugin にある）: 実際のブラウザー（Chromium・Strict CSP・`[embed].consent` あり）で確かめた。同意の前は 8 つの iframe のどれも読まず、同意のあとに読む。YouTube・Vimeo・OpenStreetMap・Google マップ・Google カレンダー・CodePen（通常の埋め込み）・汎用の埋め込み（`sandbox` つき）は、CSP の違反もポップアップも無く表示され、埋め込みの中からさらに別のホストを iframe で読むものも無かった。残り: (1) 汎用の埋め込みで Google フォーム・Typeform が動くか（公開のフォームが要る）。(2) CodePen の「クリックで実行」は、自動のブラウザーでは CodePen が実行のときに 403 を返す（AegisCMS の無い素のページでも同じ）ため、普段のブラウザーで手で確かめる。
+
+### ⏸️ 保留中の検討
+
+- [ ] **X・Threads のリッチ埋め込み**（保留中。プラグインは AegisCMS-Plugin にある）: 今は `official-link-embed` が X を oEmbed（`publish.twitter.com/oembed`）からリンクカードにするだけで、X の投稿の表示にはならない。Threads は既定の許可ドメインに無い。案: `official-embeds` に X・Threads のブロックを足す。API キーは要らない見込みだが未確認。第三者のスクリプトを置かずに済むよう、`sandbox` つきの iframe（X は `platform.twitter.com/embed/Tweet.html?id=<ID>`、Threads は投稿の URL の末尾に `/embed`）にし、`[embed].consent` の同意のあとに読む。着手するときは、まずキーなし・Strict CSP で表示できるかを実際のブラウザーで確かめる。X の iframe の URL は公式の文書に無い使い方なので、使えなくなるおそれがある。Threads をカードで出すだけなら、threads.net が OGP を返すかを確かめ、許可ドメインに足すだけで済む。
