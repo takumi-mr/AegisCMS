@@ -766,3 +766,189 @@ async fn test_category_pages_link_to_each_other() {
     let (_, _, index) = site.send(get("/forum")).await;
     assert!(index.contains("51"), "{index}");
 }
+
+impl Site {
+    /// 会員が `category_id` にスレッドを立て、その ID を返す
+    async fn thread_in(&self, token: &str, category_id: &str) -> String {
+        let (status, body) = self
+            .api(
+                "POST",
+                "/api/v1/forum/threads",
+                Some(token),
+                Some(thread_body(category_id)),
+            )
+            .await;
+        assert_eq!(status, StatusCode::CREATED, "{body}");
+        body["thread"]["id"].as_str().unwrap().to_string()
+    }
+}
+
+/// 全カテゴリのスレッド一覧（`GET /api/v1/forum/threads`）も、見られないカテゴリのスレッドを出さない
+#[tokio::test]
+async fn test_the_all_threads_api_hides_restricted_categories() {
+    let site = site(ForumPosting::Anyone).await;
+    let (_, token) = site.member("hana@example.com", Some("hana")).await;
+    let public_thread = site.thread_in(&token, &site.public_cat).await;
+    let lounge_thread = site.thread_in(&token, &site.members_cat).await;
+
+    let ids = |body: &Value| -> Vec<String> {
+        body["threads"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|t| t["id"].as_str().unwrap().to_string())
+            .collect()
+    };
+    let (status, anon) = site.api("GET", "/api/v1/forum/threads", None, None).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(ids(&anon), vec![public_thread.clone()]);
+    // 1 件ずつ読んでも、見えるスレッドで埋める
+    let (_, one) = site
+        .api("GET", "/api/v1/forum/threads?limit=1", None, None)
+        .await;
+    assert_eq!(ids(&one), vec![public_thread.clone()]);
+
+    let (_, member) = site
+        .api("GET", "/api/v1/forum/threads", Some(&token), None)
+        .await;
+    let mut member_ids = ids(&member);
+    member_ids.sort();
+    let mut expected = vec![public_thread, lounge_thread];
+    expected.sort();
+    assert_eq!(member_ids, expected);
+
+    // カテゴリを指定しても同じ判定（見られなければ 404）
+    let (status, _) = site
+        .api(
+            "GET",
+            "/api/v1/forum/threads?category_slug=lounge",
+            None,
+            None,
+        )
+        .await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+    let (status, _) = site
+        .api(
+            "GET",
+            "/api/v1/forum/threads?category_slug=lounge",
+            Some(&token),
+            None,
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK);
+}
+
+/// 未承認のスレッドは、レスの一覧・返信・通報でも「無い」もの
+#[tokio::test]
+async fn test_an_unapproved_thread_is_hidden_from_posts_replies_and_reports() {
+    let site = site(ForumPosting::Anyone).await;
+    let (_, token) = site.member("hana@example.com", Some("hana")).await;
+    let thread_id = site.thread_in(&token, &site.public_cat).await;
+    site.state
+        .forum
+        .as_ref()
+        .unwrap()
+        .moderate_thread(&thread_id, aegis_core::ModerationStatus::Pending, None)
+        .await
+        .unwrap();
+
+    let (status, _) = site
+        .api(
+            "GET",
+            &format!("/api/v1/forum/threads/{thread_id}/posts"),
+            None,
+            None,
+        )
+        .await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+
+    let (status, _) = site
+        .api(
+            "POST",
+            "/api/v1/forum/posts",
+            Some(&token),
+            Some(json!({
+                "thread_id": thread_id,
+                "body": "A reply to a pending thread",
+                "author_name": "x",
+            })),
+        )
+        .await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+
+    let (status, _) = site
+        .api(
+            "POST",
+            "/api/v1/forum/reports",
+            None,
+            Some(json!({ "target_type": "thread", "target_id": thread_id, "reason": "spam" })),
+        )
+        .await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+}
+
+/// 会員限定のカテゴリのスレッドは、匿名からは通報できない（あることを教えない）。会員はできる
+#[tokio::test]
+async fn test_reports_follow_the_category_visibility() {
+    let site = site(ForumPosting::Anyone).await;
+    let (_, token) = site.member("hana@example.com", Some("hana")).await;
+    let thread_id = site.thread_in(&token, &site.members_cat).await;
+    let report = json!({ "target_type": "thread", "target_id": thread_id, "reason": "spam" });
+
+    let (status, _) = site
+        .api("POST", "/api/v1/forum/reports", None, Some(report.clone()))
+        .await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+    let (status, _) = site
+        .api("POST", "/api/v1/forum/reports", Some(&token), Some(report))
+        .await;
+    assert_eq!(status, StatusCode::CREATED);
+}
+
+/// フォームのエラー画面は、パスやエラーの内容を HTML として出さない（エスケープする）
+#[tokio::test]
+async fn test_form_error_pages_escape_the_path() {
+    let site = site(ForumPosting::Anyone).await;
+    let request = Request::builder()
+        .method("POST")
+        .uri("/forum/%3Cscript%3Ealert(1)%3C%2Fscript%3E/no-such-thread/report")
+        .header(header::CONTENT_TYPE, "application/x-www-form-urlencoded")
+        .body(Body::from(
+            "target_type=thread&target_id=missing&reason=spam",
+        ))
+        .unwrap();
+    let (status, _, body) = site.send(request).await;
+    assert_eq!(status, StatusCode::BAD_REQUEST, "{body}");
+    assert!(!body.contains("<script>"), "{body}");
+    assert!(body.contains("&lt;script&gt;"), "{body}");
+}
+
+/// 通報のフォームも、会員の Cookie で送るなら、このサイトから送られたものに限る
+#[tokio::test]
+async fn test_report_forms_with_the_member_cookie_must_come_from_this_site() {
+    let site = site(ForumPosting::Anyone).await;
+    let (_, token) = site.member("hana@example.com", Some("hana")).await;
+    let thread_id = site.thread_in(&token, &site.public_cat).await;
+    let cookie = format!(
+        "{}={}",
+        crate::handlers::members::member_cookie_name(&site.state),
+        token
+    );
+    let form = |origin: &str| {
+        Request::builder()
+            .method("POST")
+            .uri(format!("/forum/general/{thread_id}/report"))
+            .header(header::HOST, "forum.example.com")
+            .header(header::COOKIE, cookie.clone())
+            .header(header::ORIGIN, origin)
+            .header(header::CONTENT_TYPE, "application/x-www-form-urlencoded")
+            .body(Body::from(format!(
+                "target_type=thread&target_id={thread_id}&reason=spam"
+            )))
+            .unwrap()
+    };
+    let (status, _, _) = site.send(form("https://evil.example.net")).await;
+    assert_eq!(status, StatusCode::FORBIDDEN);
+    let (status, _, _) = site.send(form("http://forum.example.com")).await;
+    assert_eq!(status, StatusCode::SEE_OTHER);
+}
