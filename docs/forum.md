@@ -114,12 +114,13 @@ A post is made in one of the following positions. The position is **decided by t
 | `members`          | Members and staff                   | Members and staff |
 | `staff`            | Staff (people logged in to the CMS) | Staff             |
 
-- For people who cannot see them, the category and its threads are **treated as nonexistent** (`404`; it does not even reveal their existence). They do not appear in lists either.
+- For people who cannot see them, the category and its threads are **treated as nonexistent** (`404`; it does not even reveal their existence). They do not appear in lists either (including the thread list across all categories, `GET /api/v1/forum/threads`), and cannot be reported.
+- Threads that are unapproved, spam, or in the trash are also "nonexistent" to everyone but operators (`editor` and above). Not only the thread but also its reply list, replies, and reports are `404`. Unapproved replies cannot be reported either.
 - Pages of members-only and staff-only categories vary by viewer, so they are returned with `Cache-Control: private, no-store` and are not put in shared caches. The top (`/forum`) seen by members and staff is the same when those categories are included. **Pages of public categories are cached as before** (they do not change depending on whether you are logged in).
 - The former `is_private` (boolean) has been replaced by this `visibility`. When restoring an old backup, categories that were private become `staff`.
 - The public API does not return the poster's IP and User-Agent for replies (only operators can see them).
 
-**Form posts (`POST /forum/...`) and CSRF**: members authenticate with a cookie, so to prevent forms planted on other sites from submitting, **it checks that the `Origin` (or `Referer` if absent) is the same as this site's host** (`Host`, `X-Forwarded-Host` behind a proxy, and the host of `[members].public_url`). If it differs or neither is present, it is `403`. Forum pages go into shared caches, so embedding a token in the form is not possible. The JSON API accepts only `Content-Type: application/json`, so it cannot be submitted from other sites.
+**Form posts (`POST /forum/...`) and CSRF**: members authenticate with a cookie, so to prevent forms planted on other sites from submitting, **it checks that the `Origin` (or `Referer` if absent) is the same as this site's host** (`Host`, `X-Forwarded-Host` behind a proxy, and the host of `[members].public_url`). If it differs or neither is present, it is `403` (the report form works the same way). Forum pages go into shared caches, so embedding a token in the form is not possible. The JSON API accepts only `Content-Type: application/json`, so it cannot be submitted from other sites.
 
 **The built-in templates** show "Members can log in to post under their public name" and a login link in the form (`theme_vars.forum_members` / `forum_members_only` / `forum_login_url`). In your own templates, add a link with the same variables if needed.
 

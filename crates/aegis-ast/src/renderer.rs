@@ -17,6 +17,32 @@ pub fn escape_html(input: &str) -> String {
     output
 }
 
+/// SVG・MathML の要素名と重なるため、カスタム要素名に使えない名前（HTML Living Standard）
+const RESERVED_CUSTOM_ELEMENT_NAMES: &[&str] = &[
+    "annotation-xml",
+    "color-profile",
+    "font-face",
+    "font-face-src",
+    "font-face-uri",
+    "font-face-format",
+    "font-face-name",
+    "missing-glyph",
+];
+
+/// ブロック名（`acme/widget`）から、カスタム要素のタグ名（`acme-widget`）を作る。
+/// 妥当なカスタム要素名（ASCII 小文字で始まり、ハイフンを含み、使える文字は小文字・数字・`-`・`.`・`_`）に
+/// ならない名前は `None`。`script` のような通常の要素名や、空白・`>`・`=` を含む名前を弾く
+fn custom_element_tag(name: &str) -> Option<String> {
+    let tag = name.replace('/', "-").to_ascii_lowercase();
+    let valid = tag.starts_with(|c: char| c.is_ascii_lowercase())
+        && tag.contains('-')
+        && tag
+            .chars()
+            .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || matches!(c, '-' | '.' | '_'))
+        && !RESERVED_CUSTOM_ELEMENT_NAMES.contains(&tag.as_str());
+    valid.then_some(tag)
+}
+
 /// Unsafe URI schemes blocked on URL-bearing attributes in sanitized HTML mode.
 fn is_unsafe_uri(val: &str) -> bool {
     let normalized: String = val
@@ -197,7 +223,10 @@ fn render_sandboxed_html(raw: &str) -> String {
     );
 
     // Strict CSP: `srcdoc` の文書は親の CSP を引き継ぐので、中のインラインの `<style>` と `<script>`
-    // （この関数が足したものと、サンドボックスにするために管理者が書いたもの）のハッシュを CSP に足す
+    // （この関数が足したものと、サンドボックスにするために管理者が書いたもの）のハッシュを CSP に足す。
+    // ハッシュは親のページにも効くが、許すのは「まったく同じ中身の」スクリプトだけで、親のページに
+    // その script 要素を置く経路はない（本文の HTML はサニタイズし、ブロック名からはタグを作らない
+    // [`custom_element_tag`]）。この前提を崩す変更をするときは、ここも見直すこと
     aegis_core::csp::record_styles_in(&srcdoc_document);
     aegis_core::csp::record_inline_scripts_in(&srcdoc_document);
     let escaped_srcdoc = escape_html(&srcdoc_document);
@@ -696,15 +725,20 @@ impl HtmlRenderer {
                 }
             }
             _ => {
-                // カスタム要素またはShadow DOM / Web Component対応
-                // 名前が "custom/" やプラグイン名プレフィックスの場合
-                let tag = node.name.replace('/', "-");
+                // カスタム要素（Web Component）として出す。"acme/widget" は <acme-widget>。
+                // タグ名にできるのは妥当なカスタム要素名だけ。`script` や空白・`>` を含む名前を
+                // そのままタグにすると、任意の要素・属性を差し込めてしまう
                 let mut children_html = String::new();
                 for child in &node.children {
                     children_html.push_str(&Self::render_node(child));
                 }
                 let text = node.text.as_deref().map(escape_html).unwrap_or_default();
-                format!("<{tag}>{text}{children_html}</{tag}>\n")
+                match custom_element_tag(&node.name) {
+                    Some(tag) => format!("<{tag}>{text}{children_html}</{tag}>\n"),
+                    // タグにできない名前は囲まずに中身だけを出す
+                    None if text.is_empty() => children_html,
+                    None => format!("{text}\n{children_html}"),
+                }
             }
         }
     }
@@ -1218,5 +1252,51 @@ mod tests {
         let html = "<p>Visit <a href=\"https://example.com\">Example</a> or <a href=\"/articles/hello\">Hello</a>.</p><p><a href=\"#top\">Top</a> and <a href=\"mailto:info@example.com\">Email</a></p><p><a href=\"javascript:void(0)\">Noop</a></p>";
         let links = extract_links(html);
         assert_eq!(links, vec!["https://example.com", "/articles/hello"]);
+    }
+
+    /// 組み込みでないブロックは、妥当なカスタム要素名のときだけタグになる
+    #[test]
+    fn test_unknown_block_becomes_a_custom_element() {
+        let mut node = BlockNode::new("acme/widget");
+        node.text = Some("<b>hi</b>".to_string());
+        assert_eq!(
+            HtmlRenderer::render_nodes(&[node]),
+            "<acme-widget>&lt;b&gt;hi&lt;/b&gt;</acme-widget>\n"
+        );
+    }
+
+    /// ブロック名でタグ・属性を差し込めない（`script`・`img onerror`・`>` を含む名前など）
+    #[test]
+    fn test_block_name_cannot_inject_markup() {
+        for name in [
+            "script",
+            "SCRIPT",
+            "img src=x onerror=alert(1)",
+            "x-a><script>alert(1)</script",
+            "iframe",
+            "font-face",
+            "-leading-hyphen",
+            "",
+        ] {
+            let mut node = BlockNode::new(name);
+            node.text = Some("alert(1)".to_string());
+            node.children
+                .push(BlockNode::new("core/paragraph").with_child({
+                    let mut text = BlockNode::new("core/text");
+                    text.text = Some("child".to_string());
+                    text
+                }));
+            let html = HtmlRenderer::render_nodes(&[node]);
+            assert!(
+                !html.to_ascii_lowercase().contains("<script"),
+                "{name}: {html}"
+            );
+            assert!(
+                !html.contains("<img") && !html.contains("<iframe") && !html.contains("<font-face"),
+                "{name}: {html}"
+            );
+            // 中身は（エスケープされて）残る
+            assert!(html.contains("alert(1)"), "{name}: {html}");
+        }
     }
 }

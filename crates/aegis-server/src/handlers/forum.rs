@@ -687,11 +687,22 @@ fn captcha_form_error(failure: CaptchaError, base_path: &str, back: &str) -> Res
         CaptchaError::Failed => StatusCode::BAD_REQUEST,
         CaptchaError::Unavailable => StatusCode::SERVICE_UNAVAILABLE,
     };
+    form_error_page(
+        status,
+        &failure.to_string(),
+        &format!("{}/{}", base_path, back),
+    )
+}
+
+/// フォームの送信に失敗したときの応答（英語。戻るリンクつき）。メッセージにはエラーの内容
+/// （利用者の入力を含みうる）が、戻り先にはパスの値が入るので、どちらもエスケープして出す
+fn form_error_page(status: StatusCode, message: &str, back: &str) -> Response {
     (
         status,
         Html(format!(
-            "<h1>Error</h1><p>{}</p><p><a href=\"{}/{}\">Go back</a></p>",
-            failure, base_path, back
+            "<h1>Error</h1><p>{}</p><p><a href=\"{}\">Go back</a></p>",
+            escape_html(message),
+            escape_html(back)
         )),
     )
         .into_response()
@@ -796,17 +807,11 @@ pub async fn handle_create_thread_form(
             };
             Redirect::to(&redirect_url).into_response()
         }
-        Err(e) => {
-            let msg = format!("Failed to create thread: {}", e);
-            (
-                StatusCode::BAD_REQUEST,
-                Html(format!(
-                    "<h1>Error</h1><p>{}</p><p><a href=\"{}/forum/{}\">Go back</a></p>",
-                    msg, base_path, category_slug
-                )),
-            )
-                .into_response()
-        }
+        Err(e) => form_error_page(
+            StatusCode::BAD_REQUEST,
+            &format!("Failed to create thread: {}", e),
+            &format!("{}/forum/{}", base_path, category_slug),
+        ),
     }
 }
 
@@ -894,17 +899,11 @@ pub async fn handle_create_post_form(
             };
             Redirect::to(&redirect_url).into_response()
         }
-        Err(e) => {
-            let msg = format!("Failed to post reply: {}", e);
-            (
-                StatusCode::BAD_REQUEST,
-                Html(format!(
-                    "<h1>Error</h1><p>{}</p><p><a href=\"{}/forum/{}/{}\">Go back</a></p>",
-                    msg, base_path, category_slug, thread_id
-                )),
-            )
-                .into_response()
-        }
+        Err(e) => form_error_page(
+            StatusCode::BAD_REQUEST,
+            &format!("Failed to post reply: {}", e),
+            &format!("{}/forum/{}/{}", base_path, category_slug, thread_id),
+        ),
     }
 }
 
@@ -930,6 +929,13 @@ pub async fn handle_create_report_form(
         .normalized_base_path()
         .unwrap_or_default();
 
+    // 会員の Cookie だけで認証しているときは、他のサイトから送られたフォームを断る（投稿と同じ）
+    if member_session(&state, &headers).await.is_some()
+        && !headers.contains_key(header::AUTHORIZATION)
+        && !crate::handlers::members::request_comes_from_this_site(&state, &headers)
+    {
+        return poster_form_error(PosterError::CrossSite, &base_path);
+    }
     let reporter_id = resolve_reporter_id(&state, &headers).await;
     let req = CreateReportRequest {
         target_type: form.target_type,
@@ -937,6 +943,7 @@ pub async fn handle_create_report_form(
         reason: form.reason,
         reporter_id,
         reporter_ip: client_ip,
+        viewer: resolve_viewer(&state, &headers).await,
     };
 
     match forum.report(req).await {
@@ -947,17 +954,11 @@ pub async fn handle_create_report_form(
             );
             Redirect::to(&redirect_url).into_response()
         }
-        Err(e) => {
-            let msg = format!("Failed to submit report: {}", e);
-            (
-                StatusCode::BAD_REQUEST,
-                Html(format!(
-                    "<h1>Error</h1><p>{}</p><p><a href=\"{}/forum/{}/{}\">Go back</a></p>",
-                    msg, base_path, category_slug, thread_id
-                )),
-            )
-                .into_response()
-        }
+        Err(e) => form_error_page(
+            StatusCode::BAD_REQUEST,
+            &format!("Failed to submit report: {}", e),
+            &format!("{}/forum/{}/{}", base_path, category_slug, thread_id),
+        ),
     }
 }
 
@@ -1249,18 +1250,20 @@ pub async fn api_list_all_threads(
     Query(query): Query<ThreadListApiQuery>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     let forum = get_forum(&state)?;
-    let category_id = if let Some(slug) = &query.category_slug {
-        if !slug.trim().is_empty() {
+    // 会員・スタッフ限定のカテゴリのスレッドは、見られない閲覧者に出さない（カテゴリ別の一覧と同じ判定）
+    let viewer = resolve_viewer(&state, &headers).await;
+    let category_id = match query.category_slug.as_deref().map(str::trim) {
+        Some(slug) if !slug.is_empty() => {
             let cat = forum
                 .get_category_by_slug(slug)
                 .await
                 .map_err(forum_error_to_api)?;
+            forum
+                .check_category_visible(viewer, &cat)
+                .map_err(forum_error_to_api)?;
             Some(cat.id)
-        } else {
-            None
         }
-    } else {
-        None
+        _ => None,
     };
 
     let limit = query
@@ -1279,8 +1282,54 @@ pub async fn api_list_all_threads(
         offset: 0,
     };
 
-    let threads = forum.list_threads(&q).await.map_err(forum_error_to_api)?;
+    let threads = if q.category_id.is_some() {
+        forum.list_threads(&q).await.map_err(forum_error_to_api)?
+    } else {
+        list_visible_threads(&forum, viewer, q).await?
+    };
     Ok(Json(json!({ "threads": threads, "limit": limit })))
+}
+
+/// 全カテゴリのスレッド一覧から読めるだけ集めるときに、DB を読む回数の上限
+const MAX_THREAD_SCAN_BATCHES: u64 = 10;
+
+/// 全カテゴリのスレッド一覧のうち、`viewer` が見られるカテゴリのものだけを `q.limit` 件まで集める。
+/// 見られないカテゴリが無ければ、そのまま 1 回で読む
+async fn list_visible_threads(
+    forum: &ForumService,
+    viewer: Viewer,
+    mut q: ThreadListQuery,
+) -> Result<Vec<aegis_db::ForumThreadRecord>, ApiError> {
+    let all = forum
+        .list_categories(Viewer::Staff)
+        .await
+        .map_err(forum_error_to_api)?;
+    let visible: std::collections::HashSet<String> = all
+        .iter()
+        .filter(|c| viewer.can_access(&c.visibility))
+        .map(|c| c.id.clone())
+        .collect();
+    if visible.len() == all.len() {
+        return forum.list_threads(&q).await.map_err(forum_error_to_api);
+    }
+    // 並びはピン留めが先頭なので、読み進めはカーソルでなく OFFSET で行う
+    let limit = q.limit as usize;
+    let mut threads = Vec::with_capacity(limit);
+    for _ in 0..MAX_THREAD_SCAN_BATCHES {
+        let batch = forum.list_threads(&q).await.map_err(forum_error_to_api)?;
+        let exhausted = (batch.len() as u64) < q.limit;
+        q.offset += batch.len() as u64;
+        threads.extend(
+            batch
+                .into_iter()
+                .filter(|t| visible.contains(&t.category_id)),
+        );
+        if threads.len() >= limit || exhausted {
+            break;
+        }
+    }
+    threads.truncate(limit);
+    Ok(threads)
 }
 
 /// `GET /api/v1/forum/categories/:slug/threads`
@@ -1419,12 +1468,16 @@ pub async fn api_list_posts(
 ) -> Result<Json<serde_json::Value>, ApiError> {
     let forum = get_forum(&state)?;
     let thread = forum.get_thread(&id).await.map_err(forum_error_to_api)?;
+    let is_editor = is_editor_authenticated(&state, &headers).await;
+    // 未承認・スパム・ごみ箱のスレッドの投稿は、スレッド本体（`api_get_thread`）と同じく運営者にだけ見せる
+    if thread.status != "approved" && !is_editor {
+        return Err(api_error(StatusCode::NOT_FOUND, "Thread not found"));
+    }
     check_thread_visible(&state, &forum, &headers, &thread.category_id).await?;
     let limit = query
         .limit
         .unwrap_or(forum.config().default_page_size)
         .clamp(1, 100);
-    let is_editor = is_editor_authenticated(&state, &headers).await;
     let status = resolve_status_filter(query.status.as_deref(), is_editor);
     let q = PostListQuery {
         thread_id: id,
@@ -1663,6 +1716,7 @@ pub async fn api_create_report(
             reason: body.reason,
             reporter_id,
             reporter_ip: client_ip,
+            viewer: resolve_viewer(&state, &headers).await,
         })
         .await
         .map_err(forum_error_to_api)?;

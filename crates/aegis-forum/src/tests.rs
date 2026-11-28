@@ -655,6 +655,7 @@ async fn test_moderation_approval_ng_words_and_reports() {
             reason: "Off-topic content".to_string(),
             reporter_id: None,
             reporter_ip: Some("203.0.113.50".to_string()),
+            viewer: Viewer::Anonymous,
         })
         .await
         .unwrap();

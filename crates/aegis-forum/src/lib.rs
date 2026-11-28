@@ -77,8 +77,9 @@ impl Author {
 }
 
 /// カテゴリを見る・書く人の立場
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum Viewer {
+    #[default]
     Anonymous,
     Member,
     Staff,
@@ -245,6 +246,10 @@ pub struct CreateReportRequest {
     pub reason: String,
     pub reporter_id: Option<String>,
     pub reporter_ip: Option<String>,
+    /// 通報した人の立場。見られない（非公開カテゴリ・未承認の）スレッドや投稿は「無い」ものとして断る。
+    /// リクエストの本文からは読まない（サーバーが決める）
+    #[serde(skip)]
+    pub viewer: Viewer,
 }
 
 #[derive(Clone)]
@@ -1015,6 +1020,14 @@ impl ForumService {
         let thread = self.get_thread(&req.thread_id).await?;
         let cat = self.get_category(&thread.category_id).await?;
         self.check_can_post(req.author.as_ref(), &cat)?;
+        // 未承認・スパム・ごみ箱のスレッドには、運営者のほかは返信できない（見えないスレッドは「無い」もの）
+        let is_staff = req
+            .author
+            .as_ref()
+            .is_some_and(|a| a.kind == AuthorKind::Staff);
+        if thread.status != "approved" && !is_staff {
+            return Err(ForumError::NotFound("Thread not found".into()));
+        }
         if thread.is_locked {
             return Err(ForumError::Locked);
         }
@@ -1190,7 +1203,7 @@ impl ForumService {
             return Err(ForumError::RateLimited);
         }
 
-        let (thread, post_author, post_body) = match req.target_type.as_str() {
+        let (thread, post_author, post_body, target_approved) = match req.target_type.as_str() {
             "thread" => {
                 let th = self.get_thread(&req.target_id).await?;
                 let posts = self
@@ -1209,12 +1222,13 @@ impl ForumService {
                     .map(|p| p.body.clone())
                     .unwrap_or_else(|| th.title.clone());
                 let author = th.author_name.clone();
-                (th, author, body)
+                (th, author, body, true)
             }
             "post" => {
                 let p = self.get_post(&req.target_id).await?;
                 let th = self.get_thread(&p.thread_id).await?;
-                (th, p.author_name, p.body)
+                let approved = p.status == "approved";
+                (th, p.author_name, p.body, approved)
             }
             other => {
                 return Err(ForumError::Invalid(format!(
@@ -1224,6 +1238,14 @@ impl ForumService {
             }
         };
         let cat = self.get_category(&thread.category_id).await?;
+        // 通報した人が見られない対象は「無い」ものとして扱う（非公開のカテゴリや未承認の投稿の有無を教えない）
+        let hidden = || ForumError::NotFound("Report target not found".into());
+        if !req.viewer.can_access(&cat.visibility) {
+            return Err(hidden());
+        }
+        if req.viewer != Viewer::Staff && (thread.status != "approved" || !target_approved) {
+            return Err(hidden());
+        }
 
         let timestamp = now();
         let report_id = Uuid::new_v4().to_string();
