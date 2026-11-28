@@ -154,21 +154,28 @@ public_key = "<カタログ署名の Ed25519 公開鍵、32 バイトの hex>"
 
 ## 7. 公式パッケージの別リポジトリへの移行（計画）
 
-本体のテストに使っていない公式プラグイン・テーマと、外部のサービスに依存するものは、本体から別のリポジトリ（例: `AegisCMS-Plugins`）へ移し、ストアから配る。AegisCMS-Store の `store.json` は取得元（`sources`）を複数持てるので、移したものはそのリポジトリのタグから配る。
+目標は、**公式プラグインをすべてストアから配り、本体には同梱しない**ことです。プラグインは [AegisCMS-Plugin](https://github.com/takumi-mr/AegisCMS-Plugin) にテストごと置き、AegisCMS-Store はそのリポジトリのタグから配ります（`store.json` の `sources`）。本体のテストは公式プラグインを使わず、テスト用の小さなプラグインを使います。
 
-| 区分             | 対象                                                                                                                                                                                                                                              | 理由                                                                                                                                                                                               |
-| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 本体に残す       | `official-blocks`・`official-code-enhancer`・`official-page-toc`・`official-post-navigation`・`official-shop-rules`・`official-order-notifier`、テーマ `default`                                                                                  | 本体のコード・既定値・テスト（Admin Studio の E2E、EC・通知、プラグイン管理）が名前で使う。`official-post-navigation` は本体（`handlers/public.rs`）が設定を読む。`default` はテーマエンジンの前提 |
-| 先に移す         | `official-ads`・`official-clarity`・`official-embeds`・`official-link-embed`・`official-charts`・`official-share-buttons`・`official-reading-time`・`official-back-to-top`・`official-code-lines`・`official-lightbox`・`official-external-links` | 本体で使うのは各プラグインの動作のテスト（`aegis-runtime/tests/sdk_plugins.rs`）だけで、それはプラグインと一緒に移せる                                                                             |
-| 準備してから移す | `official-mermaid`・`official-plantuml`、テーマ `default` 以外                                                                                                                                                                                    | mermaid・plantuml は `config/default.toml` で既定で有効（無いとサーバーが起動しない）。テーマの翻訳文は本体の `aegis-theme/src/messages.rs` にあり、テーマ側に持たせる仕組みが要る                 |
+| 分類                | パッケージ                                                                                                                                                                                                                                        | 必要なこと                                                                                                                                               |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 移行済み（v0.13.0） | `official-ads`・`official-clarity`・`official-embeds`・`official-link-embed`・`official-charts`・`official-share-buttons`・`official-reading-time`・`official-back-to-top`・`official-code-lines`・`official-lightbox`・`official-external-links` | 済                                                                                                                                                       |
+| 本体のテストが使う  | `official-blocks`・`official-page-toc`・`official-code-enhancer`・`official-shop-rules`・`official-order-notifier`                                                                                                                                | サーバーのテスト（プラグインの切り替え・EC・通知）、E2E（`plugins.spec.ts`・`csp.spec.ts`）、診断（pentest）が読み込む。テスト用のプラグインに置き換える |
+| 既定で有効          | `official-code-enhancer`・`official-mermaid`・`official-plantuml`                                                                                                                                                                                 | `config/default.toml` とベンチマークの設定で有効になっている。有効なプラグインが無いとサーバーが起動しない                                               |
+| 本体が設定を読む    | `official-post-navigation`                                                                                                                                                                                                                        | 前後の記事を、本体がこのプラグインの設定（`mode`・`same_category`・`fallback_to_all`・`order_by`）で選ぶ（`handlers/public.rs`・`related.rs`）           |
+| テーマ              | `default` 以外のテーマ                                                                                                                                                                                                                            | テーマの翻訳文は本体の `aegis-theme/src/messages.rs` にあり、テーマ側に持たせる仕組みが要る                                                              |
 
-順番:
+順番（1〜4 は済）:
 
-1. ストアが複数の取得元から配れるようにする（済。AegisCMS-Store の `store.json` の `sources`）。
-2. ストアからのインストール API を作る（`POST /api/v1/store/install`）。同梱をやめても、利用者がストアから入れ直せるようにするため。
-3. 新しいリポジトリに「先に移す」ものを、各プラグインのテストと一緒に移す（済。[AegisCMS-Plugin](https://github.com/takumi-mr/AegisCMS-Plugin) に本体 v0.12.0 から移し、ストアはそこから配っている）。テストは本体の `aegis-runtime` をタグで参照して動かす。ストアの `store.json` で取得元を切り替える（バージョンを上げてから出す）。
-4. 本体から消す（v0.13.0 で済）（ディレクトリ・workspace のメンバー・Taskfile・release-please の設定・`sdk_plugins.rs` の該当テスト・ドキュメント）。同梱をやめるのは利用者にとって破壊的変更なので `feat!:` で出し、移行の手順（ストアから入れ直す）を書く。
-5. mermaid・plantuml を既定で有効にするのをやめてから移す。テーマは翻訳をテーマ側に持てるようにしてから移す。
+1. ストアが複数の取得元から配れるようにする（AegisCMS-Store の `store.json` の `sources`）。
+2. ストアからのインストール API（`POST /api/v1/store/install`）と、Admin Studio のストアのタブを作る。
+3. 本体が使わないプラグインを、テストごと AegisCMS-Plugin に移す（本体 v0.12.0 から）。
+4. 本体から消し、v0.13.0 で `feat!:` として出す（移行の手順は [upgrade.md](upgrade.ja.md)）。
+5. **テスト用のプラグイン**。本体のテストのためだけのプラグインを Rust の SDK で作る（同梱しない・ストアに載せない）。テストが必要とするもの（インラインスクリプトと CSP のホストを足すページのフック、自分のスタイルを持つブロック、注文の計算、通信する通知、宣言した設定）をそろえ、サーバーのテスト・E2E・診断をこれに切り替える。実物のプラグインのテスト（`aegis-runtime/tests/sdk_plugins.rs`）は、プラグインと一緒に移す。
+6. **前後の記事を本体の設定にする**。4 つの設定を本体の設定に移し、Admin Studio で変えられるようにする。しばらくは、新しい設定が無ければ `[plugins.settings.official-post-navigation]` も読み、警告をログに出す。プラグインはリンクを描くだけになる。
+7. **既定では何も有効にしない**。同梱の設定でコードのハイライト・Mermaid・PlantUML を有効にするのをやめる。ストアのタブに、おすすめのパッケージ（カタログで印を付ける）を短く並べ、1 クリックで入れられるようにする。起動時には通信しない。
+8. 残りのプラグインを、テストごと AegisCMS-Plugin に移し、`store.json` の取得元を切り替える。
+9. 本体から消し、移行の手順を付けて `feat!:` で出す。Docker のイメージとリリースのアーカイブには、プラグインが入らなくなる。`bundled_plugins_dir` は、自分でイメージを作る人のために残す。
+10. テーマは、翻訳をテーマ側に持てるようにしてから移す。
 
 ## 8. 未決事項
 
