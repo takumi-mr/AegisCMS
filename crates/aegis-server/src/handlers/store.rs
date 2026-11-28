@@ -72,6 +72,8 @@ pub struct StorePackage {
     pub publisher: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub license: Option<String>,
+    /// カタログでおすすめとされている
+    pub recommended: bool,
     /// インストール済みのバージョン（未インストールなら省略）
     #[serde(skip_serializing_if = "Option::is_none")]
     pub installed_version: Option<String>,
@@ -378,6 +380,7 @@ fn store_package(
         description: package.description,
         publisher: package.publisher,
         license: package.license,
+        recommended: package.recommended,
         installed_version,
         latest_compatible: latest.map(|v| v.to_string()),
         update_available,
@@ -409,6 +412,7 @@ mod tests {
             description: String::new(),
             publisher: "official".into(),
             license: None,
+            recommended: false,
             versions,
         }
     }

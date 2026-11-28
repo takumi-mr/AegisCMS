@@ -23,6 +23,8 @@ If you have none of them enabled, there is nothing to do. If you have any enable
 3. Install them again from the **Store** tab of Admin Studio › Plugins. The store is on unless your configuration has `[store]` `enabled = false` ([configuration 2.28](configuration.md#228-store--package-store)). You can also use `POST /api/v1/store/install` (`{"catalog": "official", "kind": "plugin", "id": "official-charts"}`, [configuration 2.28](configuration.md#228-store--package-store)), or download the ZIP from [the store's Releases](https://github.com/takumi-mr/AegisCMS-Store/releases) and upload it on the same tab.
 4. Enable them again.
 
+The shipped `config/default.toml` also **no longer enables any plugin** (it used to enable `official-code-enhancer`, `official-mermaid` and `official-plantuml`). A site that runs with the shipped file, or copied its `[plugins]` section, loses code highlighting and diagrams until it turns them on again: enable them in Admin Studio › Plugins (they are still bundled in this release), or put them back in `[plugins].enabled`. The Store tab lists them as recommended.
+
 ## Update
 
 Database changes are applied by themselves the first time the new version starts. You do not run a migration step, and updating from an older version straight to the latest is fine.

@@ -22,6 +22,7 @@ const pkg = (p: Partial<StorePackage> & Pick<StorePackage, 'id' | 'name'>): Stor
   description: `${p.name} description`,
   publisher: 'official',
   license: 'MIT OR Apache-2.0',
+  recommended: false,
   update_available: false,
   versions: [version('1.0.0')],
   latest_compatible: '1.0.0',
@@ -59,7 +60,13 @@ const listing: StorePackagesResponse = {
       update_available: true,
       versions: [version('0.2.0'), version('0.1.0')],
     }),
-    pkg({ id: 'official-lightbox', name: 'Lightbox', installed_version: '1.0.0' }),
+    pkg({
+      id: 'official-lightbox',
+      name: 'Lightbox',
+      installed_version: '1.0.0',
+      recommended: true,
+    }),
+    pkg({ id: 'official-code-enhancer', name: 'Code Highlighter', recommended: true }),
     pkg({
       id: 'official-future',
       name: 'Future Plugin',
@@ -113,6 +120,24 @@ export const Plugins: Story = {
     await userEvent.type(canvas.getByRole('searchbox'), 'chart');
     await expect(canvas.queryByText('Ad & Banner Delivery')).toBeNull();
     await expect(canvas.getByText('Charts')).toBeVisible();
+  },
+};
+
+export const RecommendedComeFirst: Story = {
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const group = await canvas.findByRole('region', { name: 'Recommended' });
+    // Only the recommended package that is not installed yet
+    await expect(within(group).getAllByRole('article')).toHaveLength(1);
+    await expect(within(group).getByText('Code Highlighter')).toBeVisible();
+    await expect(
+      within(group).getByRole('button', { name: 'Install Code Highlighter' })
+    ).toBeEnabled();
+    // An installed recommended package stays in the full list, with its badge
+    const lightbox = canvas.getByRole('article', { name: 'Lightbox' });
+    await expect(within(group).queryByText('Lightbox')).toBeNull();
+    await expect(within(lightbox).getByText('Recommended')).toBeVisible();
+    await expect(canvas.getByRole('heading', { name: 'All packages' })).toBeVisible();
   },
 };
 

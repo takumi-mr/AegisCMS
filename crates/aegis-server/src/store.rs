@@ -174,6 +174,9 @@ pub struct CatalogPackage {
     /// SPDX の識別子か `proprietary`
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub license: Option<String>,
+    /// おすすめ（ストアのタブで先に並べる。新しいサイトには何も有効になっていないため）
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub recommended: bool,
     pub versions: Vec<CatalogVersion>,
 }
 
@@ -644,6 +647,12 @@ mod tests {
         assert_eq!(catalog.packages[0].kind, PackageKind::Plugin);
         assert_eq!(catalog.packages[0].license.as_deref(), Some("MIT"));
         assert!(catalog.packages[0].versions[0].is_compatible());
+        // Catalogs from before the `recommended` field recommend nothing
+        assert!(!catalog.packages[0].recommended);
+
+        let mut value = catalog_json(6);
+        value["packages"][0]["recommended"] = json!(true);
+        assert!(verify_value(&value, None).unwrap().packages[0].recommended);
     }
 
     #[test]
@@ -743,6 +752,7 @@ mod tests {
             description: String::new(),
             publisher: "official".into(),
             license: None,
+            recommended: false,
             versions: vec![
                 version_entry("1.2.0", None),
                 version_entry("1.10.0", None),

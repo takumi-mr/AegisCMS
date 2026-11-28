@@ -36,6 +36,5 @@
 設計は [store.md](docs/store.ja.md)。当面は公式のプラグイン・テーマだけを配る。上から順に着手する。
 
 - [ ] **ストアの更新のお知らせ**: 一覧・インストール・更新の画面（プラグイン・テーマの画面の「ストア」のタブ）は済。更新があることは、今はストアのタブを開いたときにしか分からない。「インストール済み」のタブのカードやナビゲーションに出すか、カタログを取得する頻度とキャッシュ（[store.md 8](docs/store.ja.md#8-未決事項)）と合わせて決める。
-- [ ] **既定で何も有効にしない・おすすめの表示（手順 7）**: `config/default.toml` とベンチマークの設定で code-enhancer・mermaid・plantuml を有効にするのをやめる。カタログでおすすめに印を付け（AegisCMS-Store）、ストアのタブに並べて 1 クリックで入れられるようにする。
-- [ ] **残りのプラグインの移行と同梱の廃止（手順 8・9）**: blocks・code-enhancer・mermaid・plantuml・page-toc・post-navigation・shop-rules・order-notifier を AegisCMS-Plugin へテストごと移し、本体から消す（`feat!:`、移行の手順つき）。Dockerfile・リリースのアーカイブ・同梱の設定の `bundled_plugins_dir` も見直す。
+- [ ] **残りのプラグインの移行と同梱の廃止（手順 8・9）**: blocks・code-enhancer・mermaid・plantuml・page-toc・post-navigation・shop-rules・order-notifier を AegisCMS-Plugin へテストごと移し、本体から消す（`feat!:`、移行の手順つき）。Dockerfile・リリースのアーカイブ・同梱の設定の `bundled_plugins_dir` も見直す。ベンチマークの設定（`config/bench-*.toml`）は `official-code-enhancer` を有効にして測っているので、テスト用のプラグインに替えるか、プラグインなしにする。
 - [ ] **テーマの移行（手順 10）**: 翻訳（`aegis-theme/src/messages.rs`）をテーマ側に持てるようにしてから。

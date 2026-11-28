@@ -2303,6 +2303,10 @@
       "package_mismatch": "取得したパッケージがカタログと一致しないため、インストールしませんでした。",
       "package_invalid": "パッケージが正しくないため、インストールしませんでした。",
       "plugins_disabled": "このサーバーでは Wasm プラグインが無効です（[runtime].enable_wasm_plugins = false）。"
-    }
+    },
+    "recommended": "おすすめ",
+    "recommendedTitle": "おすすめ",
+    "recommendedHint": "新しいサイトでは、プラグインは何も有効になっていません。多くのサイトが最初に入れるものです。",
+    "allTitle": "すべてのパッケージ"
   }
 }

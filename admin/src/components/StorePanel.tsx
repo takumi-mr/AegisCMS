@@ -6,6 +6,7 @@ import {
   PackageSearch,
   RefreshCw,
   Search,
+  Star,
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
@@ -180,8 +181,81 @@ export const StorePanel: React.FC<StorePanelProps> = ({
           )
           .sort((a, b) => a.name.localeCompare(b.name))
       : [];
+  // Recommended packages not installed yet come first (a new site has no plugin enabled)
+  const recommended = packages.filter((p) => p.recommended && !p.installed_version);
+  const others = packages.filter((p) => !recommended.includes(p));
   const failedCatalogs = state.status === 'ready' ? state.catalogs.filter((c) => !c.ok) : [];
   const confirmItems = confirm ? storeCapabilities(confirm.version.capabilities) : [];
+
+  const card = (pkg: StorePackage) => {
+    const latest = pkg.versions.find((v) => v.version === pkg.latest_compatible);
+    const shown = pkg.latest_compatible ?? pkg.versions[0]?.version;
+    const busy = installing === keyOf(pkg);
+    const titleId = `store-${pkg.kind}-${pkg.catalog}-${pkg.id}`;
+    return (
+      <article key={keyOf(pkg)} className={styles.card} aria-labelledby={titleId}>
+        <div className={styles.cardHead}>
+          <h3 id={titleId} className={styles.name}>
+            {pkg.name}
+          </h3>
+          {shown && <span className={styles.version}>v{shown}</span>}
+        </div>
+        <div className={styles.meta}>
+          <code>{pkg.id}</code>
+          {pkg.publisher === 'official' ? (
+            <span className={styles.official}>
+              <BadgeCheck size={13} aria-hidden="true" />
+              {t('store.official')}
+            </span>
+          ) : (
+            <span>{t('store.publisher', { name: pkg.publisher })}</span>
+          )}
+          {pkg.recommended && (
+            <span className={styles.recommended}>
+              <Star size={13} aria-hidden="true" />
+              {t('store.recommended')}
+            </span>
+          )}
+          {pkg.license && <span>{pkg.license}</span>}
+        </div>
+        <p className={styles.description}>{pkg.description}</p>
+        <div className={styles.footer}>
+          <span className={styles.status}>
+            {pkg.installed_version
+              ? pkg.update_available
+                ? t('store.updateAvailable', {
+                    installed: pkg.installed_version,
+                    latest: pkg.latest_compatible,
+                  })
+                : t('store.installed', { version: pkg.installed_version })
+              : !latest &&
+                t('store.incompatible', {
+                  version: pkg.versions[0]?.min_aegis_version ?? '?',
+                })}
+          </span>
+          {latest && (!pkg.installed_version || pkg.update_available) && (
+            <Button
+              variant={pkg.update_available ? 'secondary' : 'primary'}
+              disabled={installing !== null}
+              onClick={() => setConfirm({ pkg, version: latest })}
+              aria-label={
+                pkg.update_available
+                  ? t('store.updateAria', { name: pkg.name, version: latest.version })
+                  : t('store.installAria', { name: pkg.name })
+              }
+            >
+              {busy ? <RefreshCw size={14} className="animate-spin" /> : <Download size={14} />}
+              <span>
+                {pkg.update_available
+                  ? t('store.update', { version: latest.version })
+                  : t('store.install')}
+              </span>
+            </Button>
+          )}
+        </div>
+      </article>
+    );
+  };
 
   return (
     <section className={styles.panel} aria-label={t('store.title')}>
@@ -234,75 +308,19 @@ export const StorePanel: React.FC<StorePanelProps> = ({
         <p className={styles.notice}>{q ? t('store.noMatch') : t('store.empty')}</p>
       )}
 
-      {packages.length > 0 && (
-        <div className={styles.grid}>
-          {packages.map((pkg) => {
-            const latest = pkg.versions.find((v) => v.version === pkg.latest_compatible);
-            const shown = pkg.latest_compatible ?? pkg.versions[0]?.version;
-            const busy = installing === keyOf(pkg);
-            const titleId = `store-${pkg.kind}-${pkg.catalog}-${pkg.id}`;
-            return (
-              <article key={keyOf(pkg)} className={styles.card} aria-labelledby={titleId}>
-                <div className={styles.cardHead}>
-                  <h3 id={titleId} className={styles.name}>
-                    {pkg.name}
-                  </h3>
-                  {shown && <span className={styles.version}>v{shown}</span>}
-                </div>
-                <div className={styles.meta}>
-                  <code>{pkg.id}</code>
-                  {pkg.publisher === 'official' ? (
-                    <span className={styles.official}>
-                      <BadgeCheck size={13} aria-hidden="true" />
-                      {t('store.official')}
-                    </span>
-                  ) : (
-                    <span>{t('store.publisher', { name: pkg.publisher })}</span>
-                  )}
-                  {pkg.license && <span>{pkg.license}</span>}
-                </div>
-                <p className={styles.description}>{pkg.description}</p>
-                <div className={styles.footer}>
-                  <span className={styles.status}>
-                    {pkg.installed_version
-                      ? pkg.update_available
-                        ? t('store.updateAvailable', {
-                            installed: pkg.installed_version,
-                            latest: pkg.latest_compatible,
-                          })
-                        : t('store.installed', { version: pkg.installed_version })
-                      : !latest &&
-                        t('store.incompatible', {
-                          version: pkg.versions[0]?.min_aegis_version ?? '?',
-                        })}
-                  </span>
-                  {latest && (!pkg.installed_version || pkg.update_available) && (
-                    <Button
-                      variant={pkg.update_available ? 'secondary' : 'primary'}
-                      disabled={installing !== null}
-                      onClick={() => setConfirm({ pkg, version: latest })}
-                      aria-label={
-                        pkg.update_available
-                          ? t('store.updateAria', { name: pkg.name, version: latest.version })
-                          : t('store.installAria', { name: pkg.name })
-                      }
-                    >
-                      {busy ? (
-                        <RefreshCw size={14} className="animate-spin" />
-                      ) : (
-                        <Download size={14} />
-                      )}
-                      <span>
-                        {pkg.update_available
-                          ? t('store.update', { version: latest.version })
-                          : t('store.install')}
-                      </span>
-                    </Button>
-                  )}
-                </div>
-              </article>
-            );
-          })}
+      {recommended.length > 0 && (
+        <section className={styles.group} aria-labelledby={`store-${kind}-recommended`}>
+          <h3 id={`store-${kind}-recommended`} className={styles.groupTitle}>
+            {t('store.recommendedTitle')}
+          </h3>
+          <p className={styles.notice}>{t('store.recommendedHint')}</p>
+          <div className={styles.grid}>{recommended.map(card)}</div>
+        </section>
+      )}
+      {others.length > 0 && (
+        <div className={styles.group}>
+          {recommended.length > 0 && <h3 className={styles.groupTitle}>{t('store.allTitle')}</h3>}
+          <div className={styles.grid}>{others.map(card)}</div>
         </div>
       )}
 
