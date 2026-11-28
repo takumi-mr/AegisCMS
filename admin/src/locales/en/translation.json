@@ -1438,8 +1438,6 @@
     "loadFailed": "Failed to load plugins",
     "settingsModalTitle": "Configure {{name}}",
     "settingsNotice": "Dynamic settings take effect immediately in memory and cache, overriding configuration file defaults.",
-    "presetSuggestions": "Recommended keys (Presets)",
-    "applyPresetKey": "Set '{{key}}' to input",
     "activeSettingsLabel": "Active Settings",
     "noSettingsConfigured": "No settings configured yet.",
     "declaredSettingsLabel": "Settings",

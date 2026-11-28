@@ -18,7 +18,8 @@ public_url_prefix = "/uploads"
 
 [paths]
 schemas_dir = "schemas"
-plugins_dir = "plugins"
+# ストアから入れたプラグインはここ（リポジトリの plugins/ には書き込まない）
+plugins_dir = "examples/coffee-shop/plugins"
 admin_dist_dir = "admin/dist"
 themes_dir = "themes"
 
@@ -28,9 +29,10 @@ site_title = "朝凪珈琲"
 site_description = "小さな焙煎所から、季節のシングルオリジンとブレンドをお届けします。ご注文をいただいてから焙煎し、3日以内に発送します。"
 posts_per_page = 12
 
-# 送料・クーポン（公式プラグイン。docs/commerce.md「official-shop-rules」）
+# 送料・クーポン（公式プラグイン official-shop-rules。docs/commerce.md）。Admin Studio のストアのタブから
+# 入れて有効にする（下の設定はそのまま使われる）
 [plugins]
-enabled = ["official-shop-rules"]
+enabled = []
 
 [plugins.settings.official-shop-rules]
 shipping_fee = 650

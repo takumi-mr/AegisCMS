@@ -24,8 +24,9 @@ site_description = "AegisCMS で作ったサイトです。"
 # テーマ: default / minimal-editorial / emerald-luxury / cyber-neon / roastery / trailhead、
 # または deploy/themes/<id>/ に置いた自作のテーマ
 theme = "minimal-editorial"
-# 有効にするプラグイン（組み込み、または deploy/plugins/<name>/ に置いたもの）
-plugins = ["official-blocks"]
+# 有効にするプラグイン（deploy/plugins/<name>/ に置いたもの）。公式のプラグインは、サイトの Admin Studio の
+# ストアのタブから入れて有効にする（ボリュームに残る）
+plugins = []
 # コンテナのメモリの上限（任意）
 # memory = "512m"
 # true でヘルスチェック（/health・/api/v1/health）をインターネットに公開する（外部の死活監視用）。

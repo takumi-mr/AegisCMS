@@ -6,12 +6,11 @@ AegisCMS は [Semantic Versioning 2.0.0](https://semver.org/lang/ja/) に従い�
 
 ## 1. 何にバージョンを付けるか
 
-| 対象                                                                                                      | バージョン           | 置き場所                                                          | タグ                            |
-| --------------------------------------------------------------------------------------------------------- | -------------------- | ----------------------------------------------------------------- | ------------------------------- |
-| **コア**: 全 `aegis-*` crate・Rust SDK（`aegis-plugin-sdk`）・Admin Studio・Theme Builder・Plugin Builder | 一括（同じ番号）     | ルートの `Cargo.toml` の `[workspace.package]`、各 `package.json` | `v0.2.0`                        |
-| **AssemblyScript SDK** `@takumi-mr/plugin-sdk`                                                            | 個別                 | `sdk/assemblyscript/package.json`                                 | `sdk-assemblyscript-v0.2.0`     |
-| **TinyGo SDK**                                                                                            | 個別                 | タグそのもの（Go モジュールの規約）                               | `sdk/tinygo/v0.2.0`             |
-| **公式プラグイン** `plugins/official-*`                                                                   | プラグインごとに個別 | `Cargo.toml` と `plugin.manifest.json` の `version`               | `plugin-official-blocks-v0.4.0` |
+| 対象                                                                                                      | バージョン       | 置き場所                                                          | タグ                        |
+| --------------------------------------------------------------------------------------------------------- | ---------------- | ----------------------------------------------------------------- | --------------------------- |
+| **コア**: 全 `aegis-*` crate・Rust SDK（`aegis-plugin-sdk`）・Admin Studio・Theme Builder・Plugin Builder | 一括（同じ番号） | ルートの `Cargo.toml` の `[workspace.package]`、各 `package.json` | `v0.2.0`                    |
+| **AssemblyScript SDK** `@takumi-mr/plugin-sdk`                                                            | 個別             | `sdk/assemblyscript/package.json`                                 | `sdk-assemblyscript-v0.2.0` |
+| **TinyGo SDK**                                                                                            | 個別             | タグそのもの（Go モジュールの規約）                               | `sdk/tinygo/v0.2.0`         |
 
 - コアの crate は `version.workspace = true` で 1 つの番号を共有します。個別に番号を持たせないでください。
 - `sdk/templates/` と `sdk/examples/` はコピー元のひな形で、単独ではリリースしません（バージョンは `0.1.0` のままで構いません）。ただし Rust テンプレートの `aegis-plugin-sdk` へのバージョン要求はコアに追従させます。
@@ -46,7 +45,7 @@ ABI の中身は [plugin_abi_specification.md](plugin_abi_specification.ja.md) �
 >
 > すでにリリース PR をマージして止まった場合は、そのリリース PR の本文の `<` を `&amp;lt;` に直して（`<script` → `&amp;lt;script`）、main 上の Release Please のワークフローを再実行します（`&lt;` では、release-please が本文を読み直すときに元に戻ってしまい直りません）。
 
-コミットがどの対象に数えられるかは、**変更したファイルのパス**で決まります（スコープではありません）。`plugins/official-blocks/` の変更はそのプラグインだけを、`sdk/assemblyscript/` の変更はその SDK だけを、それ以外（`plugins/`・`sdk/` の外）はコアを上げます。
+コミットがどの対象に数えられるかは、**変更したファイルのパス**で決まります（スコープではありません）。`sdk/assemblyscript/` の変更はその SDK だけを、それ以外（`sdk/` の外）はコアを上げます。公式プラグインは [AegisCMS-Plugin](https://github.com/takumi-mr/AegisCMS-Plugin) から出します（v0.13.0 から）。
 
 ## 4. リリースの流れ
 
