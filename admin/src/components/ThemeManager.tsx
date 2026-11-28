@@ -6,7 +6,6 @@ import {
   Sparkles,
   ShoppingBag,
   UploadCloud,
-  Search,
   User,
   ShieldCheck,
   RefreshCw,
@@ -17,21 +16,13 @@ import i18n from '../i18n';
 import type { SessionInfo, ThemeInfo } from '../types';
 import { isAdmin } from '../utils/roles';
 import { cx } from '../utils/cx';
+import { StorePanel } from './StorePanel';
 import styles from './ThemeManager.module.css';
 
 interface ThemeManagerProps {
   session: SessionInfo;
   onShowToast: (message: string, type?: 'success' | 'error') => void;
 }
-
-const MARKET_CATEGORIES = [
-  'all',
-  'cyberpunk',
-  'editorial',
-  'darkMode',
-  'luxury',
-  'portfolio',
-] as const;
 
 export const ThemeManager: React.FC<ThemeManagerProps> = ({ session, onShowToast }) => {
   const { t } = useTranslation();
@@ -40,9 +31,6 @@ export const ThemeManager: React.FC<ThemeManagerProps> = ({ session, onShowToast
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [reloadTrigger, setReloadTrigger] = useState<number>(0);
   const [switchingThemeId, setSwitchingThemeId] = useState<string | null>(null);
-  const [searchQuery, setSearchQuery] = useState<string>('');
-  const [selectedCategory, setSelectedCategory] =
-    useState<(typeof MARKET_CATEGORIES)[number]>('all');
   const [isUploading, setIsUploading] = useState<boolean>(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -144,15 +132,6 @@ export const ThemeManager: React.FC<ThemeManagerProps> = ({ session, onShowToast
     return undefined;
   };
 
-  const filteredThemes = themes.filter((theme) => {
-    const q = searchQuery.toLowerCase();
-    const matchesSearch =
-      theme.name.toLowerCase().includes(q) ||
-      theme.description.toLowerCase().includes(q) ||
-      theme.tags.some((tag) => tag.toLowerCase().includes(q));
-    return matchesSearch;
-  });
-
   return (
     <main className={styles.main}>
       <div className={styles.container}>
@@ -202,8 +181,7 @@ export const ThemeManager: React.FC<ThemeManagerProps> = ({ session, onShowToast
               onClick={() => setActiveTab('market')}
             >
               <ShoppingBag size={16} />
-              <span>{t('themes.marketplace')}</span>
-              <span className={styles.tabBadge}>{t('themes.ecosystem')}</span>
+              <span>{t('store.tab')}</span>
             </button>
           </div>
         </div>
@@ -211,7 +189,7 @@ export const ThemeManager: React.FC<ThemeManagerProps> = ({ session, onShowToast
         {activeTab === 'installed' && (
           <>
             <div className={styles.grid}>
-              {filteredThemes.map((theme) => {
+              {themes.map((theme) => {
                 const isCurrent = theme.is_active;
                 const isSwitching = switchingThemeId === theme.id;
                 const previewSrc = theme.preview_url
@@ -332,58 +310,13 @@ export const ThemeManager: React.FC<ThemeManagerProps> = ({ session, onShowToast
         )}
 
         {activeTab === 'market' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
-            <div className={styles.marketHero}>
-              <div className={styles.marketHeroHeader}>
-                <div>
-                  <h2 className={styles.marketTitle}>{t('themes.marketTitle')}</h2>
-                  <p
-                    style={{ color: 'var(--text-muted)', fontSize: '0.95rem', marginTop: '0.4rem' }}
-                  >
-                    {t('themes.marketDescription')}
-                  </p>
-                </div>
-                <span className={styles.marketBadge}>{t('themes.marketBadge')}</span>
-              </div>
-
-              <div className={styles.marketFilters}>
-                <div style={{ position: 'relative', flex: 1, minWidth: '260px' }}>
-                  <Search
-                    size={16}
-                    style={{
-                      position: 'absolute',
-                      left: '12px',
-                      top: '50%',
-                      transform: 'translateY(-50%)',
-                      color: 'var(--text-dim)',
-                    }}
-                  />
-                  <input
-                    type="text"
-                    placeholder={t('themes.searchPlaceholder')}
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className={styles.searchBox}
-                    style={{ paddingLeft: '2.5rem' }}
-                  />
-                </div>
-
-                <div className={styles.categoryFilter}>
-                  {MARKET_CATEGORIES.map((cat) => (
-                    <button
-                      key={cat}
-                      className={cx(
-                        styles.categoryPill,
-                        selectedCategory === cat && styles.categoryPillActive
-                      )}
-                      onClick={() => setSelectedCategory(cat)}
-                    >
-                      {t(`themes.categories.${cat}`)}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
+          <div className={styles.storeTab}>
+            <StorePanel
+              kind="theme"
+              canInstall={canSwitchTheme}
+              onInstalled={reloadThemes}
+              onShowToast={onShowToast}
+            />
 
             {/* Direct Package Import Box */}
             <div className={styles.importBox}>

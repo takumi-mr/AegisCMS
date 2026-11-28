@@ -712,14 +712,14 @@ AI アシスタント向けの MCP サーバー（`POST /mcp`）と、それが�
 - `GET /api/v1/store/packages`: パッケージの一覧。インストール済みのバージョン・このサーバーで動く最新版・更新の有無つき。
 - `POST /api/v1/store/install`: `{"catalog": "official", "kind": "plugin" | "theme", "id": "...", "version": "..."}`（`version` を省くとこのサーバーで動く最新版）。ZIP を取得し、カタログの `size`・`sha256` と、中身の ID・バージョン・署名の鍵・`capabilities`（テーマは `csp`）がカタログと一致するときだけ入れます。同じ ID のものは置き換えます（更新）。有効化はしません。署名を必須にしていないサーバー（`require_signatures = false`）でも、ストアからは署名の無いものを入れません。失敗の `code` は `catalog_*`・`package_not_found`・`version_not_found`・`incompatible_version`・`package_fetch_failed`・`package_mismatch`・`package_invalid`・`plugins_disabled` です。監査ログ（`plugin.install` / `theme.install`）の `details.source` に取得元が残ります。
 
-Admin Studio の画面はまだありません。
+Admin Studio では、テーマ・プラグインの画面の**ストア**のタブがこれらを使います（[admin-settings.md](admin-settings.ja.md#ストアテーマプラグインの画面)）。
 
-| キー                | 既定値    | 説明                                                                                                                                                                                 |
-| ------------------- | --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `enabled`           | `false`   | `true` でストアを使う。`false` のとき API は `404 store_disabled`                                                                                                                    |
-| `max_catalog_bytes` | `1048576` | `catalog.json` の大きさの上限（バイト）                                                                                                                                              |
-| `timeout_secs`      | `15`      | 1 回の取得のタイムアウト（秒）                                                                                                                                                       |
-| `catalogs`          | 公式      | 読むカタログ（`[[store.catalogs]]`）。書かなければ公式のカタログ（下記）を読む。書くと置き換わる（公式も読むなら並べて書く）。`enabled = true` で空（`catalogs = []`）だと起動しない |
+| キー                | 既定値    | 説明                                                                                                                                                                                            |
+| ------------------- | --------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `enabled`           | `true`    | `false` でストアを止める（API は `404 store_disabled`）。カタログを取得するのは、管理者がストアのタブを開いたとき（または API を呼んだとき）だけで、起動時や裏では取得しない                    |
+| `max_catalog_bytes` | `1048576` | `catalog.json` の大きさの上限（バイト）                                                                                                                                                         |
+| `timeout_secs`      | `15`      | 1 回の取得のタイムアウト（秒）                                                                                                                                                                  |
+| `catalogs`          | 公式      | 読むカタログ（`[[store.catalogs]]`）。書かなければ公式のカタログ（下記）を読む。書くと置き換わる（公式も読むなら並べて書く）。空（`catalogs = []`）だと、`enabled = false` でなければ起動しない |
 
 `[[store.catalogs]]` の項目:
 

@@ -20,7 +20,7 @@ If you have none of them enabled, there is nothing to do. If you have any enable
 
 1. Note which of them are enabled, and disable them (Admin Studio › Plugins, or remove them from `[plugins].enabled`).
 2. Update as described below. Use the new shipped configuration for `[paths]` (or set `plugins_dir = "data/plugins"` and `bundled_plugins_dir = "plugins"` yourself, [configuration 2.5](configuration.md#25-paths--directories)), so that what you install stays across updates.
-3. Install them again, either with `POST /api/v1/store/install` (`{"catalog": "official", "kind": "plugin", "id": "official-charts"}`, [configuration 2.28](configuration.md#228-store--package-store)), or by downloading the ZIP from [the store's Releases](https://github.com/takumi-mr/AegisCMS-Store/releases) and uploading it in Admin Studio › Plugins.
+3. Install them again from the **Store** tab of Admin Studio › Plugins. The store is on unless your configuration has `[store]` `enabled = false` ([configuration 2.28](configuration.md#228-store--package-store)). You can also use `POST /api/v1/store/install` (`{"catalog": "official", "kind": "plugin", "id": "official-charts"}`, [configuration 2.28](configuration.md#228-store--package-store)), or download the ZIP from [the store's Releases](https://github.com/takumi-mr/AegisCMS-Store/releases) and upload it on the same tab.
 4. Enable them again.
 
 ## Update
