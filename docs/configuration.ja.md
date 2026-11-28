@@ -709,17 +709,20 @@ AI アシスタント向けの MCP サーバー（`POST /mcp`）と、それが�
 
 署名したカタログからプラグイン・テーマの一覧を読みます（設計と今後の予定は [store.md](store.ja.md)）。API（いずれも `admin`）:
 
-- `GET /api/v1/store/packages`: パッケージの一覧。インストール済みのバージョン・このサーバーで動く最新版・更新の有無つき。
+- `GET /api/v1/store/packages`: パッケージの一覧。インストール済みのバージョン・このサーバーで動く最新版・更新の有無つき。`installed_from_catalog` は、インストール済みのものが、このカタログがそのパッケージに挙げる鍵で署名されているか（そのときだけ更新を出す）。`installed_capabilities` は、インストール済みの版に許可されていること（更新で増えるものを示すため）。
+- `GET /api/v1/store/updates`（`?refresh=true` で今すぐ確認）: カタログに新しい版のある、インストール済みのパッケージ。取ってあるカタログとインストール済みのものをサーバーの中で比べ（インストール済みの一覧は外に送らない）、カタログを取り直すのは `refresh=true` のときか、`check_updates` が有効で前の取得から `update_check_hours` 経ったときだけ。取れなかったカタログは `code` で知らせ、前に確かめた結果を `checked_at` つきで使う。
 - `POST /api/v1/store/install`: `{"catalog": "official", "kind": "plugin" | "theme", "id": "...", "version": "..."}`（`version` を省くとこのサーバーで動く最新版）。ZIP を取得し、カタログの `size`・`sha256` と、中身の ID・バージョン・署名の鍵・`capabilities`（テーマは `csp`）がカタログと一致するときだけ入れます。同じ ID のものは置き換えます（更新）。有効化はしません。署名を必須にしていないサーバー（`require_signatures = false`）でも、ストアからは署名の無いものを入れません。失敗の `code` は `catalog_*`・`package_not_found`・`version_not_found`・`incompatible_version`・`package_fetch_failed`・`package_mismatch`・`package_invalid`・`plugins_disabled` です。監査ログ（`plugin.install` / `theme.install`）の `details.source` に取得元が残ります。
 
 Admin Studio では、テーマ・プラグインの画面の**ストア**のタブがこれらを使います（[admin-settings.md](admin-settings.ja.md#ストアテーマプラグインの画面)）。
 
-| キー                | 既定値    | 説明                                                                                                                                                                                            |
-| ------------------- | --------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `enabled`           | `true`    | `false` でストアを止める（API は `404 store_disabled`）。カタログを取得するのは、管理者がストアのタブを開いたとき（または API を呼んだとき）だけで、起動時や裏では取得しない                    |
-| `max_catalog_bytes` | `1048576` | `catalog.json` の大きさの上限（バイト）                                                                                                                                                         |
-| `timeout_secs`      | `15`      | 1 回の取得のタイムアウト（秒）                                                                                                                                                                  |
-| `catalogs`          | 公式      | 読むカタログ（`[[store.catalogs]]`）。書かなければ公式のカタログ（下記）を読む。書くと置き換わる（公式も読むなら並べて書く）。空（`catalogs = []`）だと、`enabled = false` でなければ起動しない |
+| キー                 | 既定値    | 説明                                                                                                                                                                                                               |
+| -------------------- | --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `enabled`            | `true`    | `false` でストアを止める（API は `404 store_disabled`）。カタログを取得するのは、管理者がストアのタブか Admin Studio を開いたとき（`check_updates`）と、API を呼んだときだけで、起動時や裏では取得しない           |
+| `max_catalog_bytes`  | `1048576` | `catalog.json` の大きさの上限（バイト）                                                                                                                                                                            |
+| `timeout_secs`       | `15`      | 1 回の取得のタイムアウト（秒）                                                                                                                                                                                     |
+| `check_updates`      | `true`    | 更新の確認。管理者が Admin Studio を開いたとき、前の取得から `update_check_hours` 経っていればカタログを取り直す。`false` で自動の確認を止める（「今すぐ確認」は使える）。起動時・裏・訪問者のアクセスでは取らない |
+| `update_check_hours` | `24`      | 更新の確認の間隔（時間。1 以上）                                                                                                                                                                                   |
+| `catalogs`           | 公式      | 読むカタログ（`[[store.catalogs]]`）。書かなければ公式のカタログ（下記）を読む。書くと置き換わる（公式も読むなら並べて書く）。空（`catalogs = []`）だと、`enabled = false` でなければ起動しない                    |
 
 `[[store.catalogs]]` の項目:
 

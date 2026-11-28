@@ -177,7 +177,18 @@ Order (all done):
 9. (Done in v0.13.0.) Remove them from the core as `feat!:`, with migration steps. The Docker image and the release archives then ship no plugins; `bundled_plugins_dir` stays for anyone who builds their own image.
 10. (Done in v0.13.0: AegisCMS-Plugin tag `v2026.11.28.2`.) Move themes once they can carry their own strings (`locales/`). `default` and `wordpress-classic` stay in the core: the theme engine falls back to `default`, and the WordPress theme import starts from `wordpress-classic`.
 
-## 8. Open questions
+## 8. Update notices
 
-- How often to check for updates, and where to cache the fetched catalog. Today the catalogs are fetched each time the Store tab opens, and updates are shown only there (not yet on the Installed tab or elsewhere).
+Decided so that notices add no new kind of outgoing traffic and no new trust:
+
+- **When**: only when an administrator opens Admin Studio, at most once per `update_check_hours` (default 24), plus "Check now". Never at start-up, in the background, or for visitors. `[store].check_updates = false` turns the automatic check off.
+- **Cache**: the verified catalog (body and signature) is kept in the cache backend (shared between servers with Redis), and verified again (signature, expiry, rollback) every time it is read. The settings table is not used: a catalog can be up to 1 MiB, more than MySQL's `TEXT`.
+- **What is trusted**: only verified catalogs. When a check fails, the notice says so with the time of the last verified result instead of "up to date". The installed list never leaves the server: the whole catalog is fetched and compared locally.
+- **Same source only**: an update is offered only when the installed package is signed with a key the catalog lists for that package (`installed_from_catalog`). A package with the same ID from elsewhere (a fork, an upload) is never replaced by the store's version. Versions that do not run on this server are not offered.
+- **No automatic updates**: an update goes through the same confirmation as an install, which highlights what the new version is allowed to do that the installed one was not (new hooks, hosts, scripts).
+
+Later: a "security update" mark in the catalog, and keeping the previous version to roll back.
+
+## 9. Open questions
+
 - How to rotate keys (whether the catalog should announce the next key).
