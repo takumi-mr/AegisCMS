@@ -203,7 +203,7 @@ mod tests {
         );
     }
 
-    /// 公式プラグイン（ビルド済みの plugin.wasm）を通知のチャネルとして使う
+    /// テスト用のプラグイン（`test-plugins/test-notify` のビルド済みの plugin.wasm）を通知のチャネルとして使う
     #[tokio::test]
     async fn official_order_notifier_wasm_is_a_notification_channel() {
         use aegis_runtime::{HostServices, WasmEngine, WasmPluginInstance};
@@ -229,8 +229,8 @@ mod tests {
         let base = format!("http://{}", listener.local_addr().unwrap());
         tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
 
-        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("../../plugins/official-order-notifier");
+        let dir =
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../test-plugins/test-notify");
         let mut manifest = PluginManifest::from_json_with_defaults(
             &std::fs::read_to_string(dir.join("plugin.manifest.json")).unwrap(),
             &Default::default(),
@@ -247,8 +247,8 @@ mod tests {
 
         let service_for = |status: u16| {
             let plugins: aegis_runtime::PluginsConfig = toml::from_str(&format!(
-                "enabled = [\"official-order-notifier\"]\n\
-                 [settings.official-order-notifier]\nwebhook_url = \"{}/{}\"\nnotify_on = \"none\"\n",
+                "enabled = [\"test-notify\"]\n\
+                 [settings.test-notify]\nwebhook_url = \"{}/{}\"\n",
                 base, status
             ))
             .unwrap();
@@ -265,7 +265,7 @@ mod tests {
                     .unwrap(),
             ));
             let config: aegis_notify::NotificationsConfig = toml::from_str(
-                "enabled = true\nchannels = [\"plugin:official-order-notifier\"]\nlocale = \"ja\"\n",
+                "enabled = true\nchannels = [\"plugin:test-notify\"]\nlocale = \"ja\"\n",
             )
             .unwrap();
             aegis_notify::NotificationService::from_config_with_plugins(
@@ -301,7 +301,7 @@ mod tests {
         // 運営者向けだけを送る（顧客向けは Skipped で結果に出ない）
         let deliveries = service_for(200).deliver(&event).await;
         assert_eq!(deliveries.len(), 1, "{:?}", deliveries);
-        assert_eq!(deliveries[0].channel, "plugin:official-order-notifier");
+        assert_eq!(deliveries[0].channel, "plugin:test-notify");
         assert_eq!(deliveries[0].recipient, Recipient::Staff);
         assert!(deliveries[0].result.is_ok(), "{:?}", deliveries[0].result);
         let text = received.lock().unwrap()[0].1["text"]

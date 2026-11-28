@@ -39,6 +39,8 @@ COPY Cargo.toml Cargo.lock ./
 COPY crates/ ./crates/
 COPY sdk/ ./sdk/
 COPY plugins/ ./plugins/
+# ワークスペースのメンバー（本体のテスト用のプラグイン。イメージには入れない）
+COPY test-plugins/ ./test-plugins/
 RUN cargo chef prepare --recipe-path recipe.json
 
 # 2-2. 依存クレートだけを先にビルド（レシピが同じならこのレイヤーはキャッシュされる）
@@ -58,6 +60,7 @@ COPY config/ ./config/
 COPY schemas/ ./schemas/
 COPY sdk/ ./sdk/
 COPY plugins/ ./plugins/
+COPY test-plugins/ ./test-plugins/
 RUN --mount=type=cache,target=/usr/local/cargo/registry \
     --mount=type=cache,target=/usr/local/cargo/git \
     cargo build --profile ${CARGO_PROFILE} -p aegis-server \

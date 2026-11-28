@@ -18,7 +18,9 @@ public_url_prefix = "/uploads"
 
 [paths]
 schemas_dir = "schemas"
-plugins_dir = "plugins"
+# Admin Studio のアップロードはここ（起動のたびに消える）。テスト用のプラグインは test-plugins/ を同梱として読む
+plugins_dir = "target/e2e/plugins"
+bundled_plugins_dir = "test-plugins"
 admin_dist_dir = "admin/dist"
 themes_dir = "themes"
 

@@ -289,7 +289,7 @@ task test:e2e                      # = npm --prefix admin run test:e2e
 npm --prefix admin run test:e2e -- --ui   # Playwright の UI モード
 ```
 
-- **実サーバーに対して動かす**（API はモックしない）。`playwright.config.ts` の `webServer` が `e2e/start-server.mjs` を起動し、Admin Studio と `aegis-server` をビルドしてから、`target/e2e/` を消し、admin ユーザー（`e2e/credentials.mjs`）を作って、`e2e/aegis.e2e.toml` でポート 18080 に立てる。API の形と画面の型の食い違い（プラグイン画面で実際にあった）はモックでは見つからないため。
+- **実サーバーに対して動かす**（API はモックしない）。`playwright.config.ts` の `webServer` が `e2e/start-server.mjs` を起動し、Admin Studio と `aegis-server` をビルドしてから、`target/e2e/` を消し、admin ユーザー（`e2e/credentials.mjs`）を作って、`e2e/aegis.e2e.toml` でポート 18080 に立てる。入っているプラグインは、公式のものではなく [`test-plugins/`](../test-plugins/README.ja.md) のテスト用のプラグイン（`bundled_plugins_dir` として読む）。API の形と画面の型の食い違い（プラグイン画面で実際にあった）はモックでは見つからないため。
 - **包括的なテストスイート（全 17 テスト）**:
     - `auth.spec.ts`: ログイン成功、サインアウト（セッション破棄・リダイレクト）、誤ったパスワード時のエラー表示、レートリミットによるアカウント一時ロック（3回連続失敗後の 429 応答）。
     - `content.spec.ts`: 記事新規作成、下書き（Draft）保存とサイドバー一覧反映、公開（Published）切り替え、リロード時の永続化検証、Markdown モードと Blocks モードの相互変換。

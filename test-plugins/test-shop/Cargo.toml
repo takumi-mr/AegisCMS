@@ -1,0 +1,15 @@
+[package]
+name = "aegis-test-plugin-shop"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "Test plugin for AegisCMS's own tests: order calculation (a shipping fee and one coupon) with a use counter in the KV store"
+
+[lints]
+workspace = true
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+aegis-plugin-sdk = { path = "../../crates/aegis-plugin-sdk" }

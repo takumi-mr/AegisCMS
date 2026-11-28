@@ -300,7 +300,7 @@ task test:e2e                      # = npm --prefix admin run test:e2e
 npm --prefix admin run test:e2e -- --ui   # Playwright's UI mode
 ```
 
-- **Run against a real server** (the API is not mocked). The `webServer` in `playwright.config.ts` starts `e2e/start-server.mjs`, which builds Admin Studio and `aegis-server`, clears `target/e2e/`, creates the admin user (`e2e/credentials.mjs`), and brings the server up on port 18080 with `e2e/aegis.e2e.toml`. This is because mismatches between the API's shape and the screens' types (which actually happened on the plugin screen) cannot be found with mocks.
+- **Run against a real server** (the API is not mocked). The `webServer` in `playwright.config.ts` starts `e2e/start-server.mjs`, which builds Admin Studio and `aegis-server`, clears `target/e2e/`, creates the admin user (`e2e/credentials.mjs`), and brings the server up on port 18080 with `e2e/aegis.e2e.toml`. The plugins it has are the test plugins of [`test-plugins/`](../test-plugins/README.md) (read as `bundled_plugins_dir`), not the official ones. This is because mismatches between the API's shape and the screens' types (which actually happened on the plugin screen) cannot be found with mocks.
 - **A comprehensive test suite (17 tests in all)**:
     - `auth.spec.ts`: successful login, sign-out (session discard and redirect), the error display on a wrong password, and temporary account lockout by rate limiting (a 429 response after 3 consecutive failures).
     - `content.spec.ts`: creating a new article, saving a draft (Draft) and its reflection in the sidebar list, switching to published (Published), persistence verification on reload, and mutual conversion between Markdown mode and Blocks mode.
