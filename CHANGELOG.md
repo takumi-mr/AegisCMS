@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.14.0](https://github.com/takumi-mr/AegisCMS/compare/v0.13.0...v0.14.0) (2026-11-28)
+
+
+### Features
+
+* **admin:** show store updates of installed plugins and themes ([#444](https://github.com/takumi-mr/AegisCMS/issues/444)) ([efaf5bb](https://github.com/takumi-mr/AegisCMS/commit/efaf5bb27bec10d040e15108bbe5494ac4720d15))
+* **server:** check the store for updates of installed packages ([#442](https://github.com/takumi-mr/AegisCMS/issues/442)) ([ce9311e](https://github.com/takumi-mr/AegisCMS/commit/ce9311e0b6a34ad22ebc9818717d2639d74295f7))
+* **server:** rotate the store's catalog key with an announcement ([#447](https://github.com/takumi-mr/AegisCMS/issues/447)) ([f8005c9](https://github.com/takumi-mr/AegisCMS/commit/f8005c91d71da9d176a83fb547508184fc4703c1))
+* **server:** send a Stripe product tax code for member purchases ([#451](https://github.com/takumi-mr/AegisCMS/issues/451)) ([c389d70](https://github.com/takumi-mr/AegisCMS/commit/c389d70d8eb03120c9eba5da9ee6ee929e57ec3f))
+
+
+### Bug Fixes
+
+* **server:** close the forum visibility leaks and the block-name tag injection ([#457](https://github.com/takumi-mr/AegisCMS/issues/457)) ([d8badd8](https://github.com/takumi-mr/AegisCMS/commit/d8badd82969861776a20010093b48e1990f3995e))
+* **server:** close the urgent 2FA and token revocation gaps from the security audit ([#456](https://github.com/takumi-mr/AegisCMS/issues/456)) ([5579731](https://github.com/takumi-mr/AegisCMS/commit/5579731d942eeb3442e212178b441b0b00c379ee))
+* **server:** read a scheduled subscription cancel from cancel_at too ([#450](https://github.com/takumi-mr/AegisCMS/issues/450)) ([26eb198](https://github.com/takumi-mr/AegisCMS/commit/26eb198aa6fc4ca57d56e7471d44917dfac87575))
+
 ## [0.13.0](https://github.com/takumi-mr/AegisCMS/compare/v0.12.0...v0.13.0) (2026-11-28)
 
 
