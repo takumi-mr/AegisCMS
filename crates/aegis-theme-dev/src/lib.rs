@@ -31,7 +31,7 @@ use tower_http::services::ServeDir;
 /// `theme dev` の引数
 #[derive(clap::Args, Debug, Clone)]
 pub struct DevArgs {
-    /// Theme directory (contains theme.json, templates/ and assets/), e.g. themes/trailhead
+    /// Theme directory (contains theme.json, templates/ and assets/), e.g. themes/default
     pub dir: PathBuf,
     #[arg(short = 'H', long, default_value = "127.0.0.1")]
     pub host: String,

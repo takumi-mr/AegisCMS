@@ -6,7 +6,7 @@
 
 Collects how to build the public site's look (themes). For how the theme engine works (the template search order, rewriting by plugins), see the [Content publishing & theme engine development guide](./theme_and_publishing_guide.md).
 
-As a model, `themes/roastery` (the theme of the sample shop "Asanagi Coffee") is the best put together. Even the shop pages are displayed in the theme's colors, and it supports smartphone widths.
+As a model, [`roastery`](https://github.com/takumi-mr/AegisCMS-Plugin/tree/main/themes/roastery) (the theme of the sample shop "Asanagi Coffee") is the best put together. Even the shop pages are displayed in the theme's colors, and it supports smartphone widths.
 
 ---
 
@@ -20,7 +20,7 @@ task theme:new -- my-theme
 
 # Generate with a display name or an existing theme as the base
 task theme:new -- coffee-craft --title "Coffee Craft"
-task theme:new -- custom-trailhead --from trailhead
+task theme:new -- my-default --from default
 ```
 
 ---
@@ -286,7 +286,7 @@ The template engine (minijinja) supports `{% include %}`, `{% macro %}` and `{% 
 {{ post_card(item) }}
 ```
 
-The bundled sample theme `themes/app-shell` shows an app-like layout made only this way: a fixed top toolbar, a side menu that becomes a drawer on a narrow screen, and a floating action button with a small speed dial. It needs no JavaScript.
+The official sample theme [`app-shell`](https://github.com/takumi-mr/AegisCMS-Plugin/tree/main/themes/app-shell) shows an app-like layout made only this way: a fixed top toolbar, a side menu that becomes a drawer on a narrow screen, and a floating action button with a small speed dial. It needs no JavaScript.
 
 - The open/closed state is kept by `<input type="checkbox">`. A `<label for="...">` toggles it, and the CSS reads it with `:checked` and the sibling selector (`~`). The checkboxes must come **before** the parts in `base.html`.
 - The FAB's items are plain links (`<a href="#top">`), and `scroll-behavior: smooth` makes them smooth.
@@ -398,7 +398,7 @@ The built-in default theme serves the Latin subsets of Plus Jakarta Sans and Jet
 
 ## 7. Development Flow
 
-1. Copy an existing theme (such as `roastery`) into `themes/` and change the directory name and the `id` in `theme.json`.
+1. Copy an existing theme (such as `default`, or an official one from [AegisCMS-Plugin](https://github.com/takumi-mr/AegisCMS-Plugin/tree/main/themes)) into `themes/` and change the directory name and the `id` in `theme.json`.
 2. Set `[theme].reload_templates = true` in the settings. Templates are reread on every render, so you can check without restarting the server (`false` in production). Assets such as CSS are served from files each time.
 3. Switch to the theme. Switch in Admin Studio's **Settings → Themes**, with `PUT /api/v1/themes/active` (`{"theme_id": "my-theme"}`, admin only), or with `[theme].active`.
 4. Check with a site that has content. Using the sample shop (`task demo:shop`, and `task demo:shop:seed` in another terminal; for steps see [examples/coffee-shop](../examples/coffee-shop)) gives you articles, static pages, products, and categories.

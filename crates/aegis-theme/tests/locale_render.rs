@@ -580,15 +580,8 @@ fn test_bundled_themes_render_in_both_locales() {
         .parent()
         .unwrap();
     let themes_dir = root.join("themes");
-    let bundled = [
-        "cyber-neon",
-        "emerald-luxury",
-        "minimal-editorial",
-        "roastery",
-        "trailhead",
-        "wordpress-classic",
-        "app-shell",
-    ];
+    // 公式のテーマは AegisCMS-Plugin にある（文言の検査もそちら）。同梱は wordpress-classic だけ
+    let bundled = ["wordpress-classic"];
 
     for theme_id in bundled {
         let en_engine = ThemeEngine::new(&themes_dir, theme_id).with_locale("en");

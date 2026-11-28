@@ -1,7 +1,7 @@
 // Starts a throwaway core server for the E2E tests (Playwright `webServer`): builds Admin Studio
 // and the server, wipes target/e2e/, creates the admin user and serves on port 18080.
 import { spawn, spawnSync } from 'node:child_process';
-import { mkdirSync, rmSync } from 'node:fs';
+import { cpSync, mkdirSync, rmSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -29,6 +29,11 @@ const run = (command, args, options = {}) => {
 const dataDir = join(root, 'target', 'e2e');
 rmSync(dataDir, { recursive: true, force: true });
 mkdirSync(dataDir, { recursive: true });
+// Installed themes: the test theme of test-themes/ (themes/ holds the bundled ones)
+cpSync(join(root, 'test-themes'), join(dataDir, 'themes'), {
+    recursive: true,
+    filter: (src) => !src.endsWith('.md'),
+});
 
 if (!process.env.E2E_SKIP_BUILD) {
     run('npm', ['--prefix', 'admin', 'run', 'build']);

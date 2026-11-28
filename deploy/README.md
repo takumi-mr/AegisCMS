@@ -55,7 +55,7 @@ name = "main"                      # service name and data volume name
 domains = ["example.com", "www.example.com"]   # the first is the canonical domain; the rest redirect to it
 site_title = "Example"
 site_description = "..."
-theme = "minimal-editorial"
+theme = "default"
 plugins = []
 memory = "512m"                    # container memory limit (optional)
 

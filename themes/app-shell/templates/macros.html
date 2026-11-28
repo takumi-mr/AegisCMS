@@ -1,8 +1,0 @@
-{#- A template part that takes an argument. Use it with: {% from "macros.html" import post_card %} -#}
-{% macro post_card(item) %}
-<article class="shell-card">
-  <h2 class="shell-card-title"><a href="{{ item.fields.url }}">{{ item.title }}</a></h2>
-  <p class="shell-card-meta"><time datetime="{{ item.published_at }}">{{ item.published_at | date_short }}</time></p>
-  <p class="shell-card-text">{{ item.excerpt | truncate(140) }}</p>
-</article>
-{% endmacro %}

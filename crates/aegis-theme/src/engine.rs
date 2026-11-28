@@ -1732,21 +1732,44 @@ b
         assert!(engine.render("bad.html", &ctx).is_err());
     }
 
-    /// `theme.json` の `csp`（スタイル・フォント・画像のホスト）: アクティブなテーマのものが返り、切り替えで変わる。
-    /// 同梱のテーマのうち、Google Fonts を読むものは宣言している
+    /// `theme.json` の `csp`（スタイル・フォント・画像のホスト）: アクティブなテーマのものが返り、切り替えで変わる
     #[test]
     fn test_the_active_theme_declares_its_csp_hosts() {
-        let themes = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../themes");
-        let engine = ThemeEngine::new(&themes, "roastery");
+        let themes = std::env::temp_dir().join(format!(
+            "aegis_theme_csp_{}_{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        for (id, csp) in [
+            (
+                "fonts",
+                r#", "csp": {"style_domains": ["fonts.googleapis.com"], "font_domains": ["fonts.gstatic.com"]}"#,
+            ),
+            ("plain", ""),
+        ] {
+            std::fs::create_dir_all(themes.join(id).join("templates")).unwrap();
+            std::fs::write(
+                themes.join(id).join("theme.json"),
+                format!(r#"{{"id": "{id}", "name": "{id}", "version": "1.0.0"{csp}}}"#),
+            )
+            .unwrap();
+        }
+        let engine = ThemeEngine::new(&themes, "fonts");
         let csp = engine.active_csp();
         assert_eq!(csp.style_domains, ["fonts.googleapis.com"]);
         assert_eq!(csp.font_domains, ["fonts.gstatic.com"]);
         assert!(csp.img_domains.is_empty());
-        // 宣言の無いテーマ（default は、フォントを自分で配信する）は空
+        // 宣言の無いテーマは空
+        engine.set_active_theme("plain").unwrap();
+        assert!(engine.active_csp().is_empty());
         engine.set_active_theme("default").unwrap();
         assert!(engine.active_csp().is_empty());
-        engine.set_active_theme("trailhead").unwrap();
+        engine.set_active_theme("fonts").unwrap();
         assert!(!engine.active_csp().is_empty());
+        let _ = std::fs::remove_dir_all(&themes);
     }
 
     /// 宣言できるのはホスト名だけ（ワイルドカード・スキーム・パス・ポートは不可）。誤りのあるテーマは導入できず、

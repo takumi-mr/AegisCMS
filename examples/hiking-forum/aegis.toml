@@ -20,7 +20,9 @@ public_url_prefix = "/uploads"
 schemas_dir = "schemas"
 plugins_dir = "plugins"
 admin_dist_dir = "admin/dist"
-themes_dir = "themes"
+# ストアから入れたテーマはここ（リポジトリの themes/ には書き込まない）
+themes_dir = "examples/hiking-forum/themes"
+bundled_themes_dir = "themes"
 
 [theme]
 active = "trailhead"

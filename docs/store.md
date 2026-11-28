@@ -164,7 +164,7 @@ The goal is that **every official plugin is distributed through the store and th
 | Read by the core   | `official-post-navigation`                                                                                                                                                                                                                        | The core picks the previous and next articles from this plugin's settings (`mode`, `same_category`, `fallback_to_all`, `order_by`; `handlers/public.rs`, `related.rs`)   |
 | Themes             | themes other than `default`                                                                                                                                                                                                                       | Theme strings live in the core's `aegis-theme/src/messages.rs`; themes need a way to carry their own                                                                     |
 
-Order (1 to 9 are done; only themes remain):
+Order (all done):
 
 1. Let the store build from several sources (`sources` in AegisCMS-Store's `store.json`).
 2. Build the store install API (`POST /api/v1/store/install`) and the Store tab in Admin Studio.
@@ -175,7 +175,7 @@ Order (1 to 9 are done; only themes remain):
 7. **Nothing is enabled by default** (done: `config/default.toml`, and `recommended` in AegisCMS-Store's `store.json`). Stop enabling code highlighting, Mermaid and PlantUML in the shipped configurations. The Store tab shows a short list of recommended packages (marked in the catalog), each installed with one click. No request is made at start-up.
 8. (Done: AegisCMS-Plugin tag `v2026.11.28.1`.) Move the remaining plugins to AegisCMS-Plugin with their tests, and switch their source in `store.json`.
 9. (Done in v0.13.0.) Remove them from the core as `feat!:`, with migration steps. The Docker image and the release archives then ship no plugins; `bundled_plugins_dir` stays for anyone who builds their own image.
-10. Move themes once they can carry their own strings.
+10. (Done in v0.13.0: AegisCMS-Plugin tag `v2026.11.28.2`.) Move themes once they can carry their own strings (`locales/`). `default` and `wordpress-classic` stay in the core: the theme engine falls back to `default`, and the WordPress theme import starts from `wordpress-classic`.
 
 ## 8. Open questions
 

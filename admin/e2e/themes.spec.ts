@@ -9,10 +9,10 @@ test.describe('Theme Manager', () => {
   });
 
   test('lists installed themes and switches active theme', async ({ page }) => {
-    // Both Aegis Horizon (default) and Nordic Minimal Editorial should be listed
+    // Aegis Horizon (default, bundled) and Test Fonts (test-themes/, installed) are listed
     const horizonHeading = page.getByRole('heading', { name: 'Aegis Horizon', level: 2 });
     const editorialHeading = page.getByRole('heading', {
-      name: 'Nordic Minimal Editorial',
+      name: 'Test Fonts',
       level: 2,
     });
 
@@ -27,7 +27,7 @@ test.describe('Theme Manager', () => {
     // hosts); the default theme serves its own fonts and says nothing
     await expect(horizonCard.getByText(/Loads from other sites/)).toHaveCount(0);
 
-    // Switch to Nordic Minimal Editorial
+    // Switch to Test Fonts (it declares Google Fonts in theme.json)
     const editorialCard = page
       .locator('div[class*="card"]')
       .filter({ has: editorialHeading })
@@ -37,9 +37,7 @@ test.describe('Theme Manager', () => {
     await activateBtn.click();
 
     // Verify activation toast
-    await expect(
-      page.getByText('Activated "Nordic Minimal Editorial" successfully!')
-    ).toBeVisible();
+    await expect(page.getByText('Activated "Test Fonts" successfully!')).toBeVisible();
     await expect(editorialCard.getByText('Currently Active')).toBeVisible();
     await expect(
       editorialCard.getByText(/Loads from other sites: .*fonts\.googleapis\.com/)
@@ -51,7 +49,7 @@ test.describe('Theme Manager', () => {
 
     const editorialCardAfterReload = page
       .locator('div[class*="card"]')
-      .filter({ has: page.getByRole('heading', { name: 'Nordic Minimal Editorial', level: 2 }) })
+      .filter({ has: page.getByRole('heading', { name: 'Test Fonts', level: 2 }) })
       .first();
     await expect(editorialCardAfterReload.getByText('Currently Active')).toBeVisible();
 

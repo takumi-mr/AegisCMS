@@ -274,7 +274,7 @@ pub fn generate_from(sites: &SitesFile, dir: &Path, builtin: &Path) -> anyhow::R
                     && !builtin_themes.contains(theme)
                 {
                     bail!(
-                        "サイト {:?} のテーマ {:?} がありません（組み込み: {}。自作のテーマは deploy/themes/{}/ に置く）",
+                        "サイト {:?} のテーマ {:?} がありません（組み込み: {}。自作のテーマは deploy/themes/{}/ に置く。公式のテーマはここに書かず、サイトの Admin Studio のストアから入れて切り替える）",
                         site.name,
                         theme,
                         builtin_themes.join(", "),
@@ -612,7 +612,7 @@ mod tests {
         name = "main"
         domains = ["example.com", "www.example.com"]
         site_title = "Example"
-        theme = "roastery"
+        theme = "my-theme"
         plugins = ["my-plugin"]
         memory = "512m"
 
@@ -675,7 +675,7 @@ mod tests {
         assert_eq!(compose.matches("ports:").count(), 1);
 
         let main: AegisConfig = toml::from_str(file(&generated, "sites/main/aegis.toml")).unwrap();
-        assert_eq!(main.theme.active, "roastery");
+        assert_eq!(main.theme.active, "my-theme");
         assert_eq!(main.theme.site_title, "Example");
         assert_eq!(main.plugins.enabled, vec!["my-plugin".to_string()]);
         assert!(main.commerce.enabled);

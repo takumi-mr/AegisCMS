@@ -55,7 +55,7 @@ name = "main"                      # サービス名・データのボリュー�
 domains = ["example.com", "www.example.com"]   # 先頭が正規のドメイン。残りは先頭へリダイレクト
 site_title = "Example"
 site_description = "..."
-theme = "minimal-editorial"
+theme = "default"
 plugins = []
 memory = "512m"                    # コンテナのメモリの上限（任意）
 

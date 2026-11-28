@@ -180,7 +180,7 @@ The public page CSP's `style-src` is `'self'` and the `<style>` hashes (§6.1), 
 - What you can write is `style_domains` (`style-src`), `font_domains` (`font-src`), and `img_domains` (`img-src`). **Script hosts cannot be declared** (a theme's scripts are its own files or `inline_script()`).
 - Host names only (no wildcards, schemes, ports, or paths), up to 10 per list. A theme with errors cannot be installed, and errors in a running theme are ignored (with a warning).
 - The admin screen's "Themes" card shows "Loads from other sites: … (visitors' IP addresses are sent)". Visitors' IP addresses reach external font CDNs, so mention it in your privacy policy.
-- Among the bundled themes, `emerald-luxury`, `minimal-editorial`, `roastery`, and `trailhead`, which load Google Fonts, declare it (`cyber-neon` does not load them).
+- Among the official themes (installed from the store), `emerald-luxury`, `minimal-editorial`, `roastery`, and `trailhead`, which load Google Fonts, declare it (`cyber-neon` does not load them).
 
 Even when an administrator has overridden the CSP in the admin screen, the declared hosts are added (the same as a plugin's `capabilities.csp`).
 

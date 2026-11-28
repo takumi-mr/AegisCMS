@@ -21,9 +21,9 @@ name = "main"
 domains = ["example.com", "www.example.com"]
 site_title = "Example"
 site_description = "AegisCMS で作ったサイトです。"
-# テーマ: default / minimal-editorial / emerald-luxury / cyber-neon / roastery / trailhead、
-# または deploy/themes/<id>/ に置いた自作のテーマ
-theme = "minimal-editorial"
+# テーマ: default、または deploy/themes/<id>/ に置いた自作のテーマ。公式のテーマは、サイトの Admin Studio の
+# ストアから入れて切り替える（ボリュームに残る）
+theme = "default"
 # 有効にするプラグイン（deploy/plugins/<name>/ に置いたもの）。公式のプラグインは、サイトの Admin Studio の
 # ストアのタブから入れて有効にする（ボリュームに残る）
 plugins = []
@@ -47,7 +47,7 @@ theme = "default"
 # [[sites]]
 # name = "shop"
 # domains = ["shop.example.com"]
-# theme = "roastery"
+# theme = "default"
 # plugins = ["official-shop-rules"]
 #
 # [sites.config.commerce]

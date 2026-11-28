@@ -1,0 +1,12 @@
+{
+  "id": "test-fonts",
+  "name": "Test Fonts",
+  "version": "1.0.0",
+  "description": "For AegisCMS's own tests only (not shipped). Declares Google Fonts in its CSP hosts.",
+  "author": "AegisCMS Core Team",
+  "license": "MIT OR Apache-2.0",
+  "csp": {
+    "style_domains": ["fonts.googleapis.com"],
+    "font_domains": ["fonts.gstatic.com"]
+  }
+}

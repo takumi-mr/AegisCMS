@@ -462,10 +462,10 @@ const captureThemeBuilder = async () => {
   const themesDir = join(workDir, 'theme');
   rmSync(themesDir, { recursive: true, force: true });
   mkdirSync(themesDir, { recursive: true });
-  cpSync(join(root, 'themes', 'roastery'), join(themesDir, 'roastery'), { recursive: true });
+  cpSync(join(root, 'themes', 'default'), join(themesDir, 'default'), { recursive: true });
 
   const children = [
-    spawn(serverBin, ['theme', 'dev', join(themesDir, 'roastery'), '--port', String(devPort)], {
+    spawn(serverBin, ['theme', 'dev', join(themesDir, 'default'), '--port', String(devPort)], {
       cwd: root,
       stdio: 'inherit',
       env: { ...process.env, RUST_LOG: 'warn' },

@@ -6,7 +6,7 @@
 
 公開サイトの見た目（テーマ）の作り方をまとめます。テーマエンジンの仕組み（テンプレートの探索順、プラグインによる書き換え）は [コンテンツ公開 & テーマエンジン開発ガイド](./theme_and_publishing_guide.ja.md) を参照してください。
 
-お手本には `themes/roastery`（サンプルショップ「朝凪珈琲」のテーマ）が一番よくまとまっています。ショップのページまで含めてテーマの色で表示され、スマートフォンの幅にも対応しています。
+お手本には [`roastery`](https://github.com/takumi-mr/AegisCMS-Plugin/tree/main/themes/roastery)（サンプルショップ「朝凪珈琲」のテーマ）が一番よくまとまっています。ショップのページまで含めてテーマの色で表示され、スマートフォンの幅にも対応しています。
 
 ---
 
@@ -20,7 +20,7 @@ task theme:new -- my-theme
 
 # 表示名や既存テーマをベースに指定して生成
 task theme:new -- coffee-craft --title "Coffee Craft"
-task theme:new -- custom-trailhead --from trailhead
+task theme:new -- my-default --from default
 ```
 
 ---
@@ -286,7 +286,7 @@ latest_types = ["article", "works"]   # 記事と works をまとめて新着に
 {{ post_card(item) }}
 ```
 
-同梱のサンプルテーマ `themes/app-shell` は、この仕組みだけで作ったアプリ風のレイアウトです。上に固定のツールバー、狭い画面ではドロワーになるサイドメニュー、小さなスピードダイヤルを開く浮遊ボタン（FAB）があります。JavaScript は使いません。
+公式のサンプルテーマ [`app-shell`](https://github.com/takumi-mr/AegisCMS-Plugin/tree/main/themes/app-shell) は、この仕組みだけで作ったアプリ風のレイアウトです。上に固定のツールバー、狭い画面ではドロワーになるサイドメニュー、小さなスピードダイヤルを開く浮遊ボタン（FAB）があります。JavaScript は使いません。
 
 - 開閉の状態は `<input type="checkbox">` が持ちます。`<label for="...">` で切り替え、CSS が `:checked` と兄弟セレクター（`~`）で読み取ります。チェックボックスは `base.html` で部品より**前**に置きます。
 - FAB の項目は普通のリンク（`<a href="#top">`）です。`scroll-behavior: smooth` でなめらかに動きます。
@@ -398,7 +398,7 @@ latest_types = ["article", "works"]   # 記事と works をまとめて新着に
 
 ## 7. 開発の流れ
 
-1. `themes/` に既存のテーマ（`roastery` など）をコピーし、ディレクトリ名と `theme.json` の `id` を変える。
+1. `themes/` に既存のテーマ（`default` や、[AegisCMS-Plugin](https://github.com/takumi-mr/AegisCMS-Plugin/tree/main/themes) の公式のテーマなど）をコピーし、ディレクトリ名と `theme.json` の `id` を変える。
 2. 設定で `[theme].reload_templates = true` にする。描画のたびにテンプレートを読み直すので、サーバーを再起動せずに確かめられます（本番では `false`）。CSS などのアセットは毎回ファイルから配信されます。
 3. テーマを切り替える。Admin Studio の **Settings → Themes**、`PUT /api/v1/themes/active`（`{"theme_id": "my-theme"}`、admin のみ）、または `[theme].active` で切り替えます。
 4. 中身のあるサイトで確かめる。サンプルショップ（`task demo:shop` と、別のターミナルで `task demo:shop:seed`。手順は [examples/coffee-shop](../examples/coffee-shop)）を使うと、記事・固定ページ・商品・カテゴリが揃います。
