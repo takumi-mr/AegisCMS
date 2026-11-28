@@ -1,5 +1,27 @@
 # Changelog
 
+## [0.13.0](https://github.com/takumi-mr/AegisCMS/compare/v0.12.0...v0.13.0) (2026-11-28)
+
+
+### ⚠ BREAKING CHANGES
+
+* **theme:** a site whose active theme is one of the moved themes shows the built-in look until that theme is installed from the store (Admin Studio > Themes > Store). docs/upgrade.md describes it.
+* **plugin:** a site running with the shipped config/default.toml (or a copy of its [plugins] section) loses code highlighting and diagrams until it enables those plugins again in Admin Studio > Plugins or in [plugins].enabled. docs/upgrade.md describes it.
+* a site running with the shipped config/default.toml (or a copy of its [plugins] section) loses code highlighting and diagrams until it enables those plugins again in Admin Studio > Plugins or in [plugins].enabled. docs/upgrade.md describes it.
+* **plugin:** these plugins are no longer bundled. A site that has any of them enabled does not start until they are installed again from the store. docs/upgrade.md describes the steps.
+
+### Features
+
+* **admin:** install and update plugins and themes from the store ([#433](https://github.com/takumi-mr/AegisCMS/issues/433)) ([5c8092d](https://github.com/takumi-mr/AegisCMS/commit/5c8092dc3565721275d7f709702de00d0e72e571))
+* **plugin:** stop bundling the official plugins moved to the store ([#432](https://github.com/takumi-mr/AegisCMS/issues/432)) ([48f52ff](https://github.com/takumi-mr/AegisCMS/commit/48f52ffa0b207d0bea0e0c238f5f59b8efecb85c))
+* **plugin:** stop bundling the remaining official plugins ([#438](https://github.com/takumi-mr/AegisCMS/issues/438)) ([c107bf7](https://github.com/takumi-mr/AegisCMS/commit/c107bf784a2001845995fa0ffaebb3dc6c392b27))
+* recommend packages on the Store tab and enable no plugin by default ([#437](https://github.com/takumi-mr/AegisCMS/issues/437)) ([0103519](https://github.com/takumi-mr/AegisCMS/commit/0103519ac9d29de58a2d45881683aa14dc1db5c7))
+* **server:** install plugins and themes from the package store ([#429](https://github.com/takumi-mr/AegisCMS/issues/429)) ([d0c980a](https://github.com/takumi-mr/AegisCMS/commit/d0c980acb1f980486ec2d4e895bcc1941d1bc55b))
+* **server:** keep installed plugins and themes apart from bundled ones ([#431](https://github.com/takumi-mr/AegisCMS/issues/431)) ([49f8abc](https://github.com/takumi-mr/AegisCMS/commit/49f8abc92bccd9c90d4ea3346eec4bf621e00703))
+* **server:** pick previous and next articles from a core setting ([#436](https://github.com/takumi-mr/AegisCMS/issues/436)) ([0daf05d](https://github.com/takumi-mr/AegisCMS/commit/0daf05d650bf6b604027c59854b1be4f43ea0de9))
+* **theme:** let themes carry their own text in locales/ ([#439](https://github.com/takumi-mr/AegisCMS/issues/439)) ([2f29542](https://github.com/takumi-mr/AegisCMS/commit/2f29542280f5379b4410905e323c27eae0166356))
+* **theme:** stop bundling the official themes besides default and wordpress-classic ([#441](https://github.com/takumi-mr/AegisCMS/issues/441)) ([e787611](https://github.com/takumi-mr/AegisCMS/commit/e78761164f0a89260cd40833417ae004aa4447ac))
+
 ## [0.12.0](https://github.com/takumi-mr/AegisCMS/compare/v0.11.0...v0.12.0) (2026-11-27)
 
 

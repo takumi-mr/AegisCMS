@@ -12,4 +12,4 @@ workspace = true
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-aegis-plugin-sdk = { path = "../../../crates/aegis-plugin-sdk", version = "0.12.0" }
+aegis-plugin-sdk = { path = "../../../crates/aegis-plugin-sdk", version = "0.13.0" }
