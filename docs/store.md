@@ -2,10 +2,10 @@
 
 **English** | [日本語](store.ja.md)
 
-# Package store (design, not implemented)
+# Package store
 
 > [!NOTE]
-> This is a design note. Implemented so far: fetching and verifying catalogs, the listing API (`GET /api/v1/store/packages`) and installing from the store (`POST /api/v1/store/install`); settings and APIs in [configuration.md 2.28](configuration.md#228-store--package-store). and the Admin Studio screen (a **Store** tab on the Themes and Plugins screens, [admin-settings.md](admin-settings.md#store-on-the-themes-and-plugins-screens)). Once the open questions are settled, this will be rewritten as a specification.
+> How the package store works. Settings and APIs: [configuration.md 2.28](configuration.md#228-store--package-store); the Admin Studio screens: [admin-settings.md](admin-settings.md#store-on-the-themes-and-plugins-screens). [6](#6-later-accepting-third-party-packages) is a design for later (third-party packages), not implemented.
 
 Lets admins pick published plugins and themes in Admin Studio and install or update them. The distribution side is **static files only** (a signed catalog and ZIP files); there is no dedicated HTTP server. AegisCMS reads the catalog, downloads a ZIP, and hands it to the existing ZIP installation ([installing packages and signatures](plugin_hooks.md#74-installing-from-a-zip-package-and-signatures)).
 
@@ -23,13 +23,13 @@ So that stage 2 does not force a redesign, the catalog format and the CMS settin
 
 ## 2. Layout
 
-Packages are distributed from a repository separate from the main one (for example `aegis-store`). The main repository's Releases are managed by release-please (tags and CHANGELOG), so plugin tags stay out of it.
+Packages are distributed from [AegisCMS-Store](https://github.com/takumi-mr/AegisCMS-Store), a repository separate from the core. The core's Releases are managed by release-please (tags and CHANGELOG), so package tags stay out of it. AegisCMS-Store builds the packages from the tags of its sources (`sources` in its `store.json`): the official plugins and themes from [AegisCMS-Plugin](https://github.com/takumi-mr/AegisCMS-Plugin), and the themes that stay in the core from its release tag ([7](#7-where-the-official-packages-live)).
 
 ```text
- aegis-store repository
-   ├─ GitHub Pages:    https://<owner>.github.io/aegis-store/catalog.json
-   │                   https://<owner>.github.io/aegis-store/catalog.json.sig
-   └─ GitHub Releases: https://github.com/<owner>/aegis-store/releases/download/<tag>/<file>.zip
+ AegisCMS-Store repository
+   ├─ GitHub Pages:    https://takumi-mr.github.io/AegisCMS-Store/catalog.json
+   │                   https://takumi-mr.github.io/AegisCMS-Store/catalog.json.sig
+   └─ GitHub Releases: https://github.com/takumi-mr/AegisCMS-Store/releases/download/<tag>/<file>.zip
                          (downloads are redirected with 302 to release-assets.githubusercontent.com)
 
  AegisCMS (each site)
@@ -39,7 +39,7 @@ Packages are distributed from a repository separate from the main one (for examp
 
 - **The catalog lives on Pages**: it keeps changing, so it is not a Releases asset (awkward to replace) or served from `raw.githubusercontent.com` (cached for minutes).
 - **No GitHub API**: unauthenticated API calls are limited to 60 per hour, which many sites would hit. The list comes from the catalog, and ZIPs come from the direct URLs in it.
-- **One tag name per package**: `<id>-v<version>` (for example `seo-tools-v1.2.0`, `theme-minimal-v0.3.1`).
+- **One tag name per package**: `<id>-v<version>` (for example `official-blocks-v0.5.0`, `roastery-v1.1.0`).
 - **Released assets are never replaced**: a fix is a new version, so the catalog's sha256 never disagrees with the file.
 
 ## 3. Catalog format
@@ -94,7 +94,7 @@ public_key = "<Ed25519 public key for the catalog signature, 32 bytes hex>"
 ```
 
 - Catalogs are an array; each key is used for its own catalog only.
-- Without `[[store.catalogs]]`, the official catalog (AegisCMS-Store; URL and public key are `OFFICIAL_CATALOG_*` in `store.rs`) is read. Writing some replaces it. `enabled` defaults to `true`; the catalog is fetched only when an administrator opens the Store tab or calls the API (no requests at start-up or in the background).
+- Without `[[store.catalogs]]`, the official catalog (AegisCMS-Store; URL and public key are `OFFICIAL_CATALOG_*` in `store.rs`) is read. Writing some replaces it. `enabled` defaults to `true`; the catalog is fetched only when an administrator opens the Store tab, when the update check is due ([8](#8-update-notices)), or through the API (no requests at start-up, in the background, or for visitors).
 - The official catalog key is built into the server, so after rotating it only servers updated to a version with the new key can read the catalog. Keep a copy of the catalog private key outside the GitHub secret.
 - Accepted sequences are recorded in the DB (`store.catalog_sequences` in `_aegis_settings`), shared by all servers and never lowered. Restoring a backup brings the record back to its value at that time; that only loosens the check until the next accepted catalog.
 - The key in the ZIP's `signature.json` must match the entry's `public_key`. `require_signatures` and `trusted_public_keys` under `[plugins]` / `[theme]` still apply; going through the store never relaxes them.
@@ -102,7 +102,7 @@ public_key = "<Ed25519 public key for the catalog signature, 32 bytes hex>"
 ### 4.2 Flow
 
 1. Fetch the catalog and `.sig`, then check the signature, `schema_version`, `sequence` and `expires_at`.
-2. Show the list in Admin Studio. For installed packages, compare versions and offer updates. Incompatible ones (`min_aegis_version`) cannot be selected.
+2. Show the list in Admin Studio. For installed packages from the same source, compare versions and offer updates ([8](#8-update-notices)). Incompatible ones (`min_aegis_version`) cannot be selected.
 3. Before installing, show `capabilities` and ask for confirmation.
 4. Fetch the ZIP and check `size` and `sha256`.
 5. Hand it to the existing steps (`extract_zip_safely` → `check_min_aegis_version` → `verify_package_signature`). Installing does not enable it (same as today). The audit log records the catalog and the URL it came from.
@@ -117,7 +117,7 @@ public_key = "<Ed25519 public key for the catalog signature, 32 bytes hex>"
 
 - Private keys never go into a repository. When CI signs, the key lives in an Actions secret.
 - The **catalog key** and the **ZIP key** are separate. A leaked ZIP key cannot ship a ZIP that is not in the catalog; a leaked catalog key cannot forge ZIP signatures.
-- To rotate a key, first make AegisCMS accept both old and new keys (`store.catalogs[].public_key`), then switch (open question, [8](#8-open-questions)).
+- How to rotate the catalog key without cutting off released servers is still open ([9](#9-open-questions)).
 
 Publishing (CI example): push a tag → build → sign the ZIP → create the Release → regenerate and sign `catalog.json` → deploy to Pages. Pushing the tag is the only manual step. Download counts are available from the Releases assets.
 
@@ -152,30 +152,20 @@ For authors who do not want to hand source to review at all, a tier that accepts
 - **The Wasm sandbox is what makes binary-only acceptable.** Undeclared permissions are stopped at run time, so with narrow permissions the damage is bounded without reading the source. Conversely, anything with strong permissions is never listed without reading its source.
 - Catalog entries carry the tier (`review`: `"reviewed"` / `"unreviewed"`), shown in the Admin Studio list and on the confirmation screen. Operators can refuse the binary-only tier in settings (for example `[store] allow_unreviewed = false`).
 
-## 7. Moving official packages to another repository (plan)
+## 7. Where the official packages live
 
-The goal is that **every official plugin is distributed through the store and the core ships none**. Plugins live in [AegisCMS-Plugin](https://github.com/takumi-mr/AegisCMS-Plugin) with their own tests, and AegisCMS-Store builds them from that repository's tags (`sources` in `store.json`). The core's tests stop using official plugins and use small test plugins instead.
+Since v0.13.0 the core ships no official plugin and only two themes. Upgrading from earlier versions: [upgrade.md](upgrade.md).
 
-| Group              | Packages                                                                                                                                                                                                                                          | What it needs                                                                                                                                                            |
-| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Moved (v0.13.0)    | `official-ads`, `official-clarity`, `official-embeds`, `official-link-embed`, `official-charts`, `official-share-buttons`, `official-reading-time`, `official-back-to-top`, `official-code-lines`, `official-lightbox`, `official-external-links` | Done                                                                                                                                                                     |
-| Used by core tests | `official-blocks`, `official-page-toc`, `official-code-enhancer`, `official-shop-rules`, `official-order-notifier`                                                                                                                                | The server tests (plugin switching, commerce, notifications), the E2E tests (`plugins.spec.ts`, `csp.spec.ts`) and the pentest load them. Replace them with test plugins |
-| Enabled by default | `official-code-enhancer`, `official-mermaid`, `official-plantuml`                                                                                                                                                                                 | `config/default.toml` and the bench configurations enable them, and the server does not start when an enabled plugin is missing                                          |
-| Read by the core   | `official-post-navigation`                                                                                                                                                                                                                        | The core picks the previous and next articles from this plugin's settings (`mode`, `same_category`, `fallback_to_all`, `order_by`; `handlers/public.rs`, `related.rs`)   |
-| Themes             | themes other than `default`                                                                                                                                                                                                                       | Theme strings live in the core's `aegis-theme/src/messages.rs`; themes need a way to carry their own                                                                     |
+| What                                                                                             | Where                                                                                        | Why                                                                                                  |
+| ------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| All official plugins (`official-*`)                                                              | [AegisCMS-Plugin](https://github.com/takumi-mr/AegisCMS-Plugin) `plugins/`, with their tests | Installed from the store. Releasing a change: that repository's README                               |
+| Themes `app-shell`, `cyber-neon`, `emerald-luxury`, `minimal-editorial`, `roastery`, `trailhead` | AegisCMS-Plugin `themes/`, with their text in `locales/`                                     | Installed from the store                                                                             |
+| Themes `default`, `wordpress-classic`                                                            | The core (`themes/`), also in the store                                                      | The theme engine falls back to `default`; the WordPress theme import starts from `wordpress-classic` |
 
-Order (all done):
-
-1. Let the store build from several sources (`sources` in AegisCMS-Store's `store.json`).
-2. Build the store install API (`POST /api/v1/store/install`) and the Store tab in Admin Studio.
-3. Move the plugins the core did not need to AegisCMS-Plugin, with their tests (taken from core v0.12.0).
-4. Remove them from the core, released as `feat!:` in v0.13.0 with migration steps ([upgrade.md](upgrade.md)).
-5. **Test plugins** (done: [`test-plugins/`](../test-plugins/README.md)). Add small plugins built with the Rust SDK for the core's tests only (not shipped, not in the store). They cover what the tests need: a page hook that adds an inline script and a CSP host, blocks with their own style, order calculation, a notification that sends a request, and declared settings. Switch the server tests, the E2E tests and the pentest to them. The tests of the real plugins (`aegis-runtime/tests/sdk_plugins.rs`) move with the plugins.
-6. **Previous and next articles become a core setting** (done: [`[adjacent_articles]`](configuration.md#229-adjacent_articles--previous-and-next-articles)). Move the four settings into a core section, editable in Admin Studio. For a while, when the new section is not set, the core still reads `[plugins.settings.official-post-navigation]` and logs a warning. The plugin then only draws the links.
-7. **Nothing is enabled by default** (done: `config/default.toml`, and `recommended` in AegisCMS-Store's `store.json`). Stop enabling code highlighting, Mermaid and PlantUML in the shipped configurations. The Store tab shows a short list of recommended packages (marked in the catalog), each installed with one click. No request is made at start-up.
-8. (Done: AegisCMS-Plugin tag `v2026.11.28.1`.) Move the remaining plugins to AegisCMS-Plugin with their tests, and switch their source in `store.json`.
-9. (Done in v0.13.0.) Remove them from the core as `feat!:`, with migration steps. The Docker image and the release archives then ship no plugins; `bundled_plugins_dir` stays for anyone who builds their own image.
-10. (Done in v0.13.0: AegisCMS-Plugin tag `v2026.11.28.2`.) Move themes once they can carry their own strings (`locales/`). `default` and `wordpress-classic` stay in the core: the theme engine falls back to `default`, and the WordPress theme import starts from `wordpress-classic`.
+- **Nothing is enabled by default.** The shipped configurations enable no plugin. The catalog marks recommended packages (`recommended` in AegisCMS-Store's `store.json`: code highlighting, Mermaid, PlantUML, content blocks), which the Store tab lists first until they are installed.
+- **The core's tests use their own packages**: [`test-plugins/`](../test-plugins/README.md) and [`test-themes/`](../test-themes/README.md), never shipped or in the store. They cover what the core needs from plugins and themes (page hooks with inline scripts and CSP hosts, blocks with their own style, order calculation, notifications, declared settings, a theme declaring CSP hosts). The tests of the official packages themselves run in AegisCMS-Plugin against a core release tag.
+- **The core does not depend on any official package.** Previous and next articles are a core setting ([`[adjacent_articles]`](configuration.md#229-adjacent_articles--previous-and-next-articles)), not `official-post-navigation`'s.
+- **A theme carries its own text** (`locales/`, [theme authoring guide 2](theme_authoring_guide.md#2-directory-layout)), so it can be distributed apart from the core.
 
 ## 8. Update notices
 
@@ -191,4 +181,5 @@ Later: a "security update" mark in the catalog, and keeping the previous version
 
 ## 9. Open questions
 
-- How to rotate keys (whether the catalog should announce the next key).
+- **Rotating the catalog key.** The official catalog's public key is built into the server (`OFFICIAL_CATALOG_PUBLIC_KEY`), so a catalog signed with a new key is refused by every released server. Today a rotation means releasing a core with the new key; until a site updates, it can write the new key in `[[store.catalogs]]` (AegisCMS-Store's README). One way to avoid the gap: let the catalog announce the next key, signed with the current one, so servers learn it before the switch.
+- **Rotating the ZIP key.** The catalog lists each version's key, so new versions can simply be signed with a new key. But updates are offered only when the installed package's key appears among the catalog's versions of that package ([8](#8-update-notices)): as long as the old versions stay listed, updates keep showing; dropping them would hide updates from sites still on an old-key version. Decide together with the catalog key.
