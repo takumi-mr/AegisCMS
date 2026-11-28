@@ -96,6 +96,7 @@ export const TableBlockEditor: React.FC<TableBlockEditorProps> = ({ block, onCha
           <thead>
             <tr>
               {align.map((a, c) => (
+                // oxlint-disable-next-line react/no-array-index-key -- table columns are addressed by column index
                 <th key={c}>
                   <select
                     className={styles.align}
@@ -119,8 +120,10 @@ export const TableBlockEditor: React.FC<TableBlockEditorProps> = ({ block, onCha
           </thead>
           <tbody>
             {grid.map((row, r) => (
+              // oxlint-disable-next-line react/no-array-index-key -- table rows are addressed by row index
               <tr key={r} className={header && r === 0 ? styles.headerRow : undefined}>
                 {row.map((cell, c) => (
+                  // oxlint-disable-next-line react/no-array-index-key -- table cells are addressed by column index
                   <td key={c}>
                     <input
                       type="text"

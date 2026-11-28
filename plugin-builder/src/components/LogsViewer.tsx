@@ -5,6 +5,19 @@ interface LogsViewerProps {
   logs: PluginLogEntry[];
 }
 
+const levelColor = (level: string) => {
+  switch (level.toLowerCase()) {
+    case 'error':
+      return { bg: '#ffebe9', text: '#cf222e' };
+    case 'warn':
+      return { bg: '#fff8c5', text: '#9a6700' };
+    case 'debug':
+      return { bg: '#f6f8fa', text: '#57606a' };
+    default:
+      return { bg: '#ddf4ff', text: '#0969da' };
+  }
+};
+
 export function LogsViewer({ logs }: LogsViewerProps) {
   const { t } = useTranslation();
 
@@ -15,19 +28,6 @@ export function LogsViewer({ logs }: LogsViewerProps) {
       </div>
     );
   }
-
-  const levelColor = (level: string) => {
-    switch (level.toLowerCase()) {
-      case 'error':
-        return { bg: '#ffebe9', text: '#cf222e' };
-      case 'warn':
-        return { bg: '#fff8c5', text: '#9a6700' };
-      case 'debug':
-        return { bg: '#f6f8fa', text: '#57606a' };
-      default:
-        return { bg: '#ddf4ff', text: '#0969da' };
-    }
-  };
 
   return (
     <div
@@ -43,6 +43,7 @@ export function LogsViewer({ logs }: LogsViewerProps) {
         const colors = levelColor(log.level);
         return (
           <div
+            // oxlint-disable-next-line react/no-array-index-key -- log entries may share identical timestamps and messages
             key={i}
             style={{
               display: 'flex',

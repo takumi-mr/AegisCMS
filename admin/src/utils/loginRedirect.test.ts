@@ -34,7 +34,7 @@ describe('loginRedirect utility', () => {
 
     beforeEach(() => {
       setSessionToken('');
-      const mockReplaceState = vi.fn();
+      const mockReplaceState = vi.fn<Window['history']['replaceState']>();
       global.window = {
         location: {
           hash: '',

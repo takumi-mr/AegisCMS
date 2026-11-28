@@ -1,6 +1,6 @@
 import { defineConfig, devices } from '@playwright/test';
 
-const isCI = !!process.env.CI;
+const isCI = Boolean(process.env.CI);
 const BUILDER_URL = 'http://localhost:15174';
 
 // E2E tests against a real theme dev server (e2e/start-servers.mjs) with Theme Builder in front.

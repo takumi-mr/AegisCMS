@@ -7,10 +7,10 @@ const config: StorybookConfig = {
   core: { disableTelemetry: true },
   // The app's vite.config.ts uses `base: './'` for the server; Storybook serves from its own root
   // `base`: see above. `fs.allow`: stories may read the files the server serves (crates/aegis-server/assets)
-  viteFinal: (config) => ({
-    ...config,
+  viteFinal: (viteConfig) => ({
+    ...viteConfig,
     base: '/',
-    server: { ...config.server, fs: { ...config.server?.fs, allow: ['..'] } },
+    server: { ...viteConfig.server, fs: { ...viteConfig.server?.fs, allow: ['..'] } },
   }),
 };
 

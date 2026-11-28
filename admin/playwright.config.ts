@@ -1,6 +1,6 @@
 import { defineConfig, devices } from '@playwright/test';
 
-const isCI = !!process.env.CI;
+const isCI = Boolean(process.env.CI);
 
 // E2E tests against a real core server (e2e/start-server.mjs) serving the built Admin Studio.
 // The tests share its database, so they run one at a time.

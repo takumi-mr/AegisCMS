@@ -12,6 +12,8 @@ const makeSession = (role: string, metadata: Record<string, string> = {}): Sessi
   metadata,
 });
 
+const own = (status: string) => ({ author_id: 'user_john', status });
+
 describe('roles utility', () => {
   describe('canEdit', () => {
     it('returns true for admin role', () => {
@@ -68,8 +70,6 @@ describe('roles utility', () => {
   });
 
   describe('canChangeContent', () => {
-    const own = (status: string) => ({ author_id: 'user_john', status });
-
     it('lets editors change any content', () => {
       expect(
         canChangeContent(makeSession('editor'), { author_id: 'other', status: 'published' })

@@ -82,7 +82,9 @@ export function App() {
         } catch {
           if (!abortCtrl.signal.aborted) {
             setConnected(false);
-            await new Promise((r) => setTimeout(r, 2000));
+            await new Promise<void>((r) => {
+              setTimeout(r, 2000);
+            });
           }
         }
       }
@@ -267,6 +269,7 @@ export function App() {
             {inputTabs.map((tab) => (
               <button
                 key={tab.id}
+                type="button"
                 onClick={() => setInputTab(tab.id)}
                 style={{
                   padding: '8px 14px',

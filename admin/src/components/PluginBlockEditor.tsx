@@ -65,6 +65,7 @@ const FieldControl: React.FC<FieldControlProps> = ({ field, id, value, onChange,
           {items.map((item, index) => {
             const itemMissing = missingRequired(subFields, item);
             return (
+              // oxlint-disable-next-line react/no-array-index-key -- plugin block list items are edited in place by index
               <div key={index} className={styles.item}>
                 <div className={styles.itemHeader}>
                   <span className={styles.itemTitle}>
@@ -124,7 +125,7 @@ const FieldControl: React.FC<FieldControlProps> = ({ field, id, value, onChange,
               <Plus size={14} />
               <span>{t('blocks.plugin.addItem')}</span>
             </Button>
-            {field.max_items != null && (
+            {field.max_items !== null && field.max_items !== undefined && (
               <span className={styles.help}>
                 {t('blocks.plugin.itemCount', { count: items.length, max })}
               </span>

@@ -46,7 +46,7 @@ const fieldDiffs = (
   after: Record<string, unknown>
 ): Array<{ name: string; lines: DiffLine[] }> =>
   Array.from(new Set([...Object.keys(before), ...Object.keys(after)]))
-    .sort()
+    .toSorted()
     .map((name) => ({ name, lines: diffLines(asText(before[name]), asText(after[name])) }))
     .filter(({ lines }) => hasChanges(lines));
 
@@ -54,6 +54,7 @@ const DiffView: React.FC<{ lines: DiffLine[] }> = ({ lines }) => (
   <pre className={styles.diff}>
     {lines.map((line, index) => (
       <div
+        // oxlint-disable-next-line react/no-array-index-key -- diff lines are ordered by line index
         key={index}
         className={cx(
           styles.line,
@@ -71,6 +72,8 @@ const DiffView: React.FC<{ lines: DiffLine[] }> = ({ lines }) => (
   </pre>
 );
 
+const EMPTY_MEMBER_LEVELS: NonNullable<ContentVersionPreviewModalProps['memberLevels']> = [];
+
 /**
  * One saved version, read-only: the rendered Preview of its content, and the diff from that
  * version to what the editor holds now (red: only in the version, green: only in the editor).
@@ -79,7 +82,7 @@ export const ContentVersionPreviewModal: React.FC<ContentVersionPreviewModalProp
   contentType,
   version,
   current,
-  memberLevels = [],
+  memberLevels = EMPTY_MEMBER_LEVELS,
   canRestore = true,
   onRestore,
   onClose,

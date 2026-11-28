@@ -414,6 +414,7 @@ const OrderDetail: React.FC<OrderDetailProps> = ({
               </div>
             ))}
             {order.adjustments.map((adjustment, index) => (
+              // oxlint-disable-next-line react/no-array-index-key -- adjustments do not carry unique IDs
               <div key={index} className={styles.sumRow}>
                 <span>
                   {adjustment.label}

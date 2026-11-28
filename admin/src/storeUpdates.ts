@@ -38,6 +38,6 @@ export const updatesOf = (state: StoreUpdates, kind: StorePackageKind): StoreUpd
 export const lastChecked = (catalogs: StoreUpdateCheckStatus[]): string | undefined =>
   catalogs
     .map((c) => c.checked_at)
-    .filter((at): at is string => !!at)
-    .sort()
+    .filter((at): at is string => Boolean(at))
+    .toSorted()
     .at(-1);

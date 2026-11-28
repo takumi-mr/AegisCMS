@@ -122,9 +122,9 @@ export const MediaLibrary: React.FC<MediaLibraryProps> = ({
     setPendingDelete({ ...pendingDelete, busy: true, error: null });
     try {
       // The second confirmation (after the server listed the contents using it) forces it
-      const result = await aegisApi.deleteStorageObject(object.key, references !== null);
-      if (!result.deleted) {
-        setPendingDelete({ object, references: result.references, busy: false, error: null });
+      const deletedRes = await aegisApi.deleteStorageObject(object.key, references !== null);
+      if (!deletedRes.deleted) {
+        setPendingDelete({ object, references: deletedRes.references, busy: false, error: null });
         return;
       }
       setResult((prev) =>

@@ -2,7 +2,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { aegisApi } from './client';
 
 // The content list calls of the client: what is asked of the server, and what it gives back
-const fetchMock = vi.fn();
+const fetchMock = vi.fn<typeof fetch>();
+
+const makeCategoryItem = (n: number) => ({ id: `c${n}`, title: `C${n}`, slug: `c${n}` });
 
 const respond = (status: number, body?: unknown) =>
   new Response(body === undefined ? null : JSON.stringify(body), {
@@ -62,10 +64,9 @@ describe('content summaries', () => {
   });
 
   it('reads every page of a small list (the categories)', async () => {
-    const item = (n: number) => ({ id: `c${n}`, title: `C${n}`, slug: `c${n}` });
-    fetchMock.mockImplementation(async (url: string) => {
-      const offset = Number(new URL(url, 'http://localhost').searchParams.get('offset'));
-      const all = Array.from({ length: 501 }, (_, n) => item(n));
+    fetchMock.mockImplementation(async (url) => {
+      const offset = Number(new URL(String(url), 'http://localhost').searchParams.get('offset'));
+      const all = Array.from({ length: 501 }, (_, n) => makeCategoryItem(n));
       return respond(200, { contents: all.slice(offset, offset + 500), total: 501 });
     });
     const items = await aegisApi.getAllContentSummaries('category');

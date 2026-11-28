@@ -28,7 +28,10 @@ interface RenderState {
   pending: boolean;
 }
 
-const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+const sleep = (ms: number) =>
+  new Promise<void>((resolve) => {
+    setTimeout(resolve, ms);
+  });
 
 export function App() {
   const { t } = useTranslation();

@@ -20,7 +20,7 @@ export const Button: React.FC<ButtonProps> = ({
   ...rest
 }) => (
   <button
-    type={type}
+    type={type === 'submit' ? 'submit' : type === 'reset' ? 'reset' : 'button'}
     className={cx(styles[variant], danger && styles.danger, className)}
     {...rest}
   />

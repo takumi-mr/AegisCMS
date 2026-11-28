@@ -227,6 +227,7 @@ export const Header: React.FC<HeaderProps> = ({
           {navItems.map((item) => (
             <button
               key={item.id}
+              type="button"
               className={cx(styles.tab, view === item.id && styles.active)}
               onClick={() => handleSelectView(item.id)}
             >

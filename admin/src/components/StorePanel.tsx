@@ -159,7 +159,7 @@ export const StorePanel: React.FC<StorePanelProps> = ({
               p.id.toLowerCase().includes(q) ||
               p.description.toLowerCase().includes(q)
           )
-          .sort((a, b) => a.name.localeCompare(b.name))
+          .toSorted((a, b) => a.name.localeCompare(b.name))
       : [];
   // Recommended packages not installed yet come first (a new site has no plugin enabled)
   const recommended = packages.filter((p) => p.recommended && !p.installed_version);
@@ -167,7 +167,7 @@ export const StorePanel: React.FC<StorePanelProps> = ({
   const failedCatalogs = state.status === 'ready' ? state.catalogs.filter((c) => !c.ok) : [];
   const confirmItems = confirm ? storeCapabilities(confirm.version.capabilities) : [];
   // An update: what the new version is allowed to do that the installed one was not
-  const isUpdate = !!confirm?.pkg.installed_version;
+  const isUpdate = Boolean(confirm?.pkg.installed_version);
   const addedItems =
     confirm && isUpdate
       ? capabilityAdditions(confirm.version.capabilities, confirm.pkg.installed_capabilities ?? {})
@@ -339,9 +339,10 @@ export const StorePanel: React.FC<StorePanelProps> = ({
                     className={`${styles.capList} ${styles.capNew}`}
                     data-testid="store-capabilities-new"
                   >
-                    {addedItems.map((item, i) => (
-                      <li key={i}>{capabilityText(item, t)}</li>
-                    ))}
+                    {addedItems.map((item) => {
+                      const label = capabilityText(item, t);
+                      return <li key={label}>{label}</li>;
+                    })}
                   </ul>
                 ) : (
                   <p className={styles.muted}>{t('store.noNewCapabilities')}</p>
@@ -354,9 +355,10 @@ export const StorePanel: React.FC<StorePanelProps> = ({
               </h4>
               {confirmItems.length > 0 ? (
                 <ul className={styles.capList} data-testid="store-capabilities">
-                  {confirmItems.map((item, i) => (
-                    <li key={i}>{capabilityText(item, t)}</li>
-                  ))}
+                  {confirmItems.map((item) => {
+                    const label = capabilityText(item, t);
+                    return <li key={label}>{label}</li>;
+                  })}
                 </ul>
               ) : (
                 <p className={styles.muted}>
