@@ -34,6 +34,7 @@ export function ManifestEditor({
 
   if (!parsed.ok) {
     return (
+      // oxlint-disable-next-line jsx-a11y/no-static-element-interactions -- Ctrl/Cmd+S shortcut delegation container
       <div className="manifest-error" onKeyDown={handleKeyDown}>
         <div className="manifest-error-card">
           <AlertCircle size={24} className="error-icon" />
@@ -57,6 +58,7 @@ export function ManifestEditor({
   };
 
   return (
+    // oxlint-disable-next-line jsx-a11y/no-static-element-interactions -- Ctrl/Cmd+S shortcut delegation container
     <div className="manifest-editor" onKeyDown={handleKeyDown}>
       <div className="manifest-container">
         {/* 基本情報 */}

@@ -100,7 +100,9 @@ export function ExportModal({ isOpen, hasDirtyFiles, onClose }: ExportModalProps
     : 'theme-package.zip';
 
   return (
+    // oxlint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-noninteractive-element-interactions -- modal backdrop click-to-close (Escape key handled on window)
     <div className="modal-backdrop" onClick={onClose} role="dialog" aria-modal="true">
+      {/* oxlint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- prevent backdrop click propagation */}
       <div
         className="modal-card export-modal"
         onClick={(e) => e.stopPropagation()}
@@ -176,8 +178,8 @@ export function ExportModal({ isOpen, hasDirtyFiles, onClose }: ExportModalProps
 
                 {validation.errors.length > 0 && (
                   <div className="validation-errors">
-                    {validation.errors.map((err, i) => (
-                      <p key={i} className="error-item">
+                    {validation.errors.map((err) => (
+                      <p key={err} className="error-item">
                         {err}
                       </p>
                     ))}
@@ -187,8 +189,8 @@ export function ExportModal({ isOpen, hasDirtyFiles, onClose }: ExportModalProps
                 {validation.warnings.length > 0 && (
                   <div className="validation-warnings">
                     <p className="warning-title">{t('export.warningsTitle')}</p>
-                    {validation.warnings.map((warning, i) => (
-                      <p key={i} className="warning-item">
+                    {validation.warnings.map((warning) => (
+                      <p key={warning} className="warning-item">
                         {warning}
                       </p>
                     ))}

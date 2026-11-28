@@ -10,7 +10,7 @@ export function isPluginBlockName(name: string): boolean {
 
 /** Text of a manifest in `language` (e.g. `ja-JP` → `ja`), else English, else the first one */
 export function localize(text: LocalizedText | undefined, language: string): string {
-  if (text == null) return '';
+  if (text === null || text === undefined) return '';
   if (typeof text === 'string') return text;
   const short = language.split('-')[0];
   return text[language] ?? text[short] ?? text.en ?? Object.values(text)[0] ?? '';
@@ -35,7 +35,7 @@ export function listItems(value: unknown): Record<string, unknown>[] {
   if (!Array.isArray(value)) return [];
   return value.filter(
     (item): item is Record<string, unknown> =>
-      item != null && typeof item === 'object' && !Array.isArray(item)
+      item !== null && item !== undefined && typeof item === 'object' && !Array.isArray(item)
   );
 }
 
@@ -51,7 +51,9 @@ function isEmptyValue(field: PluginBlockField, value: unknown): boolean {
   if (field.type === 'list') {
     return listItems(value).every((item) => isBlankItem(field.fields ?? [], item));
   }
-  return value == null || (typeof value === 'string' && value.trim() === '');
+  return (
+    value === null || value === undefined || (typeof value === 'string' && value.trim() === '')
+  );
 }
 
 /** Names of the required fields in `values` (a block's attributes, or an item of a list) left empty */

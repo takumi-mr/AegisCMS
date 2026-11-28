@@ -1,10 +1,10 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Check, Copy, KeyRound, Save, ShieldAlert, ShieldCheck, UserRound } from 'lucide-react';
-import type { TotpSetupResult } from '../types';
+import type { TotpSetupResult, UserAccount } from '../types';
 import { Trans, useTranslation } from 'react-i18next';
 import { useRoleName } from '../i18n/roles';
 import { aegisApi } from '../api/client';
-import type { UserAccount } from '../types';
+
 import { ApiTokenManager } from './ApiTokenManager';
 import { AvatarPicker } from './AvatarPicker';
 import { Button } from './ui/Button';
@@ -305,8 +305,8 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
             <div className={styles.backupContainer}>
               <div className={styles.backupWarning}>{t('profile.twoFactor.backupWarning')}</div>
               <div className={styles.backupGrid}>
-                {backupCodes.map((code, idx) => (
-                  <div key={idx} className={styles.backupItem}>
+                {backupCodes.map((code) => (
+                  <div key={code} className={styles.backupItem}>
                     {code}
                   </div>
                 ))}

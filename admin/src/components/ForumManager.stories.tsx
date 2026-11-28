@@ -94,7 +94,7 @@ const mockPosts: ForumPost[] = [
 ];
 
 const forumApi = () => {
-  let categories = structuredClone(mockCategories);
+  const categories = structuredClone(mockCategories);
   let threads = structuredClone(mockThreads);
   let posts = structuredClone(mockPosts);
 

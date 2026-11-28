@@ -53,9 +53,12 @@ export const ScheduleCalendar: React.FC<ScheduleCalendarProps> = ({
       const typeParam = contentTypeFilter === 'all' ? undefined : contentTypeFilter;
       const res = await aegisApi.getSchedule(typeParam);
       setItems(res);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Failed to load schedule:', err);
-      onShowToast(err.message || t('schedule.loadFailed'), 'error');
+      onShowToast(
+        err instanceof Error && err.message ? err.message : t('schedule.loadFailed'),
+        'error'
+      );
     } finally {
       setLoading(false);
     }
@@ -275,8 +278,11 @@ export const ScheduleCalendar: React.FC<ScheduleCalendarProps> = ({
       const updated = { ...selectedItem, unpublish_at: unpublishIso };
       setSelectedItem(updated);
       setItems((prev) => prev.map((p) => (p.id === selectedItem.id ? updated : p)));
-    } catch (err: any) {
-      onShowToast(err.message || t('schedule.unpublishUpdateFailed'), 'error');
+    } catch (err: unknown) {
+      onShowToast(
+        err instanceof Error && err.message ? err.message : t('schedule.unpublishUpdateFailed'),
+        'error'
+      );
     } finally {
       setIsUpdatingUnpublish(false);
     }
@@ -294,8 +300,11 @@ export const ScheduleCalendar: React.FC<ScheduleCalendarProps> = ({
       setSelectedItem(updated);
       setModalUnpublishAt('');
       setItems((prev) => prev.map((p) => (p.id === selectedItem.id ? updated : p)));
-    } catch (err: any) {
-      onShowToast(err.message || t('schedule.unpublishUpdateFailed'), 'error');
+    } catch (err: unknown) {
+      onShowToast(
+        err instanceof Error && err.message ? err.message : t('schedule.unpublishUpdateFailed'),
+        'error'
+      );
     } finally {
       setIsUpdatingUnpublish(false);
     }
@@ -410,8 +419,8 @@ export const ScheduleCalendar: React.FC<ScheduleCalendarProps> = ({
           <div className={styles.calendarWrapper}>
             {/* Weekday headers */}
             <div className={styles.weekHeaderRow}>
-              {weekdays.map((day, idx) => (
-                <div key={idx} className={styles.weekHeaderCell}>
+              {weekdays.map((day) => (
+                <div key={day} className={styles.weekHeaderCell}>
                   {day}
                 </div>
               ))}
@@ -435,7 +444,7 @@ export const ScheduleCalendar: React.FC<ScheduleCalendarProps> = ({
                     </div>
 
                     <div className={styles.eventsContainer}>
-                      {dayEvents.slice(0, 3).map((ev, idx) => {
+                      {dayEvents.slice(0, 3).map((ev) => {
                         const isUnpublish = ev.type === 'unpublish';
                         const isScheduled = !isUnpublish && ev.item.status === 'scheduled';
                         const pillClass = isUnpublish
@@ -446,7 +455,7 @@ export const ScheduleCalendar: React.FC<ScheduleCalendarProps> = ({
 
                         return (
                           <button
-                            key={idx}
+                            key={`${ev.item.content_type}-${ev.item.id}-${ev.type}`}
                             type="button"
                             className={cx(styles.eventPill, pillClass)}
                             onClick={() => handleOpenDetail(ev.item)}
@@ -466,12 +475,13 @@ export const ScheduleCalendar: React.FC<ScheduleCalendarProps> = ({
                       })}
 
                       {dayEvents.length > 3 && (
-                        <span
+                        <button
+                          type="button"
                           className={styles.moreCount}
                           onClick={() => handleOpenDetail(dayEvents[3].item)}
                         >
                           +{dayEvents.length - 3} {t('schedule.more')}
-                        </span>
+                        </button>
                       )}
                     </div>
                   </div>
@@ -493,8 +503,16 @@ export const ScheduleCalendar: React.FC<ScheduleCalendarProps> = ({
               filteredItems.map((item) => (
                 <div
                   key={item.id}
+                  role="button"
+                  tabIndex={0}
                   className={styles.agendaCard}
                   onClick={() => handleOpenDetail(item)}
+                  onKeyDown={(e) => {
+                    if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) {
+                      e.preventDefault();
+                      handleOpenDetail(item);
+                    }
+                  }}
                 >
                   <div className={styles.cardMain}>
                     <div className={styles.cardTop}>
@@ -567,7 +585,9 @@ export const ScheduleCalendar: React.FC<ScheduleCalendarProps> = ({
 
       {/* Detail & Quick Edit Modal */}
       {selectedItem && (
+        // oxlint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- modal backdrop click-to-close
         <div className={styles.modalBackdrop} onClick={() => setSelectedItem(null)}>
+          {/* oxlint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- prevent backdrop click propagation */}
           <div className={styles.modal} onClick={(e) => e.stopPropagation()}>
             <div className={styles.modalHeader}>
               <h2 className={styles.modalTitle}>{selectedItem.title}</h2>

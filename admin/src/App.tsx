@@ -430,8 +430,8 @@ export const App: React.FC = () => {
     let cancelled = false;
     aegisApi
       .listBlocks()
-      .then((blocks) => {
-        if (!cancelled) setBlockDefinitions(blocks);
+      .then((loadedBlocks) => {
+        if (!cancelled) setBlockDefinitions(loadedBlocks);
       })
       .catch((err) => console.warn('Could not load the plugin blocks:', err));
     return () => {
@@ -730,9 +730,12 @@ export const App: React.FC = () => {
     try {
       const item = await aegisApi.getContent(summary.content_type, summary.id);
       if (requestId === selectRequest.current) handleSelectContent(item);
-    } catch (err: any) {
+    } catch (err: unknown) {
       if (requestId === selectRequest.current) {
-        showToast(err.message || t('api.contentNotFound'), 'error');
+        showToast(
+          err instanceof Error && err.message ? err.message : t('api.contentNotFound'),
+          'error'
+        );
       }
     }
   };
@@ -809,7 +812,7 @@ export const App: React.FC = () => {
   };
 
   // Block Manipulation
-  const addBlock = (name: string, defaultText = '', defaultAttrs: Record<string, any> = {}) => {
+  const addBlock = (name: string, defaultText = '', defaultAttrs: Record<string, unknown> = {}) => {
     const next = [...blocks, { name, text: defaultText, attributes: defaultAttrs }];
     setBlocks(next);
     setMarkdownText(blocksToMarkdown(next));
@@ -978,9 +981,12 @@ export const App: React.FC = () => {
             saved.id,
             contentTags.map((tag) => tag.id)
           );
-        } catch (err: any) {
+        } catch (err: unknown) {
           tagsFailed = true;
-          showToast(err.message || t('tags.saveFailedForContent'), 'error');
+          showToast(
+            err instanceof Error && err.message ? err.message : t('tags.saveFailedForContent'),
+            'error'
+          );
         }
       }
       loadContents();
@@ -995,8 +1001,11 @@ export const App: React.FC = () => {
             : t('editor.toasts.saved', { id: saved.id.slice(0, 8) })
         );
       }
-    } catch (err: any) {
-      showToast(err.message || t('editor.toasts.saveFailed'), 'error');
+    } catch (err: unknown) {
+      showToast(
+        err instanceof Error && err.message ? err.message : t('editor.toasts.saveFailed'),
+        'error'
+      );
     } finally {
       setIsSaving(false);
     }
@@ -1014,8 +1023,11 @@ export const App: React.FC = () => {
           title: title.trim() || slug,
         })
       );
-    } catch (err: any) {
-      showToast(err.message || t('api.contentCommentsFailed'), 'error');
+    } catch (err: unknown) {
+      showToast(
+        err instanceof Error && err.message ? err.message : t('api.contentCommentsFailed'),
+        'error'
+      );
     } finally {
       setTogglingComments(false);
     }
@@ -1026,8 +1038,11 @@ export const App: React.FC = () => {
       const item = await aegisApi.getContent(type, id);
       handleSelectContent(item);
       setView('editor');
-    } catch (err: any) {
-      showToast(err.message || t('schedule.loadFailed'), 'error');
+    } catch (err: unknown) {
+      showToast(
+        err instanceof Error && err.message ? err.message : t('schedule.loadFailed'),
+        'error'
+      );
     }
   };
 
@@ -1081,7 +1096,7 @@ export const App: React.FC = () => {
 
   return (
     // Update checks of the store, for administrators (docs/store.md 8)
-    <StoreUpdatesProvider enabled={!!session && isAdmin(session)}>
+    <StoreUpdatesProvider enabled={Boolean(session) && isAdmin(session)}>
       <div className={styles.app}>
         <Header
           view={view}
@@ -1758,6 +1773,7 @@ export const App: React.FC = () => {
                       <div className={styles.blocksList} onPaste={handleCanvasPaste}>
                         {blocks.map((block, idx) => (
                           <BlockItem
+                            // oxlint-disable-next-line react/no-array-index-key -- blocks are positional AST nodes edited in place
                             key={idx}
                             block={block}
                             index={idx}

@@ -37,12 +37,14 @@ describe('verifyEmail utility', () => {
   });
 
   describe('describeRegistrationError', () => {
-    const dummyT: TFunction = vi.fn((key: string, opts?: unknown) => {
-      if (opts && typeof opts === 'object' && 'count' in opts) {
-        return `${key}:${(opts as { count: number }).count}`;
+    const dummyT: TFunction = vi.fn<(key: string, opts?: unknown) => string>(
+      (key: string, opts?: unknown) => {
+        if (opts && typeof opts === 'object' && 'count' in opts) {
+          return `${key}:${(opts as { count: number }).count}`;
+        }
+        return key;
       }
-      return key;
-    }) as unknown as TFunction;
+    ) as unknown as TFunction;
 
     it('returns translated message for ApiError with recognized registration error code', () => {
       const err = new ApiError(400, 'Invalid email', undefined, 'invalid_email');
@@ -72,7 +74,7 @@ describe('verifyEmail utility', () => {
 
     beforeEach(() => {
       // Setup window mock
-      const mockReplaceState = vi.fn();
+      const mockReplaceState = vi.fn<Window['history']['replaceState']>();
       global.window = {
         location: {
           hash: '',

@@ -119,7 +119,11 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-const root = () => document.querySelector<HTMLElement>('[data-aegis-consent-root]')!;
+const root = () => {
+  const el = document.querySelector<HTMLElement>('[data-aegis-consent-root]');
+  if (!el) throw new Error('Consent root element not found');
+  return el;
+};
 const isOpen = () => !root().hidden;
 
 /** Nothing was chosen: the banner asks, and nothing that needs consent runs */

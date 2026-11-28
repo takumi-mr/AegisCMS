@@ -2,11 +2,11 @@
 // Keep the rules in step with src/theme/index.ts (a unit test runs this file against them).
 (function () {
   try {
-    var mode = null;
+    let mode = null;
     try {
       mode = localStorage.getItem('aegis.admin.theme');
     } catch {}
-    var light =
+    const light =
       mode === 'light' ||
       (mode !== 'dark' &&
         typeof window.matchMedia === 'function' &&

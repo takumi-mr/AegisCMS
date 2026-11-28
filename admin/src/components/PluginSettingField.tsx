@@ -17,6 +17,8 @@ interface PluginSettingFieldProps {
   onChange: (value: string) => void;
 }
 
+const text = (v: Parameters<typeof localize>[0]) => localize(v, i18n.language);
+
 /** One input of a plugin's declared settings (`settings` of its manifest), chosen by `type` */
 export const PluginSettingField: React.FC<PluginSettingFieldProps> = ({
   setting,
@@ -26,7 +28,6 @@ export const PluginSettingField: React.FC<PluginSettingFieldProps> = ({
   onChange,
 }) => {
   const { t } = useTranslation();
-  const text = (v: Parameters<typeof localize>[0]) => localize(v, i18n.language);
   const id = `plugin-setting-${setting.key}`;
   const defaultText = settingDefaultText(setting);
   const placeholder = text(setting.placeholder) || defaultText;

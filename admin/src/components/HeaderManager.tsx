@@ -295,6 +295,7 @@ export const HeaderManager: React.FC<HeaderManagerProps> = ({ onShowToast }) => 
                 <div className={styles.emptyCustom}>{t('headers.noCustomHeaders')}</div>
               ) : (
                 customHeaders.map((header, idx) => (
+                  // oxlint-disable-next-line react/no-array-index-key -- custom header rows are edited in place by index
                   <div key={idx} className={styles.customHeaderRow}>
                     <div className={styles.customHeaderName}>
                       <Field>

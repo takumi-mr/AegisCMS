@@ -34,7 +34,9 @@ export const mockApi = (handler: MockHandler, { delayMs = 150 } = {}): (() => vo
       path: url.pathname.slice(marker + '/api/v1'.length),
       body: text ? JSON.parse(text) : undefined,
     });
-    await new Promise((resolve) => setTimeout(resolve, delayMs));
+    await new Promise<void>((resolve) => {
+      setTimeout(resolve, delayMs);
+    });
 
     const { status, body } =
       result === undefined
