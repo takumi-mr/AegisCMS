@@ -154,7 +154,7 @@ export const AddNotice: Story = {
     await userEvent.click(canvas.getByRole('checkbox', { name: 'Visitors can close it' }));
     await userEvent.click(canvas.getByRole('button', { name: 'Add' }));
     await waitFor(() => expect(args.onShowToast).toHaveBeenCalledWith('Added the notice'));
-    const sent = (globalThis as { __sent?: NoticePayload[] }).__sent!;
+    const sent = (globalThis as { __sent?: NoticePayload[] }).__sent ?? [];
     await expect(sent).toHaveLength(1);
     await expect(sent[0]).toMatchObject({
       message: 'Free shipping this week',

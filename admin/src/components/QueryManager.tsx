@@ -290,6 +290,7 @@ export const QueryManager: React.FC<QueryManagerProps> = ({ onShowToast }) => {
                         </thead>
                         <tbody>
                           {item.rows.map((row, idx) => (
+                            // oxlint-disable-next-line react/no-array-index-key -- arbitrary SQL query rows have no primary key
                             <tr key={idx}>
                               {columns.map((col) => (
                                 <td key={col}>{formatCellValue(row[col])}</td>

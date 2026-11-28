@@ -1,5 +1,5 @@
+import type { BaseContentItem, BlockNode, ContentStatus, CreateArticlePayload } from './schemas';
 export * from './schemas';
-import type { BlockNode } from './schemas';
 
 export interface FieldDefinition {
   name: string;
@@ -40,7 +40,7 @@ export interface ContentVersionDetail {
  * Content item as returned by the content API.
  * Schema-specific custom fields are returned under `fields` and resolved relations under `relations`.
  */
-export type ContentItem = import('./schemas').BaseContentItem;
+export type ContentItem = BaseContentItem;
 /**
  * A content item in a list (`GET /contents/{type}?view=summary`): no blocks and no rendered HTML,
  * with a short `excerpt`. A full `ContentItem` is also a valid summary.
@@ -58,7 +58,7 @@ export interface Tag {
   created_at: string;
   updated_at: string;
 }
-export type CreateContentPayload = import('./schemas').CreateArticlePayload;
+export type CreateContentPayload = CreateArticlePayload;
 
 export type AuditAction =
   | 'content.create'
@@ -1107,7 +1107,7 @@ export interface ScheduleItem {
   content_type: string;
   title: string;
   slug: string;
-  status: import('./schemas').ContentStatus;
+  status: ContentStatus;
   published_at?: string | null;
   unpublish_at?: string | null;
   author_id?: string | null;

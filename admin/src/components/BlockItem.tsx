@@ -57,6 +57,10 @@ interface BlockItemProps {
   widgets?: WidgetSummary[];
 }
 
+const EMPTY_BLOCK_DEFINITIONS: PluginBlockDefinition[] = [];
+const EMPTY_CONTACT_FORMS: ContactForm[] = [];
+const EMPTY_WIDGETS: WidgetSummary[] = [];
+
 export const BlockItem: React.FC<BlockItemProps> = ({
   block,
   index,
@@ -66,9 +70,9 @@ export const BlockItem: React.FC<BlockItemProps> = ({
   onMoveDown,
   onDelete,
   canUpload,
-  blockDefinitions = [],
-  contactForms = [],
-  widgets = [],
+  blockDefinitions = EMPTY_BLOCK_DEFINITIONS,
+  contactForms = EMPTY_CONTACT_FORMS,
+  widgets = EMPTY_WIDGETS,
 }) => {
   const { t, i18n } = useTranslation();
   const pluginBlock = isPluginBlockName(block.name);

@@ -24,7 +24,7 @@ describe('format utilities', () => {
     });
 
     it('round-trips with toDateTimeLocal', () => {
-      expect(toDateTimeLocal(fromDateTimeLocal('2026-12-02T09:00')!)).toBe('2026-12-02T09:00');
+      expect(toDateTimeLocal(fromDateTimeLocal('2026-12-02T09:00') ?? '')).toBe('2026-12-02T09:00');
     });
 
     it('returns undefined for an empty or invalid value', () => {

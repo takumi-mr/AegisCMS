@@ -96,6 +96,7 @@ export const PreviewIframe: React.FC<PreviewIframeProps> = ({ html, loading = fa
             {(['desktop', 'tablet', 'mobile'] as const).map((mode) => (
               <button
                 key={mode}
+                type="button"
                 onClick={() => setDeviceMode(mode)}
                 style={{
                   background: deviceMode === mode ? 'var(--accent, #3b82f6)' : '#2a2a35',
@@ -116,6 +117,7 @@ export const PreviewIframe: React.FC<PreviewIframeProps> = ({ html, loading = fa
             <span style={{ color: '#aaa', fontSize: '11px' }}>{t('preview.rendering')}</span>
           )}
           <button
+            type="button"
             onClick={handleReload}
             title={t('preview.reloadTitle')}
             style={{
@@ -131,6 +133,7 @@ export const PreviewIframe: React.FC<PreviewIframeProps> = ({ html, loading = fa
             {t('preview.reload')}
           </button>
           <button
+            type="button"
             onClick={handleOpenNewTab}
             title={t('preview.newTabTitle')}
             style={{

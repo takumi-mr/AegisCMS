@@ -68,6 +68,16 @@ interface PluginManagerProps {
 
 const authorName = (author: PackageAuthor) => (typeof author === 'string' ? author : author.name);
 
+const isSensitiveKey = (key: string) => {
+  const lower = key.toLowerCase();
+  return (
+    lower.includes('secret') ||
+    lower.includes('key') ||
+    lower.includes('token') ||
+    lower.includes('password')
+  );
+};
+
 export const PluginManager: React.FC<PluginManagerProps> = ({ session, onShowToast }) => {
   const { t } = useTranslation();
   const [activeTab, setActiveTab] = useState<'installed' | 'market'>('installed');
@@ -162,7 +172,7 @@ export const PluginManager: React.FC<PluginManagerProps> = ({ session, onShowToa
 
   const handleOpenSettings = (plugin: PluginInfo) => {
     setEditingPlugin(plugin);
-    setCurrentSettings({ ...(plugin.settings ?? {}) });
+    setCurrentSettings({ ...plugin.settings });
     setNewKey('');
     setNewValue('');
     setRevealedKeys(new Set());
@@ -357,16 +367,6 @@ export const PluginManager: React.FC<PluginManagerProps> = ({ session, onShowToa
     );
   };
 
-  const isSensitiveKey = (key: string) => {
-    const lower = key.toLowerCase();
-    return (
-      lower.includes('secret') ||
-      lower.includes('key') ||
-      lower.includes('token') ||
-      lower.includes('password')
-    );
-  };
-
   const filteredPlugins = useMemo(() => {
     const q = searchQuery.toLowerCase().trim();
     return plugins.filter((plugin) => {
@@ -404,6 +404,7 @@ export const PluginManager: React.FC<PluginManagerProps> = ({ session, onShowToa
             </h1>
 
             <button
+              type="button"
               onClick={reloadPlugins}
               disabled={isLoading}
               className={styles.settingsBtn}
@@ -419,6 +420,7 @@ export const PluginManager: React.FC<PluginManagerProps> = ({ session, onShowToa
 
           <div className={styles.tabs}>
             <button
+              type="button"
               className={cx(styles.tab, activeTab === 'installed' && styles.tabActive)}
               onClick={() => setActiveTab('installed')}
             >
@@ -427,6 +429,7 @@ export const PluginManager: React.FC<PluginManagerProps> = ({ session, onShowToa
               <span className={styles.tabBadge}>{plugins.length}</span>
             </button>
             <button
+              type="button"
               className={cx(styles.tab, activeTab === 'market' && styles.tabActive)}
               onClick={() => setActiveTab('market')}
             >
@@ -787,6 +790,7 @@ export const PluginManager: React.FC<PluginManagerProps> = ({ session, onShowToa
                             </span>
                           </button>
                           <button
+                            type="button"
                             className={styles.settingsBtn}
                             onClick={() => handleOpenSettings(plugin)}
                             title={t('plugins.configureTitle')}
@@ -870,7 +874,9 @@ export const PluginManager: React.FC<PluginManagerProps> = ({ session, onShowToa
 
       {/* Settings Modal */}
       {editingPlugin && (
+        // oxlint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- modal backdrop click-to-close
         <div className={styles.modalBackdrop} onClick={handleCloseSettings}>
+          {/* oxlint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- prevent backdrop click propagation */}
           <div className={styles.modalContent} onClick={(e) => e.stopPropagation()}>
             <div className={styles.modalHeader}>
               <div className={styles.modalTitleGroup}>
@@ -882,6 +888,7 @@ export const PluginManager: React.FC<PluginManagerProps> = ({ session, onShowToa
                 </h2>
               </div>
               <button
+                type="button"
                 className={styles.closeBtn}
                 onClick={handleCloseSettings}
                 aria-label={t('common.close', 'Close')}

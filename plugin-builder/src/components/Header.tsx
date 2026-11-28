@@ -89,6 +89,7 @@ export function Header({
         {buildStatus && (
           <div style={{ position: 'relative' }}>
             <button
+              type="button"
               onClick={() => setShowBuildOutput((v) => !v)}
               title={t('header.viewBuildOutput')}
               style={{
@@ -140,6 +141,7 @@ export function Header({
                 >
                   <span>{t('header.buildOutput')}</span>
                   <button
+                    type="button"
                     onClick={() => setShowBuildOutput(false)}
                     aria-label={t('common.close')}
                     style={{
@@ -164,6 +166,7 @@ export function Header({
 
       <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
         <button
+          type="button"
           onClick={onBuild}
           disabled={building || !connected}
           title={t('header.rebuildTitle')}
@@ -210,6 +213,7 @@ export function Header({
         </select>
 
         <button
+          type="button"
           onClick={onResetFixture}
           title={t('header.resetFixtureTitle')}
           style={{
@@ -229,6 +233,7 @@ export function Header({
         </button>
 
         <button
+          type="button"
           onClick={onExecute}
           disabled={loading || !connected}
           title={t('header.runTitle')}

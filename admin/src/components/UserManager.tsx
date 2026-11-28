@@ -240,7 +240,7 @@ export const UserManager: React.FC<UserManagerProps> = ({
         <CreateUserModal
           onCreated={(created) => {
             setUsers((prev) =>
-              [...(prev ?? []), created].sort((a, b) => a.username.localeCompare(b.username))
+              [...(prev ?? []), created].toSorted((a, b) => a.username.localeCompare(b.username))
             );
             setIsCreating(false);
             onShowToast(t('users.created', { username: created.username }));

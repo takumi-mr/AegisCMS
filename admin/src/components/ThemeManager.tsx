@@ -26,6 +26,21 @@ interface ThemeManagerProps {
   onShowToast: (message: string, type?: 'success' | 'error') => void;
 }
 
+// Other sites the theme loads fonts, styles or images from (it asks for them in theme.json): the
+// visitor's IP address goes there, so it is shown on the card
+const externalHosts = (theme: ThemeInfo): string[] => [
+  ...new Set([
+    ...(theme.csp?.style_domains ?? []),
+    ...(theme.csp?.font_domains ?? []),
+    ...(theme.csp?.img_domains ?? []),
+  ]),
+];
+
+const authorUrl = (author: ThemeInfo['author']): string | undefined => {
+  if (typeof author === 'object' && author?.url) return author.url;
+  return undefined;
+};
+
 export const ThemeManager: React.FC<ThemeManagerProps> = ({ session, onShowToast }) => {
   const { t } = useTranslation();
   const [activeTab, setActiveTab] = useState<'installed' | 'market'>('installed');
@@ -120,21 +135,6 @@ export const ThemeManager: React.FC<ThemeManagerProps> = ({ session, onShowToast
     return author?.name || t('themes.defaultAuthor');
   };
 
-  // Other sites the theme loads fonts, styles or images from (it asks for them in theme.json): the
-  // visitor's IP address goes there, so it is shown on the card
-  const externalHosts = (theme: ThemeInfo): string[] => [
-    ...new Set([
-      ...(theme.csp?.style_domains ?? []),
-      ...(theme.csp?.font_domains ?? []),
-      ...(theme.csp?.img_domains ?? []),
-    ]),
-  ];
-
-  const authorUrl = (author: ThemeInfo['author']): string | undefined => {
-    if (typeof author === 'object' && author?.url) return author.url;
-    return undefined;
-  };
-
   return (
     <main className={styles.main}>
       <div className={styles.container}>
@@ -157,6 +157,7 @@ export const ThemeManager: React.FC<ThemeManagerProps> = ({ session, onShowToast
                 <ExternalLink size={14} />
               </a>
               <button
+                type="button"
                 onClick={reloadThemes}
                 disabled={isLoading}
                 className={styles.previewBtn}
@@ -172,6 +173,7 @@ export const ThemeManager: React.FC<ThemeManagerProps> = ({ session, onShowToast
 
           <div className={styles.tabs}>
             <button
+              type="button"
               className={cx(styles.tab, activeTab === 'installed' && styles.tabActive)}
               onClick={() => setActiveTab('installed')}
             >
@@ -180,6 +182,7 @@ export const ThemeManager: React.FC<ThemeManagerProps> = ({ session, onShowToast
               <span className={styles.tabBadge}>{themes.length}</span>
             </button>
             <button
+              type="button"
               className={cx(styles.tab, activeTab === 'market' && styles.tabActive)}
               onClick={() => setActiveTab('market')}
             >
@@ -280,12 +283,17 @@ export const ThemeManager: React.FC<ThemeManagerProps> = ({ session, onShowToast
 
                       <div className={styles.cardActions}>
                         {isCurrent ? (
-                          <button className={cx(styles.activateBtn, styles.activeBtn)} disabled>
+                          <button
+                            type="button"
+                            className={cx(styles.activateBtn, styles.activeBtn)}
+                            disabled
+                          >
                             <CheckCircle size={16} />
                             <span>{t('themes.currentlyActive')}</span>
                           </button>
                         ) : (
                           <button
+                            type="button"
                             className={styles.activateBtn}
                             onClick={() => handleSwitchTheme(theme.id)}
                             disabled={isSwitching || !canSwitchTheme}
@@ -352,6 +360,7 @@ export const ThemeManager: React.FC<ThemeManagerProps> = ({ session, onShowToast
                   onChange={handleFileChange}
                 />
                 <button
+                  type="button"
                   className={styles.activateBtn}
                   onClick={handleUploadClick}
                   disabled={isUploading || !canSwitchTheme}

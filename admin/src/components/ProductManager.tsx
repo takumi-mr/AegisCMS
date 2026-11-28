@@ -599,6 +599,12 @@ interface ProductEditorProps {
   onClose: () => void;
 }
 
+const wholeNumber = (value: string): number | null | undefined => {
+  if (value.trim() === '') return null;
+  const n = Number(value);
+  return Number.isInteger(n) && n >= 0 ? n : undefined;
+};
+
 const ProductEditor: React.FC<ProductEditorProps> = ({
   product,
   productType,
@@ -740,12 +746,6 @@ const ProductEditor: React.FC<ProductEditorProps> = ({
   useEffect(() => {
     titleRef.current?.focus();
   }, []);
-
-  const wholeNumber = (value: string): number | null | undefined => {
-    if (value.trim() === '') return null;
-    const n = Number(value);
-    return Number.isInteger(n) && n >= 0 ? n : undefined;
-  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -1107,7 +1107,7 @@ const ProductEditor: React.FC<ProductEditorProps> = ({
                         <th>{t('products.fields.sku')}</th>
                         <th>{t('products.variants.priceOverride')}</th>
                         <th>{t('products.fields.stock')}</th>
-                        <th style={{ width: 80 }}></th>
+                        <th style={{ width: 80 }} />
                       </tr>
                     </thead>
                     <tbody>

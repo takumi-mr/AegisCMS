@@ -372,8 +372,11 @@ const TestSendCard: React.FC<{ status: NotificationStatus }> = ({ status }) => {
       {error && <div className={styles.error}>{error}</div>}
       {results && (
         <ul className={styles.results}>
-          {results.map((r, i) => (
-            <li key={i} className={cx(styles.result, r.ok ? styles.resultOk : styles.resultFailed)}>
+          {results.map((r) => (
+            <li
+              key={`${r.channel}-${r.recipient}`}
+              className={cx(styles.result, r.ok ? styles.resultOk : styles.resultFailed)}
+            >
               {r.ok ? <CheckCircle2 size={16} /> : <XCircle size={16} />}
               <div>
                 <div>

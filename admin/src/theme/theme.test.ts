@@ -89,6 +89,13 @@ describe('public/theme-init.js (applied before the first paint)', () => {
   });
 });
 
+const load = async (stored: string | null, systemLight: boolean) => {
+  const browser = createBrowser(stored, systemLight);
+  for (const [name, value] of Object.entries(browser.globals)) vi.stubGlobal(name, value);
+  const theme = await import('./index');
+  return { browser, theme };
+};
+
 describe('the theme module', () => {
   beforeEach(() => {
     vi.resetModules();
@@ -96,13 +103,6 @@ describe('the theme module', () => {
   afterEach(() => {
     vi.unstubAllGlobals();
   });
-
-  const load = async (stored: string | null, systemLight: boolean) => {
-    const browser = createBrowser(stored, systemLight);
-    for (const [name, value] of Object.entries(browser.globals)) vi.stubGlobal(name, value);
-    const theme = await import('./index');
-    return { browser, theme };
-  };
 
   it('starts from the stored mode and applies it', async () => {
     const { browser, theme } = await load('light', false);
@@ -120,7 +120,7 @@ describe('the theme module', () => {
 
   it('applies, remembers and announces a new choice', async () => {
     const { browser, theme } = await load(null, true);
-    const listener = vi.fn();
+    const listener = vi.fn<() => void>();
     theme.subscribeTheme(listener);
 
     theme.setThemeMode('dark');

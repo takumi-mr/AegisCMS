@@ -94,12 +94,14 @@ const DailyChart: React.FC<{ daily: AnalyticsDay[] }> = ({ daily }) => {
       onMouseMove={(e) => setActive(indexAt(e.clientX))}
       onMouseLeave={() => setActive(null)}
     >
+      {/* oxlint-disable-next-line jsx-a11y/no-noninteractive-element-interactions -- keyboard-focusable chart img */}
       <svg
         className={styles.chart}
         width={width}
         height={CHART_HEIGHT}
         role="img"
         aria-label={t('analytics.chartLabel')}
+        // oxlint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- keyboard-focusable chart img
         tabIndex={0}
         onKeyDown={handleKeyDown}
         onBlur={() => setActive(null)}
@@ -438,7 +440,7 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({ onShowToast }) => 
                       </tr>
                     </thead>
                     <tbody>
-                      {[...summary.daily].reverse().map((d) => (
+                      {summary.daily.toReversed().map((d) => (
                         <tr key={d.day}>
                           <td>{formatDay(d.day, true)}</td>
                           <td className={styles.num}>{formatNumber(d.pageviews)}</td>

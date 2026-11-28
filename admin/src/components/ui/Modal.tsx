@@ -79,6 +79,7 @@ export const Modal: React.FC<ModalProps> = ({
   );
 
   return (
+    // oxlint-disable-next-line jsx-a11y/no-static-element-interactions -- backdrop click-to-close (Escape key handled on window)
     <div
       className={styles.overlay}
       onMouseDown={(e) => {
@@ -87,6 +88,7 @@ export const Modal: React.FC<ModalProps> = ({
         onClose();
       }}
     >
+      {/* oxlint-disable-next-line jsx-a11y/no-noninteractive-element-interactions -- dialog focus trap and backdrop propagation stop */}
       <div
         ref={dialogRef}
         className={cx(styles.modal, wide && styles.wide)}

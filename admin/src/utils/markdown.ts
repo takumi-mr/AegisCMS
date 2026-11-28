@@ -40,7 +40,9 @@ export function textToListItem(text: string): BlockNode {
 export function tableRows(block: BlockNode): string[][] {
   const rows = Array.isArray(block.attributes?.rows) ? block.attributes.rows : [];
   return rows.map((row: unknown) =>
-    Array.isArray(row) ? row.map((cell) => (cell == null ? '' : String(cell))) : []
+    Array.isArray(row)
+      ? row.map((cell) => (cell === null || cell === undefined ? '' : String(cell)))
+      : []
   );
 }
 
@@ -369,7 +371,7 @@ export function markdownToBlocks(markdown: string): BlockNode[] {
     // Custom widget: [WIDGET name="price-sim" height=400 title="..." params="..."]
     const widgetMatch = line.trim().match(WIDGET_LINE);
     if (widgetMatch) {
-      const attributes: Record<string, any> = {};
+      const attributes: Record<string, unknown> = {};
       const name = widgetMatch[1].match(/name="([A-Za-z0-9_-]*)"/);
       if (name && name[1]) attributes.name = name[1];
       const height = widgetMatch[1].match(/height=(\d+)/);
@@ -386,7 +388,7 @@ export function markdownToBlocks(markdown: string): BlockNode[] {
     // Table of contents: [TOC]
     const tocMatch = line.trim().match(TOC_LINE);
     if (tocMatch) {
-      const attributes: Record<string, any> = {};
+      const attributes: Record<string, unknown> = {};
       const title = tocMatch[1].match(/title="([^"]*)"/);
       if (title && title[1].trim()) attributes.title = title[1].trim();
       const maxLevel = tocMatch[1].match(/maxLevel=(\d)/);
@@ -441,7 +443,7 @@ export function markdownToBlocks(markdown: string): BlockNode[] {
       /^:::\s*([a-z0-9][a-z0-9_-]*\/[a-z0-9][a-z0-9_-]*)\s*(\{.*\})?\s*$/
     );
     if (pluginMatch && isPluginBlockName(pluginMatch[1])) {
-      let attributes: Record<string, any> | null = {};
+      let attributes: Record<string, unknown> | null = {};
       if (pluginMatch[2]) {
         try {
           const parsed = JSON.parse(pluginMatch[2]);
@@ -481,7 +483,7 @@ export function markdownToBlocks(markdown: string): BlockNode[] {
         i++;
       }
       if (i < lines.length) i++; // closing :::
-      const attributes: Record<string, any> = { summary: (detailsMatch[2] ?? '').trim() };
+      const attributes: Record<string, unknown> = { summary: (detailsMatch[2] ?? '').trim() };
       if (detailsMatch[1]) attributes.open = true;
       blocks.push({ name: 'core/details', attributes, text: bodyLines.join('\n').trim() });
       continue;
@@ -497,7 +499,7 @@ export function markdownToBlocks(markdown: string): BlockNode[] {
         i++;
       }
       if (i < lines.length) i++; // closing :::
-      const attributes: Record<string, any> = { variant: fenceCallout[1].toLowerCase() };
+      const attributes: Record<string, unknown> = { variant: fenceCallout[1].toLowerCase() };
       if (fenceCallout[2].trim()) attributes.title = fenceCallout[2].trim();
       blocks.push({ name: 'core/callout', attributes, text: bodyLines.join('\n').trim() });
       continue;
@@ -512,7 +514,7 @@ export function markdownToBlocks(markdown: string): BlockNode[] {
       }
       const callout = quoted[0].trim().match(CALLOUT_LINE);
       if (callout) {
-        const attributes: Record<string, any> = { variant: callout[1].toLowerCase() };
+        const attributes: Record<string, unknown> = { variant: callout[1].toLowerCase() };
         if (callout[2].trim()) attributes.title = callout[2].trim();
         blocks.push({
           name: 'core/callout',
@@ -521,7 +523,7 @@ export function markdownToBlocks(markdown: string): BlockNode[] {
         });
         continue;
       }
-      const attributes: Record<string, any> = {};
+      const attributes: Record<string, unknown> = {};
       const last = quoted[quoted.length - 1]?.trim().match(CITE_LINE);
       if (last && quoted.length > 1) {
         attributes.cite = last[1].trim();

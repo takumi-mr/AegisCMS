@@ -143,8 +143,10 @@ test('the themed-page preview runs under the public CSP, isolated from Admin Stu
   // inherit Admin Studio's). The E2E server runs the public site under the strict CSP, so a script
   // nobody hashed (this probe) is blocked, as on a public page; the host-hashed ones run (below)
   const frameHandle = await page.locator('iframe[title="Themed page preview"]').elementHandle();
-  const inner = await frameHandle!.contentFrame();
-  const ran = await inner!.evaluate(() => {
+  if (!frameHandle) throw new Error('Preview iframe handle not found');
+  const inner = await frameHandle.contentFrame();
+  if (!inner) throw new Error('Preview contentFrame not found');
+  const ran = await inner.evaluate(() => {
     const script = document.createElement('script');
     script.textContent = 'window.__previewScript = 1';
     document.head.appendChild(script);
@@ -153,7 +155,7 @@ test('the themed-page preview runs under the public CSP, isolated from Admin Stu
   expect(ran).toBe(false);
 
   // ...and it cannot reach the admin's session (an opaque origin: `sandbox` without same-origin)
-  const storage = await inner!.evaluate(() => {
+  const storage = await inner.evaluate(() => {
     try {
       return sessionStorage.length >= 0 ? 'readable' : 'empty';
     } catch {
@@ -264,7 +266,8 @@ test("under the strict CSP, a plugin's inline script runs because the host hashe
   expect((await enable(true)).ok()).toBeTruthy();
   try {
     const response = await page.goto(`${SERVER}/articles/${slug}`);
-    const csp = response!.headers()['content-security-policy'];
+    if (!response) throw new Error('Expected navigation response');
+    const csp = response.headers()['content-security-policy'];
     const scriptSrc = csp.split(';').find((d) => d.trim().startsWith('script-src')) ?? '';
     // No `unsafe-inline`: the plugin's inline script is allowed by its hash only
     expect(scriptSrc).not.toContain('unsafe-inline');
@@ -315,7 +318,8 @@ test('a plugin script in the themed-page preview runs by its hash, as on the pub
     expect(pageUrl).toContain(`/preview/frame/${key}`);
 
     const response = await page.goto(`${SERVER}/api/v1${pageUrl}`);
-    const csp = response!.headers()['content-security-policy'];
+    if (!response) throw new Error('Expected navigation response');
+    const csp = response.headers()['content-security-policy'];
     // The public site's policy plus the sandbox; the hash was stored with the page
     expect(csp).toContain('sandbox allow-scripts');
     expect(csp).toContain("'sha256-");
@@ -394,7 +398,8 @@ test("the body HTML preview keeps a plugin block's own <style>, in a sandboxed f
 
     // The block's <style> works there (the public site's CSP allows it), and it is isolated
     const response = await page.goto(`${SERVER}/api/v1${bodyUrl}`);
-    expect(response!.headers()['content-security-policy']).toContain('sandbox allow-scripts');
+    if (!response) throw new Error('Expected navigation response');
+    expect(response.headers()['content-security-policy']).toContain('sandbox allow-scripts');
     await expect(page.getByText('Body text')).toBeVisible();
     const display = await page.locator('.tp-box').evaluate((el) => getComputedStyle(el).display);
     expect(display).toBe('inline-block');
@@ -429,7 +434,8 @@ test("public pages run under the default CSP: no <style> element is blocked and 
 
   for (const path of ['/', `/articles/${slug}`, '/articles', '/search?q=style', '/nope-404']) {
     const response = await page.goto(`${SERVER}${path}`, { waitUntil: 'networkidle' });
-    const csp = response!.headers()['content-security-policy'];
+    if (!response) throw new Error(`Expected navigation response for ${path}`);
+    const csp = response.headers()['content-security-policy'];
     const styleSrc = csp.split(';').find((d) => d.trim().startsWith('style-src ')) ?? '';
     expect(styleSrc, path).not.toContain('unsafe-inline');
     expect(styleSrc, path).toContain("'sha256-");

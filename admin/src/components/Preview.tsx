@@ -56,6 +56,8 @@ interface PreviewResult {
   error: string | null;
 }
 
+const EMPTY_MEMBER_LEVELS: NonNullable<PreviewProps['memberLevels']> = [];
+
 /**
  * Live preview rendered by the server (`POST /api/v1/preview`) with the same pipeline as saving
  * and the public site: heading ids, plugin hooks, HtmlRenderer, the security rewriter and, for
@@ -68,7 +70,7 @@ export const Preview: React.FC<PreviewProps> = ({
   categoryId,
   layout,
   access = '',
-  memberLevels = [],
+  memberLevels = EMPTY_MEMBER_LEVELS,
   blocks,
   fluid = false,
 }) => {

@@ -22,7 +22,7 @@ describe('plugin-builder api', () => {
       exports: ['on_before_save'],
       updated_at: 100,
     };
-    const mockFetch = vi.fn().mockResolvedValue({
+    const mockFetch = vi.fn<(...args: unknown[]) => Promise<unknown>>().mockResolvedValue({
       ok: true,
       json: async () => mockInfo,
     });
@@ -38,7 +38,7 @@ describe('plugin-builder api', () => {
     const mockFixtures = {
       'on-before-save': { title: 'Hello' },
     };
-    const mockFetch = vi.fn().mockResolvedValue({
+    const mockFetch = vi.fn<(...args: unknown[]) => Promise<unknown>>().mockResolvedValue({
       ok: true,
       json: async () => mockFixtures,
     });
@@ -59,7 +59,7 @@ describe('plugin-builder api', () => {
       kv_mutations: {},
       http_requests: [],
     };
-    const mockFetch = vi.fn().mockResolvedValue({
+    const mockFetch = vi.fn<(...args: unknown[]) => Promise<unknown>>().mockResolvedValue({
       ok: true,
       json: async () => mockResponse,
     });
@@ -83,7 +83,7 @@ describe('plugin-builder api', () => {
   });
 
   it('pollVersion calls with since query param', async () => {
-    const mockFetch = vi.fn().mockResolvedValue({
+    const mockFetch = vi.fn<(...args: unknown[]) => Promise<unknown>>().mockResolvedValue({
       ok: true,
       json: async () => ({ version: 12345 }),
     });
@@ -101,7 +101,7 @@ describe('plugin-builder api', () => {
       output: 'Finished dev build',
       error: null,
     };
-    const mockFetch = vi.fn().mockResolvedValue({
+    const mockFetch = vi.fn<(...args: unknown[]) => Promise<unknown>>().mockResolvedValue({
       ok: true,
       json: async () => mockResponse,
     });
@@ -122,7 +122,7 @@ describe('plugin-builder api', () => {
     const mockResponse = {
       html: '<!DOCTYPE html><html><body><h1>Preview</h1></body></html>',
     };
-    const mockFetch = vi.fn().mockResolvedValue({
+    const mockFetch = vi.fn<(...args: unknown[]) => Promise<unknown>>().mockResolvedValue({
       ok: true,
       json: async () => mockResponse,
     });
@@ -144,7 +144,7 @@ describe('plugin-builder api', () => {
     const mockResponse = {
       html: '<div class="rendered-blocks"><div class="block-item"><aside class="my-note">Note</aside></div></div>',
     };
-    const mockFetch = vi.fn().mockResolvedValue({
+    const mockFetch = vi.fn<(...args: unknown[]) => Promise<unknown>>().mockResolvedValue({
       ok: true,
       json: async () => mockResponse,
     });

@@ -133,5 +133,5 @@ export function serializeManifestJson(data: ManifestFormData, rawOriginal?: unkn
     delete base.min_aegis_version;
   }
 
-  return JSON.stringify(base, null, 2) + '\n';
+  return `${JSON.stringify(base, null, 2)}\n`;
 }

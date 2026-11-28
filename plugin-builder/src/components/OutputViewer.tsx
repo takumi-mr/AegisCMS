@@ -74,6 +74,7 @@ export function OutputViewer({
         {tabs.map((tab) => (
           <button
             key={tab.id}
+            type="button"
             onClick={() => setUserTab(tab.id)}
             style={{
               padding: '8px 14px',

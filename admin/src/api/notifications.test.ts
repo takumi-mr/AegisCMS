@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ApiError, aegisApi } from './client';
 
 // The notification API calls of the client: paths, methods and bodies, and how errors come back
-const fetchMock = vi.fn();
+const fetchMock = vi.fn<typeof fetch>();
 
 const respond = (status: number, body?: unknown) =>
   new Response(body === undefined ? null : JSON.stringify(body), {

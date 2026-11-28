@@ -286,10 +286,14 @@
 }
 
 .moreCount {
+  background: none;
+  border: none;
+  font-family: inherit;
   font-size: 0.7rem;
   color: var(--text-muted);
   padding: 2px 4px;
   cursor: pointer;
+  text-align: left;
 }
 
 .moreCount:hover {

@@ -66,7 +66,7 @@ export const MarkdownEditor: React.FC<MarkdownEditorProps> = ({
       if (!textarea) return;
       const start = textarea.selectionStart;
       const end = textarea.selectionEnd;
-      const nextValue = value.substring(0, start) + '  ' + value.substring(end);
+      const nextValue = `${value.substring(0, start)}  ${value.substring(end)}`;
       onChange(nextValue);
       setTimeout(() => {
         textarea.selectionStart = textarea.selectionEnd = start + 2;

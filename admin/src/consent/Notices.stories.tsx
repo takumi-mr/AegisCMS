@@ -144,10 +144,11 @@ export const KindsHaveTheirOwnColors: Story = {
       .join(''),
   },
   play: async ({ canvasElement }) => {
-    const colors = ['info', 'success', 'warning', 'alert'].map(
-      (style) =>
-        getComputedStyle(canvasElement.querySelector(`.aegis-notice-${style}`)!).backgroundColor
-    );
+    const colors = ['info', 'success', 'warning', 'alert'].map((style) => {
+      const el = canvasElement.querySelector(`.aegis-notice-${style}`);
+      if (!el) throw new Error(`Notice element for ${style} not found`);
+      return getComputedStyle(el).backgroundColor;
+    });
     await expect(new Set(colors).size).toBe(4);
   },
 };

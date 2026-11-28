@@ -56,6 +56,11 @@ const faqDefinition: PluginBlockDefinition = {
   ],
 };
 
+const faqBlock = (items: unknown): BlockNode => ({
+  name: 'official-blocks/faq',
+  attributes: items === undefined ? {} : { items },
+});
+
 describe('plugin blocks', () => {
   it('tells plugin blocks from built-in blocks', () => {
     expect(isPluginBlockName('cards/card')).toBe(true);
@@ -87,21 +92,17 @@ describe('plugin blocks', () => {
   it('handles list fields', () => {
     const list = faqDefinition.fields[0];
     const subFields = list.fields ?? [];
-    const block = (items: unknown): BlockNode => ({
-      name: 'official-blocks/faq',
-      attributes: items === undefined ? {} : { items },
-    });
 
     // a new item starts from the defaults of its inputs
     expect(defaultValues(subFields)).toEqual({ tone: 'plain' });
 
     // a required list needs one item with something typed in
-    expect(missingRequiredFields(faqDefinition, block(undefined))).toEqual(['items']);
-    expect(missingRequiredFields(faqDefinition, block([]))).toEqual(['items']);
+    expect(missingRequiredFields(faqDefinition, faqBlock(undefined))).toEqual(['items']);
+    expect(missingRequiredFields(faqDefinition, faqBlock([]))).toEqual(['items']);
     expect(
-      missingRequiredFields(faqDefinition, block([{ question: ' ', answer: '', tone: 'plain' }]))
+      missingRequiredFields(faqDefinition, faqBlock([{ question: ' ', answer: '', tone: 'plain' }]))
     ).toEqual(['items']);
-    expect(missingRequiredFields(faqDefinition, block([{ question: 'Q' }]))).toEqual([]);
+    expect(missingRequiredFields(faqDefinition, faqBlock([{ question: 'Q' }]))).toEqual([]);
 
     // a required input of an item is reported against that item
     expect(missingRequired(subFields, { answer: 'A' })).toEqual(['question']);

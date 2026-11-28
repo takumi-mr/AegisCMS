@@ -201,7 +201,7 @@ export const ForumManager: React.FC<ForumManagerProps> = ({
     try {
       await aegisApi.pinForumThread(thread.id, nextState);
       setThreads((prev) =>
-        prev.map((t) => (t.id === thread.id ? { ...t, is_pinned: nextState } : t))
+        prev.map((item) => (item.id === thread.id ? { ...item, is_pinned: nextState } : item))
       );
       onShowToast(
         nextState ? t('forum.toasts.threadPinned') : t('forum.toasts.threadUnpinned'),
@@ -219,7 +219,7 @@ export const ForumManager: React.FC<ForumManagerProps> = ({
     try {
       await aegisApi.lockForumThread(thread.id, nextState);
       setThreads((prev) =>
-        prev.map((t) => (t.id === thread.id ? { ...t, is_locked: nextState } : t))
+        prev.map((item) => (item.id === thread.id ? { ...item, is_locked: nextState } : item))
       );
       onShowToast(
         nextState ? t('forum.toasts.threadLocked') : t('forum.toasts.threadUnlocked'),
@@ -235,7 +235,7 @@ export const ForumManager: React.FC<ForumManagerProps> = ({
   const handleModerateThread = async (thread: ForumThread, status: CommentStatus) => {
     try {
       const updated = await aegisApi.moderateForumThread(thread.id, status);
-      setThreads((prev) => prev.map((t) => (t.id === thread.id ? updated : t)));
+      setThreads((prev) => prev.map((item) => (item.id === thread.id ? updated : item)));
       onShowToast(t('forum.toasts.threadModerated'), 'success');
     } catch (err: unknown) {
       const msg = err instanceof ApiError ? err.message : 'Failed to moderate thread';
@@ -250,7 +250,7 @@ export const ForumManager: React.FC<ForumManagerProps> = ({
     }
     try {
       await aegisApi.deleteForumThread(thread.id);
-      setThreads((prev) => prev.filter((t) => t.id !== thread.id));
+      setThreads((prev) => prev.filter((item) => item.id !== thread.id));
       onShowToast(t('forum.toasts.threadDeleted'), 'success');
       loadCategories(); // refresh thread counts
     } catch (err: unknown) {
@@ -491,6 +491,7 @@ export const ForumManager: React.FC<ForumManagerProps> = ({
         {/* Sub Tabs */}
         <div className={styles.subTabs}>
           <button
+            type="button"
             className={cx(styles.subTab, activeTab === 'threads' && styles.active)}
             onClick={() => setActiveTab('threads')}
           >
@@ -498,6 +499,7 @@ export const ForumManager: React.FC<ForumManagerProps> = ({
             <span>{t('forum.tabs.threads')}</span>
           </button>
           <button
+            type="button"
             className={cx(styles.subTab, activeTab === 'reports' && styles.active)}
             onClick={() => setActiveTab('reports')}
           >
@@ -505,6 +507,7 @@ export const ForumManager: React.FC<ForumManagerProps> = ({
             <span>{t('forum.tabs.reports')}</span>
           </button>
           <button
+            type="button"
             className={cx(styles.subTab, activeTab === 'categories' && styles.active)}
             onClick={() => setActiveTab('categories')}
           >
@@ -512,6 +515,7 @@ export const ForumManager: React.FC<ForumManagerProps> = ({
             <span>{t('forum.tabs.categories')}</span>
           </button>
           <button
+            type="button"
             className={cx(styles.subTab, activeTab === 'settings' && styles.active)}
             onClick={() => setActiveTab('settings')}
           >
@@ -636,6 +640,7 @@ export const ForumManager: React.FC<ForumManagerProps> = ({
                             {/* Approve / Hold / Spam */}
                             {thread.status !== 'approved' && (
                               <button
+                                type="button"
                                 className={styles.actionBtn}
                                 onClick={() => handleModerateThread(thread, 'approved')}
                                 title={t('forum.approve')}
@@ -645,6 +650,7 @@ export const ForumManager: React.FC<ForumManagerProps> = ({
                             )}
                             {thread.status !== 'spam' && (
                               <button
+                                type="button"
                                 className={styles.actionBtn}
                                 onClick={() => handleModerateThread(thread, 'spam')}
                                 title={t('forum.markSpam')}
@@ -655,6 +661,7 @@ export const ForumManager: React.FC<ForumManagerProps> = ({
 
                             {/* Pin / Unpin */}
                             <button
+                              type="button"
                               className={cx(styles.actionBtn, thread.is_pinned && styles.active)}
                               onClick={() => handleTogglePin(thread)}
                               title={thread.is_pinned ? t('forum.unpin') : t('forum.pin')}
@@ -664,6 +671,7 @@ export const ForumManager: React.FC<ForumManagerProps> = ({
 
                             {/* Lock / Unlock */}
                             <button
+                              type="button"
                               className={cx(styles.actionBtn, thread.is_locked && styles.active)}
                               onClick={() => handleToggleLock(thread)}
                               title={thread.is_locked ? t('forum.unlock') : t('forum.lock')}
@@ -673,6 +681,7 @@ export const ForumManager: React.FC<ForumManagerProps> = ({
 
                             {/* View Posts Modal */}
                             <button
+                              type="button"
                               className={styles.actionBtn}
                               onClick={() => handleViewPosts(thread)}
                               title={t('forum.viewPosts')}
@@ -693,6 +702,7 @@ export const ForumManager: React.FC<ForumManagerProps> = ({
 
                             {/* Delete Thread */}
                             <button
+                              type="button"
                               className={cx(styles.actionBtn, styles.danger)}
                               onClick={() => handleDeleteThread(thread)}
                               title={t('forum.deleteThread')}
@@ -778,6 +788,7 @@ export const ForumManager: React.FC<ForumManagerProps> = ({
                           >
                             {report.status !== 'resolved' && (
                               <button
+                                type="button"
                                 className={styles.actionBtn}
                                 onClick={() => handleResolveReport(report, 'resolved')}
                                 title={t('forum.reports.resolve')}
@@ -788,6 +799,7 @@ export const ForumManager: React.FC<ForumManagerProps> = ({
                             )}
                             {report.status !== 'dismissed' && (
                               <button
+                                type="button"
                                 className={styles.actionBtn}
                                 onClick={() => handleResolveReport(report, 'dismissed')}
                                 title={t('forum.reports.dismiss')}
@@ -850,6 +862,7 @@ export const ForumManager: React.FC<ForumManagerProps> = ({
                             style={{ justifyContent: 'flex-end' }}
                           >
                             <button
+                              type="button"
                               className={styles.actionBtn}
                               onClick={() => handleOpenEditCategory(cat)}
                               title={t('forum.editCategory')}
@@ -858,6 +871,7 @@ export const ForumManager: React.FC<ForumManagerProps> = ({
                               <span>{t('forum.edit')}</span>
                             </button>
                             <button
+                              type="button"
                               className={cx(styles.actionBtn, styles.danger)}
                               onClick={() => handleDeleteCategory(cat)}
                               title={t('forum.deleteCategory')}
@@ -959,6 +973,7 @@ export const ForumManager: React.FC<ForumManagerProps> = ({
                       <span>{formatDateTime(post.created_at)}</span>
                       {post.status !== 'approved' && (
                         <button
+                          type="button"
                           className={styles.actionBtn}
                           onClick={() => handleModeratePost(post, 'approved')}
                           title={t('forum.approve')}
@@ -968,6 +983,7 @@ export const ForumManager: React.FC<ForumManagerProps> = ({
                       )}
                       {post.status !== 'spam' && (
                         <button
+                          type="button"
                           className={styles.actionBtn}
                           onClick={() => handleModeratePost(post, 'spam')}
                           title={t('forum.markSpam')}
@@ -977,6 +993,7 @@ export const ForumManager: React.FC<ForumManagerProps> = ({
                       )}
                       {!post.is_deleted && post.post_number > 1 && (
                         <button
+                          type="button"
                           className={cx(styles.actionBtn, styles.danger)}
                           onClick={() => handleDeletePost(post)}
                           title={t('forum.deletePost')}
