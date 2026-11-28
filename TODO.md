@@ -21,6 +21,4 @@
 
 ## 未着手タスク (Backlog)
 
-### ⏸️ 保留中の検討
-
-- [ ] **X・Threads のリッチ埋め込み**（保留中。プラグインは AegisCMS-Plugin にある）: 今は `official-link-embed` が X を oEmbed（`publish.twitter.com/oembed`）からリンクカードにするだけで、X の投稿の表示にはならない。Threads は既定の許可ドメインに無い。案: `official-embeds` に X・Threads のブロックを足す。API キーは要らない見込みだが未確認。第三者のスクリプトを置かずに済むよう、`sandbox` つきの iframe（X は `platform.twitter.com/embed/Tweet.html?id=<ID>`、Threads は投稿の URL の末尾に `/embed`）にし、`[embed].consent` の同意のあとに読む。着手するときは、まずキーなし・Strict CSP で表示できるかを実際のブラウザーで確かめる。X の iframe の URL は公式の文書に無い使い方なので、使えなくなるおそれがある。Threads をカードで出すだけなら、threads.net が OGP を返すかを確かめ、許可ドメインに足すだけで済む。
+未着手のタスクはありません。
