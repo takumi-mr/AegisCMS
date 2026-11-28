@@ -2,10 +2,10 @@
 
 [English](store.md) | **日本語**
 
-# パッケージストア（設計・未実装）
+# パッケージストア
 
 > [!NOTE]
-> この文書は設計メモです。実装済みはカタログの取得・検証、一覧の API（`GET /api/v1/store/packages`）、ストアからのインストール（`POST /api/v1/store/install`）まで（設定と API は [configuration.md の 2.28](configuration.ja.md#228-store--パッケージストア)）。Admin Studio の画面（テーマ・プラグインの画面の**ストア**のタブ。[admin-settings.md](admin-settings.ja.md#ストアテーマプラグインの画面)）まで。未決事項が決まったら仕様の文書に書き直します。
+> パッケージストアの仕組みです。設定と API は [configuration.md の 2.28](configuration.ja.md#228-store--パッケージストア)、Admin Studio の画面は [admin-settings.md](admin-settings.ja.md#ストアテーマプラグインの画面)。[6](#6-将来-第三者のパッケージを受け入れる) は将来（ほかの作者のパッケージ）の設計で、未実装です。
 
 Admin Studio から、配布されているプラグインとテーマを選んでインストール・更新できるようにします。配る側は**静的なファイルだけ**（署名したカタログと ZIP）で、専用の HTTP サーバーは作りません。CMS 側は、カタログを読み、ZIP を取得して、既存の ZIP インストール（[プラグインのインストールと署名](plugin_hooks.ja.md#74-zip-パッケージからのインストールと署名)）に渡します。
 
@@ -23,13 +23,13 @@ Admin Studio から、配布されているプラグインとテーマを選ん�
 
 ## 2. 構成
 
-本体のリポジトリとは別のリポジトリ（例: `aegis-store`）で配ります。本体の Releases は release-please がタグと CHANGELOG を管理しているので、プラグインのタグを混ぜません。
+本体とは別のリポジトリ [AegisCMS-Store](https://github.com/takumi-mr/AegisCMS-Store) で配ります。本体の Releases は release-please がタグと CHANGELOG を管理しているので、パッケージのタグを混ぜません。AegisCMS-Store は、取得元（`store.json` の `sources`）のタグからパッケージを作ります。公式のプラグインとテーマは [AegisCMS-Plugin](https://github.com/takumi-mr/AegisCMS-Plugin) から、本体に残るテーマは本体のリリースのタグからです（[7](#7-公式パッケージの置き場所)）。
 
 ```text
- aegis-store リポジトリ
-   ├─ GitHub Pages:    https://<owner>.github.io/aegis-store/catalog.json
-   │                   https://<owner>.github.io/aegis-store/catalog.json.sig
-   └─ GitHub Releases: https://github.com/<owner>/aegis-store/releases/download/<tag>/<file>.zip
+ AegisCMS-Store リポジトリ
+   ├─ GitHub Pages:    https://takumi-mr.github.io/AegisCMS-Store/catalog.json
+   │                   https://takumi-mr.github.io/AegisCMS-Store/catalog.json.sig
+   └─ GitHub Releases: https://github.com/takumi-mr/AegisCMS-Store/releases/download/<tag>/<file>.zip
                          （ダウンロードは release-assets.githubusercontent.com へ 302 で転送される）
 
  AegisCMS（各サイト）
@@ -39,7 +39,7 @@ Admin Studio から、配布されているプラグインとテーマを選ん�
 
 - **カタログは Pages に置く**: 更新し続けるファイルなので、Releases のアセット（差し替えが手間）や `raw.githubusercontent.com`（数分のキャッシュ）には置かない。
 - **GitHub API は使わない**: 認証なしの API は 1 時間に 60 回までで、サイトが多いと当たる。一覧はカタログから読み、ZIP はカタログに書いた直接の URL から取る。
-- **タグはパッケージごとに名前を分ける**: `<id>-v<version>`（例: `seo-tools-v1.2.0`、`theme-minimal-v0.3.1`）。
+- **タグはパッケージごとに名前を分ける**: `<id>-v<version>`（例: `official-blocks-v0.5.0`、`roastery-v1.1.0`）。
 - **出したバージョンのアセットは差し替えない**: 直すときは新しいバージョンを出す（カタログの sha256 と食い違わないように）。
 
 ## 3. カタログの形式
@@ -94,7 +94,7 @@ public_key = "<カタログ署名の Ed25519 公開鍵、32 バイトの hex>"
 ```
 
 - カタログは配列で、各カタログの鍵は、そのカタログにだけ使う。
-- `[[store.catalogs]]` を書かなければ、公式のカタログ（AegisCMS-Store。URL と公開鍵は `store.rs` の `OFFICIAL_CATALOG_*`）を読む。書くと置き換わる。`enabled` の既定は `true`。カタログを取得するのは、管理者がストアのタブを開いたときか API を呼んだときだけ（起動時や裏では通信しない）。
+- `[[store.catalogs]]` を書かなければ、公式のカタログ（AegisCMS-Store。URL と公開鍵は `store.rs` の `OFFICIAL_CATALOG_*`）を読む。書くと置き換わる。`enabled` の既定は `true`。カタログを取得するのは、管理者がストアのタブを開いたとき・更新の確認の時期が来たとき（[8](#8-更新のお知らせ)）・API を呼んだときだけ（起動時・裏・訪問者のアクセスでは通信しない）。
 - 公式のカタログの公開鍵はサーバーに組み込まれているので、鍵を替えると、新しい鍵を持つ版に更新したサーバーだけが読める。カタログの秘密鍵は GitHub の secret とは別に控えておく。
 - 受け入れた `sequence` は DB（`_aegis_settings` の `store.catalog_sequences`）に記録する。複数のサーバーで共有され、記録は下げない。バックアップから復元すると記録も復元時点の値に戻るが、検査が緩むだけで、次に受け入れたカタログから元に戻る。
 - ZIP の `signature.json` の鍵は、カタログのエントリの `public_key` と一致することを確かめる。`[plugins]` / `[theme]` の `require_signatures`・`trusted_public_keys` はそのまま効く（ストア経由でも緩めない）。
@@ -102,7 +102,7 @@ public_key = "<カタログ署名の Ed25519 公開鍵、32 バイトの hex>"
 ### 4.2 流れ
 
 1. カタログと `.sig` を取得し、署名・`schema_version`・`sequence`・`expires_at` を確かめる。
-2. Admin Studio に一覧を出す。インストール済みのものは、バージョンを比べて更新を知らせる。互換性のないもの（`min_aegis_version`）は選べないようにする。
+2. Admin Studio に一覧を出す。同じ出どころのインストール済みのものは、バージョンを比べて更新を知らせる（[8](#8-更新のお知らせ)）。互換性のないもの（`min_aegis_version`）は選べないようにする。
 3. インストール時に `capabilities` を見せ、確認をはさむ。
 4. ZIP を取得し、`size` と `sha256` を照合する。
 5. 既存の処理（`extract_zip_safely` → `check_min_aegis_version` → `verify_package_signature`）に渡してインストールする。有効化はしない（既存と同じ）。監査ログには取得元のカタログと URL を残す。
@@ -117,7 +117,7 @@ public_key = "<カタログ署名の Ed25519 公開鍵、32 バイトの hex>"
 
 - 秘密鍵はリポジトリに置かない。CI で署名するなら Actions の secret に入れる。
 - **カタログの鍵**と **ZIP の鍵**は分ける。ZIP の鍵だけが漏れても、カタログに無い ZIP は配れない。カタログの鍵だけが漏れても、ZIP の署名は偽れない。
-- 鍵を替えるときは、CMS の設定（`store.catalogs[].public_key`）を新旧の両方を受け入れられる形にしてから移る（未決。[8](#8-未決事項)）。
+- 出し済みのサーバーを切り離さずにカタログの鍵を替える手順は、まだ決めていない（[9](#9-未決事項)）。
 
 公開の流れ（CI の例）: タグを push → ビルド → ZIP に署名 → Release を作る → `catalog.json` を作り直して署名 → Pages に出す。手で行うのはタグの push だけにする。ダウンロード数は Releases のアセットの数で見られる。
 
@@ -152,30 +152,20 @@ public_key = "<カタログ署名の Ed25519 公開鍵、32 バイトの hex>"
 - **バイナリのみでも配れる根拠は Wasm のサンドボックス**。宣言していない権限は実行時に止まるので、権限を絞れば、ソースを見なくても被害の範囲を限られる。逆に、強い権限を持つものはソースを見ない限り載せない。
 - カタログのエントリに区分（`review`: `"reviewed"` / `"unreviewed"`）を持たせ、Admin Studio の一覧とインストール前の確認画面に出す。運用者がバイナリのみの区分を設定で受け入れないようにもできる（例: `[store] allow_unreviewed = false`）。
 
-## 7. 公式パッケージの別リポジトリへの移行（計画）
+## 7. 公式パッケージの置き場所
 
-目標は、**公式プラグインをすべてストアから配り、本体には同梱しない**ことです。プラグインは [AegisCMS-Plugin](https://github.com/takumi-mr/AegisCMS-Plugin) にテストごと置き、AegisCMS-Store はそのリポジトリのタグから配ります（`store.json` の `sources`）。本体のテストは公式プラグインを使わず、テスト用の小さなプラグインを使います。
+v0.13.0 から、本体は公式プラグインを同梱せず、テーマは 2 つだけを同梱します。以前の版からの更新は [upgrade.md](upgrade.ja.md)。
 
-| 分類                | パッケージ                                                                                                                                                                                                                                        | 必要なこと                                                                                                                                               |
-| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 移行済み（v0.13.0） | `official-ads`・`official-clarity`・`official-embeds`・`official-link-embed`・`official-charts`・`official-share-buttons`・`official-reading-time`・`official-back-to-top`・`official-code-lines`・`official-lightbox`・`official-external-links` | 済                                                                                                                                                       |
-| 本体のテストが使う  | `official-blocks`・`official-page-toc`・`official-code-enhancer`・`official-shop-rules`・`official-order-notifier`                                                                                                                                | サーバーのテスト（プラグインの切り替え・EC・通知）、E2E（`plugins.spec.ts`・`csp.spec.ts`）、診断（pentest）が読み込む。テスト用のプラグインに置き換える |
-| 既定で有効          | `official-code-enhancer`・`official-mermaid`・`official-plantuml`                                                                                                                                                                                 | `config/default.toml` とベンチマークの設定で有効になっている。有効なプラグインが無いとサーバーが起動しない                                               |
-| 本体が設定を読む    | `official-post-navigation`                                                                                                                                                                                                                        | 前後の記事を、本体がこのプラグインの設定（`mode`・`same_category`・`fallback_to_all`・`order_by`）で選ぶ（`handlers/public.rs`・`related.rs`）           |
-| テーマ              | `default` 以外のテーマ                                                                                                                                                                                                                            | テーマの翻訳文は本体の `aegis-theme/src/messages.rs` にあり、テーマ側に持たせる仕組みが要る                                                              |
+| もの                                                                                             | 置き場所                                                                                    | 理由                                                                                               |
+| ------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| 公式プラグインのすべて（`official-*`）                                                           | [AegisCMS-Plugin](https://github.com/takumi-mr/AegisCMS-Plugin) の `plugins/`（テストごと） | ストアから入れる。変更の出し方は、そのリポジトリの README                                          |
+| テーマ `app-shell`・`cyber-neon`・`emerald-luxury`・`minimal-editorial`・`roastery`・`trailhead` | AegisCMS-Plugin の `themes/`（文言は `locales/`）                                           | ストアから入れる                                                                                   |
+| テーマ `default`・`wordpress-classic`                                                            | 本体の `themes/`（ストアにも載る）                                                          | テーマエンジンは `default` に戻る。WordPress のテーマの取り込みは `wordpress-classic` を土台にする |
 
-順番（すべて済）:
-
-1. ストアが複数の取得元から配れるようにする（AegisCMS-Store の `store.json` の `sources`）。
-2. ストアからのインストール API（`POST /api/v1/store/install`）と、Admin Studio のストアのタブを作る。
-3. 本体が使わないプラグインを、テストごと AegisCMS-Plugin に移す（本体 v0.12.0 から）。
-4. 本体から消し、v0.13.0 で `feat!:` として出す（移行の手順は [upgrade.md](upgrade.ja.md)）。
-5. **テスト用のプラグイン**（済。[`test-plugins/`](../test-plugins/README.ja.md)）。本体のテストのためだけのプラグインを Rust の SDK で作る（同梱しない・ストアに載せない）。テストが必要とするもの（インラインスクリプトと CSP のホストを足すページのフック、自分のスタイルを持つブロック、注文の計算、通信する通知、宣言した設定）をそろえ、サーバーのテスト・E2E・診断をこれに切り替える。実物のプラグインのテスト（`aegis-runtime/tests/sdk_plugins.rs`）は、プラグインと一緒に移す。
-6. **前後の記事を本体の設定にする**（済。[`[adjacent_articles]`](configuration.ja.md#229-adjacent_articles--前後の記事)）。4 つの設定を本体の設定に移し、Admin Studio で変えられるようにする。しばらくは、新しい設定が無ければ `[plugins.settings.official-post-navigation]` も読み、警告をログに出す。プラグインはリンクを描くだけになる。
-7. **既定では何も有効にしない**（済。`config/default.toml` と、AegisCMS-Store の `store.json` の `recommended`）。同梱の設定でコードのハイライト・Mermaid・PlantUML を有効にするのをやめる。ストアのタブに、おすすめのパッケージ（カタログで印を付ける）を短く並べ、1 クリックで入れられるようにする。起動時には通信しない。
-8. （済。AegisCMS-Plugin のタグ `v2026.11.28.1`）残りのプラグインを、テストごと AegisCMS-Plugin に移し、`store.json` の取得元を切り替える。
-9. （v0.13.0 で済）本体から消し、移行の手順を付けて `feat!:` で出す。Docker のイメージとリリースのアーカイブには、プラグインが入らなくなる。`bundled_plugins_dir` は、自分でイメージを作る人のために残す。
-10. （v0.13.0 で済。AegisCMS-Plugin のタグ `v2026.11.28.2`）テーマは、翻訳をテーマ側に持てるようにしてから移す（`locales/`）。`default` と `wordpress-classic` は本体に残す（テーマエンジンは `default` に戻り、WordPress のテーマの取り込みは `wordpress-classic` を土台にする）。
+- **既定では何も有効にしない。** 同梱の設定はプラグインを有効にしない。カタログでおすすめに印を付け（AegisCMS-Store の `store.json` の `recommended`。コードのハイライト・Mermaid・PlantUML・コンテンツのブロック）、ストアのタブで、入れるまで先に並べる。
+- **本体のテストは、自分用のパッケージを使う**: [`test-plugins/`](../test-plugins/README.ja.md) と [`test-themes/`](../test-themes/README.ja.md)（同梱しない・ストアに載せない）。本体がプラグインとテーマに求めること（インラインスクリプトと CSP のホストを足すページのフック、自分のスタイルを持つブロック、注文の計算、通知、宣言した設定、CSP のホストを宣言するテーマ）をそろえる。公式パッケージそのもののテストは、AegisCMS-Plugin で本体のリリースのタグに対して動かす。
+- **本体は公式パッケージに依存しない。** 前後の記事は本体の設定（[`[adjacent_articles]`](configuration.ja.md#229-adjacent_articles--前後の記事)）で、`official-post-navigation` の設定ではない。
+- **テーマは自分の文言を持つ**（`locales/`。[テーマ制作ガイドの 2](theme_authoring_guide.ja.md#2-ディレクトリ構成)）ので、本体と切り離して配れる。
 
 ## 8. 更新のお知らせ
 
@@ -191,4 +181,5 @@ public_key = "<カタログ署名の Ed25519 公開鍵、32 バイトの hex>"
 
 ## 9. 未決事項
 
-- 鍵の切り替えの手順（カタログに次の鍵を予告する欄を持たせるか）。
+- **カタログの鍵の切り替え。** 公式のカタログの公開鍵はサーバーに組み込まれている（`OFFICIAL_CATALOG_PUBLIC_KEY`）ので、新しい鍵で署名したカタログは、出し済みのサーバーがすべて断る。今は、新しい鍵を入れた本体をリリースして切り替える。サイトが更新するまでの間は、`[[store.catalogs]]` に新しい鍵を書けば読める（AegisCMS-Store の README）。この空白を避ける案: カタログに次の鍵を予告する欄を持たせ、今の鍵で署名しておき、切り替える前にサーバーに知らせる。
+- **ZIP の鍵の切り替え。** カタログは版ごとに鍵を書くので、新しい版は新しい鍵で署名すればよい。ただ、更新を知らせるのは、インストール済みのものの鍵が、カタログのそのパッケージの版のどれかに載っているときだけ（[8](#8-更新のお知らせ)）。古い版をカタログに残しておけば更新は出続けるが、消すと、古い鍵の版のままのサイトに更新が出なくなる。カタログの鍵と合わせて決める。
