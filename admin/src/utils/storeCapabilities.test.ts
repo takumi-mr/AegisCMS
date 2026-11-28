@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { storeCapabilities } from './storeCapabilities';
+import { capabilityAdditions, storeCapabilities } from './storeCapabilities';
 
 describe('storeCapabilities', () => {
   it('lists what a plugin is allowed to do', () => {
@@ -45,5 +45,41 @@ describe('storeCapabilities', () => {
         csp: { script_domains: [1, 'ok.example'], unknown: ['x.example'] },
       })
     ).toEqual([{ kind: 'csp', directive: 'script-src', values: ['ok.example'] }]);
+  });
+});
+
+describe('capabilityAdditions', () => {
+  it('lists only what the new version adds', () => {
+    expect(
+      capabilityAdditions(
+        {
+          hooks: ['on-render-page', 'render-blocks'],
+          storage: true,
+          inline_scripts: true,
+          local_scripts: true,
+          network: { allowed_domains: ['a.example', 'b.example'] },
+          csp: { script_domains: ['cdn.example'], img_domains: ['img.example'] },
+        },
+        {
+          hooks: ['on-render-page'],
+          storage: true,
+          inline_scripts: true,
+          network: { allowed_domains: ['a.example'] },
+          csp: { script_domains: ['cdn.example'] },
+        }
+      )
+    ).toEqual([
+      { kind: 'hooks', values: ['render-blocks'] },
+      { kind: 'network', values: ['b.example'] },
+      { kind: 'scripts', inline: false, local: true },
+      { kind: 'csp', directive: 'img-src', values: ['img.example'] },
+    ]);
+  });
+
+  it('is empty when nothing new is allowed, and lists everything for a first install', () => {
+    const caps = { hooks: ['on-render-page'], csp: { font_domains: ['fonts.example'] } };
+    expect(capabilityAdditions(caps, caps)).toEqual([]);
+    expect(capabilityAdditions({ hooks: ['on-render-page'] }, caps)).toEqual([]);
+    expect(capabilityAdditions(caps, {})).toEqual(storeCapabilities(caps));
   });
 });

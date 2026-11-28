@@ -121,7 +121,8 @@
     "storeFailed": "Failed to load the store",
     "storeInstallFailed": "Failed to install from the store",
     "adjacentSettingsFailed": "Failed to load the previous/next article settings",
-    "updateAdjacentSettingsFailed": "Failed to save the previous/next article settings"
+    "updateAdjacentSettingsFailed": "Failed to save the previous/next article settings",
+    "storeUpdatesFailed": "Failed to check the store for updates"
   },
   "audit": {
     "forbidden": "This session does not have the \"admin\" role required to read audit logs.",
@@ -2324,6 +2325,26 @@
     "recommended": "Recommended",
     "recommendedTitle": "Recommended",
     "recommendedHint": "A new site has no plugin turned on. These are the ones most sites start with.",
-    "allTitle": "All packages"
+    "allTitle": "All packages",
+    "installedElsewhere": "Installed (v{{version}}, from another source: not updated from here)",
+    "newCapabilitiesTitle": "New in this version",
+    "noNewCapabilities": "This version is allowed nothing new.",
+    "allCapabilitiesTitle": "Everything it will be allowed to do",
+    "updates": {
+      "checking": "Checking the store for updates…",
+      "checkingNow": "Checking…",
+      "checkNow": "Check now",
+      "available_one": "{{count}} update available",
+      "available_other": "{{count}} updates available",
+      "openStore": "Open the Store tab",
+      "upToDate": "Up to date (checked {{when}})",
+      "notChecked": "Not checked for updates yet.",
+      "requestFailed": "Could not check for updates: {{reason}}",
+      "catalogFailed": "Could not check the catalog “{{name}}”: {{reason}}",
+      "catalogFailedWithLast": "Could not check the catalog “{{name}}”: {{reason}} (showing the result checked {{when}})",
+      "cardBadge": "Update available: v{{version}}",
+      "navBadge_one": "{{count}} update available",
+      "navBadge_other": "{{count}} updates available"
+    }
   }
 }

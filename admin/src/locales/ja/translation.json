@@ -121,7 +121,8 @@
     "storeFailed": "ストアを読み込めませんでした",
     "storeInstallFailed": "ストアからインストールできませんでした",
     "adjacentSettingsFailed": "前後の記事の設定を読み込めませんでした",
-    "updateAdjacentSettingsFailed": "前後の記事の設定を保存できませんでした"
+    "updateAdjacentSettingsFailed": "前後の記事の設定を保存できませんでした",
+    "storeUpdatesFailed": "ストアの更新を確認できませんでした"
   },
   "audit": {
     "forbidden": "このセッションには監査ログの閲覧に必要な admin ロールがありません。",
@@ -2305,6 +2306,26 @@
     "recommended": "おすすめ",
     "recommendedTitle": "おすすめ",
     "recommendedHint": "新しいサイトでは、プラグインは何も有効になっていません。多くのサイトが最初に入れるものです。",
-    "allTitle": "すべてのパッケージ"
+    "allTitle": "すべてのパッケージ",
+    "installedElsewhere": "インストール済み（v{{version}}。ほかの出どころのものなので、ここからは更新しません）",
+    "newCapabilitiesTitle": "この版で新しく許可されること",
+    "noNewCapabilities": "この版で新しく許可されることはありません。",
+    "allCapabilitiesTitle": "許可されることのすべて",
+    "updates": {
+      "checking": "ストアの更新を確認しています…",
+      "checkingNow": "確認しています…",
+      "checkNow": "今すぐ確認",
+      "available_one": "{{count}} 件の更新があります",
+      "available_other": "{{count}} 件の更新があります",
+      "openStore": "ストアのタブを開く",
+      "upToDate": "最新です（{{when}} に確認）",
+      "notChecked": "まだ更新を確認していません。",
+      "requestFailed": "更新を確認できませんでした: {{reason}}",
+      "catalogFailed": "カタログ「{{name}}」を確認できませんでした: {{reason}}",
+      "catalogFailedWithLast": "カタログ「{{name}}」を確認できませんでした: {{reason}}（{{when}} に確認した結果を表示しています）",
+      "cardBadge": "更新があります: v{{version}}",
+      "navBadge_one": "{{count}} 件の更新",
+      "navBadge_other": "{{count}} 件の更新"
+    }
   }
 }

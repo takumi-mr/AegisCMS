@@ -29,9 +29,3 @@
 - [ ] **会員の購入・サブスクの実機確認**: 設計は [members.md 16](docs/members.ja.md#16-購入記事の単独購入サブスク)。実装（記事の単独購入・サブスク・管理画面・マイページ）は済で、Stripe はモックでしか確かめていない。Stripe のテストモードで、決済ページ・Webhook（`checkout.session.completed` / `customer.subscription.*` / `charge.refunded`）・Customer Portal・返金を一度通す。新しい API バージョンで契約の期間の終わりが `items` に移っている点（`current_period_end`）は両対応にしてあるが、実物の応答では未確認。
 - [ ] **official-clarity の実機確認**（プラグインは [AegisCMS-Plugin](https://github.com/takumi-mr/AegisCMS-Plugin) にある）: 単体テストと Wasm の実行で、起動コードが同意を待つ形で入り、録画しないページに入らないことは確かめた。実際の Clarity での動作（CSP のホストで読み込み・送信がブロックされないか、`scripts.clarity.ms` が要るか）は、プロジェクト ID を入れたサイトで確かめていない。
 - [ ] **official-embeds の実機確認**（プラグインは AegisCMS-Plugin にある）: URL の読み取り・`src` の組み立て・サニタイズ後に iframe が残ることは単体テストと Wasm の実行で確かめた。実際のブラウザーで、各サービスの埋め込みが CSP（足したホストだけの `frame-src`）の下で表示されるか（埋め込みの中からさらに別のホストを iframe で読む・ポップアップを開くものが無いか。とくに Google マップ・カレンダー・フォーム、CodePen の「クリックで実行」）は確かめていない。同意を待つ埋め込み（`[embed].consent`）で、許可したあとに iframe が読み込まれて案内が隠れること、汎用の埋め込み（`official-embeds/iframe`）の `sandbox` で、よく使うサービス（Google フォーム・Typeform など）が動くことも、実際のブラウザーでは確かめていない。
-
-### 🏪 パッケージストア（第 1 段階）
-
-設計は [store.md](docs/store.ja.md)。当面は公式のプラグイン・テーマだけを配る。上から順に着手する。
-
-- [ ] **ストアの更新のお知らせ（画面）**: 設計は [store.md 8](docs/store.ja.md#8-更新のお知らせ)。サーバー（`GET /api/v1/store/updates`・カタログのキャッシュ・同じ出どころだけ・`installed_capabilities`）は済。Admin Studio: 開いたときに確認し、ナビゲーションの Plugins / Themes に件数、「インストール済み」のカードに新しい版、「今すぐ確認」、確認できなかったときの表示、更新の確認画面で増える許可を目立たせる。

@@ -43,3 +43,31 @@ export function storeCapabilities(capabilities: Record<string, unknown>): StoreC
   }
   return items;
 }
+
+const itemKey = (item: StoreCapability): string =>
+  item.kind === 'csp' ? `csp:${item.directive}` : item.kind;
+
+/**
+ * What `next` allows that `previous` did not (an update's new permissions): new hooks and hosts,
+ * newly kept data, newly embedded site hosts, newly run scripts
+ */
+export function capabilityAdditions(
+  next: Record<string, unknown>,
+  previous: Record<string, unknown>
+): StoreCapability[] {
+  const before = new Map(storeCapabilities(previous).map((item) => [itemKey(item), item]));
+  return storeCapabilities(next).flatMap((item): StoreCapability[] => {
+    const old = before.get(itemKey(item));
+    if (!old) return [item];
+    if ('values' in item && 'values' in old) {
+      const values = item.values.filter((v) => !old.values.includes(v));
+      return values.length > 0 ? [{ ...item, values }] : [];
+    }
+    if (item.kind === 'scripts' && old.kind === 'scripts') {
+      const inline = item.inline && !old.inline;
+      const local = item.local && !old.local;
+      return inline || local ? [{ kind: 'scripts', inline, local }] : [];
+    }
+    return [];
+  });
+}

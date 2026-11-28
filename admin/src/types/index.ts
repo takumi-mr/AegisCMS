@@ -1530,7 +1530,14 @@ export interface StorePackage {
   installed_version?: string;
   /** Newest version that runs on this server */
   latest_compatible?: string;
-  /** Installed, and `latest_compatible` is newer */
+  /**
+   * The installed package is signed with a key this catalog lists for it (same source).
+   * Updates are offered only then
+   */
+  installed_from_catalog: boolean;
+  /** What the installed version is allowed to do (`{ csp }` for themes), to show what an update adds */
+  installed_capabilities?: Record<string, unknown>;
+  /** Installed from this catalog, and `latest_compatible` is newer */
   update_available: boolean;
   /** Newest first */
   versions: StoreVersion[];
@@ -1568,4 +1575,33 @@ export interface StoreInstallResponse {
   kind: StorePackageKind;
   id: string;
   version: string;
+}
+
+/** An installed package with a newer version in a store catalog (`GET /api/v1/store/updates`) */
+export interface StoreUpdate {
+  catalog: string;
+  kind: StorePackageKind;
+  id: string;
+  name: string;
+  installed_version: string;
+  latest_version: string;
+}
+
+/** How the update check went for one catalog */
+export interface StoreUpdateCheckStatus {
+  name: string;
+  /** Compared with a verified catalog (fetched now or earlier) */
+  ok: boolean;
+  /** When the compared catalog was fetched (absent if never) */
+  checked_at?: string;
+  /** Why fetching failed this time; the earlier result is used when there is one */
+  code?: string;
+  error?: string;
+}
+
+export interface StoreUpdatesResponse {
+  /** Automatic checks are on (`[store].check_updates`) */
+  check_updates: boolean;
+  catalogs: StoreUpdateCheckStatus[];
+  updates: StoreUpdate[];
 }
