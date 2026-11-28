@@ -24,7 +24,7 @@
 
 - `admin/package.json` の `overrides`（`glob` → `minimatch ^11.0.5`）は、Dependabot の minimatch の警告（11.0.1 未満が対象）を避けるための一時的なもの。`@storybook/react-vite` が固定する `@joshwooding/vite-plugin-react-docgen-typescript@0.7` が `glob@13`（`minimatch ^10`）に依存するため。react-vite が新しい docgen プラグイン（`glob` に依存しない 0.9 系）に上がったら外す。`npm audit` に残る `glob` の警告（moderate）は、修正が react-vite のメジャーダウングレードになるため対応しない。
 - セキュリティ監査対応バッチ（バッチ 1〜7、詳細: [docs/security_race_condition_audit.md](docs/security_race_condition_audit.md)）のうち、`crates/aegis-db`（SQL・マイグレーション）や `crates/aegis-cache`（Redis）を変更するバッチ（3〜7）は、`AGENTS.md` 2a に従い `task docker:dbs:up` のうえで実機 PostgreSQL / MySQL / Redis に対して `task test:dbs` を実行して確認すること（マイグレーション追加時は 3 方言すべてで新規連番ファイルを作成し、リリース済みマイグレーションは編集しない）。
-- 監査レポート [docs/security_race_condition_audit.md](docs/security_race_condition_audit.md) は、全バッチの対応が終わったら削除する（ユーザーの指示）。削除の前に、各タスクが参照している修正方針・対応時の判断のうち、まだ必要なものを TODO.md か該当する `docs/*.md` に移すこと。
+- 監査レポート [docs/security_race_condition_audit.md](docs/security_race_condition_audit.md) は、全バッチの対応が終わっても削除せずに残す（ユーザーの指示）。各指摘の修正方針と「対応時の判断」は、対応したあともこのレポートに残す。
 
 ---
 
