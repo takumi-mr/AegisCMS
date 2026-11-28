@@ -1110,6 +1110,130 @@ async fn test_leaving_cancels_the_subscription_first() {
         .is_empty());
 }
 
+/// 退会の手続き中・退会した会員の契約は、写しを作らず、その場で Stripe で解約する。保存したあとで
+/// 手続きに入っていたら（通知の送り直しで気づく）、そのときに解約する（監査 A-13）
+#[tokio::test]
+async fn test_subscriptions_of_members_who_are_leaving_are_cancelled() {
+    let site = site(true).await;
+    site.member("a@example.com", "free").await;
+    let id = site.member_id("a@example.com").await;
+    let now = aegis_core::time::TimestampExt::to_rfc3339_auto(&jiff::Timestamp::now());
+    let cancelled = |stripe_id: &str| {
+        site.calls
+            .lock()
+            .unwrap()
+            .contains(&format!("DELETE /v1/subscriptions/{stripe_id}"))
+    };
+
+    // 退会の手続き中の会員: 写しを作らずに解約する
+    site.state
+        .db
+        .set_member_status(&id, "deleting", &now, None)
+        .await
+        .unwrap();
+    let reply = site
+        .webhook(
+            subscription_checkout_event(&id, "monthly", 800, "sub_leaving"),
+            WEBHOOK_SECRET,
+        )
+        .await;
+    assert_eq!(reply.status, StatusCode::OK, "{}", reply.body);
+    assert!(cancelled("sub_leaving"));
+    assert!(site
+        .state
+        .db
+        .get_subscription_by_stripe_id("sub_leaving")
+        .await
+        .unwrap()
+        .is_none());
+
+    // 退会した（いない）会員も同じ
+    let reply = site
+        .webhook(
+            subscription_checkout_event("gone-member", "monthly", 800, "sub_gone"),
+            WEBHOOK_SECRET,
+        )
+        .await;
+    assert_eq!(reply.status, StatusCode::OK, "{}", reply.body);
+    assert!(cancelled("sub_gone"));
+
+    // 有効な会員の契約を保存したあとで、会員が手続きに入った。通知の送り直しで解約する
+    site.state
+        .db
+        .set_member_status(&id, "active", &now, None)
+        .await
+        .unwrap();
+    let event = subscription_checkout_event(&id, "monthly", 800, "sub_late");
+    site.webhook(event.clone(), WEBHOOK_SECRET).await;
+    assert!(!cancelled("sub_late"));
+    site.state
+        .db
+        .set_member_status(&id, "deleting", &now, None)
+        .await
+        .unwrap();
+    let reply = site.webhook(event, WEBHOOK_SECRET).await;
+    assert_eq!(reply.status, StatusCode::OK, "{}", reply.body);
+    assert!(cancelled("sub_late"));
+    let kept = site
+        .state
+        .db
+        .get_subscription_by_stripe_id("sub_late")
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(kept.status, "cancelled");
+}
+
+/// 退会を始めると、その場でセッションが終わり、ログインもできない（後始末の間に新しいデータを作らせない）
+#[tokio::test]
+async fn test_leaving_ends_the_sessions_before_the_cleanup() {
+    let site = site(true).await;
+    let token = site.member("a@example.com", "free").await;
+    let reply = site
+        .send(
+            Request::delete("/api/v1/members/me")
+                .header("content-type", "application/json")
+                .header("authorization", format!("Bearer {token}"))
+                .body(Body::from(json!({ "password": "password123" }).to_string()))
+                .unwrap(),
+        )
+        .await;
+    assert_eq!(reply.status, StatusCode::NO_CONTENT, "{}", reply.body);
+    assert_eq!(
+        site.get("/api/v1/members/me", Some(&token)).await.status,
+        StatusCode::UNAUTHORIZED
+    );
+    // パスワードが違えば、何も変えない（退会の手続きにも入らない）
+    let token = site.member("b@example.com", "free").await;
+    let wrong = site
+        .send(
+            Request::delete("/api/v1/members/me")
+                .header("content-type", "application/json")
+                .header("authorization", format!("Bearer {token}"))
+                .body(Body::from(
+                    json!({ "password": "wrong-password" }).to_string(),
+                ))
+                .unwrap(),
+        )
+        .await;
+    assert_eq!(wrong.status, StatusCode::UNAUTHORIZED);
+    let id = site.member_id("b@example.com").await;
+    assert_eq!(
+        site.state
+            .db
+            .get_member_by_id(&id)
+            .await
+            .unwrap()
+            .unwrap()
+            .status,
+        "active"
+    );
+    assert_eq!(
+        site.get("/api/v1/members/me", Some(&token)).await.status,
+        StatusCode::OK
+    );
+}
+
 #[tokio::test]
 async fn test_admins_grant_revoke_refund_and_cancel() {
     let site = site(true).await;

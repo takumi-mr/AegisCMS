@@ -439,15 +439,10 @@ pub async fn delete_object(
     // 会員も同様（`slug` は会員のメールアドレスなので、ID で引き直す）
     for r in &references {
         if r.content_type == "member" {
-            match state.db.get_member_by_id(&r.id).await {
-                Ok(Some(mut member)) => {
-                    member.avatar_key = None;
-                    if let Err(e) = state.db.update_member(&member).await {
-                        tracing::warn!("Failed to clear avatar_key for member '{}': {}", r.id, e);
-                    }
-                }
-                Ok(None) => {}
-                Err(e) => tracing::warn!("Failed to load member '{}': {}", r.id, e),
+            let now = aegis_core::time::TimestampExt::to_rfc3339_secs(&jiff::Timestamp::now());
+            // アバターの列だけを外す（会員のほかの列は書かない）
+            if let Err(e) = state.db.update_member_avatar(&r.id, None, &now, None).await {
+                tracing::warn!("Failed to clear avatar_key for member '{}': {}", r.id, e);
             }
         }
     }

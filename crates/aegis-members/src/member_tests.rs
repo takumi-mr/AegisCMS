@@ -23,6 +23,153 @@ mod tests {
         (service, db)
     }
 
+    async fn registered(service: &MemberService, email: &str) -> String {
+        service
+            .register(
+                MemberRegisterRequest {
+                    email: email.to_string(),
+                    password: "password123".to_string(),
+                    name: "Taro".to_string(),
+                    phone: None,
+                    shipping_address: None,
+                },
+                None,
+                None,
+            )
+            .await
+            .unwrap()
+            .id
+    }
+
+    fn login(email: &str, password: &str) -> MemberLoginRequest {
+        MemberLoginRequest {
+            email: email.to_string(),
+            password: password.to_string(),
+        }
+    }
+
+    /// 退会を始めると `deleting` になり、セッションが終わり、ログイン・プロフィールの変更・再設定ができない。
+    /// 管理者の操作でも戻らない。後始末に失敗したら `active` に戻せる（監査 A-13）
+    #[tokio::test]
+    async fn test_starting_a_deletion_locks_the_account_until_it_is_aborted() {
+        let (service, db) = setup_service().await;
+        let id = registered(&service, "leave@example.com").await;
+        let (session, _) = service
+            .login(login("leave@example.com", "password123"), None, None)
+            .await
+            .unwrap();
+
+        service.begin_account_deletion(&id).await.unwrap();
+        assert_eq!(
+            db.get_member_by_id(&id).await.unwrap().unwrap().status,
+            "deleting"
+        );
+        assert!(service
+            .verify_session(&session.token)
+            .await
+            .unwrap()
+            .is_none());
+        assert!(service
+            .login(login("leave@example.com", "password123"), None, None)
+            .await
+            .is_err());
+        assert!(service
+            .update_profile(
+                &id,
+                MemberUpdateProfileRequest {
+                    name: Some("New".to_string()),
+                    ..Default::default()
+                }
+            )
+            .await
+            .is_err());
+        assert!(service
+            .set_avatar(&id, Some("avatars/a.png".to_string()))
+            .await
+            .is_err());
+        assert!(service
+            .request_password_reset("leave@example.com", None)
+            .await
+            .unwrap()
+            .is_none());
+        assert!(service.admin_set_status(&id, "active").await.is_err());
+        assert!(service.reissue_session(&id).await.is_err());
+        // もう一度始めても（前の退会が途中で止まった）、そのまま続けられる
+        service.begin_account_deletion(&id).await.unwrap();
+
+        service.abort_account_deletion(&id).await.unwrap();
+        assert_eq!(
+            db.get_member_by_id(&id).await.unwrap().unwrap().status,
+            "active"
+        );
+        assert!(service
+            .login(login("leave@example.com", "password123"), None, None)
+            .await
+            .is_ok());
+
+        // 停止中の会員は、退会を始められない
+        service.admin_set_status(&id, "suspended").await.unwrap();
+        assert!(service.begin_account_deletion(&id).await.is_err());
+    }
+
+    /// 停止中の会員は、自分のプロフィール・パスワード・アバターを変えられない（停止を上書きしない。監査 A-06）。
+    /// パスワードの変更は、確かめたあとでハッシュが変わっていたら書かない
+    #[tokio::test]
+    async fn test_suspended_members_cannot_change_their_profile() {
+        let (service, db) = setup_service().await;
+        let id = registered(&service, "s@example.com").await;
+        service.admin_set_level(&id, "free", "admin").await.unwrap();
+        service.admin_set_status(&id, "suspended").await.unwrap();
+        for req in [
+            MemberUpdateProfileRequest {
+                name: Some("Changed".to_string()),
+                ..Default::default()
+            },
+            MemberUpdateProfileRequest {
+                current_password: Some("password123".to_string()),
+                new_password: Some("a-new-password-1".to_string()),
+                ..Default::default()
+            },
+        ] {
+            assert!(service.update_profile(&id, req).await.is_err());
+        }
+        assert!(service.set_avatar(&id, None).await.is_err());
+        let stored = db.get_member_by_id(&id).await.unwrap().unwrap();
+        assert_eq!(
+            (stored.status.as_str(), stored.name.as_str()),
+            ("suspended", "Taro")
+        );
+
+        // DB の層: 確かめたハッシュと違えば、パスワードを書かない
+        service.admin_set_status(&id, "active").await.unwrap();
+        assert!(!db
+            .update_member_password(
+                &id,
+                "new-hash",
+                "not-the-current-hash",
+                "2026-01-01T00:00:00Z"
+            )
+            .await
+            .unwrap());
+        // プロフィールの変更は、ほかの列（状態・レベル）を書かない
+        service.admin_set_level(&id, "free", "admin").await.unwrap();
+        service
+            .update_profile(
+                &id,
+                MemberUpdateProfileRequest {
+                    name: Some("Jiro".to_string()),
+                    ..Default::default()
+                },
+            )
+            .await
+            .unwrap();
+        let stored = db.get_member_by_id(&id).await.unwrap().unwrap();
+        assert_eq!(
+            (stored.name.as_str(), stored.status.as_str()),
+            ("Jiro", "active")
+        );
+    }
+
     /// 新規会員は最も低いレベルで始まり、管理者が設定にあるレベルへ変えられる（設定に無いレベルは断る）
     #[tokio::test]
     async fn test_member_level_starts_low_and_is_granted_by_an_admin() {

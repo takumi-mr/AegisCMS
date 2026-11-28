@@ -45,7 +45,7 @@ pub use forum::{
     PostListQuery, ThreadListQuery, FORUM_CATEGORY_TABLE, FORUM_POST_TABLE, FORUM_REPORT_TABLE,
     FORUM_THREAD_TABLE,
 };
-pub use members::{MemberRecord, MemberStorage, MEMBER_COLUMNS, MEMBER_TABLE};
+pub use members::{MemberProfileUpdate, MemberRecord, MemberStorage, MEMBER_COLUMNS, MEMBER_TABLE};
 pub use mysql::MySqlAdapter;
 pub use newsletter::{
     NewsletterIssueRecord, NewsletterListQuery, NewsletterPage, NewsletterStorage,

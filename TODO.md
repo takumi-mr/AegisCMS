@@ -11,12 +11,12 @@
 
 セキュリティ監査（[docs/security_race_condition_audit.md](docs/security_race_condition_audit.md) 第 2 版）の対応を、優先度（P0 → P1 → P2）の順に進める。各項目の末尾の ID は監査レポートの指摘番号。
 
-### バッチ 3 [P0〜P1]: 会員アカウントの乗っ取り・競合・退会整合性 (`fix/members-concurrency-and-takeover`)
+### バッチ 4 [P1]: コマース・返金・サブスクリプション・レビュー (`fix/commerce-payments-races`)
 
-- [ ] [P0] 事前登録（`unverified`）パスワード上書きによるアカウント乗っ取り対策（再登録で `password_hash` を上書きせず、登録内容を確認トークン側の `PendingToken` に持たせて確認時に反映、反映は `WHERE id = ? AND status = 'unverified'`）（`crates/aegis-members/src/member.rs`）[B-04]
-- [ ] [P1] `_aegis_members` 全列上書き（Lost Update）解消（プロフィール・パスワード・アバター・ステータス・ランクごとの列限定 `UPDATE` へ分離、会員自己更新に `AND status = 'active'` 条件を付与）（`crates/aegis-db/src/members.rs`、`crates/aegis-members/src/member.rs`）[A-06]
-- [ ] [P1] 会員ログイン中（Argon2 実行中）の停止/パスワード変更すり抜け対策（セッション発行時刻の基準・DB ステータス再確認）と会員系 Argon2id 処理の `spawn_blocking` 化（`crates/aegis-members/src/member.rs`、`crates/aegis-server/src/handlers/members.rs`）[A-03 の会員部分、B-11]
-- [ ] [P1] 会員退会（`delete_me`）の競合対策（パスワード確認直後に `deleting`/`suspended` 化＋即時セッション失効、`start_from_checkout` 側で `member.status == "active"` 確認）（`crates/aegis-server/src/handlers/{members,subscription}.rs`）[A-13]
+- [ ] 注文返金・在庫戻しの楽観ロック導入（`WHERE id = ? AND refunded_amount = ? AND status = ?`、キャンセル済み注文の在庫戻し禁止）、同額部分返金の Stripe `Idempotency-Key` 衝突修正、`charge.refunded` Webhook の `transaction_id` 照合・累計額差分反映。**照合の修正は `refund_ref` による重複排除と同時に入れる**（照合だけ先に直すとアプリ自身の返金が二重加算される）（`crates/aegis-db/src/orders.rs`、`crates/aegis-commerce/src/{lib,stripe}.rs`）[A-07]
+- [ ] サブスクリプション Webhook 順序逆転による解約復活防止（Stripe 最新状態再取得または `cancelled` 遷移禁止＋`event.created` 単調性チェック）および同時契約作成重複防止（`crates/aegis-server/src/handlers/subscription.rs`、`crates/aegis-db/src/subscriptions.rs`）[A-08]
+- [ ] 商品レビューの重複投稿対策（`product_id` 正規化＋3 DB 方言マイグレーションで `_aegis_reviews (order_id, product_id)` に `UNIQUE` 制約追加、注文アクセストークンの定数時間比較化）（`crates/aegis-commerce/src/review.rs`、`crates/aegis-db/migrations/`）[A-09、B-11]
+- [ ] `CartRequest.member_id` のクライアント指定禁止（`#[serde(skip_deserializing)]` 付与＋セッションからのみ設定）（`crates/aegis-commerce/src/lib.rs`、`crates/aegis-server/src/handlers/shop.rs`）[B-05]
 
 ---
 
@@ -29,13 +29,6 @@
 ---
 
 ## 未着手タスク (Backlog)
-
-### バッチ 4 [P1]: コマース・返金・サブスクリプション・レビュー (`fix/commerce-payments-races`)
-
-- [ ] 注文返金・在庫戻しの楽観ロック導入（`WHERE id = ? AND refunded_amount = ? AND status = ?`、キャンセル済み注文の在庫戻し禁止）、同額部分返金の Stripe `Idempotency-Key` 衝突修正、`charge.refunded` Webhook の `transaction_id` 照合・累計額差分反映。**照合の修正は `refund_ref` による重複排除と同時に入れる**（照合だけ先に直すとアプリ自身の返金が二重加算される）（`crates/aegis-db/src/orders.rs`、`crates/aegis-commerce/src/{lib,stripe}.rs`）[A-07]
-- [ ] サブスクリプション Webhook 順序逆転による解約復活防止（Stripe 最新状態再取得または `cancelled` 遷移禁止＋`event.created` 単調性チェック）および同時契約作成重複防止（`crates/aegis-server/src/handlers/subscription.rs`、`crates/aegis-db/src/subscriptions.rs`）[A-08]
-- [ ] 商品レビューの重複投稿対策（`product_id` 正規化＋3 DB 方言マイグレーションで `_aegis_reviews (order_id, product_id)` に `UNIQUE` 制約追加、注文アクセストークンの定数時間比較化）（`crates/aegis-commerce/src/review.rs`、`crates/aegis-db/migrations/`）[A-09、B-11]
-- [ ] `CartRequest.member_id` のクライアント指定禁止（`#[serde(skip_deserializing)]` 付与＋セッションからのみ設定）（`crates/aegis-commerce/src/lib.rs`、`crates/aegis-server/src/handlers/shop.rs`）[B-05]
 
 ### バッチ 5 [P1]: 単一利用トークン・ブルートフォース・SSO・初期セットアップ (`fix/auth-tokens-sso-races`)
 

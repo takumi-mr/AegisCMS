@@ -18,6 +18,7 @@ const STATUS_BADGE: Record<MemberStatus, string | undefined> = {
   active: styles.good,
   suspended: styles.bad,
   unverified: styles.warn,
+  deleting: styles.bad,
 };
 
 const ORDER_BADGE: Record<string, string | undefined> = {
@@ -376,6 +377,7 @@ const MemberModal: React.FC<MemberModalProps> = ({
         </div>
 
         {status === 'unverified' && <div className={styles.notice}>{t('members.unverified')}</div>}
+        {status === 'deleting' && <div className={styles.notice}>{t('members.deleting')}</div>}
 
         <div className={styles.detailGrid}>
           <div className={styles.box}>

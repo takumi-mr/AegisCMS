@@ -14,7 +14,7 @@ use aegis_core::{
     AegisError, AuditAction, AuditActor, AuditEvent, AuditOutcome, CacheBackend, Result,
     ShippingAddress,
 };
-use aegis_db::{DatabaseAdapter, MemberRecord};
+use aegis_db::{DatabaseAdapter, MemberProfileUpdate, MemberRecord};
 
 use crate::config::{MemberRegistration, MembersConfig};
 use jiff::Timestamp;
@@ -38,6 +38,13 @@ const VERIFY_PREFIX: &str = "member_verify:";
 pub const EMAIL_VERIFICATION_TTL_SECS: u64 = 48 * 3600;
 /// ログインを断るときのメッセージ（クライアントは、これで「確認が済んでいない」と見分ける）
 pub const EMAIL_NOT_VERIFIED_MESSAGE: &str = "Please confirm your email address first";
+/// 確認リンクで入れたパスワードが、そのリンクの登録のものと違うときのメッセージ
+pub const VERIFY_PASSWORD_MISMATCH_MESSAGE: &str =
+    "The password does not match the registration of this link";
+/// 確認リンクで、パスワードを間違えてよい回数（超えたらリンクを使えなくする）
+const MAX_VERIFY_PASSWORD_ATTEMPTS: u64 = 5;
+/// 読んでから書くまでの間に、ほかの操作で会員が変わったときのメッセージ
+const CHANGED_WHILE_SAVING_MESSAGE: &str = "The account changed while saving. Try again";
 /// 再設定リンクの有効期間（秒）
 pub const PASSWORD_RESET_TTL_SECS: u64 = 3600;
 /// 同じ IP からの再設定の申し込みの上限（1 時間あたり）
@@ -100,6 +107,52 @@ pub struct MemberVerification {
 struct PendingToken {
     member_id: String,
     email: String,
+    /// メールの確認: そのリンクを作った登録の内容。確認のときに初めて会員の行へ反映する（確認待ちの会員の行は、
+    /// 登録し直しでは書き換えない。他人が同じアドレスで登録し直しても、本人のリンクは本人のパスワードでしか
+    /// 有効にならない）。この版より前に作ったリンクには無い（会員の行の内容を使う）
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    registration: Option<PendingRegistration>,
+}
+
+/// 確認待ちの登録の内容（[`PendingToken::registration`]）
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct PendingRegistration {
+    /// Argon2id のハッシュ（平文は持たない）
+    password_hash: String,
+    name: String,
+    phone: Option<String>,
+}
+
+impl From<&MemberRecord> for PendingRegistration {
+    fn from(record: &MemberRecord) -> Self {
+        Self {
+            password_hash: record.password_hash.clone(),
+            name: record.name.clone(),
+            phone: record.phone.clone(),
+        }
+    }
+}
+
+/// パスワードのハッシュを作る（Argon2id は重いので、非同期のワーカーを止めないよう別のスレッドで）
+async fn hash_blocking(password: &str) -> Result<String> {
+    let password = password.to_string();
+    tokio::task::spawn_blocking(move || hash_password(&password))
+        .await
+        .map_err(|e| AegisError::Internal(format!("Password hashing task failed: {}", e)))?
+}
+
+/// パスワードを確かめる（[`hash_blocking`] と同じく別のスレッドで）
+async fn verify_blocking(password: &str, hash: &str) -> Result<bool> {
+    let (password, hash) = (password.to_string(), hash.to_string());
+    tokio::task::spawn_blocking(move || verify_password(&password, &hash))
+        .await
+        .map_err(|e| AegisError::Internal(format!("Password check task failed: {}", e)))?
+}
+
+/// 会員がいないときも、同じだけ時間をかける（登録の有無を応答の時間で教えない）
+async fn verify_dummy_blocking(password: &str) {
+    let password = password.to_string();
+    let _ = tokio::task::spawn_blocking(move || verify_dummy_password(&password)).await;
 }
 
 fn sha256_hex(value: &str) -> String {
@@ -335,7 +388,8 @@ impl MemberService {
                 "An account with this email already exists".to_string(),
             ));
         }
-        self.insert_member(req, email, "active", ip, user_agent)
+        let password_hash = hash_blocking(&req.password).await?;
+        self.insert_member(req, email, "active", password_hash, ip, user_agent)
             .await
             .map(Into::into)
     }
@@ -365,10 +419,10 @@ impl MemberService {
         req: MemberRegisterRequest,
         email: String,
         status: &str,
+        password_hash: String,
         ip: Option<String>,
         user_agent: Option<String>,
     ) -> Result<MemberRecord> {
-        let password_hash = hash_password(&req.password)?;
         let id = Uuid::new_v4().to_string();
         let timestamp = now();
         let shipping_json = req
@@ -411,9 +465,12 @@ impl MemberService {
     }
 
     /// 確認が要るときの会員登録。会員は `unverified`（確認が済むまでログインできない）で作る。
-    /// 登録済みのアドレスは、応答で区別できないよう `Ok(None)` を返す。まだ確認していない会員のアドレスで
-    /// 登録し直したときは、名前とパスワードを今の登録のもので置き換えて、確認メールを送り直す
-    /// （他人のアドレスで先に登録されても、本人が登録し直せば、本人のものになる）
+    /// 登録済みのアドレスは、応答で区別できないよう `Ok(None)` を返す。
+    ///
+    /// 登録の内容（パスワード・名前・電話）は、確認メールのトークンに持たせ、確認のとき（[`Self::verify_email`]。
+    /// そのリンクの登録のパスワードを入れたときだけ）に初めて会員の行へ反映する。まだ確認していない会員の
+    /// アドレスで登録し直しても、会員の行は書き換えず、新しい登録のリンクを送る。他人が同じアドレスで
+    /// 登録し直しても、そのリンクは他人のパスワードを知らなければ有効にできない（アカウントを乗っ取れない）
     pub async fn register_pending(
         &self,
         req: MemberRegisterRequest,
@@ -421,27 +478,31 @@ impl MemberService {
         user_agent: Option<String>,
     ) -> Result<Option<MemberVerification>> {
         let email = self.check_registration(&req)?;
+        let registration = PendingRegistration {
+            password_hash: hash_blocking(&req.password).await?,
+            name: req.name.trim().to_string(),
+            phone: req.phone.as_ref().map(|p| p.trim().to_string()),
+        };
         let member = match self.db.get_member_by_email(&email).await? {
             None => {
-                self.insert_member(req, email, "unverified", ip, user_agent)
+                let hash = registration.password_hash.clone();
+                self.insert_member(req, email, "unverified", hash, ip, user_agent)
                     .await?
             }
-            Some(mut existing) if existing.status == "unverified" => {
-                existing.password_hash = hash_password(&req.password)?;
-                existing.name = req.name.trim().to_string();
-                existing.phone = req.phone.map(|p| p.trim().to_string());
-                existing.updated_at = now();
-                self.db.update_member(&existing).await?;
-                existing
-            }
-            // 登録済み（有効・停止中）。登録の有無を応答で教えない
+            // 確認待ち。行はそのまま（最初の登録の内容）で、この登録のリンクを送る
+            Some(existing) if existing.status == "unverified" => existing,
+            // 登録済み（有効・停止中・退会の手続き中）。登録の有無を応答で教えない
             Some(_) => return Ok(None),
         };
-        self.issue_verification(member).await
+        self.issue_verification(member, registration).await
     }
 
     /// 確認メールの情報を作る。同じ宛先へのメールは 1 時間に 3 通まで（超えた分は送らず `None`）
-    async fn issue_verification(&self, member: MemberRecord) -> Result<Option<MemberVerification>> {
+    async fn issue_verification(
+        &self,
+        member: MemberRecord,
+        registration: PendingRegistration,
+    ) -> Result<Option<MemberVerification>> {
         let sent = self
             .cache
             .increment(
@@ -456,6 +517,7 @@ impl MemberService {
         let pending = PendingToken {
             member_id: member.id.clone(),
             email: member.email.clone(),
+            registration: Some(registration),
         };
         let value =
             serde_json::to_string(&pending).map_err(|e| AegisError::Internal(e.to_string()))?;
@@ -480,11 +542,43 @@ impl MemberService {
             .get_member_by_id(member_id)
             .await?
             .ok_or_else(|| AegisError::NotFound("Member not found".to_string()))?;
-        if !verify_password(password, &record.password_hash)? {
+        if !verify_blocking(password, &record.password_hash).await? {
             return Err(AegisError::Authentication(
                 "Password does not match".to_string(),
             ));
         }
+        Ok(())
+    }
+
+    /// 退会を始める（`confirm_password` のあと、機能ごとのデータの後始末の前に呼ぶ）。会員を `deleting` に
+    /// して、セッションをすべて終わらせる。後始末（サブスクの解約・注文やレビューの匿名化など）の間に、
+    /// 同じ会員の新しいレビュー・注文・投稿・契約が作られないようにするため。`active` の会員だけ
+    /// （ほかは `PermissionDenied`）。すでに `deleting` なら（前の退会が途中で止まった）、そのまま続ける
+    pub async fn begin_account_deletion(&self, member_id: &str) -> Result<()> {
+        let started = self
+            .db
+            .set_member_status(member_id, "deleting", &now(), Some(&["active"]))
+            .await?;
+        if !started {
+            let record = self
+                .db
+                .get_member_by_id(member_id)
+                .await?
+                .ok_or_else(|| AegisError::NotFound("Member not found".to_string()))?;
+            if record.status != "deleting" {
+                return Err(AegisError::PermissionDenied(
+                    "This member account has been suspended".to_string(),
+                ));
+            }
+        }
+        self.revoke_sessions(member_id).await
+    }
+
+    /// 退会の後始末に失敗したとき、`deleting` の会員を `active` に戻す（もう一度ログインして、やり直せる）
+    pub async fn abort_account_deletion(&self, member_id: &str) -> Result<()> {
+        self.db
+            .set_member_status(member_id, "active", &now(), Some(&["deleting"]))
+            .await?;
         Ok(())
     }
 
@@ -538,15 +632,23 @@ impl MemberService {
             }
         }
         match self.db.get_member_by_email(&email).await? {
-            Some(member) if member.status == "unverified" => self.issue_verification(member).await,
+            // 送り直しのリンクは、会員の行の内容（最初の登録）で有効になる。そのパスワードを知っている人
+            // （最初に登録した人）でなければ有効にできない。他人が先に登録していたら、本人は登録し直す
+            Some(member) if member.status == "unverified" => {
+                let registration = PendingRegistration::from(&member);
+                self.issue_verification(member, registration).await
+            }
             _ => Ok(None),
         }
     }
 
-    /// 確認リンクのトークンで、メールアドレスを確認する（会員は `active` になる）。トークンは 1 回だけ
+    /// 確認リンクのトークンと、そのリンクの登録のパスワードで、メールアドレスを確認する（会員は `active` に
+    /// なり、登録の内容が反映される）。パスワードが違えば `Authentication`（リンクは
+    /// [`MAX_VERIFY_PASSWORD_ATTEMPTS`] 回まで間違えられ、超えると使えなくなる）。トークンは 1 回だけ
     pub async fn verify_email(
         &self,
         token: &str,
+        password: &str,
         ip: Option<String>,
         user_agent: Option<String>,
     ) -> Result<MemberResponse> {
@@ -561,10 +663,8 @@ impl MemberService {
         let Some(value) = self.cache.get(&key).await? else {
             return Err(invalid());
         };
-        self.cache.delete(&key).await?;
         let pending: PendingToken = serde_json::from_str(&value).map_err(|_| invalid())?;
-
-        let mut record = self
+        let record = self
             .db
             .get_member_by_id(&pending.member_id)
             .await?
@@ -572,25 +672,67 @@ impl MemberService {
         if !record.email.eq_ignore_ascii_case(&pending.email) {
             return Err(invalid());
         }
+        // この版より前に作ったリンク（登録の内容を持たない）は、会員の行の内容で確かめる
+        let registration = pending
+            .registration
+            .unwrap_or_else(|| PendingRegistration::from(&record));
+
+        // リンクを作った登録のパスワードでなければ、有効にしない（他人の登録し直しで届いたリンクを、
+        // 本人が開いても、他人のパスワードのアカウントにならない）
+        if !verify_blocking(password, &registration.password_hash).await? {
+            let failures = self
+                .cache
+                .increment(
+                    &format!("member_verify_fail:{}", sha256_hex(token)),
+                    Some(EMAIL_VERIFICATION_TTL_SECS),
+                )
+                .await?;
+            if failures >= MAX_VERIFY_PASSWORD_ATTEMPTS {
+                self.cache.delete(&key).await?;
+            }
+            return Err(AegisError::Authentication(
+                VERIFY_PASSWORD_MISMATCH_MESSAGE.to_string(),
+            ));
+        }
+        self.cache.delete(&key).await?;
+
         match record.status.as_str() {
             "unverified" => {
-                record.status = "active".to_string();
-                record.updated_at = now();
-                self.db.update_member(&record).await?;
-                let event = AuditEvent::new(AuditAction::MemberVerify, AuditOutcome::Success)
-                    .with_actor(Some(AuditActor {
-                        user_id: record.id.clone(),
-                        role: "member".to_string(),
-                    }))
-                    .with_resource("member", Some(record.id.clone()))
-                    .with_client(ip, user_agent);
-                self.audit.record(event).await;
+                let activated = self
+                    .db
+                    .activate_member(
+                        &record.id,
+                        &registration.password_hash,
+                        &registration.name,
+                        registration.phone.as_deref(),
+                        &now(),
+                    )
+                    .await?;
+                if activated {
+                    let event = AuditEvent::new(AuditAction::MemberVerify, AuditOutcome::Success)
+                        .with_actor(Some(AuditActor {
+                            user_id: record.id.clone(),
+                            role: "member".to_string(),
+                        }))
+                        .with_resource("member", Some(record.id.clone()))
+                        .with_client(ip, user_agent);
+                    self.audit.record(event).await;
+                }
             }
             // すでに確認済み（別のリンクで確認した）。何も変えない
             "active" => {}
             _ => return Err(invalid()),
         }
-        Ok(record.into())
+        let fresh = self
+            .db
+            .get_member_by_id(&record.id)
+            .await?
+            .ok_or_else(invalid)?;
+        // 同時に開いた別のリンクで確認済みなら、それでよい。停止・退会などに変わっていたら使えない
+        if fresh.status != "active" {
+            return Err(invalid());
+        }
+        Ok(fresh.into())
     }
 
     /// ログイン
@@ -600,6 +742,9 @@ impl MemberService {
         ip: Option<String>,
         user_agent: Option<String>,
     ) -> Result<(MemberSessionData, MemberResponse)> {
+        // セッションは、会員の行を読む前の時刻で作る。パスワードを確かめている間に停止・パスワードの変更・
+        // 退会が挟まって失効の印（`revoke_sessions`）が置かれたら、このセッションも失効している
+        let started_micros = Timestamp::now().as_microsecond();
         let email = normalize_email(&req.email);
         let member = self.db.get_member_by_email(&email).await?;
 
@@ -607,18 +752,27 @@ impl MemberService {
             Some(c) => c,
             None => {
                 // タイミング攻撃防御
-                verify_dummy_password(&req.password);
+                verify_dummy_blocking(&req.password).await;
                 return Err(AegisError::Authentication(
                     "Invalid email or password".to_string(),
                 ));
             }
         };
 
-        if !verify_password(&req.password, &record.password_hash)? {
+        if !verify_blocking(&req.password, &record.password_hash).await? {
             return Err(AegisError::Authentication(
                 "Invalid email or password".to_string(),
             ));
         }
+        // 確かめている間に変わっていないか、今の行で見直す（停止・退会・パスワードの変更）
+        let record = match self.db.get_member_by_id(&record.id).await? {
+            Some(current) if current.password_hash == record.password_hash => current,
+            _ => {
+                return Err(AegisError::Authentication(
+                    "Invalid email or password".to_string(),
+                ))
+            }
+        };
 
         if record.status == "unverified" {
             return Err(AegisError::PermissionDenied(
@@ -631,7 +785,7 @@ impl MemberService {
             ));
         }
 
-        let session = self.create_session(&record).await?;
+        let session = self.create_session(&record, started_micros).await?;
 
         let login_time = now();
         self.db
@@ -655,8 +809,13 @@ impl MemberService {
     }
 
     /// セッションの検証
-    /// 会員のセッションを作って、キャッシュに置く
-    async fn create_session(&self, record: &MemberRecord) -> Result<MemberSessionData> {
+    /// 会員のセッションを作って、キャッシュに置く。`issued_at_micros` は、会員の行を読む前に取った時刻
+    /// （読んでから作るまでの間に置かれた失効の印で、このセッションも失効するように）
+    async fn create_session(
+        &self,
+        record: &MemberRecord,
+        issued_at_micros: i64,
+    ) -> Result<MemberSessionData> {
         let token = format!("{}{}", MEMBER_TOKEN_PREFIX, Uuid::new_v4().simple());
         let session = MemberSessionData {
             token: token.clone(),
@@ -665,7 +824,7 @@ impl MemberService {
             name: record.name.clone(),
             created_at: now(),
             expires_at: future_timestamp(self.session_ttl_secs),
-            issued_at_micros: Timestamp::now().as_microsecond(),
+            issued_at_micros,
         };
         let session_json =
             serde_json::to_string(&session).map_err(|e| AegisError::Internal(e.to_string()))?;
@@ -691,6 +850,7 @@ impl MemberService {
     /// 同じ会員の新しいセッションを作る（パスワードの変更で全セッションを失効させたあと、
     /// 変更した本人の画面を続けて使えるようにするため）
     pub async fn reissue_session(&self, member_id: &str) -> Result<MemberSessionData> {
+        let started_micros = Timestamp::now().as_microsecond();
         let record = self
             .db
             .get_member_by_id(member_id)
@@ -701,7 +861,7 @@ impl MemberService {
                 "This member account has been suspended".to_string(),
             ));
         }
-        self.create_session(&record).await
+        self.create_session(&record, started_micros).await
     }
 
     pub async fn verify_session(&self, token: &str) -> Result<Option<MemberSessionData>> {
@@ -763,48 +923,82 @@ impl MemberService {
             .collect())
     }
 
-    /// アバター画像のキーを設定する（`None` で外す）。以前のキーを返す（呼び出し側が古い画像を消す）
+    /// アバター画像のキーを設定する（`None` で外す）。以前のキーを返す（呼び出し側が古い画像を消す）。
+    /// `active` の会員だけ。同時に差し替えたときは、片方が `Validation`（以前のキーを二重に返さない）
     pub async fn set_avatar(
         &self,
         member_id: &str,
         avatar_key: Option<String>,
     ) -> Result<(MemberResponse, Option<String>)> {
-        let mut record = self
+        let record = self.active_member(member_id).await?;
+        let previous = record.avatar_key.clone();
+        let changed = self
+            .db
+            .update_member_avatar(
+                member_id,
+                avatar_key.as_deref(),
+                &now(),
+                Some(previous.as_deref()),
+            )
+            .await?;
+        if !changed {
+            self.active_member(member_id).await?;
+            return Err(AegisError::Validation(
+                CHANGED_WHILE_SAVING_MESSAGE.to_string(),
+            ));
+        }
+        let fresh = self.active_member(member_id).await?;
+        Ok((fresh.into(), previous))
+    }
+
+    /// 有効な（`active`）会員の行。いなければ `NotFound`、有効でなければ `PermissionDenied`
+    async fn active_member(&self, member_id: &str) -> Result<MemberRecord> {
+        let record = self
             .db
             .get_member_by_id(member_id)
             .await?
             .ok_or_else(|| AegisError::NotFound("Member not found".to_string()))?;
-        let previous = std::mem::replace(&mut record.avatar_key, avatar_key);
-        record.updated_at = now();
-        self.db.update_member(&record).await?;
-        Ok((record.into(), previous))
+        if record.status != "active" {
+            return Err(AegisError::PermissionDenied(
+                "This member account has been suspended".to_string(),
+            ));
+        }
+        Ok(record)
     }
 
-    /// プロフィール更新
+    /// プロフィール更新。`active` の会員だけ。変える列だけを書き、パスワードは今のハッシュが確かめたものの
+    /// ときだけ書く（読んでから書くまでの間の、管理者の停止・レベルの変更・別のパスワードの変更を上書きしない）
     pub async fn update_profile(
         &self,
         member_id: &str,
         req: MemberUpdateProfileRequest,
     ) -> Result<MemberResponse> {
-        let mut record = self
-            .db
-            .get_member_by_id(member_id)
-            .await?
-            .ok_or_else(|| AegisError::NotFound("Member not found".to_string()))?;
+        let record = self.active_member(member_id).await?;
+        let mut profile = MemberProfileUpdate {
+            name: record.name.clone(),
+            nickname: record.nickname.clone(),
+            phone: record.phone.clone(),
+            shipping_address_json: record.shipping_address_json.clone(),
+            updated_at: now(),
+        };
+        let changes_profile = req.name.is_some()
+            || req.nickname.is_some()
+            || req.phone.is_some()
+            || req.shipping_address.is_some();
 
         if let Some(name) = req.name {
             if name.trim().is_empty() {
                 return Err(AegisError::Validation("Name cannot be empty".to_string()));
             }
-            record.name = name.trim().to_string();
+            profile.name = name.trim().to_string();
         }
 
         if let Some(nickname) = req.nickname {
-            record.nickname = normalize_nickname(&nickname)?;
+            profile.nickname = normalize_nickname(&nickname)?;
         }
 
         if let Some(phone) = req.phone {
-            record.phone = if phone.trim().is_empty() {
+            profile.phone = if phone.trim().is_empty() {
                 None
             } else {
                 Some(phone.trim().to_string())
@@ -812,37 +1006,48 @@ impl MemberService {
         }
 
         if let Some(ref addr) = req.shipping_address {
-            record.shipping_address_json = Some(
+            profile.shipping_address_json = Some(
                 serde_json::to_string(addr).map_err(|e| AegisError::Validation(e.to_string()))?,
             );
         }
 
-        // パスワード変更
+        // パスワード変更（ほかの変更より先に。確かめたあとで変わっていたら、何も変えずに止める）
         if let Some(ref new_pw) = req.new_password {
             let current_pw = req.current_password.as_deref().ok_or_else(|| {
                 AegisError::Validation(
                     "Current password is required to set a new password".to_string(),
                 )
             })?;
-            if !verify_password(current_pw, &record.password_hash)? {
-                return Err(AegisError::Authentication(
-                    "Current password does not match".to_string(),
-                ));
-            }
             if new_pw.chars().count() < MIN_PASSWORD_LEN {
                 return Err(AegisError::Validation(format!(
                     "New password must be at least {} characters",
                     MIN_PASSWORD_LEN
                 )));
             }
-            record.password_hash = hash_password(new_pw)?;
+            if !verify_blocking(current_pw, &record.password_hash).await? {
+                return Err(AegisError::Authentication(
+                    "Current password does not match".to_string(),
+                ));
+            }
+            let new_hash = hash_blocking(new_pw).await?;
+            let changed = self
+                .db
+                .update_member_password(member_id, &new_hash, &record.password_hash, &now())
+                .await?;
+            if !changed {
+                self.active_member(member_id).await?;
+                return Err(AegisError::Validation(
+                    CHANGED_WHILE_SAVING_MESSAGE.to_string(),
+                ));
+            }
+            // ほかの端末のセッションも終わらせる（呼び出し元が、本人の分は作り直す）
+            self.revoke_sessions(member_id).await?;
         }
 
-        record.updated_at = now();
-        self.db.update_member(&record).await?;
-        // パスワードを変えたら、ほかの端末のセッションも終わらせる（呼び出し元が、本人の分は作り直す）
-        if req.new_password.is_some() {
-            self.revoke_sessions(member_id).await?;
+        if changes_profile && !self.db.update_member_profile(member_id, &profile).await? {
+            return Err(AegisError::PermissionDenied(
+                "This member account has been suspended".to_string(),
+            ));
         }
 
         // 監査ログ
@@ -854,7 +1059,7 @@ impl MemberService {
             .with_resource("member", Some(member_id.to_string()));
         self.audit.record(event).await;
 
-        Ok(record.into())
+        self.get_profile(member_id).await
     }
 
     // --- 管理者向け操作 ---
@@ -882,7 +1087,19 @@ impl MemberService {
                 "Status must be either 'active' or 'suspended'".to_string(),
             ));
         }
-        self.db.set_member_status(member_id, status, &now()).await?;
+        // 退会の手続き中（`deleting`）の会員は、管理者の操作で戻さない
+        let changed = self
+            .db
+            .set_member_status(
+                member_id,
+                status,
+                &now(),
+                Some(&["active", "suspended", "unverified"]),
+            )
+            .await?;
+        if !changed {
+            return Err(AegisError::NotFound("Member not found".to_string()));
+        }
         if status == "suspended" {
             // 停止した会員が、ログイン中のセッションでそのまま使い続けられないようにする
             self.revoke_sessions(member_id).await?;
@@ -904,14 +1121,15 @@ impl MemberService {
                 self.levels.join(", ")
             )));
         }
-        let mut record = self
+        let record = self
             .db
             .get_member_by_id(member_id)
             .await?
             .ok_or_else(|| AegisError::NotFound("Member not found".to_string()))?;
-        let previous = std::mem::replace(&mut record.level, level.to_string());
-        record.updated_at = now();
-        self.db.update_member(&record).await?;
+        let previous = record.level;
+        if !self.db.set_member_level(member_id, level, &now()).await? {
+            return Err(AegisError::NotFound("Member not found".to_string()));
+        }
 
         let event = AuditEvent::new(AuditAction::MemberUpdate, AuditOutcome::Success)
             .with_actor(Some(AuditActor {
@@ -967,7 +1185,8 @@ impl MemberService {
         let Some(member) = self.db.get_member_by_email(&email).await? else {
             return Ok(None);
         };
-        if member.status == "suspended" {
+        // 停止中・退会の手続き中の会員には送らない
+        if member.status != "active" && member.status != "unverified" {
             return Ok(None);
         }
         // 同じ宛先へのメールの連打を止める（宛先の数え方は、登録の有無によらない順序で、実在するときだけ）
@@ -986,6 +1205,7 @@ impl MemberService {
         let pending = PendingToken {
             member_id: member.id.clone(),
             email: member.email.clone(),
+            registration: None,
         };
         let value =
             serde_json::to_string(&pending).map_err(|e| AegisError::Internal(e.to_string()))?;
@@ -1034,27 +1254,34 @@ impl MemberService {
         self.cache.delete(&key).await?;
         let pending: PendingToken = serde_json::from_str(&value).map_err(|_| invalid())?;
 
-        let mut record = self
+        let record = self
             .db
             .get_member_by_id(&pending.member_id)
             .await?
             .ok_or_else(invalid)?;
         // 申し込みのあとで、メールアドレスが変わった・停止された会員には使わせない
-        if !record.email.eq_ignore_ascii_case(&pending.email) || record.status == "suspended" {
+        if !record.email.eq_ignore_ascii_case(&pending.email)
+            || (record.status != "active" && record.status != "unverified")
+        {
             return Err(invalid());
         }
 
-        let password = new_password.to_string();
-        record.password_hash = tokio::task::spawn_blocking(move || hash_password(&password))
-            .await
-            .map_err(|e| AegisError::Internal(format!("Password hashing task failed: {}", e)))??;
-        // メールで受け取ったリンクを開けたので、アドレスの確認にもなる
-        if record.status == "unverified" {
-            record.status = "active".to_string();
+        let password_hash = hash_blocking(new_password).await?;
+        // `active` か `unverified` のときだけ書く（ハッシュを作っている間に停止・退会されたら書かない）。
+        // メールで受け取ったリンクを開けたので、アドレスの確認にもなる（`unverified` は `active` になる）
+        if !self
+            .db
+            .reset_member_password(&record.id, &password_hash, &now())
+            .await?
+        {
+            return Err(invalid());
         }
-        record.updated_at = now();
-        self.db.update_member(&record).await?;
         self.revoke_sessions(&record.id).await?;
+        let record = self
+            .db
+            .get_member_by_id(&record.id)
+            .await?
+            .ok_or_else(invalid)?;
 
         let event = AuditEvent::new(AuditAction::MemberPasswordReset, AuditOutcome::Success)
             .with_actor(Some(AuditActor {

@@ -279,16 +279,30 @@
       failed();
       return;
     }
-    show([h('h2', {}, [msg('acct_verify_title')]), h('p', { class: 'aegis-muted' }, [msg('acct_verifying')])]);
-    api('POST', '/verify', { token: token })
-      .then(function () {
-        show([
-          h('h2', {}, [msg('acct_verify_title')]),
-          notice(msg('acct_verify_done'), 'ok'),
-          h('p', {}, [link(config.loginUrl, msg('acct_login'))]),
-        ]);
-      })
-      .catch(failed);
+    // The account is activated only with the password of the registration that sent this link
+    // (someone else registering the same address again cannot take the account over)
+    show([
+      h('h2', {}, [msg('acct_verify_title')]),
+      h('p', { class: 'aegis-muted' }, [msg('acct_verify_intro')]),
+      form(
+        [field(msg('acct_password'), input('password', 'password', { required: true, autocomplete: 'current-password' }))],
+        msg('acct_verify_submit'),
+        function (data) {
+          return api('POST', '/verify', { token: token, password: data.password })
+            .then(function () {
+              show([
+                h('h2', {}, [msg('acct_verify_title')]),
+                notice(msg('acct_verify_done'), 'ok'),
+                h('p', {}, [link(config.loginUrl, msg('acct_login'))]),
+              ]);
+            })
+            .catch(function (error) {
+              if (error.status === 401) throw new Error(msg('acct_verify_wrong_password'));
+              failed();
+            });
+        }
+      ),
+    ]);
   }
 
   // The link of the email carries the token: take it out of the address bar once it is read

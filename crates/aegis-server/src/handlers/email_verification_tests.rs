@@ -166,8 +166,24 @@ async fn test_register_confirm_and_log_in() {
     assert_eq!(wrong.status, StatusCode::UNAUTHORIZED);
     assert!(wrong.json().get("code").is_none());
 
+    // 確認には、登録したパスワードが要る（違えば 401。リンクはそのまま使える）
+    let mismatch = site
+        .post(
+            "/api/v1/members/verify",
+            json!({ "token": token, "password": "wrong-password-1" }),
+        )
+        .await;
+    assert_eq!(
+        mismatch.status,
+        StatusCode::UNAUTHORIZED,
+        "{}",
+        mismatch.body
+    );
     let confirmed = site
-        .post("/api/v1/members/verify", json!({ "token": token }))
+        .post(
+            "/api/v1/members/verify",
+            json!({ "token": token, "password": "password123" }),
+        )
         .await;
     assert_eq!(confirmed.status, StatusCode::OK, "{}", confirmed.body);
     assert_eq!(confirmed.json()["status"], "verified");
@@ -178,7 +194,10 @@ async fn test_register_confirm_and_log_in() {
 
     // リンクは 1 回だけ
     let again = site
-        .post("/api/v1/members/verify", json!({ "token": token }))
+        .post(
+            "/api/v1/members/verify",
+            json!({ "token": token, "password": "password123" }),
+        )
         .await;
     assert_eq!(again.status, StatusCode::BAD_REQUEST);
 }
@@ -188,8 +207,11 @@ async fn test_register_does_not_say_whether_the_address_is_taken() {
     let site = site(true, true).await;
     let first = site.register("taken@example.com", "password123").await;
     let token = site.verify_token();
-    site.post("/api/v1/members/verify", json!({ "token": token }))
-        .await;
+    site.post(
+        "/api/v1/members/verify",
+        json!({ "token": token, "password": "password123" }),
+    )
+    .await;
 
     // 有効になったアドレスでの登録は、同じ応答で、メールも送らない
     let second = site
@@ -271,7 +293,10 @@ async fn test_confirmation_is_off_without_mail_and_the_pages_follow() {
         );
     }
     let verify = no_mail
-        .post("/api/v1/members/verify", json!({ "token": "x" }))
+        .post(
+            "/api/v1/members/verify",
+            json!({ "token": "x", "password": "password123" }),
+        )
         .await;
     assert_eq!(verify.status, StatusCode::NOT_FOUND);
 

@@ -812,7 +812,8 @@
     "status": {
       "active": "Active",
       "suspended": "Suspended",
-      "unverified": "Email not confirmed"
+      "unverified": "Email not confirmed",
+      "deleting": "Withdrawing"
     },
     "newer": "Newer",
     "older": "Older",
@@ -826,6 +827,7 @@
     "suspended": "The member is suspended",
     "reactivated": "The member is active again",
     "unverified": "This member has not confirmed the email address yet. They can log in after they open the link in the email.",
+    "deleting": "This member started to delete their account. They are signed out and cannot change anything. If the withdrawal fails partway, the member is set back to active automatically and can log in again to retry.",
     "contact": "Contact",
     "nickname": "Public name: {{name}}",
     "shipTo": "Saved shipping address",

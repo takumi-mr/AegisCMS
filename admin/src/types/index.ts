@@ -841,7 +841,8 @@ export interface ReviewPage {
 }
 
 /** A shop member account (`[members]`); never carries the password hash */
-export type MemberStatus = 'active' | 'suspended' | 'unverified';
+/** `deleting`: the member is withdrawing (signed out; the clean-up is running or stopped partway) */
+export type MemberStatus = 'active' | 'suspended' | 'unverified' | 'deleting';
 
 export interface AdminMember {
   id: string;

@@ -1050,7 +1050,10 @@ export const aegisApi = {
   },
 
   /** Suspends (ends the sessions at once) or reactivates a member */
-  async setMemberStatus(id: string, status: Exclude<MemberStatus, 'unverified'>): Promise<void> {
+  async setMemberStatus(
+    id: string,
+    status: Exclude<MemberStatus, 'unverified' | 'deleting'>
+  ): Promise<void> {
     return requestNoContent(
       `/admin/members/${encodeURIComponent(id)}`,
       { method: 'PATCH', headers: JSON_HEADERS, body: JSON.stringify({ status }) },

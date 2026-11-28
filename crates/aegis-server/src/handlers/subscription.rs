@@ -509,20 +509,35 @@ async fn start_from_checkout(
         .await;
         return Ok(());
     }
-    if state
+    // 退会した・退会の手続き中・停止中の会員の契約は、課金が続かないよう、その場で解約する（監査 A-13）
+    let member_status = state
         .db
         .get_member_by_id(member_id)
         .await
         .map_err(internal)?
-        .is_none()
-    {
+        .map(|m| m.status);
+    if member_status.as_deref() != Some("active") {
+        // 写しがある（通知の送り直し）なら、写しも解約にする
+        match state
+            .db
+            .get_subscription_by_stripe_id(stripe_id)
+            .await
+            .map_err(internal)?
+        {
+            Some(existing) => cancel_now(state, audit, &existing, "member_not_active").await?,
+            None => cancel_unowned(state, stripe_id).await?,
+        }
         record(
             state,
             audit,
             AuditAction::PurchaseUpdate,
             AuditOutcome::Failure,
             &placeholder,
-            problem("unknown_member"),
+            problem(if member_status.is_none() {
+                "unknown_member"
+            } else {
+                "member_not_active"
+            }),
         )
         .await;
         return Ok(());
@@ -559,7 +574,7 @@ async fn start_from_checkout(
             .update_subscription(&existing)
             .await
             .map_err(internal)?;
-        return Ok(());
+        return cancel_if_member_left(state, audit, &existing).await;
     }
     let created = SubscriptionRecord {
         id: uuid::Uuid::new_v4().to_string(),
@@ -594,6 +609,46 @@ async fn start_from_checkout(
         }),
     )
     .await;
+    // 確かめてから保存するまでの間に、会員が退会の手続きに入っていたら解約する（退会の側は、`deleting` に
+    // してから契約を解約するので、どちらが先でも、どちらかが相手を見る）
+    cancel_if_member_left(state, audit, &created).await
+}
+
+/// 契約の会員が、もう `active` でなければ（退会の手続き中・退会した・停止中）、その場で解約する
+async fn cancel_if_member_left(
+    state: &AppState,
+    audit: &AuditContext,
+    subscription: &SubscriptionRecord,
+) -> Result<(), ApiError> {
+    let Some(member_id) = subscription.member_id.as_deref() else {
+        return Ok(());
+    };
+    let active = state
+        .db
+        .get_member_by_id(member_id)
+        .await
+        .map_err(internal)?
+        .is_some_and(|m| m.status == "active");
+    if active {
+        return Ok(());
+    }
+    cancel_now(state, audit, subscription, "member_not_active").await
+}
+
+/// 写しを作らない契約（会員がいない・有効でない）を、Stripe でその場で解約する。失敗したら 502
+/// （通知は Stripe が送り直すので、そのときにやり直す）
+async fn cancel_unowned(state: &AppState, stripe_id: &str) -> Result<(), ApiError> {
+    if let Err(e) = stripe_client(state)?
+        .delete(&format!("/v1/subscriptions/{stripe_id}"))
+        .await
+    {
+        tracing::error!("Stripe cancel failed: {}", e);
+        return Err(api_error(
+            StatusCode::BAD_GATEWAY,
+            "The payment service could not cancel the subscription",
+            "cancel_failed",
+        ));
+    }
     Ok(())
 }
 

@@ -46,7 +46,7 @@ pub struct MemberRecord {
     #[serde(default)]
     pub avatar_key: Option<String>,
     pub phone: Option<String>,
-    /// `active` / `suspended`
+    /// `active` / `suspended` / `unverified`（メールの確認待ち）/ `deleting`（退会の手続き中）
     pub status: String,
     /// 権限レベル（`[members].levels` のどれか。有料メンバー限定の閲覧制御。docs/members.md 15）。
     /// 古いバックアップには無いので `free`
@@ -97,16 +97,77 @@ macro_rules! member_row_from_sqlx {
 }
 pub(crate) use member_row_from_sqlx;
 
-/// 会員の保存（`DatabaseAdapter` のスーパートレイト）
+/// 会員が自分で変えるプロフィールの列（[`MemberStorage::update_member_profile`]）
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct MemberProfileUpdate {
+    pub name: String,
+    pub nickname: Option<String>,
+    pub phone: Option<String>,
+    pub shipping_address_json: Option<String>,
+    pub updated_at: String,
+}
+
+/// 会員の保存（`DatabaseAdapter` のスーパートレイト）。
+///
+/// 行の全部の列を書き戻す更新は持たない。読んでから書くまでの間に、ほかの操作（管理者の停止・レベルの変更・
+/// パスワードの変更）が変えた列を、古い値で上書きしてしまうため（Lost Update）。更新は、変える列だけを書き、
+/// 前提の状態（`status` など）を `WHERE` に入れる。条件つきの更新は、変えたかどうかを返す
 #[async_trait]
 pub trait MemberStorage: Send + Sync {
     async fn insert_member(&self, member: &MemberRecord) -> Result<()>;
     async fn get_member_by_id(&self, id: &str) -> Result<Option<MemberRecord>>;
     async fn get_member_by_email(&self, email: &str) -> Result<Option<MemberRecord>>;
-    async fn update_member(&self, member: &MemberRecord) -> Result<()>;
     async fn update_member_last_login(&self, id: &str, last_login_at: &str) -> Result<()>;
     async fn list_members(&self, limit: u64, offset: u64) -> Result<(Vec<MemberRecord>, u64)>;
-    async fn set_member_status(&self, id: &str, status: &str, updated_at: &str) -> Result<()>;
+    /// 状態を変える。`from` を渡すと、今の状態がそのどれかのときだけ変える。変えたら `true`
+    async fn set_member_status(
+        &self,
+        id: &str,
+        status: &str,
+        updated_at: &str,
+        from: Option<&[&str]>,
+    ) -> Result<bool>;
+    /// 確認待ち（`unverified`）の会員を `active` にして、確認した登録の内容（パスワード・名前・電話）を
+    /// 反映する。確認待ちでなければ何もしない。反映したら `true`
+    async fn activate_member(
+        &self,
+        id: &str,
+        password_hash: &str,
+        name: &str,
+        phone: Option<&str>,
+        updated_at: &str,
+    ) -> Result<bool>;
+    /// 会員が自分で変えるプロフィール（名前・公開名・電話・配送先）。`active` の会員のときだけ変える。
+    /// 変えたら `true`
+    async fn update_member_profile(&self, id: &str, profile: &MemberProfileUpdate) -> Result<bool>;
+    /// パスワードを変える。`active` の会員で、今のハッシュが `current_hash` のときだけ（確かめたパスワードの
+    /// あとに、ほかの変更や停止が挟まっていたら変えない）。変えたら `true`
+    async fn update_member_password(
+        &self,
+        id: &str,
+        password_hash: &str,
+        current_hash: &str,
+        updated_at: &str,
+    ) -> Result<bool>;
+    /// パスワードの再設定（メールのリンク）。`active` か `unverified` の会員のときだけ変え、`unverified` は
+    /// `active` にする（リンクを開けたので、アドレスの確認にもなる）。変えたら `true`
+    async fn reset_member_password(
+        &self,
+        id: &str,
+        password_hash: &str,
+        updated_at: &str,
+    ) -> Result<bool>;
+    /// アバター画像のキーを変える（`None` で外す）。`current` を渡すと、今のキーがそれのとき・会員が
+    /// `active` のときだけ変える（会員自身の差し替え。`Some(None)` は「今は無い」）。変えたら `true`
+    async fn update_member_avatar(
+        &self,
+        id: &str,
+        avatar_key: Option<&str>,
+        updated_at: &str,
+        current: Option<Option<&str>>,
+    ) -> Result<bool>;
+    /// 権限レベルを変える（管理者）。変えたら `true`
+    async fn set_member_level(&self, id: &str, level: &str, updated_at: &str) -> Result<bool>;
     async fn delete_member(&self, id: &str) -> Result<bool>;
     /// 会員 ID の一覧から、アバター画像のある会員の（ID, `avatar_key`）をまとめて引く。掲示板・レビューの表示用
     async fn list_member_avatar_keys(&self, ids: &[String]) -> Result<Vec<(String, String)>>;
@@ -189,39 +250,6 @@ macro_rules! impl_member_storage {
                     Some(r) => Ok(Some($crate::members::member_row_from_sqlx!(&r))),
                     None => Ok(None),
                 }
-            }
-
-            async fn update_member(
-                &self,
-                c: &$crate::members::MemberRecord,
-            ) -> aegis_core::Result<()> {
-                let ph = $ph;
-                let sql = format!(
-                    "UPDATE {} SET email = {}, password_hash = {}, name = {}, nickname = {}, avatar_key = {}, phone = {}, \
-                     status = {}, level = {}, shipping_address_json = {}, updated_at = {}, last_login_at = {} \
-                     WHERE id = {};",
-                    $crate::members::MEMBER_TABLE,
-                    ph(1), ph(2), ph(3), ph(4), ph(5), ph(6), ph(7), ph(8), ph(9), ph(10), ph(11), ph(12)
-                );
-                let db_err =
-                    |e: sqlx::Error| aegis_core::AegisError::Database(format!("{}: {}", $label, e));
-                sqlx::query(&sql)
-                    .bind(&c.email)
-                    .bind(&c.password_hash)
-                    .bind(&c.name)
-                    .bind(&c.nickname)
-                    .bind(&c.avatar_key)
-                    .bind(&c.phone)
-                    .bind(&c.status)
-                    .bind(&c.level)
-                    .bind(&c.shipping_address_json)
-                    .bind(&c.updated_at)
-                    .bind(&c.last_login_at)
-                    .bind(&c.id)
-                    .execute(&self.pool)
-                    .await
-                    .map_err(db_err)?;
-                Ok(())
             }
 
             async fn update_member_last_login(
@@ -320,23 +348,191 @@ macro_rules! impl_member_storage {
                 id: &str,
                 status: &str,
                 updated_at: &str,
-            ) -> aegis_core::Result<()> {
+                from: Option<&[&str]>,
+            ) -> aegis_core::Result<bool> {
                 let ph = $ph;
-                let sql = format!(
-                    "UPDATE {} SET status = {}, updated_at = {} WHERE id = {};",
+                let mut sql = format!(
+                    "UPDATE {} SET status = {}, updated_at = {} WHERE id = {}",
                     $crate::members::MEMBER_TABLE,
                     ph(1), ph(2), ph(3)
                 );
+                if let Some(from) = from {
+                    if from.is_empty() {
+                        return Ok(false);
+                    }
+                    let list: Vec<String> = (0..from.len()).map(|i| ph(4 + i)).collect();
+                    sql.push_str(&format!(" AND status IN ({})", list.join(", ")));
+                }
                 let db_err =
                     |e: sqlx::Error| aegis_core::AegisError::Database(format!("{}: {}", $label, e));
-                sqlx::query(&sql)
-                    .bind(status)
+                let mut query = sqlx::query(&sql).bind(status).bind(updated_at).bind(id);
+                for s in from.unwrap_or(&[]) {
+                    query = query.bind(*s);
+                }
+                let res = query.execute(&self.pool).await.map_err(db_err)?;
+                Ok(res.rows_affected() > 0)
+            }
+
+            async fn activate_member(
+                &self,
+                id: &str,
+                password_hash: &str,
+                name: &str,
+                phone: Option<&str>,
+                updated_at: &str,
+            ) -> aegis_core::Result<bool> {
+                let ph = $ph;
+                let sql = format!(
+                    "UPDATE {} SET status = 'active', password_hash = {}, name = {}, phone = {}, updated_at = {} \
+                     WHERE id = {} AND status = 'unverified'",
+                    $crate::members::MEMBER_TABLE,
+                    ph(1), ph(2), ph(3), ph(4), ph(5)
+                );
+                let db_err =
+                    |e: sqlx::Error| aegis_core::AegisError::Database(format!("{}: {}", $label, e));
+                let res = sqlx::query(&sql)
+                    .bind(password_hash)
+                    .bind(name)
+                    .bind(phone)
                     .bind(updated_at)
                     .bind(id)
                     .execute(&self.pool)
                     .await
                     .map_err(db_err)?;
-                Ok(())
+                Ok(res.rows_affected() > 0)
+            }
+
+            async fn update_member_profile(
+                &self,
+                id: &str,
+                p: &$crate::members::MemberProfileUpdate,
+            ) -> aegis_core::Result<bool> {
+                let ph = $ph;
+                let sql = format!(
+                    "UPDATE {} SET name = {}, nickname = {}, phone = {}, shipping_address_json = {}, updated_at = {} \
+                     WHERE id = {} AND status = 'active'",
+                    $crate::members::MEMBER_TABLE,
+                    ph(1), ph(2), ph(3), ph(4), ph(5), ph(6)
+                );
+                let db_err =
+                    |e: sqlx::Error| aegis_core::AegisError::Database(format!("{}: {}", $label, e));
+                let res = sqlx::query(&sql)
+                    .bind(&p.name)
+                    .bind(&p.nickname)
+                    .bind(&p.phone)
+                    .bind(&p.shipping_address_json)
+                    .bind(&p.updated_at)
+                    .bind(id)
+                    .execute(&self.pool)
+                    .await
+                    .map_err(db_err)?;
+                Ok(res.rows_affected() > 0)
+            }
+
+            async fn update_member_password(
+                &self,
+                id: &str,
+                password_hash: &str,
+                current_hash: &str,
+                updated_at: &str,
+            ) -> aegis_core::Result<bool> {
+                let ph = $ph;
+                let sql = format!(
+                    "UPDATE {} SET password_hash = {}, updated_at = {} \
+                     WHERE id = {} AND status = 'active' AND password_hash = {}",
+                    $crate::members::MEMBER_TABLE,
+                    ph(1), ph(2), ph(3), ph(4)
+                );
+                let db_err =
+                    |e: sqlx::Error| aegis_core::AegisError::Database(format!("{}: {}", $label, e));
+                let res = sqlx::query(&sql)
+                    .bind(password_hash)
+                    .bind(updated_at)
+                    .bind(id)
+                    .bind(current_hash)
+                    .execute(&self.pool)
+                    .await
+                    .map_err(db_err)?;
+                Ok(res.rows_affected() > 0)
+            }
+
+            async fn reset_member_password(
+                &self,
+                id: &str,
+                password_hash: &str,
+                updated_at: &str,
+            ) -> aegis_core::Result<bool> {
+                let ph = $ph;
+                let sql = format!(
+                    "UPDATE {} SET password_hash = {}, status = 'active', updated_at = {} \
+                     WHERE id = {} AND status IN ('active', 'unverified')",
+                    $crate::members::MEMBER_TABLE,
+                    ph(1), ph(2), ph(3)
+                );
+                let db_err =
+                    |e: sqlx::Error| aegis_core::AegisError::Database(format!("{}: {}", $label, e));
+                let res = sqlx::query(&sql)
+                    .bind(password_hash)
+                    .bind(updated_at)
+                    .bind(id)
+                    .execute(&self.pool)
+                    .await
+                    .map_err(db_err)?;
+                Ok(res.rows_affected() > 0)
+            }
+
+            async fn update_member_avatar(
+                &self,
+                id: &str,
+                avatar_key: Option<&str>,
+                updated_at: &str,
+                current: Option<Option<&str>>,
+            ) -> aegis_core::Result<bool> {
+                let ph = $ph;
+                let mut sql = format!(
+                    "UPDATE {} SET avatar_key = {}, updated_at = {} WHERE id = {}",
+                    $crate::members::MEMBER_TABLE,
+                    ph(1), ph(2), ph(3)
+                );
+                match current {
+                    None => {}
+                    Some(None) => sql.push_str(" AND status = 'active' AND avatar_key IS NULL"),
+                    Some(Some(_)) => {
+                        sql.push_str(&format!(" AND status = 'active' AND avatar_key = {}", ph(4)))
+                    }
+                }
+                let db_err =
+                    |e: sqlx::Error| aegis_core::AegisError::Database(format!("{}: {}", $label, e));
+                let mut query = sqlx::query(&sql).bind(avatar_key).bind(updated_at).bind(id);
+                if let Some(Some(key)) = current {
+                    query = query.bind(key);
+                }
+                let res = query.execute(&self.pool).await.map_err(db_err)?;
+                Ok(res.rows_affected() > 0)
+            }
+
+            async fn set_member_level(
+                &self,
+                id: &str,
+                level: &str,
+                updated_at: &str,
+            ) -> aegis_core::Result<bool> {
+                let ph = $ph;
+                let sql = format!(
+                    "UPDATE {} SET level = {}, updated_at = {} WHERE id = {}",
+                    $crate::members::MEMBER_TABLE,
+                    ph(1), ph(2), ph(3)
+                );
+                let db_err =
+                    |e: sqlx::Error| aegis_core::AegisError::Database(format!("{}: {}", $label, e));
+                let res = sqlx::query(&sql)
+                    .bind(level)
+                    .bind(updated_at)
+                    .bind(id)
+                    .execute(&self.pool)
+                    .await
+                    .map_err(db_err)?;
+                Ok(res.rows_affected() > 0)
             }
 
             async fn delete_member(&self, id: &str) -> aegis_core::Result<bool> {

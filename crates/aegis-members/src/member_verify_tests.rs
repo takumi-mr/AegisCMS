@@ -10,6 +10,7 @@ mod tests {
 
     use crate::member::{
         MemberLoginRequest, MemberRegisterRequest, MemberService, EMAIL_NOT_VERIFIED_MESSAGE,
+        VERIFY_PASSWORD_MISMATCH_MESSAGE,
     };
 
     async fn setup_service() -> (MemberService, Arc<dyn DatabaseAdapter>) {
@@ -85,8 +86,15 @@ mod tests {
             .await;
         assert!(matches!(wrong, Err(AegisError::Authentication(_))));
 
+        // 確認には、そのリンクの登録のパスワードが要る
+        assert!(matches!(
+            service
+                .verify_email(&verification.token, "wrong-password-1", None, None)
+                .await,
+            Err(AegisError::Authentication(m)) if m == VERIFY_PASSWORD_MISMATCH_MESSAGE
+        ));
         let confirmed = service
-            .verify_email(&verification.token, None, None)
+            .verify_email(&verification.token, "password123", None, None)
             .await
             .unwrap();
         assert_eq!(confirmed.status, "active");
@@ -97,31 +105,24 @@ mod tests {
 
         // リンクは 1 回だけ。作り物も通らない
         assert!(matches!(
-            service.verify_email(&verification.token, None, None).await,
+            service
+                .verify_email(&verification.token, "password123", None, None)
+                .await,
             Err(AegisError::Validation(_))
         ));
         assert!(service
-            .verify_email(&"0".repeat(64), None, None)
+            .verify_email(&"0".repeat(64), "password123", None, None)
             .await
             .is_err());
     }
 
-    /// 登録済みのアドレスは `None`（応答で区別させない）。確認待ちのアドレスでの登録し直しは、
-    /// 名前とパスワードを今の登録のもので置き換える（他人のアドレスで先に登録されても、本人のものになる）
+    /// 登録し直しは、確認待ちの会員の行を書き換えない。各リンクは、そのリンクを作った登録のパスワードでしか
+    /// 有効にならない（監査 B-04。他人が同じアドレスで登録し直しても、乗っ取れない）
     #[tokio::test]
-    async fn test_registering_again_takes_over_an_unconfirmed_address_only() {
+    async fn test_registering_again_cannot_take_over_an_unconfirmed_address() {
         let (service, db) = setup_service().await;
 
-        // 他人が先に、自分のパスワードで登録した
-        service
-            .register_pending(
-                register_request("victim@example.com", "attacker-password"),
-                None,
-                None,
-            )
-            .await
-            .unwrap();
-        // 本人が登録し直し、自分のパスワードで確認した
+        // 本人が登録した直後に、他人が同じアドレスで、自分のパスワードで登録し直した
         let owners = service
             .register_pending(
                 register_request("victim@example.com", "owners-password-1"),
@@ -131,10 +132,54 @@ mod tests {
             .await
             .unwrap()
             .unwrap();
-        service
-            .verify_email(&owners.token, None, None)
+        let attackers = service
+            .register_pending(
+                MemberRegisterRequest {
+                    name: "Attacker".to_string(),
+                    ..register_request("victim@example.com", "attacker-password")
+                },
+                None,
+                None,
+            )
+            .await
+            .unwrap()
+            .unwrap();
+        // 会員の行は、最初の登録のまま
+        let stored = db
+            .get_member_by_email("victim@example.com")
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(
+            (stored.name.as_str(), stored.status.as_str()),
+            ("Hanako", "unverified")
+        );
+
+        // 本人が、他人の登録で届いた（新しい方の）リンクを開いても、自分のパスワードでは有効にならない
+        assert!(matches!(
+            service
+                .verify_email(&attackers.token, "owners-password-1", None, None)
+                .await,
+            Err(AegisError::Authentication(m)) if m == VERIFY_PASSWORD_MISMATCH_MESSAGE
+        ));
+        assert_eq!(
+            db.get_member_by_email("victim@example.com")
+                .await
+                .unwrap()
+                .unwrap()
+                .status,
+            "unverified"
+        );
+
+        // 本人のリンクを、本人のパスワードで開くと、本人の登録の内容で有効になる
+        let confirmed = service
+            .verify_email(&owners.token, "owners-password-1", None, None)
             .await
             .unwrap();
+        assert_eq!(
+            (confirmed.status.as_str(), confirmed.name.as_str()),
+            ("active", "Hanako")
+        );
         assert!(service
             .login(
                 login_request("victim@example.com", "owners-password-1"),
@@ -143,6 +188,19 @@ mod tests {
             )
             .await
             .is_ok());
+        assert!(service
+            .login(
+                login_request("victim@example.com", "attacker-password"),
+                None,
+                None
+            )
+            .await
+            .is_err());
+        // 確認したあとは、他人のリンクを他人のパスワードで開いても、何も変わらない（もう確認待ちではない）
+        service
+            .verify_email(&attackers.token, "attacker-password", None, None)
+            .await
+            .unwrap();
         assert!(service
             .login(
                 login_request("victim@example.com", "attacker-password"),
@@ -162,14 +220,6 @@ mod tests {
             .await
             .unwrap();
         assert!(taken.is_none());
-        assert!(service
-            .login(
-                login_request("victim@example.com", "owners-password-1"),
-                None,
-                None
-            )
-            .await
-            .is_ok());
 
         // 停止中のアドレスも同じ
         let id = db
@@ -188,6 +238,90 @@ mod tests {
             .await
             .unwrap()
             .is_none());
+    }
+
+    /// 他人が先に登録していても、本人は登録し直したリンクで、自分のパスワードのアカウントにできる。
+    /// 他人の最初のリンク・送り直しのリンクは、他人のパスワードでしか有効にならない
+    #[tokio::test]
+    async fn test_the_owner_wins_over_an_earlier_registration_by_someone_else() {
+        let (service, _db) = setup_service().await;
+        let attackers = service
+            .register_pending(
+                register_request("owner@example.com", "attacker-password"),
+                None,
+                None,
+            )
+            .await
+            .unwrap()
+            .unwrap();
+        // 送り直しのリンクは、会員の行（最初の登録）のパスワードで有効になる
+        let resent = service
+            .resend_verification("owner@example.com", None)
+            .await
+            .unwrap()
+            .unwrap();
+        let owners = service
+            .register_pending(
+                register_request("owner@example.com", "owners-password-1"),
+                None,
+                None,
+            )
+            .await
+            .unwrap()
+            .unwrap();
+        for token in [&attackers.token, &resent.token] {
+            assert!(matches!(
+                service
+                    .verify_email(token, "owners-password-1", None, None)
+                    .await,
+                Err(AegisError::Authentication(_))
+            ));
+        }
+        service
+            .verify_email(&owners.token, "owners-password-1", None, None)
+            .await
+            .unwrap();
+        assert!(service
+            .login(
+                login_request("owner@example.com", "owners-password-1"),
+                None,
+                None
+            )
+            .await
+            .is_ok());
+        assert!(service
+            .login(
+                login_request("owner@example.com", "attacker-password"),
+                None,
+                None
+            )
+            .await
+            .is_err());
+    }
+
+    /// 確認リンクでパスワードを 5 回間違えたら、そのリンクは使えなくなる
+    #[tokio::test]
+    async fn test_a_confirmation_link_stops_after_five_wrong_passwords() {
+        let (service, _db) = setup_service().await;
+        let link = service
+            .register_pending(register_request("t@example.com", "password123"), None, None)
+            .await
+            .unwrap()
+            .unwrap();
+        for _ in 0..5 {
+            assert!(matches!(
+                service
+                    .verify_email(&link.token, "wrong-password-1", None, None)
+                    .await,
+                Err(AegisError::Authentication(_))
+            ));
+        }
+        assert!(matches!(
+            service
+                .verify_email(&link.token, "password123", None, None)
+                .await,
+            Err(AegisError::Validation(_))
+        ));
     }
 
     /// 再送: 確認待ちのときだけ送る（応答では区別しない）。宛先ごとの数と、IP ごとの数を制限する
@@ -237,7 +371,10 @@ mod tests {
             .await
             .unwrap()
             .unwrap();
-        other.verify_email(&v.token, None, None).await.unwrap();
+        other
+            .verify_email(&v.token, "password123", None, None)
+            .await
+            .unwrap();
         assert!(other
             .resend_verification("done@example.com", None)
             .await

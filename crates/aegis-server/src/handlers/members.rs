@@ -268,6 +268,8 @@ fn send_verification_email(state: &AppState, verification: &MemberVerification) 
 #[derive(Debug, Deserialize)]
 pub struct VerifyRequest {
     pub token: String,
+    /// そのリンクの登録のパスワード（違えば 401。リンクは 5 回まで間違えられる）
+    pub password: String,
 }
 
 /// `POST /api/v1/members/verify` — 確認メールのリンクのトークンで、メールアドレスを確認する。
@@ -290,7 +292,7 @@ pub async fn verify_email(
         .and_then(|h| h.to_str().ok())
         .map(str::to_string);
     service
-        .verify_email(&req.token, client_ip, user_agent)
+        .verify_email(&req.token, &req.password, client_ip, user_agent)
         .await
         .map_err(map_aegis_error)?;
     Ok(Json(json!({ "status": "verified" })))
@@ -610,51 +612,45 @@ pub async fn delete_me(
         .get("user-agent")
         .and_then(|h| h.to_str().ok())
         .map(str::to_string);
-    let avatar_key = service
-        .get_profile(&session.member_id)
-        .await
-        .ok()
-        .and_then(|profile| profile.avatar_key);
     // 1. 本人の確認（違えば、何も変えない）
     service
         .confirm_password(&session.member_id, &req.password)
         .await
         .map_err(map_aegis_error)?;
-    // 2. 機能ごとのデータの後始末（注文の紐づきを外す・レビューを匿名にする）。会員の行を消す前に行う
-    let product_ids = aegis_commerce::member_data::release_member(&*state.db, &session.member_id)
-        .await
-        .map_err(map_aegis_error)?;
-    // 2b. 掲示板の投稿も、残して匿名にする（スレッドが途切れないように）
-    if let Some(forum) = state.forum.as_ref() {
-        let anonymized = forum
-            .release_member(&session.member_id)
-            .await
-            .map_err(|e| api_error(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
-        if anonymized > 0 {
-            let mut tags = aegis_cache::CacheTags::new();
-            tags.add_dependency("collection", "forum");
-            crate::cdn::purge_tags(&state, &tags).await;
-        }
-    }
-    // 2c-0. 契約中のサブスクは、課金が続かないように解約する（解約できなければ、退会を止める）
-    crate::handlers::subscription::cancel_member_subscriptions(&state, &audit, &session.member_id)
-        .await?;
-    state
-        .db
-        .detach_member_subscriptions(&session.member_id)
-        .await
-        .map_err(map_aegis_error)?;
-    // 2c. 購入の記録は、会員との紐づきだけを外して残す（会計の記録。権利は外れる）
-    state
-        .db
-        .detach_member_purchases(&session.member_id)
-        .await
-        .map_err(map_aegis_error)?;
-    // 3. 会員の行とセッションを消す
+    // 1b. 退会の手続きに入る（`deleting` にして、セッションをすべて終わらせる）。後始末の間に、この会員の
+    // 新しいレビュー・注文・投稿・契約・アバターが作られないように（監査 A-13）
     service
-        .delete_account(&session.member_id, client_ip, user_agent)
+        .begin_account_deletion(&session.member_id)
         .await
         .map_err(map_aegis_error)?;
+    let avatar_key = service
+        .get_profile(&session.member_id)
+        .await
+        .ok()
+        .and_then(|profile| profile.avatar_key);
+    // 2〜3. 後始末と、会員の行の削除。途中で失敗したら、会員を `active` に戻す（もう一度ログインして、やり直せる）
+    let product_ids = match release_and_delete(
+        &state,
+        &audit,
+        &service,
+        &session.member_id,
+        client_ip,
+        user_agent,
+    )
+    .await
+    {
+        Ok(product_ids) => product_ids,
+        Err(error) => {
+            if let Err(e) = service.abort_account_deletion(&session.member_id).await {
+                tracing::error!(
+                    "Could not restore member '{}' after a failed deletion: {}",
+                    session.member_id,
+                    e
+                );
+            }
+            return Err(error);
+        }
+    };
     if let Some(key) = avatar_key {
         super::users::remove_avatar_object(&state, &key).await;
     }
@@ -671,6 +667,53 @@ pub async fn delete_me(
     // Cookie も消す
     let cleared = session_cookie(&state, &headers, "", 0);
     Ok((StatusCode::NO_CONTENT, [(header::SET_COOKIE, cleared)]).into_response())
+}
+
+/// 退会の後始末（機能ごとのデータ）と、会員の行の削除（[`delete_me`]）。公開ページのキャッシュを更新する
+/// 商品の ID を返す
+async fn release_and_delete(
+    state: &AppState,
+    audit: &crate::audit::AuditContext,
+    service: &MemberService,
+    member_id: &str,
+    client_ip: Option<String>,
+    user_agent: Option<String>,
+) -> Result<Vec<String>, ApiError> {
+    // 2. 機能ごとのデータの後始末（注文の紐づきを外す・レビューを匿名にする）。会員の行を消す前に行う
+    let product_ids = aegis_commerce::member_data::release_member(&*state.db, member_id)
+        .await
+        .map_err(map_aegis_error)?;
+    // 2b. 掲示板の投稿も、残して匿名にする（スレッドが途切れないように）
+    if let Some(forum) = state.forum.as_ref() {
+        let anonymized = forum
+            .release_member(member_id)
+            .await
+            .map_err(|e| api_error(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+        if anonymized > 0 {
+            let mut tags = aegis_cache::CacheTags::new();
+            tags.add_dependency("collection", "forum");
+            crate::cdn::purge_tags(state, &tags).await;
+        }
+    }
+    // 2c-0. 契約中のサブスクは、課金が続かないように解約する（解約できなければ、退会を止める）
+    crate::handlers::subscription::cancel_member_subscriptions(state, audit, member_id).await?;
+    state
+        .db
+        .detach_member_subscriptions(member_id)
+        .await
+        .map_err(map_aegis_error)?;
+    // 2c. 購入の記録は、会員との紐づきだけを外して残す（会計の記録。権利は外れる）
+    state
+        .db
+        .detach_member_purchases(member_id)
+        .await
+        .map_err(map_aegis_error)?;
+    // 3. 会員の行とセッションを消す
+    service
+        .delete_account(member_id, client_ip, user_agent)
+        .await
+        .map_err(map_aegis_error)?;
+    Ok(product_ids)
 }
 
 // --- パスワードの再設定（ログイン不要） ---
