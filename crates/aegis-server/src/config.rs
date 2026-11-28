@@ -578,7 +578,13 @@ posting = \"members\"
             }
         }
 
+        // No plugin is enabled by default: the official ones come from the store, and a listed plugin
+        // that is not installed stops the server from starting
+        let default = AegisConfig::load_from_file(root.join("default.toml")).unwrap();
+        assert!(default.plugins.enabled.is_empty());
+
         let docker = AegisConfig::load_from_file(root.join("docker.toml")).unwrap();
+        assert!(docker.plugins.enabled.is_empty());
         assert_eq!(docker.server.host, "0.0.0.0");
         assert_eq!(
             docker.storage.local.upload_dir,

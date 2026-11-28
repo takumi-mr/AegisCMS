@@ -2322,6 +2322,10 @@
       "package_mismatch": "The downloaded package does not match the catalog, so it was not installed.",
       "package_invalid": "The package is not valid, so it was not installed.",
       "plugins_disabled": "Wasm plugins are turned off on this server ([runtime].enable_wasm_plugins = false)."
-    }
+    },
+    "recommended": "Recommended",
+    "recommendedTitle": "Recommended",
+    "recommendedHint": "A new site has no plugin turned on. These are the ones most sites start with.",
+    "allTitle": "All packages"
   }
 }

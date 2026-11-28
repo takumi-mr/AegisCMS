@@ -41,7 +41,7 @@ The look of the public site. Each installed theme is a card with a preview. **Ac
 
 ### Store (on the Themes and Plugins screens)
 
-The packages of the [package store](store.md), for administrators. Each card shows the version, whether it is installed, and whether a newer version runs on this server. **Install** (or **Update to v…**) first shows what the package will be allowed to do (its hooks, the hosts it talks to or embeds, what it adds to the CSP); the package is installed only if it matches the catalog's checksum and signature. Installing does not enable it: turn the plugin on, or switch to the theme, on the Installed tab. A catalog that cannot be used (for example, its signature does not verify) is shown with the reason, and the store tab says so when `[store].enabled = false`.
+The packages of the [package store](store.md), for administrators. Packages the catalog recommends (code highlighting, diagrams, content blocks) come first under **Recommended** until they are installed, since a new site has no plugin turned on. Each card shows the version, whether it is installed, and whether a newer version runs on this server. **Install** (or **Update to v…**) first shows what the package will be allowed to do (its hooks, the hosts it talks to or embeds, what it adds to the CSP); the package is installed only if it matches the catalog's checksum and signature. Installing does not enable it: turn the plugin on, or switch to the theme, on the Installed tab. A catalog that cannot be used (for example, its signature does not verify) is shown with the reason, and the store tab says so when `[store].enabled = false`.
 
 ### Plugins
 

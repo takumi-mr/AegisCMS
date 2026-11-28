@@ -23,6 +23,8 @@ v0.13.0 から、次の公式プラグインは AegisCMS に同梱されなく�
 3. Admin Studio › Plugins の**ストア**のタブから入れ直します。設定で `[store]` の `enabled = false` にしていなければ、ストアは使えます（[設定の 2.28](configuration.ja.md#228-store--パッケージストア)）。ほかに、`POST /api/v1/store/install`（`{"catalog": "official", "kind": "plugin", "id": "official-charts"}`。[設定の 2.28](configuration.ja.md#228-store--パッケージストア)）を使うか、[ストアの Releases](https://github.com/takumi-mr/AegisCMS-Store/releases) から ZIP をダウンロードし、同じタブでアップロードしても入れられます。
 4. もう一度有効にします。
 
+同梱の `config/default.toml` も、**プラグインを何も有効にしなくなりました**（以前は `official-code-enhancer`・`official-mermaid`・`official-plantuml` を有効にしていました）。同梱のファイルのまま動かしているサイトや、その `[plugins]` を写したサイトでは、コードのハイライトと図が出なくなります。Admin Studio › Plugins で有効にするか（このリリースではまだ同梱しています）、`[plugins].enabled` に戻してください。ストアのタブでは、おすすめとして並びます。
+
 ## 更新する
 
 データベースの変更は、新しいバージョンを初めて起動したときに自動で適用されます。移行の手順を自分で実行する必要はなく、古いバージョンから最新へ一気に更新して構いません。

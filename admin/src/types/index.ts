@@ -1524,6 +1524,8 @@ export interface StorePackage {
   description: string;
   publisher: string;
   license?: string;
+  /** Marked as recommended by the catalog (listed first while not installed) */
+  recommended: boolean;
   /** Installed version (omitted when not installed) */
   installed_version?: string;
   /** Newest version that runs on this server */
