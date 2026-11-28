@@ -12,8 +12,14 @@ import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
 import { aegisApi, ApiError } from '../api/client';
 import i18n from '../i18n';
+import { errorText } from '../utils/storeErrors';
 import type { StoreCatalogStatus, StorePackage, StorePackageKind, StoreVersion } from '../types';
-import { storeCapabilities, type StoreCapability } from '../utils/storeCapabilities';
+import {
+  capabilityAdditions,
+  storeCapabilities,
+  type StoreCapability,
+} from '../utils/storeCapabilities';
+import { useStoreUpdates } from '../storeUpdates';
 import { Button } from './ui/Button';
 import { Modal } from './ui/Modal';
 import styles from './StorePanel.module.css';
@@ -27,35 +33,6 @@ interface StorePanelProps {
   onInstalled: () => void;
   onShowToast: (message: string, type?: 'success' | 'error') => void;
 }
-
-/** The `code`s of the store API (`handlers/store.rs`), translated under `store.errors` */
-const ERROR_CODES = [
-  'store_disabled',
-  'catalog_not_found',
-  'catalog_fetch_failed',
-  'catalog_bad_signature',
-  'catalog_malformed',
-  'catalog_unsupported_schema',
-  'catalog_expired',
-  'catalog_rollback',
-  'package_not_found',
-  'version_not_found',
-  'incompatible_version',
-  'package_fetch_failed',
-  'package_mismatch',
-  'package_invalid',
-  'plugins_disabled',
-] as const;
-
-const isKnownCode = (code: string | undefined): code is (typeof ERROR_CODES)[number] =>
-  (ERROR_CODES as readonly string[]).includes(code ?? '');
-
-/** The translated message for a store API `code`, or the server's English text */
-const errorText = (
-  code: string | undefined,
-  message: string | undefined,
-  fallback: string
-): string => (isKnownCode(code) ? i18n.t(`store.errors.${code}`) : message || fallback);
 
 const errorOf = (err: unknown, fallback: string): string =>
   err instanceof ApiError
@@ -109,6 +86,7 @@ export const StorePanel: React.FC<StorePanelProps> = ({
   onShowToast,
 }) => {
   const { t } = useTranslation();
+  const storeUpdates = useStoreUpdates();
   const [state, setState] = useState<LoadState>({ status: 'loading' });
   const [reload, setReload] = useState(0);
   const [query, setQuery] = useState('');
@@ -156,6 +134,8 @@ export const StorePanel: React.FC<StorePanelProps> = ({
       setConfirm(null);
       refresh();
       onInstalled();
+      // The counts of available updates change (no fetch: the server compares with its cache)
+      void storeUpdates.refresh(false);
     } catch (err) {
       onShowToast(errorOf(err, t('api.storeInstallFailed')), 'error');
     } finally {
@@ -186,6 +166,12 @@ export const StorePanel: React.FC<StorePanelProps> = ({
   const others = packages.filter((p) => !recommended.includes(p));
   const failedCatalogs = state.status === 'ready' ? state.catalogs.filter((c) => !c.ok) : [];
   const confirmItems = confirm ? storeCapabilities(confirm.version.capabilities) : [];
+  // An update: what the new version is allowed to do that the installed one was not
+  const isUpdate = !!confirm?.pkg.installed_version;
+  const addedItems =
+    confirm && isUpdate
+      ? capabilityAdditions(confirm.version.capabilities, confirm.pkg.installed_capabilities ?? {})
+      : [];
 
   const card = (pkg: StorePackage) => {
     const latest = pkg.versions.find((v) => v.version === pkg.latest_compatible);
@@ -227,7 +213,9 @@ export const StorePanel: React.FC<StorePanelProps> = ({
                     installed: pkg.installed_version,
                     latest: pkg.latest_compatible,
                   })
-                : t('store.installed', { version: pkg.installed_version })
+                : pkg.installed_from_catalog
+                  ? t('store.installed', { version: pkg.installed_version })
+                  : t('store.installedElsewhere', { version: pkg.installed_version })
               : !latest &&
                 t('store.incompatible', {
                   version: pkg.versions[0]?.min_aegis_version ?? '?',
@@ -343,8 +331,27 @@ export const StorePanel: React.FC<StorePanelProps> = ({
             {confirm.pkg.installed_version && (
               <p>{t('store.confirmReplaces', { version: confirm.pkg.installed_version })}</p>
             )}
+            {isUpdate && (
+              <div>
+                <h4 className={styles.capTitle}>{t('store.newCapabilitiesTitle')}</h4>
+                {addedItems.length > 0 ? (
+                  <ul
+                    className={`${styles.capList} ${styles.capNew}`}
+                    data-testid="store-capabilities-new"
+                  >
+                    {addedItems.map((item, i) => (
+                      <li key={i}>{capabilityText(item, t)}</li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className={styles.muted}>{t('store.noNewCapabilities')}</p>
+                )}
+              </div>
+            )}
             <div>
-              <h4 className={styles.capTitle}>{t('store.capabilitiesTitle')}</h4>
+              <h4 className={styles.capTitle}>
+                {isUpdate ? t('store.allCapabilitiesTitle') : t('store.capabilitiesTitle')}
+              </h4>
               {confirmItems.length > 0 ? (
                 <ul className={styles.capList} data-testid="store-capabilities">
                   {confirmItems.map((item, i) => (

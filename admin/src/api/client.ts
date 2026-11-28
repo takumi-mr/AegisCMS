@@ -58,6 +58,7 @@ import type {
   StoreInstallRequest,
   StoreInstallResponse,
   StorePackagesResponse,
+  StoreUpdatesResponse,
   PluginOrder,
   PreviewRequest,
   PreviewResult,
@@ -1419,6 +1420,18 @@ export const aegisApi = {
   /** Packages of the configured store catalogs (admin); failed catalogs are reported in `catalogs` */
   async listStorePackages(): Promise<StorePackagesResponse> {
     return request('/store/packages', {}, i18n.t('api.storeFailed'));
+  },
+
+  /**
+   * Installed packages with a newer version in the store (admin). The server compares with its
+   * cached catalogs; `refresh` fetches them again now ("Check now")
+   */
+  async getStoreUpdates(refresh = false): Promise<StoreUpdatesResponse> {
+    return request(
+      `/store/updates${refresh ? '?refresh=true' : ''}`,
+      {},
+      i18n.t('api.storeUpdatesFailed')
+    );
   },
 
   /** Downloads, verifies and installs a store package (admin). It is not enabled */

@@ -42,6 +42,7 @@ import { ScheduleCalendar } from './components/ScheduleCalendar';
 import { ProfileModal } from './components/ProfileModal';
 import { LoginView, SessionCheckingScreen } from './components/LoginView';
 import { SettingsView, type SettingsSection } from './components/SettingsView';
+import { StoreUpdatesProvider } from './components/StoreUpdatesProvider';
 import { TagPicker } from './components/TagPicker';
 import { ExtraFieldsEditor } from './components/ExtraFieldsEditor';
 import { ContentList } from './components/ContentList';
@@ -1079,756 +1080,778 @@ export const App: React.FC = () => {
   const showContact = editable && contactForms.length > 0;
 
   return (
-    <div className={styles.app}>
-      <Header
-        view={view}
-        onViewChange={setView}
-        isOnline={isOnline}
-        coreVersion={coreVersion}
-        onSave={() => handleSave()}
-        onPublish={() => handleSave(true)}
-        isSaving={isSaving}
-        session={session}
-        canSave={mayChange}
-        canPublish={editable && Boolean(selectedId) && status === 'published'}
-        showShop={showShop}
-        showMembers={showMembers}
-        showReviews={showReviews}
-        showComments={showComments}
-        showForum={showForum}
-        showContact={showContact}
-        showAnalytics={analyticsEnabled}
-        profile={profile}
-        onOpenProfile={() =>
-          profile
-            ? setIsProfileOpen(true)
-            : showToast(t('editor.toasts.profileUnavailable'), 'error')
-        }
-        onLogout={handleLogout}
-      />
-
-      {view === 'schedule' ? (
-        <ScheduleCalendar onOpenContent={handleOpenContentFromSchedule} onShowToast={showToast} />
-      ) : view === 'products' && showShop ? (
-        <ProductManager categories={categories} tagsEnabled={tagsEnabled} onShowToast={showToast} />
-      ) : view === 'orders' && showShop ? (
-        <OrderManager onShowToast={showToast} />
-      ) : view === 'members' && showMembers ? (
-        <MemberManager
-          onShowToast={showToast}
-          openMemberId={openMemberId}
-          showOrders={showShop}
-          canGrantLevel={isAdmin(session)}
-          onOpened={() => setOpenMemberId(null)}
-        />
-      ) : view === 'reviews' && showReviews ? (
-        <ReviewManager onShowToast={showToast} />
-      ) : view === 'comments' && showComments ? (
-        <CommentManager isAdmin={isAdmin(session)} onShowToast={showToast} />
-      ) : view === 'forum' && showForum ? (
-        <ForumManager
-          isAdmin={isAdmin(session)}
-          onShowToast={showToast}
-          onOpenMember={
-            showMembers
-              ? (memberId) => {
-                  setOpenMemberId(memberId);
-                  setView('members');
-                }
-              : undefined
-          }
-        />
-      ) : view === 'contact' && showContact ? (
-        <ContactInbox onShowToast={showToast} />
-      ) : view === 'analytics' && analyticsEnabled ? (
-        <AnalyticsView onShowToast={showToast} />
-      ) : view === 'settings' ? (
-        <SettingsView
+    // Update checks of the store, for administrators (docs/store.md 8)
+    <StoreUpdatesProvider enabled={!!session && isAdmin(session)}>
+      <div className={styles.app}>
+        <Header
+          view={view}
+          onViewChange={setView}
+          isOnline={isOnline}
+          coreVersion={coreVersion}
+          onSave={() => handleSave()}
+          onPublish={() => handleSave(true)}
+          isSaving={isSaving}
           session={session}
-          section={settingsSection}
-          onSectionChange={setSettingsSection}
-          categories={categories}
-          onCategoryCreated={handleCategoryCreated}
-          tagsEnabled={tagsEnabled}
-          onSelfUpdated={setProfile}
-          onShowToast={showToast}
+          canSave={mayChange}
+          canPublish={editable && Boolean(selectedId) && status === 'published'}
+          showShop={showShop}
+          showMembers={showMembers}
+          showReviews={showReviews}
+          showComments={showComments}
+          showForum={showForum}
+          showContact={showContact}
+          showAnalytics={analyticsEnabled}
+          profile={profile}
+          onOpenProfile={() =>
+            profile
+              ? setIsProfileOpen(true)
+              : showToast(t('editor.toasts.profileUnavailable'), 'error')
+          }
+          onLogout={handleLogout}
         />
-      ) : (
-        <div className={styles.workspace}>
-          {/* Mobile Pane Switcher Bar */}
-          <div
-            className={styles.mobilePaneBar}
-            role="tablist"
-            aria-label={t('editor.mobilePanes.aria')}
-          >
-            <button
-              type="button"
-              role="tab"
-              aria-selected={mobilePane === 'list'}
-              className={cx(
-                styles.mobilePaneTab,
-                mobilePane === 'list' && styles.mobilePaneTabActive
-              )}
-              onClick={() => setMobilePane('list')}
-            >
-              <List size={14} />
-              <span>{t('editor.mobilePanes.list')}</span>
-            </button>
-            <button
-              type="button"
-              role="tab"
-              aria-selected={mobilePane === 'editor'}
-              className={cx(
-                styles.mobilePaneTab,
-                mobilePane === 'editor' && styles.mobilePaneTabActive
-              )}
-              onClick={() => setMobilePane('editor')}
-            >
-              <PenSquare size={14} />
-              <span>{t('editor.mobilePanes.editor')}</span>
-            </button>
-            <button
-              type="button"
-              role="tab"
-              aria-selected={mobilePane === 'preview'}
-              className={cx(
-                styles.mobilePaneTab,
-                mobilePane === 'preview' && styles.mobilePaneTabActive
-              )}
-              onClick={() => setMobilePane('preview')}
-            >
-              <Eye size={14} />
-              <span>{t('editor.mobilePanes.preview')}</span>
-            </button>
-          </div>
 
-          <div className={styles.workspaceColumns}>
-            {/* Sidebar */}
-            <div className={cx(styles.paneList, mobilePane !== 'list' && styles.paneHiddenMobile)}>
-              <ContentList
-                contents={contents}
-                total={contentsTotal}
-                page={listPage}
-                pageSize={LIST_PAGE_SIZE}
-                loading={contentsLoading}
-                filters={listFilters}
-                onFiltersChange={handleFiltersChange}
-                onPageChange={handlePageChange}
-                categories={categories}
-                tags={tags}
-                selectedId={selectedId}
-                onSelect={handleSelectSummary}
-                onNew={handleNew}
-                canCreate={canWrite(session) && session?.role !== 'reviewer'}
-                contentType={contentType}
-                onContentTypeChange={handleContentTypeChange}
-                pendingCount={canReview(session) ? pendingCount : 0}
-              />
+        {view === 'schedule' ? (
+          <ScheduleCalendar onOpenContent={handleOpenContentFromSchedule} onShowToast={showToast} />
+        ) : view === 'products' && showShop ? (
+          <ProductManager
+            categories={categories}
+            tagsEnabled={tagsEnabled}
+            onShowToast={showToast}
+          />
+        ) : view === 'orders' && showShop ? (
+          <OrderManager onShowToast={showToast} />
+        ) : view === 'members' && showMembers ? (
+          <MemberManager
+            onShowToast={showToast}
+            openMemberId={openMemberId}
+            showOrders={showShop}
+            canGrantLevel={isAdmin(session)}
+            onOpened={() => setOpenMemberId(null)}
+          />
+        ) : view === 'reviews' && showReviews ? (
+          <ReviewManager onShowToast={showToast} />
+        ) : view === 'comments' && showComments ? (
+          <CommentManager isAdmin={isAdmin(session)} onShowToast={showToast} />
+        ) : view === 'forum' && showForum ? (
+          <ForumManager
+            isAdmin={isAdmin(session)}
+            onShowToast={showToast}
+            onOpenMember={
+              showMembers
+                ? (memberId) => {
+                    setOpenMemberId(memberId);
+                    setView('members');
+                  }
+                : undefined
+            }
+          />
+        ) : view === 'contact' && showContact ? (
+          <ContactInbox onShowToast={showToast} />
+        ) : view === 'analytics' && analyticsEnabled ? (
+          <AnalyticsView onShowToast={showToast} />
+        ) : view === 'settings' ? (
+          <SettingsView
+            session={session}
+            section={settingsSection}
+            onSectionChange={setSettingsSection}
+            categories={categories}
+            onCategoryCreated={handleCategoryCreated}
+            tagsEnabled={tagsEnabled}
+            onSelfUpdated={setProfile}
+            onShowToast={showToast}
+          />
+        ) : (
+          <div className={styles.workspace}>
+            {/* Mobile Pane Switcher Bar */}
+            <div
+              className={styles.mobilePaneBar}
+              role="tablist"
+              aria-label={t('editor.mobilePanes.aria')}
+            >
+              <button
+                type="button"
+                role="tab"
+                aria-selected={mobilePane === 'list'}
+                className={cx(
+                  styles.mobilePaneTab,
+                  mobilePane === 'list' && styles.mobilePaneTabActive
+                )}
+                onClick={() => setMobilePane('list')}
+              >
+                <List size={14} />
+                <span>{t('editor.mobilePanes.list')}</span>
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={mobilePane === 'editor'}
+                className={cx(
+                  styles.mobilePaneTab,
+                  mobilePane === 'editor' && styles.mobilePaneTabActive
+                )}
+                onClick={() => setMobilePane('editor')}
+              >
+                <PenSquare size={14} />
+                <span>{t('editor.mobilePanes.editor')}</span>
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={mobilePane === 'preview'}
+                className={cx(
+                  styles.mobilePaneTab,
+                  mobilePane === 'preview' && styles.mobilePaneTabActive
+                )}
+                onClick={() => setMobilePane('preview')}
+              >
+                <Eye size={14} />
+                <span>{t('editor.mobilePanes.preview')}</span>
+              </button>
             </div>
 
-            {/* Main Editor Center Column */}
-            <main
-              className={cx(styles.editorMain, mobilePane === 'list' && styles.paneHiddenMobile)}
-            >
+            <div className={styles.workspaceColumns}>
+              {/* Sidebar */}
               <div
-                className={cx(
-                  styles.editorColumn,
-                  mobilePane !== 'editor' && styles.paneHiddenMobile
-                )}
+                className={cx(styles.paneList, mobilePane !== 'list' && styles.paneHiddenMobile)}
               >
-                {/* Meta Section */}
-                <div className={styles.metaSection}>
-                  <input
-                    type="text"
-                    className={styles.titleInput}
-                    placeholder={t('editor.titlePlaceholder')}
-                    value={title}
-                    onChange={(e) => {
-                      setTitle(e.target.value);
-                      if (!selectedId) {
-                        setSlug(
-                          e.target.value
-                            .toLowerCase()
-                            .replace(/[^a-z0-9-]+/g, '-')
-                            .replace(/^-|-$/g, '')
-                        );
-                      }
-                    }}
-                  />
+                <ContentList
+                  contents={contents}
+                  total={contentsTotal}
+                  page={listPage}
+                  pageSize={LIST_PAGE_SIZE}
+                  loading={contentsLoading}
+                  filters={listFilters}
+                  onFiltersChange={handleFiltersChange}
+                  onPageChange={handlePageChange}
+                  categories={categories}
+                  tags={tags}
+                  selectedId={selectedId}
+                  onSelect={handleSelectSummary}
+                  onNew={handleNew}
+                  canCreate={canWrite(session) && session?.role !== 'reviewer'}
+                  contentType={contentType}
+                  onContentTypeChange={handleContentTypeChange}
+                  pendingCount={canReview(session) ? pendingCount : 0}
+                />
+              </div>
 
-                  <FieldRow>
-                    <Field label={t('editor.slug')}>
-                      <input
-                        type="text"
-                        value={slug}
-                        onChange={(e) => setSlug(e.target.value)}
-                        placeholder="post-slug"
-                      />
-                    </Field>
+              {/* Main Editor Center Column */}
+              <main
+                className={cx(styles.editorMain, mobilePane === 'list' && styles.paneHiddenMobile)}
+              >
+                <div
+                  className={cx(
+                    styles.editorColumn,
+                    mobilePane !== 'editor' && styles.paneHiddenMobile
+                  )}
+                >
+                  {/* Meta Section */}
+                  <div className={styles.metaSection}>
+                    <input
+                      type="text"
+                      className={styles.titleInput}
+                      placeholder={t('editor.titlePlaceholder')}
+                      value={title}
+                      onChange={(e) => {
+                        setTitle(e.target.value);
+                        if (!selectedId) {
+                          setSlug(
+                            e.target.value
+                              .toLowerCase()
+                              .replace(/[^a-z0-9-]+/g, '-')
+                              .replace(/^-|-$/g, '')
+                          );
+                        }
+                      }}
+                    />
 
-                    <Field label={t('editor.status')} className={styles.statusField}>
-                      <select
-                        value={status}
-                        disabled={!mayChange}
-                        onChange={(e) => setStatus(e.target.value as EditorStatus)}
-                      >
-                        {statusOptions.map((option) => (
-                          <option key={option} value={option}>
-                            {t(`common.status.${option}`)}
-                          </option>
-                        ))}
-                        {!statusOptions.includes(status) && (
-                          <option value={status} disabled>
-                            {t(`common.status.${status}`)}
-                          </option>
-                        )}
-                      </select>
-                    </Field>
-
-                    {status === 'scheduled' && (
-                      <Field label={t('editor.publishAt')}>
+                    <FieldRow>
+                      <Field label={t('editor.slug')}>
                         <input
-                          type="datetime-local"
-                          value={publishAt}
-                          onChange={(e) => setPublishAt(e.target.value)}
-                          aria-label={t('editor.publishAtAria')}
+                          type="text"
+                          value={slug}
+                          onChange={(e) => setSlug(e.target.value)}
+                          placeholder="post-slug"
                         />
                       </Field>
-                    )}
 
-                    {(status === 'published' || status === 'scheduled') && (
-                      <Field label={t('editor.unpublishAt')}>
-                        <input
-                          type="datetime-local"
-                          value={unpublishAt}
-                          onChange={(e) => setUnpublishAt(e.target.value)}
-                          aria-label={t('editor.unpublishAtAria')}
-                        />
+                      <Field label={t('editor.status')} className={styles.statusField}>
+                        <select
+                          value={status}
+                          disabled={!mayChange}
+                          onChange={(e) => setStatus(e.target.value as EditorStatus)}
+                        >
+                          {statusOptions.map((option) => (
+                            <option key={option} value={option}>
+                              {t(`common.status.${option}`)}
+                            </option>
+                          ))}
+                          {!statusOptions.includes(status) && (
+                            <option value={status} disabled>
+                              {t(`common.status.${status}`)}
+                            </option>
+                          )}
+                        </select>
                       </Field>
-                    )}
-                  </FieldRow>
 
-                  {selectedId && writable && !mayChange && (
-                    <p className={styles.reviewNotice} role="note">
-                      {t('editor.review.readOnly')}
-                    </p>
-                  )}
-                  {editable && storedItem?.status === 'pending' && (
-                    <p className={styles.reviewNotice} role="note">
-                      {t('editor.review.waiting')}
-                    </p>
-                  )}
-                  {mayChange && reviewStep && (
-                    <Field
-                      label={
-                        reviewStep === 'submit'
-                          ? t('editor.review.noteForReviewer')
-                          : t('editor.review.noteForAuthor')
-                      }
-                    >
-                      <textarea
-                        className={styles.reviewNote}
-                        value={reviewNote}
-                        maxLength={2000}
-                        rows={2}
-                        placeholder={
+                      {status === 'scheduled' && (
+                        <Field label={t('editor.publishAt')}>
+                          <input
+                            type="datetime-local"
+                            value={publishAt}
+                            onChange={(e) => setPublishAt(e.target.value)}
+                            aria-label={t('editor.publishAtAria')}
+                          />
+                        </Field>
+                      )}
+
+                      {(status === 'published' || status === 'scheduled') && (
+                        <Field label={t('editor.unpublishAt')}>
+                          <input
+                            type="datetime-local"
+                            value={unpublishAt}
+                            onChange={(e) => setUnpublishAt(e.target.value)}
+                            aria-label={t('editor.unpublishAtAria')}
+                          />
+                        </Field>
+                      )}
+                    </FieldRow>
+
+                    {selectedId && writable && !mayChange && (
+                      <p className={styles.reviewNotice} role="note">
+                        {t('editor.review.readOnly')}
+                      </p>
+                    )}
+                    {editable && storedItem?.status === 'pending' && (
+                      <p className={styles.reviewNotice} role="note">
+                        {t('editor.review.waiting')}
+                      </p>
+                    )}
+                    {mayChange && reviewStep && (
+                      <Field
+                        label={
                           reviewStep === 'submit'
-                            ? t('editor.review.submitPlaceholder')
-                            : t('editor.review.decidePlaceholder')
+                            ? t('editor.review.noteForReviewer')
+                            : t('editor.review.noteForAuthor')
                         }
-                        onChange={(e) => setReviewNote(e.target.value)}
-                      />
-                    </Field>
-                  )}
-
-                  <FieldRow>
-                    <Field label={t('editor.access')}>
-                      <select
-                        value={access}
-                        onChange={(e) => setAccess(e.target.value)}
-                        aria-label={t('editor.accessAria')}
                       >
-                        <option value="">{t('editor.accessPublic')}</option>
-                        <option value="password">{t('editor.accessPassword')}</option>
-                        {membersEnabled &&
-                          memberLevels.map((level) => (
-                            <option key={level} value={level}>
-                              {t('editor.accessLevel', { level })}
-                            </option>
-                          ))}
-                        {/* A level removed from [members].levels stays visible until it is changed */}
-                        {access &&
-                          access !== 'password' &&
-                          (!membersEnabled || !memberLevels.includes(access)) && (
-                            <option value={access}>{access}</option>
-                          )}
-                      </select>
-                    </Field>
-                    {access === 'password' && (
-                      <Field label={t('editor.accessPasswordInput')}>
-                        <input
-                          type="password"
-                          maxLength={128}
-                          value={accessPassword}
-                          onChange={(e) => setAccessPassword(e.target.value)}
+                        <textarea
+                          className={styles.reviewNote}
+                          value={reviewNote}
+                          maxLength={2000}
+                          rows={2}
                           placeholder={
-                            storedItem?.fields?.access_password
-                              ? t('editor.accessPasswordSavedPlaceholder')
-                              : t('editor.accessPasswordPlaceholder')
+                            reviewStep === 'submit'
+                              ? t('editor.review.submitPlaceholder')
+                              : t('editor.review.decidePlaceholder')
                           }
-                          aria-label={t('editor.accessPasswordAria')}
+                          onChange={(e) => setReviewNote(e.target.value)}
                         />
                       </Field>
                     )}
-                  </FieldRow>
 
-                  {purchaseEnabled && access && access !== 'password' && (
                     <FieldRow>
-                      <Field label={t('editor.purchasePrice', { currency: purchaseCurrency })}>
-                        <input
-                          type="number"
-                          min={1}
-                          max={99999999}
-                          step={1}
-                          inputMode="numeric"
-                          value={purchasePrice}
-                          onChange={(e) => setPurchasePrice(e.target.value)}
-                          aria-label={t('editor.purchasePriceAria')}
-                          title={t('editor.purchasePriceHint')}
-                        />
-                      </Field>
-                    </FieldRow>
-                  )}
-
-                  {contentType === 'article' ? (
-                    <FieldRow>
-                      <Field label={t('editor.category')}>
+                      <Field label={t('editor.access')}>
                         <select
-                          value={categoryId}
-                          onChange={(e) => setCategoryId(e.target.value)}
-                          aria-label={t('editor.categoryAria')}
+                          value={access}
+                          onChange={(e) => setAccess(e.target.value)}
+                          aria-label={t('editor.accessAria')}
                         >
-                          <option value="">{t('editor.noCategory')}</option>
-                          {categories.map((category) => (
-                            <option key={category.id} value={category.id}>
-                              {category.title}
-                            </option>
-                          ))}
-                          {categoryId && !categories.some((c) => c.id === categoryId) && (
-                            <option value={categoryId}>
-                              {t('editor.unknownCategory', { id: categoryId.slice(0, 8) })}
-                            </option>
-                          )}
+                          <option value="">{t('editor.accessPublic')}</option>
+                          <option value="password">{t('editor.accessPassword')}</option>
+                          {membersEnabled &&
+                            memberLevels.map((level) => (
+                              <option key={level} value={level}>
+                                {t('editor.accessLevel', { level })}
+                              </option>
+                            ))}
+                          {/* A level removed from [members].levels stays visible until it is changed */}
+                          {access &&
+                            access !== 'password' &&
+                            (!membersEnabled || !memberLevels.includes(access)) && (
+                              <option value={access}>{access}</option>
+                            )}
                         </select>
                       </Field>
-                      <Button
-                        variant="tool"
-                        onClick={() => {
-                          setSettingsSection('categories');
-                          setView('settings');
-                        }}
-                        title={t('editor.manageCategoriesTitle')}
-                      >
-                        <Tags size={14} />
-                        <span>{t('editor.manageCategories')}</span>
-                      </Button>
-                      {showComments && selectedId && commentContentTypes.includes(contentType) && (
-                        <Button
-                          variant="tool"
-                          disabled={togglingComments}
-                          onClick={handleToggleCommentsOpen}
-                          title={t(
-                            commentsOpen ? 'comments.closeComments' : 'comments.openComments'
-                          )}
-                          aria-label={t(
-                            commentsOpen ? 'comments.closeComments' : 'comments.openComments'
-                          )}
-                        >
-                          {commentsOpen ? (
-                            <MessageSquare size={14} />
-                          ) : (
-                            <MessageSquareOff size={14} />
-                          )}
-                          <span>
-                            {t(
-                              commentsOpen ? 'editor.commentsAccepting' : 'editor.commentsStopped'
-                            )}
-                          </span>
-                        </Button>
+                      {access === 'password' && (
+                        <Field label={t('editor.accessPasswordInput')}>
+                          <input
+                            type="password"
+                            maxLength={128}
+                            value={accessPassword}
+                            onChange={(e) => setAccessPassword(e.target.value)}
+                            placeholder={
+                              storedItem?.fields?.access_password
+                                ? t('editor.accessPasswordSavedPlaceholder')
+                                : t('editor.accessPasswordPlaceholder')
+                            }
+                            aria-label={t('editor.accessPasswordAria')}
+                          />
+                        </Field>
                       )}
                     </FieldRow>
+
+                    {purchaseEnabled && access && access !== 'password' && (
+                      <FieldRow>
+                        <Field label={t('editor.purchasePrice', { currency: purchaseCurrency })}>
+                          <input
+                            type="number"
+                            min={1}
+                            max={99999999}
+                            step={1}
+                            inputMode="numeric"
+                            value={purchasePrice}
+                            onChange={(e) => setPurchasePrice(e.target.value)}
+                            aria-label={t('editor.purchasePriceAria')}
+                            title={t('editor.purchasePriceHint')}
+                          />
+                        </Field>
+                      </FieldRow>
+                    )}
+
+                    {contentType === 'article' ? (
+                      <FieldRow>
+                        <Field label={t('editor.category')}>
+                          <select
+                            value={categoryId}
+                            onChange={(e) => setCategoryId(e.target.value)}
+                            aria-label={t('editor.categoryAria')}
+                          >
+                            <option value="">{t('editor.noCategory')}</option>
+                            {categories.map((category) => (
+                              <option key={category.id} value={category.id}>
+                                {category.title}
+                              </option>
+                            ))}
+                            {categoryId && !categories.some((c) => c.id === categoryId) && (
+                              <option value={categoryId}>
+                                {t('editor.unknownCategory', { id: categoryId.slice(0, 8) })}
+                              </option>
+                            )}
+                          </select>
+                        </Field>
+                        <Button
+                          variant="tool"
+                          onClick={() => {
+                            setSettingsSection('categories');
+                            setView('settings');
+                          }}
+                          title={t('editor.manageCategoriesTitle')}
+                        >
+                          <Tags size={14} />
+                          <span>{t('editor.manageCategories')}</span>
+                        </Button>
+                        {showComments &&
+                          selectedId &&
+                          commentContentTypes.includes(contentType) && (
+                            <Button
+                              variant="tool"
+                              disabled={togglingComments}
+                              onClick={handleToggleCommentsOpen}
+                              title={t(
+                                commentsOpen ? 'comments.closeComments' : 'comments.openComments'
+                              )}
+                              aria-label={t(
+                                commentsOpen ? 'comments.closeComments' : 'comments.openComments'
+                              )}
+                            >
+                              {commentsOpen ? (
+                                <MessageSquare size={14} />
+                              ) : (
+                                <MessageSquareOff size={14} />
+                              )}
+                              <span>
+                                {t(
+                                  commentsOpen
+                                    ? 'editor.commentsAccepting'
+                                    : 'editor.commentsStopped'
+                                )}
+                              </span>
+                            </Button>
+                          )}
+                      </FieldRow>
+                    ) : (
+                      <FieldRow>
+                        <Field label={t('editor.layout')}>
+                          <select
+                            value={layout}
+                            onChange={(e) => setLayout(e.target.value as 'default' | 'blank')}
+                            aria-label={t('editor.layoutAria')}
+                          >
+                            <option value="default">{t('editor.layoutDefault')}</option>
+                            <option value="blank">{t('editor.layoutBlank')}</option>
+                          </select>
+                        </Field>
+                        {showComments &&
+                          selectedId &&
+                          commentContentTypes.includes(contentType) && (
+                            <Button
+                              variant="tool"
+                              disabled={togglingComments}
+                              onClick={handleToggleCommentsOpen}
+                              title={t(
+                                commentsOpen ? 'comments.closeComments' : 'comments.openComments'
+                              )}
+                              aria-label={t(
+                                commentsOpen ? 'comments.closeComments' : 'comments.openComments'
+                              )}
+                            >
+                              {commentsOpen ? (
+                                <MessageSquare size={14} />
+                              ) : (
+                                <MessageSquareOff size={14} />
+                              )}
+                              <span>
+                                {t(
+                                  commentsOpen
+                                    ? 'editor.commentsAccepting'
+                                    : 'editor.commentsStopped'
+                                )}
+                              </span>
+                            </Button>
+                          )}
+                      </FieldRow>
+                    )}
+
+                    <ExtraFieldsEditor
+                      defs={extraDefs}
+                      values={extraValues}
+                      error={extraError}
+                      disabled={!editable}
+                      onChange={(name, value) =>
+                        setExtraValues((prev) => ({ ...prev, [name]: value }))
+                      }
+                    />
+
+                    {tagsEnabled && (
+                      <FieldRow>
+                        <Field label={t('tags.label')}>
+                          <TagPicker
+                            selected={contentTags}
+                            onChange={setContentTags}
+                            canCreate={editable}
+                            onShowToast={showToast}
+                          />
+                        </Field>
+                      </FieldRow>
+                    )}
+                  </div>
+
+                  {selectedId && (
+                    <ContentVersionHistory
+                      versions={contentVersions}
+                      loading={loadingContentVersions}
+                      canRestore={mayChange}
+                      onPreview={handlePreviewVersion}
+                      onRestore={handleRestoreVersion}
+                    />
+                  )}
+
+                  {/* Editor Mode Selector & Paste Actions */}
+                  <div className={styles.editorModeBar}>
+                    <div className={styles.modeTabs} role="tablist" aria-label={t('editor.mode')}>
+                      <button
+                        type="button"
+                        role="tab"
+                        aria-selected={editorMode === 'blocks'}
+                        className={cx(styles.modeTab, editorMode === 'blocks' && styles.activeMode)}
+                        onClick={() => handleSwitchMode('blocks')}
+                      >
+                        <LayoutGrid size={14} />
+                        <span>{t('editor.blocks')}</span>
+                      </button>
+                      <button
+                        type="button"
+                        role="tab"
+                        aria-selected={editorMode === 'markdown'}
+                        className={cx(
+                          styles.modeTab,
+                          editorMode === 'markdown' && styles.activeMode
+                        )}
+                        onClick={() => handleSwitchMode('markdown')}
+                      >
+                        <FileText size={14} />
+                        <span>{t('editor.markdown')}</span>
+                      </button>
+                    </div>
+
+                    <div className={styles.modeActions}>
+                      <Button
+                        variant="tool"
+                        onClick={() => setIsPasteModalOpen(true)}
+                        title={t('editor.pasteMarkdownTitle')}
+                      >
+                        <Clipboard size={14} />
+                        <span>{t('editor.pasteMarkdown')}</span>
+                      </Button>
+                    </div>
+                  </div>
+
+                  {editorMode === 'markdown' ? (
+                    <MarkdownEditor
+                      value={markdownText}
+                      onChange={handleMarkdownChange}
+                      blocks={blocks}
+                      onSave={() => handleSave()}
+                    />
                   ) : (
-                    <FieldRow>
-                      <Field label={t('editor.layout')}>
-                        <select
-                          value={layout}
-                          onChange={(e) => setLayout(e.target.value as 'default' | 'blank')}
-                          aria-label={t('editor.layoutAria')}
-                        >
-                          <option value="default">{t('editor.layoutDefault')}</option>
-                          <option value="blank">{t('editor.layoutBlank')}</option>
-                        </select>
-                      </Field>
-                      {showComments && selectedId && commentContentTypes.includes(contentType) && (
-                        <Button
-                          variant="tool"
-                          disabled={togglingComments}
-                          onClick={handleToggleCommentsOpen}
-                          title={t(
-                            commentsOpen ? 'comments.closeComments' : 'comments.openComments'
-                          )}
-                          aria-label={t(
-                            commentsOpen ? 'comments.closeComments' : 'comments.openComments'
-                          )}
-                        >
-                          {commentsOpen ? (
-                            <MessageSquare size={14} />
-                          ) : (
-                            <MessageSquareOff size={14} />
-                          )}
-                          <span>
-                            {t(
-                              commentsOpen ? 'editor.commentsAccepting' : 'editor.commentsStopped'
-                            )}
-                          </span>
-                        </Button>
-                      )}
-                    </FieldRow>
-                  )}
-
-                  <ExtraFieldsEditor
-                    defs={extraDefs}
-                    values={extraValues}
-                    error={extraError}
-                    disabled={!editable}
-                    onChange={(name, value) =>
-                      setExtraValues((prev) => ({ ...prev, [name]: value }))
-                    }
-                  />
-
-                  {tagsEnabled && (
-                    <FieldRow>
-                      <Field label={t('tags.label')}>
-                        <TagPicker
-                          selected={contentTags}
-                          onChange={setContentTags}
-                          canCreate={editable}
-                          onShowToast={showToast}
-                        />
-                      </Field>
-                    </FieldRow>
-                  )}
-                </div>
-
-                {selectedId && (
-                  <ContentVersionHistory
-                    versions={contentVersions}
-                    loading={loadingContentVersions}
-                    canRestore={mayChange}
-                    onPreview={handlePreviewVersion}
-                    onRestore={handleRestoreVersion}
-                  />
-                )}
-
-                {/* Editor Mode Selector & Paste Actions */}
-                <div className={styles.editorModeBar}>
-                  <div className={styles.modeTabs} role="tablist" aria-label={t('editor.mode')}>
-                    <button
-                      type="button"
-                      role="tab"
-                      aria-selected={editorMode === 'blocks'}
-                      className={cx(styles.modeTab, editorMode === 'blocks' && styles.activeMode)}
-                      onClick={() => handleSwitchMode('blocks')}
-                    >
-                      <LayoutGrid size={14} />
-                      <span>{t('editor.blocks')}</span>
-                    </button>
-                    <button
-                      type="button"
-                      role="tab"
-                      aria-selected={editorMode === 'markdown'}
-                      className={cx(styles.modeTab, editorMode === 'markdown' && styles.activeMode)}
-                      onClick={() => handleSwitchMode('markdown')}
-                    >
-                      <FileText size={14} />
-                      <span>{t('editor.markdown')}</span>
-                    </button>
-                  </div>
-
-                  <div className={styles.modeActions}>
-                    <Button
-                      variant="tool"
-                      onClick={() => setIsPasteModalOpen(true)}
-                      title={t('editor.pasteMarkdownTitle')}
-                    >
-                      <Clipboard size={14} />
-                      <span>{t('editor.pasteMarkdown')}</span>
-                    </Button>
-                  </div>
-                </div>
-
-                {editorMode === 'markdown' ? (
-                  <MarkdownEditor
-                    value={markdownText}
-                    onChange={handleMarkdownChange}
-                    blocks={blocks}
-                    onSave={() => handleSave()}
-                  />
-                ) : (
-                  <>
-                    {/* Block Insertion Toolbar */}
-                    <div className={styles.blockToolbar}>
-                      <span className={styles.toolbarLabel}>{t('editor.addBlock')}</span>
-                      <Button
-                        variant="tool"
-                        onClick={() =>
-                          addBlock('core/heading', t('editor.defaults.sectionTitle'), { level: 2 })
-                        }
-                      >
-                        <Hash size={14} />
-                        <span>{t('editor.heading')}</span>
-                      </Button>
-                      <Button variant="tool" onClick={() => addBlock('core/paragraph', '')}>
-                        <AlignLeft size={14} />
-                        <span>{t('editor.paragraph')}</span>
-                      </Button>
-                      <Button
-                        variant="tool"
-                        onClick={() => addBlock('core/code', '', { language: 'rust' })}
-                      >
-                        <Code2 size={14} />
-                        <span>{t('editor.code')}</span>
-                      </Button>
-                      <Button
-                        variant="tool"
-                        onClick={() => addBlock('core/list', '', { ordered: false })}
-                      >
-                        <List size={14} />
-                        <span>{t('editor.list')}</span>
-                      </Button>
-                      <Button
-                        variant="tool"
-                        onClick={() =>
-                          // Starts empty: the image and its alt text come from an upload or the media library
-                          addBlock('core/image', '', { src: '', alt: '' })
-                        }
-                      >
-                        <ImageIcon size={14} />
-                        <span>{t('editor.image')}</span>
-                      </Button>
-                      <Button
-                        variant="tool"
-                        onClick={() =>
-                          addBlock('core/table', '', {
-                            header: true,
-                            align: [null, null],
-                            rows: [
-                              [
-                                t('editor.defaults.column', { n: 1 }),
-                                t('editor.defaults.column', { n: 2 }),
-                              ],
-                              ['', ''],
-                              ['', ''],
-                            ],
-                          })
-                        }
-                      >
-                        <Table size={14} />
-                        <span>{t('editor.table')}</span>
-                      </Button>
-                      <Button
-                        variant="tool"
-                        onClick={() =>
-                          addBlock('core/toc', '', {
-                            title: t('editor.defaults.tocTitle'),
-                            maxLevel: TOC_DEFAULT_MAX_LEVEL,
-                          })
-                        }
-                      >
-                        <ListTree size={14} />
-                        <span>{t('editor.toc')}</span>
-                      </Button>
-                      <Button variant="tool" onClick={() => addBlock('core/quote', '')}>
-                        <Quote size={14} />
-                        <span>{t('editor.quote')}</span>
-                      </Button>
-                      <Button
-                        variant="tool"
-                        onClick={() => addBlock('core/callout', '', { variant: 'note' })}
-                      >
-                        <Info size={14} />
-                        <span>{t('editor.callout')}</span>
-                      </Button>
-                      <Button
-                        variant="tool"
-                        onClick={() => addBlock('core/details', '', { summary: '', open: false })}
-                      >
-                        <ListCollapse size={14} />
-                        <span>{t('editor.details')}</span>
-                      </Button>
-                      <Button
-                        variant="tool"
-                        onClick={() => addBlock('core/footnote', '', { label: '' })}
-                      >
-                        <Asterisk size={14} />
-                        <span>{t('editor.footnote')}</span>
-                      </Button>
-                      {(membersEnabled || access === 'password') && (
-                        <Button variant="tool" onClick={() => addBlock('core/paywall', '')}>
-                          <Lock size={14} />
-                          <span>{t('editor.paywall')}</span>
-                        </Button>
-                      )}
-                      <Button variant="tool" onClick={() => addBlock('core/separator', '')}>
-                        <Minus size={14} />
-                        <span>{t('editor.separator')}</span>
-                      </Button>
-                      <Button variant="tool" onClick={() => addBlock('core/html', '')}>
-                        <FileCode size={14} />
-                        <span>{t('editor.html')}</span>
-                      </Button>
-                      <Button
-                        variant="tool"
-                        onClick={() =>
-                          addBlock('core/widget', '', {
-                            name: widgets[0]?.name ?? '',
-                            height: 400,
-                          })
-                        }
-                      >
-                        <Puzzle size={14} />
-                        <span>{t('editor.widget')}</span>
-                      </Button>
-                      {contactForms.length > 0 && (
+                    <>
+                      {/* Block Insertion Toolbar */}
+                      <div className={styles.blockToolbar}>
+                        <span className={styles.toolbarLabel}>{t('editor.addBlock')}</span>
                         <Button
                           variant="tool"
                           onClick={() =>
-                            addBlock('core/contact-form', '', {
-                              form: contactForms.some((f) => f.name === 'default')
-                                ? 'default'
-                                : contactForms[0].name,
+                            addBlock('core/heading', t('editor.defaults.sectionTitle'), {
+                              level: 2,
                             })
                           }
                         >
-                          <Mail size={14} />
-                          <span>{t('editor.contactForm')}</span>
+                          <Hash size={14} />
+                          <span>{t('editor.heading')}</span>
                         </Button>
-                      )}
-                      {blockDefinitions.map((definition) => (
+                        <Button variant="tool" onClick={() => addBlock('core/paragraph', '')}>
+                          <AlignLeft size={14} />
+                          <span>{t('editor.paragraph')}</span>
+                        </Button>
                         <Button
-                          key={definition.name}
                           variant="tool"
-                          title={
-                            localize(definition.description, i18n.language) ||
-                            definition.plugin_display_name
-                          }
+                          onClick={() => addBlock('core/code', '', { language: 'rust' })}
+                        >
+                          <Code2 size={14} />
+                          <span>{t('editor.code')}</span>
+                        </Button>
+                        <Button
+                          variant="tool"
+                          onClick={() => addBlock('core/list', '', { ordered: false })}
+                        >
+                          <List size={14} />
+                          <span>{t('editor.list')}</span>
+                        </Button>
+                        <Button
+                          variant="tool"
                           onClick={() =>
-                            addBlock(definition.name, '', defaultAttributes(definition))
+                            // Starts empty: the image and its alt text come from an upload or the media library
+                            addBlock('core/image', '', { src: '', alt: '' })
+                          }
+                        >
+                          <ImageIcon size={14} />
+                          <span>{t('editor.image')}</span>
+                        </Button>
+                        <Button
+                          variant="tool"
+                          onClick={() =>
+                            addBlock('core/table', '', {
+                              header: true,
+                              align: [null, null],
+                              rows: [
+                                [
+                                  t('editor.defaults.column', { n: 1 }),
+                                  t('editor.defaults.column', { n: 2 }),
+                                ],
+                                ['', ''],
+                                ['', ''],
+                              ],
+                            })
+                          }
+                        >
+                          <Table size={14} />
+                          <span>{t('editor.table')}</span>
+                        </Button>
+                        <Button
+                          variant="tool"
+                          onClick={() =>
+                            addBlock('core/toc', '', {
+                              title: t('editor.defaults.tocTitle'),
+                              maxLevel: TOC_DEFAULT_MAX_LEVEL,
+                            })
+                          }
+                        >
+                          <ListTree size={14} />
+                          <span>{t('editor.toc')}</span>
+                        </Button>
+                        <Button variant="tool" onClick={() => addBlock('core/quote', '')}>
+                          <Quote size={14} />
+                          <span>{t('editor.quote')}</span>
+                        </Button>
+                        <Button
+                          variant="tool"
+                          onClick={() => addBlock('core/callout', '', { variant: 'note' })}
+                        >
+                          <Info size={14} />
+                          <span>{t('editor.callout')}</span>
+                        </Button>
+                        <Button
+                          variant="tool"
+                          onClick={() => addBlock('core/details', '', { summary: '', open: false })}
+                        >
+                          <ListCollapse size={14} />
+                          <span>{t('editor.details')}</span>
+                        </Button>
+                        <Button
+                          variant="tool"
+                          onClick={() => addBlock('core/footnote', '', { label: '' })}
+                        >
+                          <Asterisk size={14} />
+                          <span>{t('editor.footnote')}</span>
+                        </Button>
+                        {(membersEnabled || access === 'password') && (
+                          <Button variant="tool" onClick={() => addBlock('core/paywall', '')}>
+                            <Lock size={14} />
+                            <span>{t('editor.paywall')}</span>
+                          </Button>
+                        )}
+                        <Button variant="tool" onClick={() => addBlock('core/separator', '')}>
+                          <Minus size={14} />
+                          <span>{t('editor.separator')}</span>
+                        </Button>
+                        <Button variant="tool" onClick={() => addBlock('core/html', '')}>
+                          <FileCode size={14} />
+                          <span>{t('editor.html')}</span>
+                        </Button>
+                        <Button
+                          variant="tool"
+                          onClick={() =>
+                            addBlock('core/widget', '', {
+                              name: widgets[0]?.name ?? '',
+                              height: 400,
+                            })
                           }
                         >
                           <Puzzle size={14} />
-                          <span>{localize(definition.label, i18n.language)}</span>
+                          <span>{t('editor.widget')}</span>
                         </Button>
-                      ))}
-                    </div>
-
-                    {/* Block Canvas */}
-                    <div className={styles.blocksList} onPaste={handleCanvasPaste}>
-                      {blocks.map((block, idx) => (
-                        <BlockItem
-                          key={idx}
-                          block={block}
-                          index={idx}
-                          total={blocks.length}
-                          onChange={(updated) => updateBlock(idx, updated)}
-                          onMoveUp={() => moveBlock(idx, 'up')}
-                          onMoveDown={() => moveBlock(idx, 'down')}
-                          onDelete={() => deleteBlock(idx)}
-                          canUpload={writable}
-                          blockDefinitions={blockDefinitions}
-                          contactForms={contactForms}
-                          widgets={widgets}
-                        />
-                      ))}
-
-                      {blocks.length === 0 && (
-                        <div className={styles.emptyBlocks}>
-                          <p>{t('editor.noBlocks')}</p>
+                        {contactForms.length > 0 && (
                           <Button
-                            className={styles.addFirst}
-                            onClick={() => addBlock('core/paragraph')}
+                            variant="tool"
+                            onClick={() =>
+                              addBlock('core/contact-form', '', {
+                                form: contactForms.some((f) => f.name === 'default')
+                                  ? 'default'
+                                  : contactForms[0].name,
+                              })
+                            }
                           >
-                            <Plus size={16} /> {t('editor.addFirst')}
+                            <Mail size={14} />
+                            <span>{t('editor.contactForm')}</span>
                           </Button>
-                        </div>
-                      )}
-                    </div>
-                  </>
-                )}
-              </div>
+                        )}
+                        {blockDefinitions.map((definition) => (
+                          <Button
+                            key={definition.name}
+                            variant="tool"
+                            title={
+                              localize(definition.description, i18n.language) ||
+                              definition.plugin_display_name
+                            }
+                            onClick={() =>
+                              addBlock(definition.name, '', defaultAttributes(definition))
+                            }
+                          >
+                            <Puzzle size={14} />
+                            <span>{localize(definition.label, i18n.language)}</span>
+                          </Button>
+                        ))}
+                      </div>
 
-              {/* Right Live Preview Column */}
-              <div
-                className={cx(
-                  styles.panePreview,
-                  mobilePane !== 'preview' && styles.paneHiddenMobile
-                )}
-              >
-                <Preview
-                  contentType={contentType}
-                  title={title}
-                  slug={slug}
-                  categoryId={categoryId}
-                  layout={contentType === 'page' ? layout : undefined}
-                  access={access}
-                  memberLevels={membersEnabled ? memberLevels : []}
-                  blocks={blocks}
-                />
-              </div>
-            </main>
+                      {/* Block Canvas */}
+                      <div className={styles.blocksList} onPaste={handleCanvasPaste}>
+                        {blocks.map((block, idx) => (
+                          <BlockItem
+                            key={idx}
+                            block={block}
+                            index={idx}
+                            total={blocks.length}
+                            onChange={(updated) => updateBlock(idx, updated)}
+                            onMoveUp={() => moveBlock(idx, 'up')}
+                            onMoveDown={() => moveBlock(idx, 'down')}
+                            onDelete={() => deleteBlock(idx)}
+                            canUpload={writable}
+                            blockDefinitions={blockDefinitions}
+                            contactForms={contactForms}
+                            widgets={widgets}
+                          />
+                        ))}
+
+                        {blocks.length === 0 && (
+                          <div className={styles.emptyBlocks}>
+                            <p>{t('editor.noBlocks')}</p>
+                            <Button
+                              className={styles.addFirst}
+                              onClick={() => addBlock('core/paragraph')}
+                            >
+                              <Plus size={16} /> {t('editor.addFirst')}
+                            </Button>
+                          </div>
+                        )}
+                      </div>
+                    </>
+                  )}
+                </div>
+
+                {/* Right Live Preview Column */}
+                <div
+                  className={cx(
+                    styles.panePreview,
+                    mobilePane !== 'preview' && styles.paneHiddenMobile
+                  )}
+                >
+                  <Preview
+                    contentType={contentType}
+                    title={title}
+                    slug={slug}
+                    categoryId={categoryId}
+                    layout={contentType === 'page' ? layout : undefined}
+                    access={access}
+                    memberLevels={membersEnabled ? memberLevels : []}
+                    blocks={blocks}
+                  />
+                </div>
+              </main>
+            </div>
           </div>
-        </div>
-      )}
+        )}
 
-      {isProfileOpen && profile && (
-        <ProfileModal
-          user={profile}
-          canChangePassword={!isSsoSession(session)}
-          onUpdated={setProfile}
-          onShowToast={showToast}
-          onClose={() => setIsProfileOpen(false)}
-        />
-      )}
+        {isProfileOpen && profile && (
+          <ProfileModal
+            user={profile}
+            canChangePassword={!isSsoSession(session)}
+            onUpdated={setProfile}
+            onShowToast={showToast}
+            onClose={() => setIsProfileOpen(false)}
+          />
+        )}
 
-      {viewedVersion && selectedId && (
-        <ContentVersionPreviewModal
-          contentType={contentType}
-          version={viewedVersion}
-          current={{ title, slug, blocks, fields: currentFieldsForDiff() }}
-          memberLevels={membersEnabled ? memberLevels : []}
-          canRestore={mayChange}
-          onRestore={handleRestoreVersion}
-          onClose={() => setViewedVersion(null)}
-        />
-      )}
+        {viewedVersion && selectedId && (
+          <ContentVersionPreviewModal
+            contentType={contentType}
+            version={viewedVersion}
+            current={{ title, slug, blocks, fields: currentFieldsForDiff() }}
+            memberLevels={membersEnabled ? memberLevels : []}
+            canRestore={mayChange}
+            onRestore={handleRestoreVersion}
+            onClose={() => setViewedVersion(null)}
+          />
+        )}
 
-      {isPasteModalOpen && (
-        <PasteMarkdownModal
-          onInsert={handlePasteInsert}
-          onClose={() => setIsPasteModalOpen(false)}
-        />
-      )}
+        {isPasteModalOpen && (
+          <PasteMarkdownModal
+            onInsert={handlePasteInsert}
+            onClose={() => setIsPasteModalOpen(false)}
+          />
+        )}
 
-      {/* Toast Feedback */}
-      {toast && (
-        <div className={styles.toastContainer}>
-          <div className={cx(styles.toast, styles[toast.type])}>
-            {toast.type === 'success' ? <CheckCircle2 size={18} /> : <AlertCircle size={18} />}
-            <span>{toast.message}</span>
+        {/* Toast Feedback */}
+        {toast && (
+          <div className={styles.toastContainer}>
+            <div className={cx(styles.toast, styles[toast.type])}>
+              {toast.type === 'success' ? <CheckCircle2 size={18} /> : <AlertCircle size={18} />}
+              <span>{toast.message}</span>
+            </div>
           </div>
-        </div>
-      )}
-    </div>
+        )}
+      </div>
+    </StoreUpdatesProvider>
   );
 };
 export default App;

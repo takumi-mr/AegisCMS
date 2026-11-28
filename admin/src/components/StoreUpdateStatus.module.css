@@ -1,0 +1,28 @@
+.status {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 1rem;
+  margin-bottom: 1rem;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
+.status > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.available {
+  color: var(--accent-teal);
+  font-weight: 600;
+}
+
+.warning {
+  color: var(--text-amber);
+}
+
+.check {
+  margin-left: auto;
+}

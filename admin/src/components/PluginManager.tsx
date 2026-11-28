@@ -38,6 +38,8 @@ import { declaredSettings, settingProblem, undeclaredSettings } from '../utils/p
 import { cx } from '../utils/cx';
 import { PluginSettingField } from './PluginSettingField';
 import { StorePanel } from './StorePanel';
+import { StoreUpdateStatus } from './StoreUpdateStatus';
+import { updatesOf, useStoreUpdates } from '../storeUpdates';
 import styles from './PluginManager.module.css';
 
 const CSP_DIRECTIVES = [
@@ -93,6 +95,8 @@ export const PluginManager: React.FC<PluginManagerProps> = ({ session, onShowToa
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const canConfigure = isAdmin(session);
+  const storeUpdates = useStoreUpdates();
+  const pluginUpdates = updatesOf(storeUpdates, 'plugin');
 
   const handleUploadClick = () => {
     if (!canConfigure) {
@@ -434,6 +438,7 @@ export const PluginManager: React.FC<PluginManagerProps> = ({ session, onShowToa
 
         {activeTab === 'installed' && (
           <>
+            <StoreUpdateStatus kind="plugin" onOpenStore={() => setActiveTab('market')} />
             {order && (order.enabled.length > 0 || order.customized) && (
               <section className={styles.orderPanel} aria-labelledby="plugin-order-title">
                 <div className={styles.orderHeader}>
@@ -609,6 +614,22 @@ export const PluginManager: React.FC<PluginManagerProps> = ({ session, onShowToa
                                   <span>{t('plugins.statusDisabled')}</span>
                                 </span>
                               )}
+                              {(() => {
+                                const update = pluginUpdates.find((u) => u.id === plugin.name);
+                                return (
+                                  update && (
+                                    <button
+                                      type="button"
+                                      className={cx(styles.statusBadge, styles.badgeUpdate)}
+                                      onClick={() => setActiveTab('market')}
+                                    >
+                                      {t('store.updates.cardBadge', {
+                                        version: update.latest_version,
+                                      })}
+                                    </button>
+                                  )
+                                );
+                              })()}
                             </div>
                           </div>
                         </div>

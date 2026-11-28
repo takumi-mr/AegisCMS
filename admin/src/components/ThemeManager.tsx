@@ -17,6 +17,8 @@ import type { SessionInfo, ThemeInfo } from '../types';
 import { isAdmin } from '../utils/roles';
 import { cx } from '../utils/cx';
 import { StorePanel } from './StorePanel';
+import { StoreUpdateStatus } from './StoreUpdateStatus';
+import { updatesOf, useStoreUpdates } from '../storeUpdates';
 import styles from './ThemeManager.module.css';
 
 interface ThemeManagerProps {
@@ -35,6 +37,7 @@ export const ThemeManager: React.FC<ThemeManagerProps> = ({ session, onShowToast
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const canSwitchTheme = isAdmin(session);
+  const themeUpdates = updatesOf(useStoreUpdates(), 'theme');
 
   const handleUploadClick = () => {
     if (!canSwitchTheme) {
@@ -188,6 +191,7 @@ export const ThemeManager: React.FC<ThemeManagerProps> = ({ session, onShowToast
 
         {activeTab === 'installed' && (
           <>
+            <StoreUpdateStatus kind="theme" onOpenStore={() => setActiveTab('market')} />
             <div className={styles.grid}>
               {themes.map((theme) => {
                 const isCurrent = theme.is_active;
@@ -220,6 +224,20 @@ export const ThemeManager: React.FC<ThemeManagerProps> = ({ session, onShowToast
                         <h2 className={styles.themeName}>{theme.name}</h2>
                         <span className={styles.version}>v{theme.version}</span>
                       </div>
+                      {(() => {
+                        const update = themeUpdates.find((u) => u.id === theme.id);
+                        return (
+                          update && (
+                            <button
+                              type="button"
+                              className={styles.updateBadge}
+                              onClick={() => setActiveTab('market')}
+                            >
+                              {t('store.updates.cardBadge', { version: update.latest_version })}
+                            </button>
+                          )
+                        );
+                      })()}
 
                       <p className={styles.themeDesc}>{theme.description}</p>
 

@@ -23,6 +23,7 @@ const pkg = (p: Partial<StorePackage> & Pick<StorePackage, 'id' | 'name'>): Stor
   publisher: 'official',
   license: 'MIT OR Apache-2.0',
   recommended: false,
+  installed_from_catalog: true,
   update_available: false,
   versions: [version('1.0.0')],
   latest_compatible: '1.0.0',
@@ -58,7 +59,24 @@ const listing: StorePackagesResponse = {
       installed_version: '0.1.0',
       latest_compatible: '0.2.0',
       update_available: true,
-      versions: [version('0.2.0'), version('0.1.0')],
+      installed_capabilities: { hooks: ['render-blocks'] },
+      versions: [
+        version('0.2.0', {
+          capabilities: {
+            hooks: ['render-blocks', 'on-render-page'],
+            csp: { img_domains: ['charts.example.com'] },
+          },
+        }),
+        version('0.1.0', { capabilities: { hooks: ['render-blocks'] } }),
+      ],
+    }),
+    pkg({
+      id: 'official-forked',
+      name: 'Forked Plugin',
+      installed_version: '1.0.0',
+      installed_from_catalog: false,
+      versions: [version('2.0.0'), version('1.0.0')],
+      latest_compatible: '2.0.0',
     }),
     pkg({
       id: 'official-lightbox',
@@ -184,6 +202,11 @@ export const UpdateInstallsTheLatestCompatible: Story = {
     await userEvent.click(await canvas.findByRole('button', { name: 'Update Charts to v0.2.0' }));
     const dialog = within(await within(document.body).findByRole('dialog'));
     await expect(dialog.getByText('It replaces the installed v0.1.0.')).toBeVisible();
+    // Only what the new version adds is listed as new
+    const added = dialog.getByTestId('store-capabilities-new');
+    await expect(added).toHaveTextContent('on-render-page');
+    await expect(added).not.toHaveTextContent('render-blocks');
+    await expect(added).toHaveTextContent('img-src: charts.example.com');
     await userEvent.click(dialog.getByRole('button', { name: 'Install' }));
     await waitFor(() => expect(installs).toHaveLength(1));
     await expect((installs[0].body as { version: string }).version).toBe('0.2.0');
@@ -258,5 +281,17 @@ export const NotAdmin: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await expect(canvas.getByText('Only administrators can install from the store.')).toBeVisible();
+  },
+};
+
+/** A package with the same ID from another source (a fork, an upload) is never offered the store's version */
+export const AnotherSourceIsNotUpdated: Story = {
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const card = await canvas.findByRole('article', { name: 'Forked Plugin' });
+    await expect(
+      within(card).getByText('Installed (v1.0.0, from another source: not updated from here)')
+    ).toBeVisible();
+    await expect(within(card).queryByRole('button')).toBeNull();
   },
 };

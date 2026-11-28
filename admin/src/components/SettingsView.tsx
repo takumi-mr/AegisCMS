@@ -41,6 +41,7 @@ import { UserManager } from './UserManager';
 import { BrokenLinksManager } from './BrokenLinksManager';
 import { LicenseManager } from './LicenseManager';
 import { QueryManager } from './QueryManager';
+import { updatesOf, useStoreUpdates } from '../storeUpdates';
 import styles from './SettingsView.module.css';
 
 export type SettingsSection =
@@ -113,6 +114,14 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   onShowToast,
 }) => {
   const { t } = useTranslation();
+  const storeUpdates = useStoreUpdates();
+  // Updates from the store, on the Plugins and Themes items
+  const updateCount = (id: SettingsSection) =>
+    id === 'plugins'
+      ? updatesOf(storeUpdates, 'plugin').length
+      : id === 'themes'
+        ? updatesOf(storeUpdates, 'theme').length
+        : 0;
   const sections = SECTIONS.filter(
     (s) => (!s.visible || s.visible(session)) && (s.id !== 'tags' || tagsEnabled)
   );
@@ -133,6 +142,14 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
           >
             {s.icon}
             <span>{t(`settings.sections.${s.id}`)}</span>
+            {updateCount(s.id) > 0 && (
+              <span
+                className={styles.navBadge}
+                aria-label={t('store.updates.navBadge', { count: updateCount(s.id) })}
+              >
+                {updateCount(s.id)}
+              </span>
+            )}
           </button>
         ))}
       </nav>
