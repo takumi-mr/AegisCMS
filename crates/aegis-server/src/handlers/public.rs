@@ -94,52 +94,10 @@ pub(crate) async fn find_adjacent_articles(
     schema: &SchemaDefinition,
     current_record: &aegis_db::ContentRecord,
 ) -> (Option<ContentSummary>, Option<ContentSummary>) {
-    let mode_setting = state
-        .config
-        .plugins
-        .setting("official-post-navigation", "mode")
-        .or_else(|| {
-            state
-                .config
-                .plugins
-                .setting("official-post-navigation", "navigation_mode")
-        })
-        .unwrap_or_else(|| "category".to_string());
-
-    let same_category_setting = state
-        .config
-        .plugins
-        .setting("official-post-navigation", "same_category");
-
-    let is_category_mode = match same_category_setting.as_deref() {
-        Some("false" | "0" | "no" | "off") => false,
-        Some("true" | "1" | "yes" | "on") => true,
-        _ => mode_setting.eq_ignore_ascii_case("category"),
-    };
-
-    let fallback_to_all = state
-        .config
-        .plugins
-        .setting("official-post-navigation", "fallback_to_all")
-        .map(|s| {
-            !matches!(
-                s.to_ascii_lowercase().as_str(),
-                "false" | "0" | "no" | "off"
-            )
-        })
-        .unwrap_or(true);
-
-    let order_by = state
-        .config
-        .plugins
-        .setting("official-post-navigation", "order_by")
-        .unwrap_or_else(|| "published_at".to_string());
-
-    let order = if order_by == "created_at" {
-        aegis_db::PublishedOrder::CreatedAt
-    } else {
-        aegis_db::PublishedOrder::PublishedAt
-    };
+    let settings = state.adjacent();
+    let is_category_mode = settings.same_category;
+    let fallback_to_all = settings.fallback_to_all;
+    let order: aegis_db::PublishedOrder = settings.order_by.into();
     let current_category = current_record
         .custom_fields
         .get("category_id")

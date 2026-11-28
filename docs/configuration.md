@@ -753,6 +753,25 @@ public_key = "<64 hex characters>"
 - Fetches connect only to public IP addresses and follow at most 3 redirects, only to public `https://` hosts. Proxy environment variables are not used, and catalogs on an internal network cannot be read.
 - A catalog with a bad signature, an unknown `schema_version`, a passed `expires_at`, or a `sequence` older than the last accepted one is not used; the `catalogs` part of the listing response gives the reason (`code`). Accepted sequences are kept in the DB (`store.catalog_sequences` in `_aegis_settings`).
 
+### 2.29 `[adjacent_articles]` — Previous and Next Articles
+
+Which articles an article page links to as previous and next. Themes get them as `prev_article` / `next_article`, and plugins (such as `official-post-navigation`) get the same ones in `on-render-page`.
+
+| Key               | Type   | Default          | Description                                                                             |
+| ----------------- | ------ | ---------------- | --------------------------------------------------------------------------------------- |
+| `same_category`   | bool   | `true`           | Pick from the article's category. An article without a category picks from all articles |
+| `fallback_to_all` | bool   | `true`           | When the category has no previous (or next) article, pick from all articles             |
+| `order_by`        | string | `"published_at"` | `"published_at"` (publication date) or `"created_at"` (creation date)                   |
+
+Admin Studio (Settings › Site) can override each value without a restart; its values are kept in the database and win over this section. Until v0.13.0 these settings were read from `[plugins.settings.official-post-navigation]` (`mode = "category"` / `"date"`, `fallback_to_all`, `order_by`). Those are still read where this section does not set a value, with a warning at start-up; move them here.
+
+```toml
+[adjacent_articles]
+same_category = true
+fallback_to_all = true
+order_by = "published_at"
+```
+
 ## 3. A Complete Example
 
 A parseable-as-is example with every item written out.

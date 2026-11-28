@@ -112,7 +112,9 @@ pub use shop::{
     checkout, get_order, get_public_order, get_public_product_variants, list_orders,
     payment_webhook, quote, refund_order, sales_report, shop_config, update_order_status,
 };
-pub use site::{get_site_settings, update_site_settings};
+pub use site::{
+    get_adjacent_settings, get_site_settings, update_adjacent_settings, update_site_settings,
+};
 pub use sso::list_auth_providers;
 pub use storage::{delete_object, list_objects, upload_file};
 pub use storefront::{

@@ -96,6 +96,9 @@ pub struct AegisConfig {
     pub captcha: Option<aegis_captcha::SharedCaptchaConfig>,
     #[serde(default)]
     pub consent: crate::consent::ConsentConfig,
+    /// 前後の記事の選び方（`[adjacent_articles]`）。Admin Studio の値が優先
+    #[serde(default)]
+    pub adjacent_articles: crate::adjacent::AdjacentArticlesConfig,
     /// プラグインのブロックの埋め込み（`<iframe>`）: 管理者が許可するホストと、同意を待つ区分
     #[serde(default)]
     pub embed: crate::embeds::EmbedConfig,

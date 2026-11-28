@@ -4,7 +4,7 @@
   "abi_version": 1,
   "entrypoint": "plugin.wasm",
   "display_name": "Post Navigation (Prev/Next)",
-  "description": "Adds previous and next article navigation links to single post pages. Calculation rules (same category or chronological date) and appearance can be configured via [plugins.settings.official-post-navigation].",
+  "description": "Adds previous and next article navigation links to single post pages. Its appearance is configured via [plugins.settings.official-post-navigation]; which articles are previous and next is a core setting ([adjacent_articles], or Admin Studio > Site).",
   "author": "AegisCMS Core Team",
   "license": "MIT OR Apache-2.0",
   "tags": [
@@ -31,48 +31,6 @@
     "execution_timeout_ms": 250
   },
   "settings": [
-    {
-      "key": "mode",
-      "type": "select",
-      "label": {
-        "en": "Calculation mode",
-        "ja": "前後の記事の算出方法"
-      },
-      "description": {
-        "en": "Choose whether to calculate adjacent posts within the same category or across all posts chronologically.",
-        "ja": "前後の記事を同じカテゴリ内から探すか、全記事の日付順から探すかを選択します。"
-      },
-      "default": "category",
-      "options": [
-        {
-          "value": "category",
-          "label": {
-            "en": "Same category",
-            "ja": "同一カテゴリ優先（同じカテゴリ内の前後記事）"
-          }
-        },
-        {
-          "value": "date",
-          "label": {
-            "en": "Chronological (all categories)",
-            "ja": "日付順（カテゴリ不問の全体の日付順）"
-          }
-        }
-      ]
-    },
-    {
-      "key": "fallback_to_all",
-      "type": "boolean",
-      "label": {
-        "en": "Fallback to chronological",
-        "ja": "同カテゴリ外へのフォールバック"
-      },
-      "description": {
-        "en": "When mode is 'Same category', fallback to overall chronological posts if no adjacent post exists in the category.",
-        "ja": "「同一カテゴリ優先」時に同カテゴリ内の前後記事がない場合、全体の公開日順記事にフォールバックします。"
-      },
-      "default": true
-    },
     {
       "key": "content_types",
       "type": "string",
@@ -225,4 +183,3 @@
     }
   ]
 }
-

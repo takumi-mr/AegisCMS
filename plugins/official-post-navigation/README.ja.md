@@ -6,9 +6,7 @@
 
 ## 特徴
 
-- **柔軟な前後記事の算出ルール**:
-    - `mode = "category"`（既定）: 同じカテゴリ内の前後の記事を優先探索。同カテゴリ内に前後の記事がない場合は、日付順の前後に自動フォールバック可能（`fallback_to_all`）。
-    - `mode = "date"`: カテゴリを問わず、全体の日付（公開日または作成日）順で前後の記事を探索。
+- **前後の記事を選ぶのは AegisCMS 本体**です（このプラグインではありません）。同じカテゴリを優先するか全体の日付順か、公開日と作成日のどちらで並べるかは、Admin Studio の Site か `[adjacent_articles]` で設定します（[設定リファレンス](https://github.com/takumi-mr/AegisCMS/blob/main/docs/configuration.ja.md)）。テーマにも同じ記事が `prev_article` / `next_article` として渡ります。
 - **美しいレスポンシブ UI**:
     - 左右2カラム分割レイアウト（既定）、上下スタック、カード型スタイルから選択可能。
     - サムネイル画像（`featured_image` / `image`）の表示に対応。
@@ -20,15 +18,6 @@
 
 ```toml
 [plugins.settings.official-post-navigation]
-# 算出モード: "category" (同一カテゴリ優先) / "date" (全体の日付順)
-mode = "category"
-
-# 同一カテゴリに前後記事が無い場合の全体日付順フォールバック (既定: true)
-fallback_to_all = true
-
-# 並び順の基準: "published_at" (公開日順、既定) / "created_at" (作成日順)
-order_by = "published_at"
-
 # 対象コンテンツタイプ (カンマ区切り、既定: "article")
 content_types = "article"
 

@@ -6,6 +6,7 @@ use std::sync::Arc;
 use clap::{Parser, Subcommand};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
+mod adjacent;
 #[cfg(feature = "analytics")]
 #[cfg(feature = "embed-admin")]
 mod admin_embed;
@@ -1256,6 +1257,12 @@ async fn run_server() -> anyhow::Result<()> {
                 .write()
                 .unwrap_or_else(std::sync::PoisonError::into_inner) =
                 site::SiteOverrides::load(app_state.db.as_ref()).await;
+            *app_state
+                .adjacent
+                .write()
+                .unwrap_or_else(std::sync::PoisonError::into_inner) =
+                adjacent::AdjacentOverrides::load(app_state.db.as_ref()).await;
+            adjacent::warn_legacy_settings(&app_state.config.plugins);
             *app_state
                 .seo
                 .write()

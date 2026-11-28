@@ -1,6 +1,7 @@
 import i18n from '../i18n';
 import type {
   AcceptInvitePayload,
+  AdjacentArticlesSettings,
   AnalyticsSummary,
   AuditLogPage,
   AuditLogQuery,
@@ -1536,6 +1537,21 @@ export const aegisApi = {
         body: JSON.stringify(settings),
       },
       i18n.t('api.updateSiteSettingsFailed')
+    );
+  },
+
+  async getAdjacentArticlesSettings(): Promise<AdjacentArticlesSettings> {
+    return request('/site/adjacent-articles', {}, i18n.t('api.adjacentSettingsFailed'));
+  },
+
+  /** null goes back to the configuration file's value */
+  async updateAdjacentArticlesSettings(
+    settings: Omit<AdjacentArticlesSettings, 'defaults'>
+  ): Promise<AdjacentArticlesSettings> {
+    return request(
+      '/site/adjacent-articles',
+      { method: 'PUT', headers: JSON_HEADERS, body: JSON.stringify(settings) },
+      i18n.t('api.updateAdjacentSettingsFailed')
     );
   },
 

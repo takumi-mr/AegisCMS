@@ -119,7 +119,9 @@
     "publicPathsFailed": "公開 URL の取得に失敗しました",
     "updatePublicPathFailed": "公開 URL の保存に失敗しました",
     "storeFailed": "ストアを読み込めませんでした",
-    "storeInstallFailed": "ストアからインストールできませんでした"
+    "storeInstallFailed": "ストアからインストールできませんでした",
+    "adjacentSettingsFailed": "前後の記事の設定を読み込めませんでした",
+    "updateAdjacentSettingsFailed": "前後の記事の設定を保存できませんでした"
   },
   "audit": {
     "forbidden": "このセッションには監査ログの閲覧に必要な admin ロールがありません。",
@@ -1502,7 +1504,25 @@
     "saving": "保存中...",
     "saved": "サイトの設定を保存しました",
     "loadFailed": "サイトの設定を読み込めませんでした",
-    "saveFailed": "サイトの設定を保存できませんでした"
+    "saveFailed": "サイトの設定を保存できませんでした",
+    "adjacent": {
+      "heading": "前後の記事",
+      "description": "記事のページで、前の記事・次の記事としてどの記事にリンクするか。テーマとプラグイン（Post Navigation など）にも同じ記事が渡ります。",
+      "sameCategory": "同じカテゴリから選ぶ",
+      "fallbackToAll": "カテゴリに無ければ全記事から選ぶ",
+      "orderBy": "並べる順",
+      "order": {
+        "published_at": "公開日時",
+        "created_at": "作成日時"
+      },
+      "useDefault": "設定ファイルの値（{{value}}）",
+      "yes": "はい",
+      "no": "いいえ",
+      "save": "前後の記事の設定を保存",
+      "saved": "前後の記事の設定を保存しました",
+      "loadFailed": "前後の記事の設定を読み込めませんでした",
+      "saveFailed": "前後の記事の設定を保存できませんでした"
+    }
   },
   "headers": {
     "title": "ページヘッダー・防御設定",

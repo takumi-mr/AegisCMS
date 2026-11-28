@@ -14,6 +14,8 @@ Changes here take effect right away, without restarting the server. For settings
 
 The **name** of the site and its **favicon** (the small icon in the browser tab). For the favicon, choose an image from the media library, upload one, or enter a URL. Saving an empty value returns to the value in the server's configuration file.
 
+Below them, **Previous and next articles** sets which articles an article page links to: from the same category or not, whether to fall back to all articles, and the order (publication or creation date). Themes and plugins such as Post Navigation get the same articles. Choosing "Configuration file" uses `[adjacent_articles]` ([configuration reference](configuration.md#229-adjacent_articles--previous-and-next-articles)).
+
 ### Public URLs
 
 The first part of the URL of each content type's public pages (for example, moving articles from `/articles` to `/news`). For each type, write one segment (`/news`: lowercase letters, digits, `-`, and `_`), or `auto` (`/<type name>`). A type that has no public pages can be given one too (the pages appear). A value that another type already uses, or a name the server uses (such as `/api`), cannot be saved.
