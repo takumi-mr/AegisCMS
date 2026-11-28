@@ -50,6 +50,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
   const [twoFactorEnabled, setTwoFactorEnabled] = useState<boolean>(Boolean(user.totp_enabled));
   const [setupData, setSetupData] = useState<TotpSetupResult | null>(null);
   const [setupCode, setSetupCode] = useState<string>('');
+  const [setupPassword, setSetupPassword] = useState<string>('');
   const [backupCodes, setBackupCodes] = useState<string[] | null>(null);
   const [twoFactorError, setTwoFactorError] = useState<string | null>(null);
   const [isSettingUp2fa, setIsSettingUp2fa] = useState<boolean>(false);
@@ -100,15 +101,16 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
 
   const handleConfirm2fa = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!setupData || !setupCode.trim()) return;
+    if (!setupData || !setupCode.trim() || !setupPassword) return;
     setIsVerifying2fa(true);
     setTwoFactorError(null);
     try {
-      const res = await aegisApi.enable2fa(setupData.secret, setupCode.trim());
+      const res = await aegisApi.enable2fa(setupData.secret, setupCode.trim(), setupPassword);
       setBackupCodes(res.backup_codes);
       setTwoFactorEnabled(true);
       setSetupData(null);
       setSetupCode('');
+      setSetupPassword('');
       onUpdated({ ...user, totp_enabled: true });
       onShowToast(t('profile.twoFactor.enabledSuccess'));
     } catch (err) {
@@ -352,6 +354,15 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                   required
                 />
               </Field>
+              <Field label={t('profile.twoFactor.enterPassword')}>
+                <input
+                  type="password"
+                  value={setupPassword}
+                  onChange={(e) => setSetupPassword(e.target.value)}
+                  autoComplete="current-password"
+                  required
+                />
+              </Field>
               {twoFactorError && <span className={styles.error}>{twoFactorError}</span>}
               <div className={styles.actions}>
                 <Button
@@ -360,6 +371,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                   onClick={() => {
                     setSetupData(null);
                     setSetupCode('');
+                    setSetupPassword('');
                     setTwoFactorError(null);
                   }}
                 >
@@ -368,7 +380,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                 <Button
                   type="submit"
                   variant="primary"
-                  disabled={isVerifying2fa || !setupCode.trim()}
+                  disabled={isVerifying2fa || !setupCode.trim() || !setupPassword}
                 >
                   {isVerifying2fa
                     ? t('profile.twoFactor.verifying')

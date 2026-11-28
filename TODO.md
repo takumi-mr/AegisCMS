@@ -11,16 +11,11 @@
 
 セキュリティ監査（[docs/security_race_condition_audit.md](docs/security_race_condition_audit.md) 第 2 版）の対応を、優先度（P0 → P1 → P2）の順に進める。各項目の末尾の ID は監査レポートの指摘番号。
 
-### バッチ 1 [P0]: 認証・2FA・トークン失効の緊急修正 (`fix/auth-2fa-urgent`)
+### バッチ 2 [P0]: 公開側の情報漏洩・XSS (`fix/public-leaks-and-xss`)
 
-- [ ] `POST /api/v1/users/me/2fa/disable` のパスワード検証バグ修正（`.is_ok()` → `matches!(..., Ok(true))`、`spawn_blocking` 化）（`crates/aegis-server/src/handlers/users.rs`）[B-01]
-- [ ] `POST /api/v1/users/me/2fa/enable` の再認証・既存 2FA 有効チェック・サーバー生成シークレット紐付け（`crates/aegis-server/src/handlers/users.rs`）[B-02]
-- [ ] ログイン時 2FA 有無確認の DB エラー Fail-Open 修正（`.ok().flatten()` を廃止し `500` で Fail-Closed）（`crates/aegis-server/src/handlers/auth.rs`）[B-03]
-- [ ] 2FA 待機中チャレンジ・パスワード検証中のスタッフログインの無効化・権限降格・セッション失効すり抜け対策（`verify_2fa` で最新の `disabled`・`role` を再確認、セッションの `created_at` をログイン開始時刻基準に）（`crates/aegis-server/src/handlers/auth.rs`、`crates/aegis-auth/src/local.rs`）[A-03]
-- [ ] 2FA バックアップコード更新失敗時の Fail-Open 修正（`update_backup_codes` の `Err` で `500`）（`crates/aegis-server/src/handlers/auth.rs`）[A-04 の一部]
-- [ ] API トークン失効時のリフレッシュトークン削除エラーの握りつぶし（`let _`）を `500` に、削除順をリフレッシュトークン先・同一トランザクションに、リフレッシュ時の `access_token_id` 残存確認（`crates/aegis-server/src/handlers/api_tokens.rs`、`crates/aegis-server/src/oauth.rs`）[A-11]
-
----
+- [ ] `HtmlRenderer::render_node` のフォールバックタグ名厳格検証（ハイフン必須のカスタム要素規則のみ許可）と `render_sandboxed_html` の親ページ Strict CSP ハッシュ登録の見直し（`crates/aegis-ast/src/renderer.rs`）[B-06 の 1]
+- [ ] フォーラムの認可・XSS 修正（`GET /api/v1/forum/threads` の非公開カテゴリ制限、`api_list_posts` / `create_post` の未承認スレッド制限、`report` の可視性・承認状態チェック、HTML フォームエラー応答の `escape_html` 適用、通報フォームの Same-Origin チェック）（`crates/aegis-server/src/handlers/forum.rs`、`crates/aegis-forum/src/lib.rs`）[B-07]
+- [ ] `GET /oembed` の制限付きコンテンツ（パスワード保護・会員限定・有料）のメタデータ漏洩修正（`crates/aegis-server/src/handlers/oembed.rs`）[B-10 の 2]
 
 ---
 
@@ -32,12 +27,6 @@
 ---
 
 ## 未着手タスク (Backlog)
-
-### バッチ 2 [P0]: 公開側の情報漏洩・XSS (`fix/public-leaks-and-xss`)
-
-- [ ] `HtmlRenderer::render_node` のフォールバックタグ名厳格検証（ハイフン必須のカスタム要素規則のみ許可）と `render_sandboxed_html` の親ページ Strict CSP ハッシュ登録の見直し（`crates/aegis-ast/src/renderer.rs`）[B-06 の 1]
-- [ ] フォーラムの認可・XSS 修正（`GET /api/v1/forum/threads` の非公開カテゴリ制限、`api_list_posts` / `create_post` の未承認スレッド制限、`report` の可視性・承認状態チェック、HTML フォームエラー応答の `escape_html` 適用、通報フォームの Same-Origin チェック）（`crates/aegis-server/src/handlers/forum.rs`、`crates/aegis-forum/src/lib.rs`）[B-07]
-- [ ] `GET /oembed` の制限付きコンテンツ（パスワード保護・会員限定・有料）のメタデータ漏洩修正（`crates/aegis-server/src/handlers/oembed.rs`）[B-10 の 2]
 
 ### バッチ 3 [P0〜P1]: 会員アカウントの乗っ取り・競合・退会整合性 (`fix/members-concurrency-and-takeover`)
 

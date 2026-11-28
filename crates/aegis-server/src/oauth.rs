@@ -1200,6 +1200,7 @@ pub async fn resume_after_sso(
         parameters: parameters.clone(),
         ..Default::default()
     };
+    let login_started = jiff::Timestamp::now();
     let identity = match sso.provider.authenticate(&credentials).await {
         Ok(identity) => identity,
         Err(e) => {
@@ -1207,11 +1208,19 @@ pub async fn resume_after_sso(
             return done(denied("Single sign-on failed"));
         }
     };
-    let session =
-        match complete_login(state, audit, sso.provider.provider_id(), identity, Some(60)).await {
-            Ok(session) => session,
-            Err(_) => return done(denied("This account cannot sign in")),
-        };
+    let session = match complete_login(
+        state,
+        audit,
+        sso.provider.provider_id(),
+        identity,
+        Some(60),
+        login_started,
+    )
+    .await
+    {
+        Ok(session) => session,
+        Err(_) => return done(denied("This account cannot sign in")),
+    };
     // 許可のためのログインなので、セッションはすぐ捨てる
     let _ = state.sessions.destroy_session(&session.id).await;
     done(

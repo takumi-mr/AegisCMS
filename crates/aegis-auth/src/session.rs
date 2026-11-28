@@ -52,6 +52,25 @@ impl SessionService {
         metadata: HashMap<String, serde_json::Value>,
         ttl_secs: Option<u64>,
     ) -> Result<SessionData> {
+        self.create_session_issued_at(user_id, role, metadata, ttl_secs, Timestamp::now())
+            .await
+    }
+
+    /// `issued_at` を発行時刻（`created_at`）にしてセッションを作る。有効期限は今から数える。
+    ///
+    /// ログインでは、資格情報を読み始めた時刻を渡す。パスワードの検証中や 2FA の入力待ちの間に
+    /// アカウントの無効化・ロールの変更・パスワードの変更（どれも [`revoke_user_sessions`] を呼ぶ）が
+    /// あれば、作ったばかりのセッションも失効した扱いになる
+    ///
+    /// [`revoke_user_sessions`]: Self::revoke_user_sessions
+    pub async fn create_session_issued_at(
+        &self,
+        user_id: &str,
+        role: &str,
+        metadata: HashMap<String, serde_json::Value>,
+        ttl_secs: Option<u64>,
+        issued_at: Timestamp,
+    ) -> Result<SessionData> {
         let ttl = ttl_secs.unwrap_or(self.default_ttl_secs);
         let id = format!("ses_{}", Uuid::new_v4().simple());
         let now = Timestamp::now();
@@ -61,7 +80,7 @@ impl SessionService {
             id: id.clone(),
             user_id: user_id.to_string(),
             role: role.to_string(),
-            created_at: now.to_rfc3339_auto(),
+            created_at: issued_at.min(now).to_rfc3339_auto(),
             expires_at: expires.to_rfc3339_auto(),
             metadata,
         };
@@ -219,5 +238,46 @@ mod tests {
             .await
             .unwrap();
         assert!(service.get_session(&s_new.id).await.unwrap().is_some());
+    }
+
+    /// ログインを始めた後（パスワードの検証中・2FA の入力待ち）に失効があれば、
+    /// その後に作ったセッションも使えない
+    #[tokio::test]
+    async fn test_session_issued_before_a_revocation_is_rejected() {
+        let cache = Arc::new(MemoryCacheBackend::new());
+        let service = SessionService::new(cache, 3600);
+
+        let login_started = Timestamp::now();
+        tokio::time::sleep(std::time::Duration::from_millis(5)).await;
+        service.revoke_user_sessions("user-a").await.unwrap();
+        tokio::time::sleep(std::time::Duration::from_millis(5)).await;
+
+        let late = service
+            .create_session_issued_at("user-a", "admin", HashMap::new(), None, login_started)
+            .await
+            .unwrap();
+        assert_eq!(late.created_at, login_started.to_rfc3339_auto());
+        assert_eq!(service.get_session(&late.id).await.unwrap(), None);
+
+        // 失効の後に始めたログインは通る
+        let fresh = service
+            .create_session_issued_at("user-a", "admin", HashMap::new(), None, Timestamp::now())
+            .await
+            .unwrap();
+        assert!(service.get_session(&fresh.id).await.unwrap().is_some());
+    }
+
+    /// 未来の時刻は渡されても今に揃える（失効をすり抜ける抜け道にしない）
+    #[tokio::test]
+    async fn test_session_issued_at_is_never_in_the_future() {
+        let cache = Arc::new(MemoryCacheBackend::new());
+        let service = SessionService::new(cache, 3600);
+        let future = Timestamp::now() + jiff::SignedDuration::from_secs(3600);
+        let session = service
+            .create_session_issued_at("user-a", "editor", HashMap::new(), None, future)
+            .await
+            .unwrap();
+        let created = aegis_core::time::parse_rfc3339(&session.created_at).unwrap();
+        assert!(created <= Timestamp::now());
     }
 }

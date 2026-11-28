@@ -572,8 +572,12 @@ In addition to password authentication, AegisCMS supports two-factor authenticat
 1. Open **My profile** from the avatar at the top right of Admin Studio's header.
 2. In the **Two-factor authentication (TOTP)** section, click **Set up two-factor authentication**.
 3. Scan the displayed QR code with your authenticator app (a Base32 secret for manual entry is also shown).
-4. Enter the 6-digit code shown in the authenticator app and click **Enable**.
+4. Enter the 6-digit code shown in the authenticator app and your current password to confirm it is you, and click **Enable**.
 5. When enabling succeeds, **6 single-use backup codes** (e.g. `A1B2-C3D4`) are shown on screen. Click **Copy all** to save them in a safe place, and click **I saved them (close)** to finish.
+
+- Enabling (`POST /api/v1/users/me/2fa/enable`) requires the current password, so that a hijacked session cannot register the attacker's authenticator. A wrong password counts against the same limit as failed logins ([`[auth.login_rate_limit]`](configuration.md#29-authlogin_rate_limit--rate-limiting-of-login-attempts)), and so does removal.
+- Only the secret that the server created in `POST /api/v1/users/me/2fa/setup` (valid for 10 minutes) is accepted. After that, start the setup again.
+- 2FA that is already enabled cannot be switched to another secret directly (`409`). To change devices, remove it first and then set it up again.
 
 ### 12.2 Two-Factor Login Flow
 
@@ -581,8 +585,9 @@ In addition to password authentication, AegisCMS supports two-factor authenticat
 2. After verifying the password, if the target user has 2FA enabled, the server (`POST /api/v1/auth/session`) does not issue a session and instead returns a temporary token valid for 5 minutes (`challenge_token`) and `{ "mfa_required": true }`.
 3. The screen switches automatically to the two-factor code input form.
 4. The user enters and submits the 6-digit authentication code (or, from "Use a backup code", an 8-digit backup code) (`POST /api/v1/auth/session/verify-2fa`).
-5. The server verifies the code and issues a proper Bearer session. If a backup code was used, that code is consumed and deleted from the DB automatically.
+5. The server verifies the code and issues a proper Bearer session. If a backup code was used, that code is consumed and deleted from the DB automatically (if it cannot be deleted, the login is refused).
 6. A challenge accepts **one** code attempt (a wrong code also uses it up, and concurrent requests with the same challenge are refused except the first). While the login is locked by [`[auth.login_rate_limit]`](configuration.md#29-authlogin_rate_limit--rate-limiting-of-login-attempts), codes are refused with `429`. A TOTP code that has been used once cannot be used again within its validity window.
+7. If the account was disabled while waiting for the code, no session is issued. If the role was lowered, the session is issued with the lowered role. The session's issue time is the time the password login started, so a revocation while waiting (disabling, a role change, a password change) also makes the issued session unusable.
 
 ### 12.3 Removal and Recovery by Administrators
 

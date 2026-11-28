@@ -184,6 +184,14 @@ pub async fn revoke_api_token(
     Path(id): Path<String>,
 ) -> Result<StatusCode, ApiError> {
     require_login_session(&session)?;
+    // OAuth で渡したトークンなら、取り直す許可（リフレッシュトークン）を先に終わらせる。
+    // アクセストークンを先に消すと、その直後に届いたリフレッシュで新しいトークンを取り直されてしまう。
+    // 消せなかったら失効を成功扱いにしない（リフレッシュトークンが残ったままになる）
+    state
+        .db
+        .delete_oauth_refresh_by_access_token(&session.user_id, &id)
+        .await
+        .map_err(from_aegis)?;
     let deleted = state
         .db
         .delete_api_token(&session.user_id, &id)
@@ -192,11 +200,6 @@ pub async fn revoke_api_token(
     if !deleted {
         return Err(api_error(StatusCode::NOT_FOUND, "API token not found"));
     }
-    // OAuth で渡したトークンなら、取り直す許可（リフレッシュトークン）も終わらせる
-    let _ = state
-        .db
-        .delete_oauth_refresh_by_access_token(&session.user_id, &id)
-        .await;
     state
         .audit
         .record(
@@ -413,5 +416,65 @@ mod tests {
             .unwrap();
         let (status, _) = call(&state, "GET", "/api/v1/auth/session", &issued.token, None).await;
         assert_eq!(status, StatusCode::UNAUTHORIZED);
+    }
+
+    /// OAuth で渡したトークンを失効すると、取り直すためのリフレッシュトークンも使えなくなる
+    #[tokio::test]
+    async fn test_revoking_an_oauth_token_ends_its_refresh_token() {
+        let state = state().await;
+        let issued = api_tokens::issue_api_token(
+            state.db.as_ref(),
+            NewApiToken {
+                username: "alice".into(),
+                name: "OAuth: Example".into(),
+                role: "editor".into(),
+                expires_in_days: Some(30),
+            },
+        )
+        .await
+        .unwrap();
+        let now = jiff::Timestamp::now();
+        state
+            .db
+            .insert_oauth_refresh(&aegis_db::OAuthRefreshRecord {
+                id: "refresh-1".into(),
+                token_hash: "refresh-hash".into(),
+                username: "alice".into(),
+                client_hash: "client-hash".into(),
+                client_name: "Example".into(),
+                scope: String::new(),
+                role: "editor".into(),
+                access_token_id: issued.record.id.clone(),
+                created_at: aegis_core::time::TimestampExt::to_rfc3339_secs(&now),
+                expires_at: aegis_core::time::TimestampExt::to_rfc3339_secs(
+                    &(now + aegis_core::time::days(90)),
+                ),
+            })
+            .await
+            .unwrap();
+
+        let session = SessionData {
+            id: "ses_alice".into(),
+            user_id: "alice".into(),
+            role: "editor".into(),
+            created_at: String::new(),
+            expires_at: String::new(),
+            metadata: Default::default(),
+        };
+        let status = revoke_api_token(
+            State(state.clone()),
+            RequireRole(session),
+            AuditContext::default(),
+            Path(issued.record.id.clone()),
+        )
+        .await
+        .unwrap();
+        assert_eq!(status, StatusCode::NO_CONTENT);
+        assert!(state
+            .db
+            .take_oauth_refresh_by_hash("refresh-hash")
+            .await
+            .unwrap()
+            .is_none());
     }
 }
