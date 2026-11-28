@@ -2291,6 +2291,7 @@
       "catalog_not_found": "そのカタログは、このサーバーに設定されていません。",
       "catalog_fetch_failed": "カタログを取得できませんでした。",
       "catalog_bad_signature": "カタログの署名が正しくありません。",
+      "catalog_key_rotated": "ストアが、このサーバーの知らない新しい署名の鍵に切り替わりました。AegisCMS を更新するか、ストアのドキュメントのとおりに [[store.catalogs]] に新しい公開鍵を設定してください。",
       "catalog_malformed": "カタログの形式が正しくありません。",
       "catalog_unsupported_schema": "このバージョンの AegisCMS が知らない形式のカタログです。",
       "catalog_expired": "カタログの有効期限が切れています。",

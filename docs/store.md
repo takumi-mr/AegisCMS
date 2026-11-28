@@ -77,6 +77,7 @@ Packages are distributed from [AegisCMS-Store](https://github.com/takumi-mr/Aegi
 - `sequence` increases with every publish. AegisCMS remembers the last value it accepted and rejects a catalog with a smaller one (against rollbacks that present an old, vulnerable version as the latest).
 - A catalog past `expires_at` is rejected (against freezing the site on an old list). CI regenerates the catalog regularly to extend it.
 - `capabilities` is copied from the manifest so the confirmation screen can show it before installing. Installation fails if it disagrees with the manifest in the ZIP.
+- `next_public_key` (optional) announces the key the next catalogs will be signed with, and `previous_public_key` (optional, on catalogs signed with a new key) names the key before it ([5](#5-key-management)).
 - A catalog with an unknown `schema_version` is not read. New fields are added under the same `schema_version`, and AegisCMS ignores fields it does not know.
 
 ## 4. On the AegisCMS side
@@ -96,6 +97,7 @@ public_key = "<Ed25519 public key for the catalog signature, 32 bytes hex>"
 - Catalogs are an array; each key is used for its own catalog only.
 - Without `[[store.catalogs]]`, the official catalog (AegisCMS-Store; URL and public key are `OFFICIAL_CATALOG_*` in `store.rs`) is read. Writing some replaces it. `enabled` defaults to `true`; the catalog is fetched only when an administrator opens the Store tab, when the update check is due ([8](#8-update-notices)), or through the API (no requests at start-up, in the background, or for visitors).
 - The official catalog key is built into the server, so after rotating it only servers updated to a version with the new key can read the catalog. Keep a copy of the catalog private key outside the GitHub secret.
+- An announced next key is recorded in the DB (`store.catalog_next_keys` in `_aegis_settings`) together with the key that announced it, and trusted only while that key is still the configured one ([5](#5-key-management)).
 - Accepted sequences are recorded in the DB (`store.catalog_sequences` in `_aegis_settings`), shared by all servers and never lowered. Restoring a backup brings the record back to its value at that time; that only loosens the check until the next accepted catalog.
 - The key in the ZIP's `signature.json` must match the entry's `public_key`. `require_signatures` and `trusted_public_keys` under `[plugins]` / `[theme]` still apply; going through the store never relaxes them.
 
@@ -117,7 +119,15 @@ public_key = "<Ed25519 public key for the catalog signature, 32 bytes hex>"
 
 - Private keys never go into a repository. When CI signs, the key lives in an Actions secret.
 - The **catalog key** and the **ZIP key** are separate. A leaked ZIP key cannot ship a ZIP that is not in the catalog; a leaked catalog key cannot forge ZIP signatures.
-- How to rotate the catalog key without cutting off released servers is still open ([9](#9-open-questions)).
+- **Rotating the catalog key** (planned): the official catalog's public key is built into the server (`OFFICIAL_CATALOG_PUBLIC_KEY`), so the next key is announced first.
+    1. Publish catalogs signed with the current key that carry `next_public_key`. A server that accepts one, verified with its configured key, records the announced key and from then on also accepts catalogs signed with it. Announcing nothing again withdraws it.
+    2. At the same time, release a core with the new key built in.
+    3. Keep announcing for a long time (at least the catalog's validity, 90 days): servers fetch the catalog only when an administrator opens Admin Studio, so an unused site does not see it.
+    4. Switch to signing with the new key, and write the old one in `previous_public_key`.
+    - A server that missed the announcement refuses the new catalogs. Because their unverified `previous_public_key` is the key it trusts, it says why (`catalog_key_rotated`, in the Store tab, the update status and the log): update AegisCMS, or set the new key in `[[store.catalogs]]`. The new key is never taken from the unverified catalog; it is published in AegisCMS-Store's README and the release notes.
+    - A key announced by the announced key is not followed, and a record is ignored once the configured key changes (a core update). So an attacker with a leaked key cannot plant a key that survives the update. The steps: AegisCMS-Store's README.
+- **When a key leaks**, announcing does not help (the attacker can announce too): release a core with a new built-in key, which also drops any announcement made under the old one.
+- **Rotating the ZIP key** needs no announcement: the catalog lists each version's key. Keep the versions signed with the old key in the catalog, because updates are offered only when the installed package's key appears among the catalog's versions of that package ([8](#8-update-notices)). The catalog is built from every released version, so they stay unless their Releases are deleted (only after a leak).
 
 Publishing (CI example): push a tag → build → sign the ZIP → create the Release → regenerate and sign `catalog.json` → deploy to Pages. Pushing the tag is the only manual step. Download counts are available from the Releases assets.
 
@@ -178,8 +188,3 @@ Decided so that notices add no new kind of outgoing traffic and no new trust:
 - **No automatic updates**: an update goes through the same confirmation as an install, which highlights what the new version is allowed to do that the installed one was not (new hooks, hosts, scripts).
 
 Later: a "security update" mark in the catalog, and keeping the previous version to roll back.
-
-## 9. Open questions
-
-- **Rotating the catalog key.** The official catalog's public key is built into the server (`OFFICIAL_CATALOG_PUBLIC_KEY`), so a catalog signed with a new key is refused by every released server. Today a rotation means releasing a core with the new key; until a site updates, it can write the new key in `[[store.catalogs]]` (AegisCMS-Store's README). One way to avoid the gap: let the catalog announce the next key, signed with the current one, so servers learn it before the switch.
-- **Rotating the ZIP key.** The catalog lists each version's key, so new versions can simply be signed with a new key. But updates are offered only when the installed package's key appears among the catalog's versions of that package ([8](#8-update-notices)): as long as the old versions stay listed, updates keep showing; dropping them would hide updates from sites still on an old-key version. Decide together with the catalog key.

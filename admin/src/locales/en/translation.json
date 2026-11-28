@@ -2310,6 +2310,7 @@
       "catalog_not_found": "That catalog is not configured on this server.",
       "catalog_fetch_failed": "The catalog could not be downloaded.",
       "catalog_bad_signature": "The catalog's signature is not valid.",
+      "catalog_key_rotated": "The store has moved to a new signing key that this server does not know yet. Update AegisCMS, or set the store's new public key in [[store.catalogs]] as described in the store's documentation.",
       "catalog_malformed": "The catalog is not in the expected format.",
       "catalog_unsupported_schema": "The catalog uses a format this version of AegisCMS does not know.",
       "catalog_expired": "The catalog has expired.",
