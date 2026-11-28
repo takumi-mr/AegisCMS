@@ -10,6 +10,7 @@
   <img alt="Rust" src="https://img.shields.io/badge/Rust-2021-000000?logo=rust&logoColor=white">
   <img alt="WebAssembly plugins" src="https://img.shields.io/badge/plugins-WebAssembly-654FF0?logo=webassembly&logoColor=white">
   <img alt="Databases" src="https://img.shields.io/badge/DB-SQLite%20%7C%20PostgreSQL%20%7C%20MySQL-336791?logo=postgresql&logoColor=white">
+  <a href="#test-coverage"><img alt="Line coverage: 89.5%" src="https://img.shields.io/badge/coverage-89.5%25-brightgreen"></a>
   <a href="https://conventionalcommits.org"><img alt="Conventional Commits" src="https://img.shields.io/badge/Conventional%20Commits-1.0.0-FE5196?logo=conventionalcommits&logoColor=white"></a>
 </p>
 
@@ -70,6 +71,52 @@ AegisCMS is a single binary with a built-in database (SQLite), so a small server
 
 > [!NOTE]
 > The memory figures are for an empty site, measured once on an amd64 machine. They are not a sizing guide for a production site: measure with your own content and plugins.
+
+## Test Coverage
+
+Line coverage across the Rust workspace is **89.5%** (95,062 / 106,223 lines, measured with `task coverage` / `cargo-llvm-cov`).
+
+> [!NOTE]
+> Snapshot measured with `cargo llvm-cov --workspace --all-features` on SQLite only (tests targeting live PostgreSQL, MySQL, and Redis containers are skipped). To include live database containers, run `task docker:dbs:up && task coverage`.
+
+<details>
+<summary>Line coverage breakdown by crate</summary>
+
+| Crate                 |       Lines |    Covered |  Coverage |
+| --------------------- | ----------: | ---------: | --------: |
+| `aegis-captcha`       |         229 |        228 |     99.6% |
+| `aegis-headless`      |         804 |        792 |     98.5% |
+| `aegis-ast`           |       2,636 |      2,570 |     97.5% |
+| `aegis-schema`        |       2,415 |      2,343 |     97.0% |
+| `aegis-search`        |         645 |        621 |     96.3% |
+| `aegis-members`       |       1,423 |      1,361 |     95.6% |
+| `(other)`             |         635 |        606 |     95.4% |
+| `aegis-auth`          |       4,981 |      4,719 |     94.7% |
+| `aegis-core`          |       3,350 |      3,155 |     94.2% |
+| `aegis-contact`       |       1,459 |      1,370 |     93.9% |
+| `aegis-tags`          |         259 |        242 |     93.4% |
+| `aegis-wordpress`     |       2,031 |      1,895 |     93.3% |
+| `aegis-theme`         |       3,077 |      2,857 |     92.9% |
+| `aegis-comments`      |       1,651 |      1,532 |     92.8% |
+| `aegis-notify`        |       2,048 |      1,899 |     92.7% |
+| `aegis-runtime`       |       5,203 |      4,812 |     92.5% |
+| `aegis-analytics`     |         670 |        610 |     91.0% |
+| `aegis-newsletter`    |         614 |        559 |     91.0% |
+| `aegis-theme-dev`     |       3,484 |      3,164 |     90.8% |
+| `aegis-server`        |      51,969 |     45,727 |     88.0% |
+| `aegis-plugin-dev`    |       2,174 |      1,910 |     87.9% |
+| `aegis-forum`         |       1,097 |        962 |     87.7% |
+| `aegis-backup`        |       2,140 |      1,875 |     87.6% |
+| `aegis-storage`       |         488 |        420 |     86.1% |
+| `aegis-commerce`      |       2,102 |      1,805 |     85.9% |
+| `aegis-db`            |       6,192 |      5,287 |     85.4% |
+| `aegis-audit`         |         328 |        268 |     81.7% |
+| `aegis-cache`         |       1,068 |        829 |     77.6% |
+| `aegis-plugin-sdk`    |       1,033 |        635 |     61.5% |
+| `aegis-plugin-macros` |          18 |          9 |     50.0% |
+| **Total**             | **106,223** | **95,062** | **89.5%** |
+
+</details>
 
 ## Table of Contents
 
