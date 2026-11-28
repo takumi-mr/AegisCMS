@@ -6,7 +6,7 @@ A development tool for building AegisCMS Wasm plugins with an editor and an inst
 It needs no database and no login, and connects to the JSON API of `aegis-server plugin dev`.
 
 ```bash
-task dev:plugin -- plugins/official-code-enhancer   # dev server (http://127.0.0.1:8091)
+task dev:plugin -- sdk/templates/rust-block   # dev server (http://127.0.0.1:8091)
 npm --prefix plugin-builder ci                      # first time only
 task dev:plugin-builder                             # http://localhost:5175/
 ```

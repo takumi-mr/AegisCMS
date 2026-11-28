@@ -1420,8 +1420,6 @@
     "loadFailed": "プラグイン一覧の読み込みに失敗しました",
     "settingsModalTitle": "「{{name}}」の設定",
     "settingsNotice": "動的設定はメモリおよびキャッシュに即座に反映され、設定ファイルの記述を上書きします。",
-    "presetSuggestions": "推奨キー (プリセット)",
-    "applyPresetKey": "「{{key}}」を入力欄にセット",
     "activeSettingsLabel": "現在の設定値",
     "noSettingsConfigured": "設定されたキー・値はありません。",
     "declaredSettingsLabel": "設定項目",

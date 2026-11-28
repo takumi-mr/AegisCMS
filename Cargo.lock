@@ -356,23 +356,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "aegis-plugin-blocks"
-version = "0.5.0"
-dependencies = [
- "aegis-plugin-sdk",
- "serde_json",
-]
-
-[[package]]
-name = "aegis-plugin-code-enhancer"
-version = "0.5.1"
-dependencies = [
- "aegis-plugin-sdk",
- "serde",
- "serde_json",
-]
-
-[[package]]
 name = "aegis-plugin-dev"
 version = "0.12.0"
 dependencies = [
@@ -405,48 +388,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "aegis-plugin-mermaid"
-version = "0.3.0"
-dependencies = [
- "aegis-plugin-sdk",
- "serde",
- "serde_json",
-]
-
-[[package]]
-name = "aegis-plugin-order-notifier"
-version = "0.2.1"
-dependencies = [
- "aegis-plugin-sdk",
- "serde",
- "serde_json",
-]
-
-[[package]]
-name = "aegis-plugin-page-toc"
-version = "0.3.1"
-dependencies = [
- "aegis-plugin-sdk",
- "serde_json",
-]
-
-[[package]]
-name = "aegis-plugin-plantuml"
-version = "0.2.1"
-dependencies = [
- "aegis-plugin-sdk",
- "miniz_oxide 0.8.9",
-]
-
-[[package]]
-name = "aegis-plugin-post-navigation"
-version = "0.3.0"
-dependencies = [
- "aegis-plugin-sdk",
- "serde_json",
-]
-
-[[package]]
 name = "aegis-plugin-react-island-template"
 version = "0.1.0"
 dependencies = [
@@ -458,15 +399,6 @@ name = "aegis-plugin-sdk"
 version = "0.12.0"
 dependencies = [
  "aegis-plugin-macros",
- "serde",
- "serde_json",
-]
-
-[[package]]
-name = "aegis-plugin-shop-rules"
-version = "0.2.1"
-dependencies = [
- "aegis-plugin-sdk",
  "serde",
  "serde_json",
 ]

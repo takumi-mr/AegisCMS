@@ -158,11 +158,11 @@ impl Plugin for MyPlugin {
 
 ### 2.4 Declaring Settings
 
-To let the plugin's settings be entered in Admin Studio, declare the items (key, type, name, default, range) in the manifest's `settings`. The types are string, multi-line, URL, number, on/off, choices, and color, and the server validates the values on save. For the declaration format, see [Hooks & host API 3.3](./plugin_hooks.md#33-settings-items-settings); a working example is in [`plugins/official-page-toc`](../plugins/official-page-toc). Values are read as strings with `config::get("key")`.
+To let the plugin's settings be entered in Admin Studio, declare the items (key, type, name, default, range) in the manifest's `settings`. The types are string, multi-line, URL, number, on/off, choices, and color, and the server validates the values on save. For the declaration format, see [Hooks & host API 3.3](./plugin_hooks.md#33-settings-items-settings); a working example is in [`plugins/official-page-toc`](https://github.com/takumi-mr/AegisCMS-Plugin/tree/main/plugins/official-page-toc). Values are read as strings with `config::get("key")`.
 
 ### 2.5 Adding Custom Body Blocks
 
-By declaring blocks and input fields in the manifest's `blocks`, adding `render-blocks` to `capabilities.hooks`, and implementing `Plugin::render_blocks`, you can add your own blocks to the Admin Studio editor. For the declaration format and the hook's rules, see [Hooks & host API 1.10 / 3.1](./plugin_hooks.md#110-render-blocks); a working example is in the official plugin [`plugins/official-blocks`](../plugins/official-blocks).
+By declaring blocks and input fields in the manifest's `blocks`, adding `render-blocks` to `capabilities.hooks`, and implementing `Plugin::render_blocks`, you can add your own blocks to the Admin Studio editor. For the declaration format and the hook's rules, see [Hooks & host API 1.10 / 3.1](./plugin_hooks.md#110-render-blocks); a working example is in the official plugin [`plugins/official-blocks`](https://github.com/takumi-mr/AegisCMS-Plugin/tree/main/plugins/official-blocks).
 
 ## 3. Host API Reference
 

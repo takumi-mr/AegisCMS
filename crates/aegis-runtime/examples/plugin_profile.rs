@@ -4,7 +4,7 @@
 //! cargo run --release -p aegis-runtime --example plugin_profile [plugin_dir ...]
 //! ```
 //!
-//! 引数を省略すると `sdk/templates/*`・`sdk/examples/*`・`plugins/*` を計測する。
+//! 引数を省略すると `sdk/templates/*`・`sdk/examples/*`・`plugins/*`・`test-plugins/*` を計測する。
 //! 段階は `WasmPluginInstance` の呼び出しと同じ順序（Store 作成 → インスタンス化 → `_initialize`
 //! → 入力の書き込み → フック → 出力の読み出し）で、最後に実際の `AegisPlugin` 経由の所要時間も測る。
 //! 続けて、同時に呼び出した場合のスループット（1 並列と `AEGIS_PROFILE_CONCURRENCY` 並列、既定 32）を測る。
@@ -91,7 +91,7 @@ fn plugin_dirs(args: Vec<String>) -> Vec<PathBuf> {
         return args.into_iter().map(PathBuf::from).collect();
     }
     let mut dirs = Vec::new();
-    for group in ["sdk/templates", "sdk/examples", "plugins"] {
+    for group in ["sdk/templates", "sdk/examples", "plugins", "test-plugins"] {
         let Ok(entries) = std::fs::read_dir(group) else {
             continue;
         };

@@ -6,7 +6,7 @@ AegisCMS の Wasm プラグインを、エディターと即時実行サンド�
 DB もログインも不要で、`aegis-server plugin dev` の JSON API に接続します。
 
 ```bash
-task dev:plugin -- plugins/official-code-enhancer   # 開発サーバー（http://127.0.0.1:8091）
+task dev:plugin -- sdk/templates/rust-block   # 開発サーバー（http://127.0.0.1:8091）
 npm --prefix plugin-builder ci                      # 初回のみ
 task dev:plugin-builder                             # http://localhost:5175/
 ```

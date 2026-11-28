@@ -12,9 +12,9 @@
 
 ## Steps for Specific Versions
 
-### Updating to v0.13.0: some official plugins come from the store
+### Updating to v0.13.0: the official plugins come from the store
 
-From v0.13.0, these official plugins are no longer bundled with AegisCMS. They are installed from the [package store](store.md) instead: `official-ads`, `official-back-to-top`, `official-charts`, `official-clarity`, `official-code-lines`, `official-embeds`, `official-external-links`, `official-lightbox`, `official-link-embed`, `official-reading-time`, `official-share-buttons`.
+From v0.13.0, **no plugin is bundled with AegisCMS**. Every official plugin (`official-*`) is installed from the [package store](store.md) instead: `official-ads`, `official-back-to-top`, `official-blocks`, `official-charts`, `official-clarity`, `official-code-enhancer`, `official-code-lines`, `official-embeds`, `official-external-links`, `official-lightbox`, `official-link-embed`, `official-mermaid`, `official-order-notifier`, `official-page-toc`, `official-plantuml`, `official-post-navigation`, `official-reading-time`, `official-share-buttons`, `official-shop-rules`.
 
 If you have none of them enabled, there is nothing to do. If you have any enabled, **the new version does not start** until they are installed again (the log says `Plugin '…' is enabled in [plugins].enabled but not installed`). Their settings are kept. Before updating:
 
@@ -23,7 +23,7 @@ If you have none of them enabled, there is nothing to do. If you have any enable
 3. Install them again from the **Store** tab of Admin Studio › Plugins. The store is on unless your configuration has `[store]` `enabled = false` ([configuration 2.28](configuration.md#228-store--package-store)). You can also use `POST /api/v1/store/install` (`{"catalog": "official", "kind": "plugin", "id": "official-charts"}`, [configuration 2.28](configuration.md#228-store--package-store)), or download the ZIP from [the store's Releases](https://github.com/takumi-mr/AegisCMS-Store/releases) and upload it on the same tab.
 4. Enable them again.
 
-The shipped `config/default.toml` also **no longer enables any plugin** (it used to enable `official-code-enhancer`, `official-mermaid` and `official-plantuml`). A site that runs with the shipped file, or copied its `[plugins]` section, loses code highlighting and diagrams until it turns them on again: enable them in Admin Studio › Plugins (they are still bundled in this release), or put them back in `[plugins].enabled`. The Store tab lists them as recommended.
+The shipped `config/default.toml` also **no longer enables any plugin** (it used to enable `official-code-enhancer`, `official-mermaid` and `official-plantuml`). A site that runs with the shipped file loses code highlighting and diagrams until it installs and enables them from the Store tab, where they are listed as recommended. A site that copied the old `[plugins]` section still lists them, so it follows the steps above.
 
 ## Update
 
@@ -56,7 +56,7 @@ Before 1.0, a new minor version (`0.9` to `0.10`) can contain breaking changes, 
 1. Stop the server.
 2. Download the new archive and extract it into a **new folder**.
 3. Copy your data and settings from the old folder: `aegis.db*`, `data/`, and your edited `config/` and `schemas/`. Compare the new `config/default.toml` and `schemas/` with yours, since new settings may have been added.
-4. Use the bundled plugins and themes (`plugins/`, `themes/`) from the new folder (they are updated with the release). Plugins and themes installed from Admin Studio or the store are under `data/` with the shipped configuration (`[paths].plugins_dir = "data/plugins"`, `themes_dir = "data/themes"`), so they move with step 3. If you still have the old setting (`plugins_dir = "plugins"`), copy what you installed into the new `plugins/` and `themes/` ([configuration 2.5](configuration.md#25-paths--directories)).
+4. Use the bundled themes (`themes/`) from the new folder (they are updated with the release). `plugins/` is empty; copy over any plugins you placed there yourself. Plugins and themes installed from Admin Studio or the store are under `data/` with the shipped configuration (`[paths].plugins_dir = "data/plugins"`, `themes_dir = "data/themes"`), so they move with step 3. If you still have the old setting (`plugins_dir = "plugins"`), copy what you installed into the new `plugins/` and `themes/` ([configuration 2.5](configuration.md#25-paths--directories)).
 5. Start the new binary, and keep the old folder until you are sure everything works.
 
 If you run it as a service, point `WorkingDirectory` and `ExecStart` at the new folder.

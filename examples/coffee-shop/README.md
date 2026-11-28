@@ -39,6 +39,8 @@ task demo:shop:seed
 
 <http://127.0.0.1:8080/> is the shop, and <http://127.0.0.1:8080/admin/> is the admin screen (`owner` / `sample-password`).
 
+The shipping fee and coupons come from the official plugin `official-shop-rules`, which is not bundled. In the admin screen, open Settings › Plugins › Store, install **Shop Rules**, and enable it on the Installed tab. Its settings are already in `aegis.toml`.
+
 Without go-task:
 
 ```bash
@@ -49,7 +51,7 @@ node examples/coffee-shop/seed.mjs      # in another terminal
 
 `seed.mjs` skips slugs that already exist, so you can run it as many times as you like. To load into a different server or user, specify `--url` / `--user` / `--password` (or the environment variable `AEGIS_SEED_PASSWORD`).
 
-To start over, stop the server and delete `shop.db*` and `uploads/` in `examples/coffee-shop/`.
+To start over, stop the server and delete `shop.db*`, `uploads/` and `plugins/` in `examples/coffee-shop/`.
 
 ## What You Can Try
 

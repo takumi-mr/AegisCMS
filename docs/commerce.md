@@ -362,7 +362,7 @@ notify_on = "pending_payment,paid,cancelled"   # statuses to notify
 format = "slack"                               # "json" POSTs OrderStatusChange as is
 ```
 
-The destination must be included in `allowed_domains` of `plugins/official-order-notifier/plugin.manifest.json` (default `hooks.slack.com`). To send to another service, add its domain (manifest changes are to be made by a trusted administrator).
+The destination must be included in `allowed_domains` of `official-order-notifier/plugin.manifest.json` in `[paths].plugins_dir` (where the store installed it) (default `hooks.slack.com`). To send to another service, add its domain (manifest changes are to be made by a trusted administrator).
 
 This plugin also serves as a notification channel (`[notifications].channels = ["plugin:official-order-notifier"]`), and can send subjects and bodies built from the host's templates, including audit events such as administrator logins and login lockouts, to Slack (narrowed with `channel_recipients` / `channel_kinds`; [Notifications 5.1](notifications.md#51-adding-with-a-wasm-plugin)). When using it as a channel, set `notify_on = "none"` so orders do not arrive twice.
 

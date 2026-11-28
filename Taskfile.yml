@@ -24,7 +24,7 @@ tasks:
       - npm --prefix admin run dev
 
   dev:plugin:
-    desc: 'プラグイン開発用サーバー (DB 不要、保存で自動リロード、ポート 8091)。task dev:plugin -- plugins/official-code-enhancer'
+    desc: 'プラグイン開発用サーバー (DB 不要、保存で自動リロード、ポート 8091)。task dev:plugin -- sdk/templates/rust-block'
     cmds:
       - cargo run -p aegis-plugin-dev -- {{.CLI_ARGS}}
 
@@ -316,73 +316,19 @@ tasks:
       - cmd: cp target/wasm32-unknown-unknown/release/aegis_plugin_block_template.wasm sdk/templates/rust-block/plugin.wasm
         platforms: [linux, darwin]
 
-  plugin:build:code-enhancer:
-    desc: 公式 Code Enhancer プラグインを Wasm にビルドし plugins/official-code-enhancer/plugin.wasm を生成
-    cmds:
-      - cargo build -p aegis-plugin-code-enhancer --target wasm32-unknown-unknown --release
-      - cmd: cmd /c "copy /y target\\wasm32-unknown-unknown\\release\\aegis_plugin_code_enhancer.wasm plugins\\official-code-enhancer\\plugin.wasm"
-        platforms: [windows]
-      - cmd: cp target/wasm32-unknown-unknown/release/aegis_plugin_code_enhancer.wasm plugins/official-code-enhancer/plugin.wasm
-        platforms: [linux, darwin]
-
-  plugin:build:mermaid:
-    desc: 公式 Mermaid プラグインを Wasm にビルドし plugins/official-mermaid/plugin.wasm を生成
-    cmds:
-      - cargo build -p aegis-plugin-mermaid --target wasm32-unknown-unknown --release
-      - cmd: cmd /c "copy /y target\\wasm32-unknown-unknown\\release\\aegis_plugin_mermaid.wasm plugins\\official-mermaid\\plugin.wasm"
-        platforms: [windows]
-      - cmd: cp target/wasm32-unknown-unknown/release/aegis_plugin_mermaid.wasm plugins/official-mermaid/plugin.wasm
-        platforms: [linux, darwin]
-
-  plugin:build:plantuml:
-    desc: 公式 PlantUML プラグインを Wasm にビルドし plugins/official-plantuml/plugin.wasm を生成
-    cmds:
-      - cargo build -p aegis-plugin-plantuml --target wasm32-unknown-unknown --release
-      - cmd: cmd /c "copy /y target\\wasm32-unknown-unknown\\release\\aegis_plugin_plantuml.wasm plugins\\official-plantuml\\plugin.wasm"
-        platforms: [windows]
-      - cmd: cp target/wasm32-unknown-unknown/release/aegis_plugin_plantuml.wasm plugins/official-plantuml/plugin.wasm
-        platforms: [linux, darwin]
-
   plugin:build:test:
     desc: 本体のテスト用のプラグイン (test-plugins/*) を Wasm にビルドし test-plugins/*/plugin.wasm を更新 (要 rustup target add wasm32-unknown-unknown)
     cmds:
       - cargo build -p aegis-test-plugin-page -p aegis-test-plugin-shop -p aegis-test-plugin-notify --target wasm32-unknown-unknown --release
-      - cmd: cmd /c "copy /y target\wasm32-unknown-unknown\release\aegis_test_plugin_page.wasm test-plugins\test-page\plugin.wasm && copy /y target\wasm32-unknown-unknown\release\aegis_test_plugin_shop.wasm test-plugins\test-shop\plugin.wasm && copy /y target\wasm32-unknown-unknown\release\aegis_test_plugin_notify.wasm test-plugins\test-notify\plugin.wasm"
+      - cmd: cmd /c "copy /y target\\wasm32-unknown-unknown\\release\\aegis_test_plugin_page.wasm test-plugins\\test-page\\plugin.wasm && copy /y target\\wasm32-unknown-unknown\\release\\aegis_test_plugin_shop.wasm test-plugins\\test-shop\\plugin.wasm && copy /y target\\wasm32-unknown-unknown\\release\\aegis_test_plugin_notify.wasm test-plugins\\test-notify\\plugin.wasm"
         platforms: [windows]
       - cmd: cp target/wasm32-unknown-unknown/release/aegis_test_plugin_page.wasm test-plugins/test-page/plugin.wasm && cp target/wasm32-unknown-unknown/release/aegis_test_plugin_shop.wasm test-plugins/test-shop/plugin.wasm && cp target/wasm32-unknown-unknown/release/aegis_test_plugin_notify.wasm test-plugins/test-notify/plugin.wasm
-        platforms: [linux, darwin]
-
-  plugin:build:shop:
-    desc: 公式 EC プラグイン (official-shop-rules / official-order-notifier) を Wasm にビルドし plugins/*/plugin.wasm を更新
-    cmds:
-      - cargo build -p aegis-plugin-shop-rules -p aegis-plugin-order-notifier --target wasm32-unknown-unknown --release
-      - cmd: cmd /c "copy /y target\\wasm32-unknown-unknown\\release\\aegis_plugin_shop_rules.wasm plugins\\official-shop-rules\\plugin.wasm && copy /y target\\wasm32-unknown-unknown\\release\\aegis_plugin_order_notifier.wasm plugins\\official-order-notifier\\plugin.wasm"
-        platforms: [windows]
-      - cmd: cp target/wasm32-unknown-unknown/release/aegis_plugin_shop_rules.wasm plugins/official-shop-rules/plugin.wasm && cp target/wasm32-unknown-unknown/release/aegis_plugin_order_notifier.wasm plugins/official-order-notifier/plugin.wasm
         platforms: [linux, darwin]
 
   deploy:generate:
     desc: deploy/sites.toml から compose.yaml・Caddyfile・sites/*/aegis.toml を生成（本番では deploy/deploy.sh up がイメージの中で行う）
     cmds:
       - cargo run -p aegis-server -- deploy generate --dir deploy --builtin .
-
-  plugin:build:blocks:
-    desc: 公式ブロックプラグイン (official-blocks) を Wasm にビルドし plugins/official-blocks/plugin.wasm を更新
-    cmds:
-      - cargo build -p aegis-plugin-blocks --target wasm32-unknown-unknown --release
-      - cmd: cmd /c "copy /y target\\wasm32-unknown-unknown\\release\\aegis_plugin_blocks.wasm plugins\\official-blocks\\plugin.wasm"
-        platforms: [windows]
-      - cmd: cp target/wasm32-unknown-unknown/release/aegis_plugin_blocks.wasm plugins/official-blocks/plugin.wasm
-        platforms: [linux, darwin]
-
-  plugin:build:reading:
-    desc: 公式の読書補助プラグイン (official-page-toc / official-post-navigation) を Wasm にビルドし plugins/*/plugin.wasm を更新
-    cmds:
-      - cargo build -p aegis-plugin-page-toc -p aegis-plugin-post-navigation --target wasm32-unknown-unknown --release
-      - cmd: cmd /c "copy /y target\wasm32-unknown-unknown\release\aegis_plugin_page_toc.wasm plugins\official-page-toc\plugin.wasm && copy /y target\wasm32-unknown-unknown\release\aegis_plugin_post_navigation.wasm plugins\official-post-navigation\plugin.wasm"
-        platforms: [windows]
-      - cmd: cp target/wasm32-unknown-unknown/release/aegis_plugin_page_toc.wasm plugins/official-page-toc/plugin.wasm && cp target/wasm32-unknown-unknown/release/aegis_plugin_post_navigation.wasm plugins/official-post-navigation/plugin.wasm
-        platforms: [linux, darwin]
 
   plugin:build:as:
     desc: AssemblyScript プラグインテンプレートを Wasm にビルドし sdk/templates/assemblyscript/plugin.wasm を生成
@@ -421,7 +367,7 @@ tasks:
       - node scripts/seed-benchmark.mjs {{.CLI_ARGS}}
 
   bench:plugins:
-    desc: Wasm プラグインのフック 1 回あたりの所要時間（段階別）と同時実行時のスループットを計測 (sdk/ と plugins/ のプラグイン)
+    desc: Wasm プラグインのフック 1 回あたりの所要時間（段階別）と同時実行時のスループットを計測 (sdk/・plugins/・test-plugins/ のプラグイン)
     cmds:
       - cargo run --release -p aegis-runtime --example plugin_profile
 
