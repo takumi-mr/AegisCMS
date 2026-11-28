@@ -96,7 +96,7 @@ description = "YouTube などの動画を表示します。"
 - 同意が**ない間は何も実行・読み込みされません**。バナーのスクリプトが読み込めなくても(ブロックされても)、テーマに `consent.html` が壊れていても、同意が要るものは動きません。
 - 属性(`src`・`async`・`data-*` など)は、実行するときに引き継ぎます。インラインのスクリプトはそのまま実行します。
 - **許可を取り消したとき**(設定を開き直して、許可していた区分をオフにしたとき)は、すでに動いたスクリプトを止められないので、ページを読み込み直します。
-- 公式プラグインの例: [`official-ads`](../plugins/official-ads/)（広告。区分 `marketing`）と [`official-clarity`](../plugins/official-clarity/)（ヒートマップ・画面録画。区分 `analytics`）は、この形で出します。
+- 公式プラグインの例: [`official-ads`](https://github.com/takumi-mr/AegisCMS-Plugin/tree/main/plugins/official-ads)（広告。区分 `marketing`）と [`official-clarity`](https://github.com/takumi-mr/AegisCMS-Plugin/tree/main/plugins/official-clarity)（ヒートマップ・画面録画。区分 `analytics`）は、この形で出します。
 - プラグインから出すときは、`on-render-page` の **`scripts`（構造化した注入）の `consent` に区分を入れる**だけです。ホストが上の形のタグを作ります（プラグインが HTML を組み立てる必要はなく、`extra_head` などに書いた `<script>` はホストが取り除きます。[ABI 仕様 5.3.3a](plugin_abi_specification.ja.md#533a-on_render_page-でスクリプトを足すscriptsabi-2)）。同意の仕組みをプラグインが知る必要はありません。
 
 ### 2.1 JavaScript から
@@ -121,7 +121,7 @@ window.AegisConsent.open();                  // 設定を開く
 
 ### 2.3 プラグインのブロックの埋め込み
 
-動画・地図・フォームなど、プラグインのブロック（[`official-embeds`](../plugins/official-embeds/) など）が出す `<iframe>` は、`[embed].consent` に区分を書くと、その区分の同意まで読み込みません（[設定 2.23a](configuration.ja.md#223a-embed--プラグインのブロックの埋め込みiframe)）。プラグインに手を入れる必要はありません。
+動画・地図・フォームなど、プラグインのブロック（[`official-embeds`](https://github.com/takumi-mr/AegisCMS-Plugin/tree/main/plugins/official-embeds) など）が出す `<iframe>` は、`[embed].consent` に区分を書くと、その区分の同意まで読み込みません（[設定 2.23a](configuration.ja.md#223a-embed--プラグインのブロックの埋め込みiframe)）。プラグインに手を入れる必要はありません。
 
 ```toml
 [embed]

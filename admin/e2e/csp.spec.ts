@@ -245,19 +245,19 @@ test("under the strict CSP, a plugin's inline script runs because the host hashe
       title: `Plugin ${slug}`,
       slug,
       status: 'published',
+      // Two headings, so official-page-toc adds its table of contents and its inline script
       blocks: [
-        {
-          name: 'core/paragraph',
-          attributes: {},
-          text: 'See [an external page](https://example.org/).',
-        },
+        { name: 'core/heading', attributes: { level: 2 }, text: 'One' },
+        { name: 'core/paragraph', attributes: {}, text: 'First part.' },
+        { name: 'core/heading', attributes: { level: 2 }, text: 'Two' },
+        { name: 'core/paragraph', attributes: {}, text: 'Second part.' },
       ],
     },
   });
   expect(created.ok()).toBeTruthy();
 
   const enable = (enabled: boolean) =>
-    page.request.put(`${SERVER}/api/v1/plugins/official-external-links/enabled`, {
+    page.request.put(`${SERVER}/api/v1/plugins/official-page-toc/enabled`, {
       headers: auth,
       data: { enabled },
     });
@@ -269,8 +269,8 @@ test("under the strict CSP, a plugin's inline script runs because the host hashe
     // No `unsafe-inline`: the plugin's inline script is allowed by its hash only
     expect(scriptSrc).not.toContain('unsafe-inline');
     expect(scriptSrc).toContain("'sha256-");
-    // The script ran: it marks the external link (it adds this class)
-    await expect(page.locator('a[href="https://example.org/"].oel-external')).toBeVisible();
+    // The script ran: it sets the progress bar's transform (the server sends no style attribute)
+    await expect(page.locator('.apt-fill')).toHaveAttribute('style', /scaleY/);
     expect(scriptViolations(await violations(page))).toEqual([]);
     expect(errors).toEqual([]);
   } finally {
@@ -288,7 +288,7 @@ test('a plugin script in the themed-page preview runs by its hash, as on the pub
   const { id: token } = await login.json();
   const auth = { Authorization: `Bearer ${token}` };
   const enable = (enabled: boolean) =>
-    page.request.put(`${SERVER}/api/v1/plugins/official-external-links/enabled`, {
+    page.request.put(`${SERVER}/api/v1/plugins/official-page-toc/enabled`, {
       headers: auth,
       data: { enabled },
     });
@@ -304,7 +304,9 @@ test('a plugin script in the themed-page preview runs by its hash, as on the pub
         fields: {},
         frame_key: key,
         blocks: [
-          { name: 'core/paragraph', attributes: {}, text: 'See [a page](https://example.org/).' },
+          { name: 'core/heading', attributes: { level: 2 }, text: 'One' },
+          { name: 'core/paragraph', attributes: {}, text: 'First part.' },
+          { name: 'core/heading', attributes: { level: 2 }, text: 'Two' },
         ],
       },
     });
@@ -318,7 +320,7 @@ test('a plugin script in the themed-page preview runs by its hash, as on the pub
     expect(csp).toContain('sandbox allow-scripts');
     expect(csp).toContain("'sha256-");
     expect(csp).not.toMatch(/script-src[^;]*unsafe-inline/);
-    await expect(page.locator('a[href="https://example.org/"].oel-external')).toBeVisible();
+    await expect(page.locator('.apt-fill')).toHaveAttribute('style', /scaleY/);
   } finally {
     await enable(false);
   }

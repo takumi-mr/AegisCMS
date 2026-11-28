@@ -10,6 +10,19 @@
 2. [バックアップを取り](backup-restore.ja.md)、検証します。
 3. 今のバージョンを確認します: `aegis-server --version`（Docker は `docker exec aegiscms aegis-server --version`）。
 
+## バージョンごとの手順
+
+### v0.13.0 への更新: 一部の公式プラグインはストアから入れる
+
+v0.13.0 から、次の公式プラグインは AegisCMS に同梱されなくなり、[パッケージストア](store.ja.md)から入れるものになりました: `official-ads`・`official-back-to-top`・`official-charts`・`official-clarity`・`official-code-lines`・`official-embeds`・`official-external-links`・`official-lightbox`・`official-link-embed`・`official-reading-time`・`official-share-buttons`。
+
+どれも有効にしていなければ、することはありません。どれかを有効にしていると、入れ直すまで**新しいバージョンが起動しません**（ログに `Plugin '…' is enabled in [plugins].enabled but not installed` と出ます）。設定は残ります。更新の前に、次のようにします。
+
+1. 有効にしているものを控えてから、無効にします（Admin Studio › Plugins、または `[plugins].enabled` から外す）。
+2. 下の手順で更新します。`[paths]` は新しい同梱の設定を使います（または自分で `plugins_dir = "data/plugins"`・`bundled_plugins_dir = "plugins"` にします。[設定の 2.5](configuration.ja.md#25-paths--ディレクトリ)）。入れたものが、次からの更新でも残るようにするためです。
+3. 入れ直します。`POST /api/v1/store/install`（`{"catalog": "official", "kind": "plugin", "id": "official-charts"}`。[設定の 2.28](configuration.ja.md#228-store--パッケージストア)）を使うか、[ストアの Releases](https://github.com/takumi-mr/AegisCMS-Store/releases) から ZIP をダウンロードし、Admin Studio › Plugins でアップロードします。
+4. もう一度有効にします。
+
 ## 更新する
 
 データベースの変更は、新しいバージョンを初めて起動したときに自動で適用されます。移行の手順を自分で実行する必要はなく、古いバージョンから最新へ一気に更新して構いません。

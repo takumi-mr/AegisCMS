@@ -96,7 +96,7 @@ In theme templates, and in the HTML a plugin outputs to `extra_head` / the body,
 - **Nothing runs or loads while consent is absent.** Even if the banner's script cannot be loaded (blocked), or the theme's `consent.html` is broken, things that need consent do not run.
 - Attributes (`src`, `async`, `data-*`, etc.) are carried over when running. Inline scripts are run as is.
 - **When permission is withdrawn** (when you reopen the settings and turn off a category that was allowed), scripts that already ran cannot be stopped, so the page is reloaded.
-- Official plugin examples: [`official-ads`](../plugins/official-ads/) (ads; category `marketing`) and [`official-clarity`](../plugins/official-clarity/) (heatmaps and session recording; category `analytics`) output in this form.
+- Official plugin examples: [`official-ads`](https://github.com/takumi-mr/AegisCMS-Plugin/tree/main/plugins/official-ads) (ads; category `marketing`) and [`official-clarity`](https://github.com/takumi-mr/AegisCMS-Plugin/tree/main/plugins/official-clarity) (heatmaps and session recording; category `analytics`) output in this form.
 - From a plugin, just put the category in the **`consent` of `scripts` (structured injection)** of `on-render-page`. The host builds the tag in the form above (the plugin does not need to assemble HTML, and the host strips `<script>` written in `extra_head` and the like; [ABI specification 5.3.3a](plugin_abi_specification.md#533a-adding-scripts-in-on_render_page-scripts-abi-2)). The plugin does not need to know about the consent mechanism.
 
 ### 2.1 From JavaScript
@@ -121,7 +121,7 @@ Place a link or button with `data-aegis-consent-open` in the footer or elsewhere
 
 ### 2.3 Embeds in Plugin Blocks
 
-When you write a category in `[embed].consent`, the `<iframe>`s that plugin blocks output (videos, maps, forms, and so on, such as [`official-embeds`](../plugins/official-embeds/)) are not loaded until that category is consented to ([Configuration 2.23a](configuration.md#223a-embed--embeds-iframe-in-plugin-blocks)). The plugins need no changes.
+When you write a category in `[embed].consent`, the `<iframe>`s that plugin blocks output (videos, maps, forms, and so on, such as [`official-embeds`](https://github.com/takumi-mr/AegisCMS-Plugin/tree/main/plugins/official-embeds)) are not loaded until that category is consented to ([Configuration 2.23a](configuration.md#223a-embed--embeds-iframe-in-plugin-blocks)). The plugins need no changes.
 
 ```toml
 [embed]

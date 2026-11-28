@@ -6,12 +6,12 @@ AegisCMS follows [Semantic Versioning 2.0.0](https://semver.org/). Raising versi
 
 ## 1. What Gets a Version
 
-| Target                                                                                                         | Version                    | Where it lives                                                          | Tag                          |
-| -------------------------------------------------------------------------------------------------------------- | -------------------------- | ----------------------------------------------------------------------- | ---------------------------- |
-| **Core**: all `aegis-*` crates, the Rust SDK (`aegis-plugin-sdk`), Admin Studio, Theme Builder, Plugin Builder | Together (the same number) | `[workspace.package]` in the root `Cargo.toml`, and each `package.json` | `v0.2.0`                     |
-| **AssemblyScript SDK** `@takumi-mr/plugin-sdk`                                                                 | Individual                 | `sdk/assemblyscript/package.json`                                       | `sdk-assemblyscript-v0.2.0`  |
-| **TinyGo SDK**                                                                                                 | Individual                 | The tag itself (Go module convention)                                   | `sdk/tinygo/v0.2.0`          |
-| **Official plugins** `plugins/official-*`                                                                      | Individual per plugin      | `version` in `Cargo.toml` and `plugin.manifest.json`                    | `plugin-official-ads-v0.1.1` |
+| Target                                                                                                         | Version                    | Where it lives                                                          | Tag                             |
+| -------------------------------------------------------------------------------------------------------------- | -------------------------- | ----------------------------------------------------------------------- | ------------------------------- |
+| **Core**: all `aegis-*` crates, the Rust SDK (`aegis-plugin-sdk`), Admin Studio, Theme Builder, Plugin Builder | Together (the same number) | `[workspace.package]` in the root `Cargo.toml`, and each `package.json` | `v0.2.0`                        |
+| **AssemblyScript SDK** `@takumi-mr/plugin-sdk`                                                                 | Individual                 | `sdk/assemblyscript/package.json`                                       | `sdk-assemblyscript-v0.2.0`     |
+| **TinyGo SDK**                                                                                                 | Individual                 | The tag itself (Go module convention)                                   | `sdk/tinygo/v0.2.0`             |
+| **Official plugins** `plugins/official-*`                                                                      | Individual per plugin      | `version` in `Cargo.toml` and `plugin.manifest.json`                    | `plugin-official-blocks-v0.4.0` |
 
 - The core crates share one number with `version.workspace = true`. Do not give them individual numbers.
 - `sdk/templates/` and `sdk/examples/` are templates to copy from and are not released on their own (their version can stay `0.1.0`). However, the version requirement on `aegis-plugin-sdk` in the Rust template follows the core.
@@ -46,7 +46,7 @@ The Conventional Commits in [CLAUDE.md 4](../CLAUDE.md) are reflected in the ver
 >
 > If you already merged a release PR and it stalled, fix the `<` in that release PR's body to `&amp;lt;` (`<script` → `&amp;lt;script`) and rerun the Release Please workflow on main (with `&lt;`, release-please reverts it when rereading the body, so it does not get fixed).
 
-Which target a commit counts toward is decided by the **path of the changed files** (not the scope). Changes in `plugins/official-ads/` raise only that plugin, changes in `sdk/assemblyscript/` raise only that SDK, and everything else (outside `plugins/` and `sdk/`) raises the core.
+Which target a commit counts toward is decided by the **path of the changed files** (not the scope). Changes in `plugins/official-blocks/` raise only that plugin, changes in `sdk/assemblyscript/` raise only that SDK, and everything else (outside `plugins/` and `sdk/`) raises the core.
 
 ## 4. The Release Flow
 

@@ -1568,7 +1568,7 @@
     "embedSectionHint": "Pages on these hosts can be embedded with a plugin block that accepts them (such as “Embed (allowed sites)” in official-embeds), and the hosts are added to the CSP frame-src. One host per line, without https:// (e.g. forms.example.com). Only add sites you trust.",
     "embedHostsLabel": "Allowed hosts",
     "embedConfigHosts": "Also allowed in the config file ([embed].frame_domains): {{hosts}}",
-    "embedNotInUse": "No enabled plugin accepts these hosts, so they currently have no effect. Enable a plugin such as official-embeds.",
+    "embedNotInUse": "No enabled plugin accepts these hosts, so they currently have no effect. Install a plugin such as official-embeds from the store and enable it.",
     "headerNamePlaceholder": "Header-Name (e.g. Strict-Transport-Security)",
     "headerValuePlaceholder": "Header Value",
     "removeHeader": "Remove header",

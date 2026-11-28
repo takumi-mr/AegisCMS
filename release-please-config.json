@@ -139,73 +139,9 @@
       "component": "sdk/tinygo",
       "tag-separator": "/"
     },
-    "plugins/official-ads": {
-      "release-type": "simple",
-      "component": "plugin-official-ads",
-      "extra-files": [
-        {
-          "type": "toml",
-          "path": "Cargo.toml",
-          "jsonpath": "$.package.version"
-        },
-        {
-          "type": "json",
-          "path": "plugin.manifest.json",
-          "jsonpath": "$.version"
-        }
-      ]
-    },
-    "plugins/official-back-to-top": {
-      "release-type": "simple",
-      "component": "plugin-official-back-to-top",
-      "extra-files": [
-        {
-          "type": "toml",
-          "path": "Cargo.toml",
-          "jsonpath": "$.package.version"
-        },
-        {
-          "type": "json",
-          "path": "plugin.manifest.json",
-          "jsonpath": "$.version"
-        }
-      ]
-    },
     "plugins/official-blocks": {
       "release-type": "simple",
       "component": "plugin-official-blocks",
-      "extra-files": [
-        {
-          "type": "toml",
-          "path": "Cargo.toml",
-          "jsonpath": "$.package.version"
-        },
-        {
-          "type": "json",
-          "path": "plugin.manifest.json",
-          "jsonpath": "$.version"
-        }
-      ]
-    },
-    "plugins/official-charts": {
-      "release-type": "simple",
-      "component": "plugin-official-charts",
-      "extra-files": [
-        {
-          "type": "toml",
-          "path": "Cargo.toml",
-          "jsonpath": "$.package.version"
-        },
-        {
-          "type": "json",
-          "path": "plugin.manifest.json",
-          "jsonpath": "$.version"
-        }
-      ]
-    },
-    "plugins/official-embeds": {
-      "release-type": "simple",
-      "component": "plugin-official-embeds",
       "extra-files": [
         {
           "type": "toml",
@@ -267,70 +203,6 @@
         }
       ]
     },
-    "plugins/official-code-lines": {
-      "release-type": "simple",
-      "component": "plugin-official-code-lines",
-      "extra-files": [
-        {
-          "type": "toml",
-          "path": "Cargo.toml",
-          "jsonpath": "$.package.version"
-        },
-        {
-          "type": "json",
-          "path": "plugin.manifest.json",
-          "jsonpath": "$.version"
-        }
-      ]
-    },
-    "plugins/official-external-links": {
-      "release-type": "simple",
-      "component": "plugin-official-external-links",
-      "extra-files": [
-        {
-          "type": "toml",
-          "path": "Cargo.toml",
-          "jsonpath": "$.package.version"
-        },
-        {
-          "type": "json",
-          "path": "plugin.manifest.json",
-          "jsonpath": "$.version"
-        }
-      ]
-    },
-    "plugins/official-link-embed": {
-      "release-type": "simple",
-      "component": "plugin-official-link-embed",
-      "extra-files": [
-        {
-          "type": "toml",
-          "path": "Cargo.toml",
-          "jsonpath": "$.package.version"
-        },
-        {
-          "type": "json",
-          "path": "plugin.manifest.json",
-          "jsonpath": "$.version"
-        }
-      ]
-    },
-    "plugins/official-lightbox": {
-      "release-type": "simple",
-      "component": "plugin-official-lightbox",
-      "extra-files": [
-        {
-          "type": "toml",
-          "path": "Cargo.toml",
-          "jsonpath": "$.package.version"
-        },
-        {
-          "type": "json",
-          "path": "plugin.manifest.json",
-          "jsonpath": "$.version"
-        }
-      ]
-    },
     "plugins/official-order-notifier": {
       "release-type": "simple",
       "component": "plugin-official-order-notifier",
@@ -363,22 +235,6 @@
         }
       ]
     },
-    "plugins/official-share-buttons": {
-      "release-type": "simple",
-      "component": "plugin-official-share-buttons",
-      "extra-files": [
-        {
-          "type": "toml",
-          "path": "Cargo.toml",
-          "jsonpath": "$.package.version"
-        },
-        {
-          "type": "json",
-          "path": "plugin.manifest.json",
-          "jsonpath": "$.version"
-        }
-      ]
-    },
     "plugins/official-shop-rules": {
       "release-type": "simple",
       "component": "plugin-official-shop-rules",
@@ -398,38 +254,6 @@
     "plugins/official-post-navigation": {
       "release-type": "simple",
       "component": "plugin-official-post-navigation",
-      "extra-files": [
-        {
-          "type": "toml",
-          "path": "Cargo.toml",
-          "jsonpath": "$.package.version"
-        },
-        {
-          "type": "json",
-          "path": "plugin.manifest.json",
-          "jsonpath": "$.version"
-        }
-      ]
-    },
-    "plugins/official-clarity": {
-      "release-type": "simple",
-      "component": "plugin-official-clarity",
-      "extra-files": [
-        {
-          "type": "toml",
-          "path": "Cargo.toml",
-          "jsonpath": "$.package.version"
-        },
-        {
-          "type": "json",
-          "path": "plugin.manifest.json",
-          "jsonpath": "$.version"
-        }
-      ]
-    },
-    "plugins/official-reading-time": {
-      "release-type": "simple",
-      "component": "plugin-official-reading-time",
       "extra-files": [
         {
           "type": "toml",

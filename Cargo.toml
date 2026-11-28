@@ -40,19 +40,8 @@ members = [
     "plugins/official-shop-rules",
     "plugins/official-order-notifier",
     "plugins/official-blocks",
-    "plugins/official-charts",
-    "plugins/official-embeds",
-    "plugins/official-link-embed",
     "plugins/official-page-toc",
-    "plugins/official-back-to-top",
-    "plugins/official-code-lines",
-    "plugins/official-lightbox",
-    "plugins/official-external-links",
-    "plugins/official-share-buttons",
-    "plugins/official-reading-time",
-    "plugins/official-clarity",
     "plugins/official-post-navigation",
-    "plugins/official-ads",
 ]
 
 [workspace.package]

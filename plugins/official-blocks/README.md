@@ -4,7 +4,7 @@
 
 An official plugin that adds blocks you can place in the body: button, link card, audio, file, image gallery, FAQ, steps, columns, image and text, image with caption, timeline, chat bubbles, tabs, stats, definition list, and rating (review). It is also a model example for building custom blocks with plugins (the [`render-blocks` hook](../../docs/plugin_hooks.md#110-render-blocks)).
 
-Blocks that embed external services in an `<iframe>`, such as videos (YouTube, Vimeo) and maps (OpenStreetMap, Google Maps), are in the official plugin [`official-embeds`](../official-embeds/). This plugin depends on no external site and adds no hosts to the CSP.
+Blocks that embed external services in an `<iframe>`, such as videos (YouTube, Vimeo) and maps (OpenStreetMap, Google Maps), are in the official plugin [`official-embeds`](https://github.com/takumi-mr/AegisCMS-Plugin/tree/main/plugins/official-embeds). This plugin depends on no external site and adds no hosts to the CSP.
 
 | Block                             | Input fields                                                                                               | Display                                                                            |
 | --------------------------------- | ---------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |

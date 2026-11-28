@@ -28,13 +28,12 @@
 上から順に着手する。
 
 - [ ] **会員の購入・サブスクの実機確認**: 設計は [members.md 16](docs/members.ja.md#16-購入記事の単独購入サブスク)。実装（記事の単独購入・サブスク・管理画面・マイページ）は済で、Stripe はモックでしか確かめていない。Stripe のテストモードで、決済ページ・Webhook（`checkout.session.completed` / `customer.subscription.*` / `charge.refunded`）・Customer Portal・返金を一度通す。新しい API バージョンで契約の期間の終わりが `items` に移っている点（`current_period_end`）は両対応にしてあるが、実物の応答では未確認。
-- [ ] **official-clarity の実機確認**: 単体テストと Wasm の実行で、起動コードが同意を待つ形で入り、録画しないページに入らないことは確かめた。実際の Clarity での動作（CSP のホストで読み込み・送信がブロックされないか、`scripts.clarity.ms` が要るか）は、プロジェクト ID を入れたサイトで確かめていない。
-- [ ] **official-embeds の実機確認**: URL の読み取り・`src` の組み立て・サニタイズ後に iframe が残ることは単体テストと Wasm の実行で確かめた。実際のブラウザーで、各サービスの埋め込みが CSP（足したホストだけの `frame-src`）の下で表示されるか（埋め込みの中からさらに別のホストを iframe で読む・ポップアップを開くものが無いか。とくに Google マップ・カレンダー・フォーム、CodePen の「クリックで実行」）は確かめていない。同意を待つ埋め込み（`[embed].consent`）で、許可したあとに iframe が読み込まれて案内が隠れること、汎用の埋め込み（`official-embeds/iframe`）の `sandbox` で、よく使うサービス（Google フォーム・Typeform など）が動くことも、実際のブラウザーでは確かめていない。
+- [ ] **official-clarity の実機確認**（プラグインは [AegisCMS-Plugin](https://github.com/takumi-mr/AegisCMS-Plugin) にある）: 単体テストと Wasm の実行で、起動コードが同意を待つ形で入り、録画しないページに入らないことは確かめた。実際の Clarity での動作（CSP のホストで読み込み・送信がブロックされないか、`scripts.clarity.ms` が要るか）は、プロジェクト ID を入れたサイトで確かめていない。
+- [ ] **official-embeds の実機確認**（プラグインは AegisCMS-Plugin にある）: URL の読み取り・`src` の組み立て・サニタイズ後に iframe が残ることは単体テストと Wasm の実行で確かめた。実際のブラウザーで、各サービスの埋め込みが CSP（足したホストだけの `frame-src`）の下で表示されるか（埋め込みの中からさらに別のホストを iframe で読む・ポップアップを開くものが無いか。とくに Google マップ・カレンダー・フォーム、CodePen の「クリックで実行」）は確かめていない。同意を待つ埋め込み（`[embed].consent`）で、許可したあとに iframe が読み込まれて案内が隠れること、汎用の埋め込み（`official-embeds/iframe`）の `sandbox` で、よく使うサービス（Google フォーム・Typeform など）が動くことも、実際のブラウザーでは確かめていない。
 
 ### 🏪 パッケージストア（第 1 段階）
 
 設計は [store.md](docs/store.ja.md)。当面は公式のプラグイン・テーマだけを配る。上から順に着手する。
 
 - [ ] **Admin Studio のストア画面**: API（`GET /api/v1/store/packages`・`POST /api/v1/store/install`）は済。一覧、互換性のないものの無効化、インストール前の `capabilities` の確認、更新のお知らせ、インストール後に有効化へ進む導線。
-- [ ] **公式パッケージを本体から消す（移行の手順 4）**: 計画は [store.md 7](docs/store.ja.md#7-公式パッケージの別リポジトリへの移行計画)。ads・clarity・embeds・link-embed・charts・share-buttons・reading-time・back-to-top・code-lines・lightbox・external-links は [AegisCMS-Plugin](https://github.com/takumi-mr/AegisCMS-Plugin)（テストごと）に移し、ストアもそこから配っている（AegisCMS-Store の `sources.plugins`）。本体から、ディレクトリ・workspace のメンバー・Taskfile のビルド・release-please の設定・`aegis-runtime/tests/sdk_plugins.rs` の該当テスト（`test_official_reading_plugins_add_to_the_page` は page-toc の部分を残す）・ドキュメントの記述を消す。同梱をやめるのは破壊的変更なので `feat!:` で、移行の手順（ストアから入れ直す）を書く。ストアからのインストール（#429）と、同梱と入れたものの置き場所を分ける変更（`[paths].bundled_plugins_dir`・`bundled_themes_dir`。Docker で入れたものがボリュームに残る）がリリースされてから出す。有効にしていたプラグインが消えると起動しない点は、コードは変えずに移行の手順（更新の前にストアから入れ直す）で案内する。作業中のブランチは `feat/unbundle-official-plugins`（手元のみ）。
 - [ ] **mermaid・plantuml とテーマの移行（手順 5）**: mermaid・plantuml は `config/default.toml` で既定で有効にするのをやめてから。テーマは翻訳（`aegis-theme/src/messages.rs`）をテーマ側に持てるようにしてから。
