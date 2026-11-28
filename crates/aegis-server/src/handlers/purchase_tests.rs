@@ -145,6 +145,8 @@ async fn site(purchase: bool) -> Site {
     config.members.purchase.stripe.secret_key = "sk_test_mock".to_string();
     config.members.purchase.stripe.webhook_secret = WEBHOOK_SECRET.to_string();
     config.members.purchase.stripe.api_base = api_base;
+    // 記事と、税コードの無いプランに付ける。quarterly は自分の税コードを使う
+    config.members.purchase.stripe.tax_code = "txcd_10000000".to_string();
     config.members.purchase.plans = vec![
         aegis_members::PlanConfig {
             id: "monthly".to_string(),
@@ -153,6 +155,7 @@ async fn site(purchase: bool) -> Site {
             amount: 800,
             interval: aegis_members::PlanInterval::Month,
             interval_count: 1,
+            tax_code: String::new(),
         },
         aegis_members::PlanConfig {
             id: "quarterly".to_string(),
@@ -161,6 +164,7 @@ async fn site(purchase: bool) -> Site {
             amount: 2200,
             interval: aegis_members::PlanInterval::Month,
             interval_count: 3,
+            tax_code: "txcd_10103000".to_string(),
         },
     ];
     let state = test_app_state(
@@ -468,6 +472,12 @@ async fn test_starting_a_purchase_checks_the_content_and_ignores_client_amounts(
         "{form}"
     );
     assert!(form.contains("line_items%5B0%5D%5Bprice_data%5D%5Bcurrency%5D=jpy"));
+    assert!(
+        form.contains(
+            "line_items%5B0%5D%5Bprice_data%5D%5Bproduct_data%5D%5Btax_code%5D=txcd_10000000"
+        ),
+        "{form}"
+    );
     assert!(
         form.contains("success_url=https%3A%2F%2Fexample.com%2Farticles%2Fsecret%3Fpurchased%3D1")
     );
@@ -830,6 +840,7 @@ async fn test_plans_are_listed_and_a_subscription_starts_at_the_plan_price() {
         "line_items%5B0%5D%5Bprice_data%5D%5Brecurring%5D%5Binterval%5D=month",
         "line_items%5B0%5D%5Bprice_data%5D%5Brecurring%5D%5Binterval_count%5D=3",
         "metadata%5Bplan_id%5D=quarterly",
+        "line_items%5B0%5D%5Bprice_data%5D%5Bproduct_data%5D%5Btax_code%5D=txcd_10103000",
         "success_url=https%3A%2F%2Fexample.com%2Faccount%3Fsubscribed%3D1",
     ] {
         assert!(form.contains(expected), "{expected} in {form}");
@@ -1018,6 +1029,13 @@ async fn test_a_subscription_grants_the_level_until_it_ends() {
     assert_eq!(restart.status, StatusCode::CREATED);
     let form = site.forms.lock().unwrap().last().unwrap().clone();
     assert!(form.contains("customer=cus_1"), "{form}");
+    // プランに税コードが無ければ、[members.purchase.stripe].tax_code を使う
+    assert!(
+        form.contains(
+            "line_items%5B0%5D%5Bprice_data%5D%5Bproduct_data%5D%5Btax_code%5D=txcd_10000000"
+        ),
+        "{form}"
+    );
     assert!(!form.contains("customer_email"));
 }
 

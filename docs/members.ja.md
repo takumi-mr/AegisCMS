@@ -449,6 +449,7 @@ currency = "jpy"         # 記事の購入に使う通貨（ISO 4217 の小文�
 secret_key = ""          # 空なら環境変数 AEGIS_STRIPE_SECRET_KEY
 webhook_secret = ""      # 空なら環境変数 AEGIS_MEMBERS_STRIPE_WEBHOOK_SECRET
 # api_base = "https://api.stripe.com"   # テスト用のモックだけ変える
+tax_code = ""            # Stripe の商品の税コード（例 "txcd_10000000"）。Managed Payments を有効にしたアカウントでは必須
 
 # サブスクのプラン。interval × interval_count が支払いの単位
 [[members.purchase.plans]]
@@ -458,10 +459,12 @@ level = "paid"           # 契約中に得るレベル（[members].levels のど
 amount = 800
 interval = "month"       # "day" | "week" | "month" | "year"
 interval_count = 1       # 3 で「3 か月ごと」
+# tax_code = "txcd_10103000"   # このプランだけ別の税コードにする（空なら [members.purchase.stripe].tax_code）
 ```
 
 - ショップの Webhook（`/api/v1/shop/webhooks/stripe`）とは**別のエンドポイント**（`/api/v1/members/webhooks/stripe`）を Stripe に登録する。Stripe はエンドポイントごとに署名シークレットを発行するので、環境変数も分ける（キー本体 `AEGIS_STRIPE_SECRET_KEY` は同じアカウントなので共有してよい）。
-- 起動時の検査: `enabled` なのに会員アカウントが無効、`public_url` が空、キーが無い、通貨が不正、プランの `level` が `levels` に無い・`id` の重複・`amount` が 0 以下・`interval_count` が 1〜（Stripe の上限: 日 365 / 週 52 / 月 12 / 年 1）の外、はエラーにする。
+- 起動時の検査: `enabled` なのに会員アカウントが無効、`public_url` が空、キーが無い、通貨が不正、プランの `level` が `levels` に無い・`id` の重複・`amount` が 0 以下・`interval_count` が 1〜（Stripe の上限: 日 365 / 週 52 / 月 12 / 年 1）の外、税コードが `txcd_` と 8 桁の形でない、はエラーにする。
+- **Stripe の Managed Payments**（Stripe が販売者として税を扱う仕組み。新しいアカウントでは既定で有効なことがある）を使うアカウントでは、商品ごとに税コードが要る。無いと Stripe が Checkout Session の作成を `400` で断り、購入・契約は `502` になる（サーバーのログに Stripe の理由が出る）。`tax_code` を設定するか、Stripe のダッシュボードで Managed Payments を無効にする。コードが Managed Payments の対象外だと、同じく断られる（2026-11 に実機で確かめた: `txcd_10000000`・`txcd_10103000` は通る）。
 - 記事の戻り先 URL は `[members].public_url` から作る（Host ヘッダーを信用しない）。
 
 ### 16.3 モデル

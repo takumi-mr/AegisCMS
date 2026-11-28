@@ -449,6 +449,7 @@ currency = "jpy"         # currency for article purchases (ISO 4217 lowercase). 
 secret_key = ""          # if empty, the environment variable AEGIS_STRIPE_SECRET_KEY
 webhook_secret = ""      # if empty, the environment variable AEGIS_MEMBERS_STRIPE_WEBHOOK_SECRET
 # api_base = "https://api.stripe.com"   # change only for test mocks
+tax_code = ""            # Stripe's product tax code (e.g. "txcd_10000000"). Required on an account with Managed Payments enabled
 
 # Subscription plans. interval × interval_count is the unit of payment
 [[members.purchase.plans]]
@@ -458,10 +459,12 @@ level = "paid"           # the level gained while subscribed (one of [members].l
 amount = 800
 interval = "month"       # "day" | "week" | "month" | "year"
 interval_count = 1       # 3 means "every 3 months"
+# tax_code = "txcd_10103000"   # a different tax code for this plan only (if empty, [members.purchase.stripe].tax_code)
 ```
 
 - Register an **endpoint separate** from the shop's webhook (`/api/v1/shop/webhooks/stripe`) with Stripe (`/api/v1/members/webhooks/stripe`). Stripe issues a signing secret per endpoint, so the environment variable is separate too (the key itself `AEGIS_STRIPE_SECRET_KEY` is the same account, so it can be shared).
-- Startup checks: these are errors — `enabled` while member accounts are disabled, an empty `public_url`, missing keys, an invalid currency, a plan's `level` not in `levels`, a duplicate `id`, an `amount` of 0 or less, and an `interval_count` outside 1– (Stripe's limits: day 365 / week 52 / month 12 / year 1).
+- Startup checks: these are errors — `enabled` while member accounts are disabled, an empty `public_url`, missing keys, an invalid currency, a plan's `level` not in `levels`, a duplicate `id`, an `amount` of 0 or less, an `interval_count` outside 1– (Stripe's limits: day 365 / week 52 / month 12 / year 1), and a tax code not in the form `txcd_` plus 8 digits.
+- On a Stripe account using **Managed Payments** (Stripe handles tax as the seller; it can be on by default for new accounts), every product needs a tax code. Without one, Stripe refuses to create the Checkout Session with `400`, and the purchase or subscription returns `502` (the server log shows Stripe's reason). Set `tax_code`, or turn Managed Payments off in the Stripe dashboard. A code that Managed Payments does not accept is refused the same way (checked against Stripe in 2026-11: `txcd_10000000` and `txcd_10103000` are accepted).
 - The article's return URL is built from `[members].public_url` (the Host header is not trusted).
 
 ### 16.3 Model

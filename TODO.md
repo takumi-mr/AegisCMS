@@ -25,7 +25,6 @@
 
 上から順に着手する。
 
-- [ ] **会員の購入・サブスクの実機確認**: 設計は [members.md 16](docs/members.ja.md#16-購入記事の単独購入サブスク)。実装（記事の単独購入・サブスク・管理画面・マイページ）は済で、Stripe はモックでしか確かめていない。Stripe のテストモードで、決済ページ・Webhook（`checkout.session.completed` / `customer.subscription.*` / `charge.refunded`）・Customer Portal・返金を一度通す。新しい API バージョンで契約の期間の終わりが `items` に移っている点（`current_period_end`）は両対応にしてあるが、実物の応答では未確認。
 - [ ] **official-embeds の実機確認（残り）**（プラグインは AegisCMS-Plugin にある）: 実際のブラウザー（Chromium・Strict CSP・`[embed].consent` あり）で確かめた。同意の前は 8 つの iframe のどれも読まず、同意のあとに読む。YouTube・Vimeo・OpenStreetMap・Google マップ・Google カレンダー・CodePen（通常の埋め込み）・汎用の埋め込み（`sandbox` つき）は、CSP の違反もポップアップも無く表示され、埋め込みの中からさらに別のホストを iframe で読むものも無かった。残り: (1) 汎用の埋め込みで Google フォーム・Typeform が動くか（公開のフォームが要る）。(2) CodePen の「クリックで実行」は、自動のブラウザーでは CodePen が実行のときに 403 を返す（AegisCMS の無い素のページでも同じ）ため、普段のブラウザーで手で確かめる。
 
 ### ⏸️ 保留中の検討
