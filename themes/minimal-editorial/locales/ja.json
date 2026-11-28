@@ -1,0 +1,17 @@
+{
+  "theme.editorial.nav_journal": "ジャーナル",
+  "theme.editorial.nav_archives": "アーカイブ",
+  "theme.editorial.nav_studio": "スタジオ",
+  "theme.editorial.footer_powered": "Powered by <strong>AegisCMS</strong> ゼロトラストエンジン",
+  "theme.editorial.hero_tag": "エディトリアル・パースペクティブ",
+  "theme.editorial.read_essay": "エッセイを読む",
+  "theme.editorial.empty": "公開された記事はまだありません。スタジオで新しいエッセイを執筆してください。",
+  "theme.editorial.pagination_newer": "新しいエッセイ",
+  "theme.editorial.pagination_older": "過去のエッセイ",
+  "theme.editorial.published_on": "{date} 公開",
+  "theme.editorial.written_by": "執筆: {author}",
+  "theme.editorial.return_archives": "ジャーナル一覧に戻る",
+  "theme.editorial.404_title": "存在しないテキスト",
+  "theme.editorial.404_desc": "要求されたエッセイまたはページはこのジャーナル内に見つかりませんでした。",
+  "theme.editorial.404_action": "トップページに戻る"
+}

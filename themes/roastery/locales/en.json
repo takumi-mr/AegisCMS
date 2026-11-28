@@ -1,0 +1,23 @@
+{
+  "theme.roastery.notice": "Free shipping on orders over ¥5,000 ・ Ships within 3 days of roasting",
+  "theme.roastery.nav_shop": "Shop",
+  "theme.roastery.nav_journal": "Journal",
+  "theme.roastery.nav_about": "About",
+  "theme.roastery.nav_cart": "Cart",
+  "theme.roastery.footer_shop": "Online Shop",
+  "theme.roastery.footer_journal": "Journal",
+  "theme.roastery.footer_about": "About Us",
+  "theme.roastery.footer_shipping": "Shipping & Payment",
+  "theme.roastery.eyebrow": "Small batch coffee roasters",
+  "theme.roastery.hero_title": "Every morning cup,<br>freshly roasted.",
+  "theme.roastery.view_products": "View Products",
+  "theme.roastery.about_us": "About Us",
+  "theme.roastery.feature1": "<strong>Ships within 3 days of roasting</strong><span>Roasted in small batches after your order.</span>",
+  "theme.roastery.feature2": "<strong>Free shipping over ¥5,000</strong><span>Flat rate of ¥650 nationwide for all other orders.</span>",
+  "theme.roastery.feature3": "<strong>10% off for first-time buyers</strong><span>Enter coupon <code>WELCOME10</code> at checkout.</span>",
+  "theme.roastery.all_articles": "All stories",
+  "theme.roastery.empty": "No stories published yet.",
+  "theme.roastery.return_journal": "Back to Journal",
+  "theme.roastery.404_desc": "The page you are looking for has been moved or deleted, or is not yet published.",
+  "theme.roastery.404_action": "View Products"
+}

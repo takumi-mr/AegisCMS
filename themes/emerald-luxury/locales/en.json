@@ -1,0 +1,18 @@
+{
+  "theme.lux.nav_atelier": "Atelier",
+  "theme.lux.nav_exhibits": "Exhibits",
+  "theme.lux.nav_console": "Console",
+  "theme.lux.footer_secured": "Form and Function Secured by <strong>AegisCMS</strong>.",
+  "theme.lux.hero_subtitle": "Haute Computation • Private Edition",
+  "theme.lux.view_exhibit": "View Exhibit",
+  "theme.lux.empty": "No published works are currently on exhibition.",
+  "theme.lux.pagination_newer": "Newer Exhibits",
+  "theme.lux.pagination_older": "Older Exhibits",
+  "theme.lux.archived_on": "Archived {date}",
+  "theme.lux.curated_by": "Curated by {author}",
+  "theme.lux.return_archives": "Return to Exhibition Archives",
+  "theme.lux.404_subtitle": "Artifact Unlocated",
+  "theme.lux.404_title": "The Void",
+  "theme.lux.404_desc": "The requested exhibition piece does not reside within this curated collection.",
+  "theme.lux.404_action": "Return to Atelier Entrance"
+}
