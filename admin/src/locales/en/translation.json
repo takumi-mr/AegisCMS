@@ -119,7 +119,9 @@
     "publicPathsFailed": "Failed to load the public URLs",
     "updatePublicPathFailed": "Failed to save the public URL",
     "storeFailed": "Failed to load the store",
-    "storeInstallFailed": "Failed to install from the store"
+    "storeInstallFailed": "Failed to install from the store",
+    "adjacentSettingsFailed": "Failed to load the previous/next article settings",
+    "updateAdjacentSettingsFailed": "Failed to save the previous/next article settings"
   },
   "audit": {
     "forbidden": "This session does not have the \"admin\" role required to read audit logs.",
@@ -1520,7 +1522,25 @@
     "saving": "Saving...",
     "saved": "Site settings saved",
     "loadFailed": "Could not load the site settings",
-    "saveFailed": "Could not save the site settings"
+    "saveFailed": "Could not save the site settings",
+    "adjacent": {
+      "heading": "Previous and next articles",
+      "description": "Which articles an article page links to as previous and next. Themes and plugins (such as Post Navigation) get the same articles.",
+      "sameCategory": "Pick from the same category",
+      "fallbackToAll": "When the category has none, pick from all articles",
+      "orderBy": "Order by",
+      "order": {
+        "published_at": "Publication date",
+        "created_at": "Creation date"
+      },
+      "useDefault": "Configuration file ({{value}})",
+      "yes": "Yes",
+      "no": "No",
+      "save": "Save previous/next settings",
+      "saved": "Previous/next article settings saved",
+      "loadFailed": "Failed to load the previous/next article settings",
+      "saveFailed": "Failed to save the previous/next article settings"
+    }
   },
   "headers": {
     "title": "Page Headers & Security",

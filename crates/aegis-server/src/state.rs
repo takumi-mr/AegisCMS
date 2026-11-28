@@ -56,6 +56,8 @@ pub struct AppState {
     /// スキーマファイルの `public_path`（Admin Studio の上書きを当てる前の値。型名 → 値）。
     /// 起動時に記録する。無い型は、いま動いている値と同じ
     pub public_path_files: Arc<HashMap<String, Option<String>>>,
+    /// Admin Studio から変更した前後の記事の選び方（`[adjacent_articles]` より優先。DB の `_aegis_settings`）
+    pub adjacent: Arc<std::sync::RwLock<crate::adjacent::AdjacentOverrides>>,
     /// Admin Studio から変更した SEO & Bot 設定（DB の `_aegis_settings`）
     pub seo: Arc<std::sync::RwLock<SeoOverrides>>,
     /// Admin Studio から変更した共通ヘッダーおよび防御ヘッダー設定（DB の `_aegis_settings`）
@@ -192,6 +194,7 @@ impl AppState {
             plugin_settings: Arc::new(std::sync::RwLock::new(HashMap::new())),
             site: Arc::new(std::sync::RwLock::new(SiteOverrides::default())),
             public_path_files: Arc::new(HashMap::new()),
+            adjacent: Arc::new(std::sync::RwLock::new(Default::default())),
             seo: Arc::new(std::sync::RwLock::new(SeoOverrides::default())),
             headers: Arc::new(std::sync::RwLock::new(HeaderOverrides::default())),
             redirects: Arc::new(tokio::sync::RwLock::new(
@@ -280,6 +283,20 @@ impl AppState {
             .read()
             .unwrap_or_else(std::sync::PoisonError::into_inner);
         SiteInfo::resolve(&self.config.theme, &overrides)
+    }
+
+    /// 前後の記事の選び方（Admin Studio の値 → `[adjacent_articles]` → 以前のプラグインの設定 → 既定値）
+    pub fn adjacent(&self) -> crate::adjacent::AdjacentSettings {
+        let overrides = *self
+            .adjacent
+            .read()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        crate::adjacent::resolve(self.adjacent_defaults(), &overrides)
+    }
+
+    /// 前後の記事の選び方の、設定ファイルの値（Admin Studio で戻したときの値）
+    pub fn adjacent_defaults(&self) -> crate::adjacent::AdjacentSettings {
+        crate::adjacent::defaults(&self.config.adjacent_articles, &self.config.plugins)
     }
 
     /// 公開サイトの SEO & Bot 設定

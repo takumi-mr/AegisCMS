@@ -6,9 +6,7 @@ An official Wasm plugin that shows navigation links to the "previous article" an
 
 ## Features
 
-- **Flexible rules for finding the previous / next article**:
-    - `mode = "category"` (default): searches first for the previous / next articles within the same category. If there is no previous / next article in the same category, it can fall back automatically to date order (`fallback_to_all`).
-    - `mode = "date"`: regardless of category, finds the previous / next articles in overall date order (publication date or creation date).
+- **Which articles are previous and next is decided by AegisCMS**, not by this plugin: same category first or overall date order, and by publication or creation date. Set it in Admin Studio › Site, or in `[adjacent_articles]` ([configuration reference](https://github.com/takumi-mr/AegisCMS/blob/main/docs/configuration.md)). Themes get the same articles as `prev_article` / `next_article`.
 - **A polished responsive UI**:
     - Choose from a two-column left/right layout (default), a vertical stack, or a card style.
     - Supports showing thumbnail images (`featured_image` / `image`).
@@ -20,15 +18,6 @@ An official Wasm plugin that shows navigation links to the "previous article" an
 
 ```toml
 [plugins.settings.official-post-navigation]
-# Calculation mode: "category" (same category first) / "date" (overall date order)
-mode = "category"
-
-# Fall back to overall date order when there is no previous / next article in the same category (default: true)
-fallback_to_all = true
-
-# Ordering basis: "published_at" (by publication date, default) / "created_at" (by creation date)
-order_by = "published_at"
-
 # Target content types (comma-separated, default: "article")
 content_types = "article"
 

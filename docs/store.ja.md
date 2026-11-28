@@ -164,14 +164,14 @@ public_key = "<カタログ署名の Ed25519 公開鍵、32 バイトの hex>"
 | 本体が設定を読む    | `official-post-navigation`                                                                                                                                                                                                                        | 前後の記事を、本体がこのプラグインの設定（`mode`・`same_category`・`fallback_to_all`・`order_by`）で選ぶ（`handlers/public.rs`・`related.rs`）           |
 | テーマ              | `default` 以外のテーマ                                                                                                                                                                                                                            | テーマの翻訳文は本体の `aegis-theme/src/messages.rs` にあり、テーマ側に持たせる仕組みが要る                                                              |
 
-順番（1〜5 は済）:
+順番（1〜6 は済）:
 
 1. ストアが複数の取得元から配れるようにする（AegisCMS-Store の `store.json` の `sources`）。
 2. ストアからのインストール API（`POST /api/v1/store/install`）と、Admin Studio のストアのタブを作る。
 3. 本体が使わないプラグインを、テストごと AegisCMS-Plugin に移す（本体 v0.12.0 から）。
 4. 本体から消し、v0.13.0 で `feat!:` として出す（移行の手順は [upgrade.md](upgrade.ja.md)）。
 5. **テスト用のプラグイン**（済。[`test-plugins/`](../test-plugins/README.ja.md)）。本体のテストのためだけのプラグインを Rust の SDK で作る（同梱しない・ストアに載せない）。テストが必要とするもの（インラインスクリプトと CSP のホストを足すページのフック、自分のスタイルを持つブロック、注文の計算、通信する通知、宣言した設定）をそろえ、サーバーのテスト・E2E・診断をこれに切り替える。実物のプラグインのテスト（`aegis-runtime/tests/sdk_plugins.rs`）は、プラグインと一緒に移す。
-6. **前後の記事を本体の設定にする**。4 つの設定を本体の設定に移し、Admin Studio で変えられるようにする。しばらくは、新しい設定が無ければ `[plugins.settings.official-post-navigation]` も読み、警告をログに出す。プラグインはリンクを描くだけになる。
+6. **前後の記事を本体の設定にする**（済。[`[adjacent_articles]`](configuration.ja.md#229-adjacent_articles--前後の記事)）。4 つの設定を本体の設定に移し、Admin Studio で変えられるようにする。しばらくは、新しい設定が無ければ `[plugins.settings.official-post-navigation]` も読み、警告をログに出す。プラグインはリンクを描くだけになる。
 7. **既定では何も有効にしない**。同梱の設定でコードのハイライト・Mermaid・PlantUML を有効にするのをやめる。ストアのタブに、おすすめのパッケージ（カタログで印を付ける）を短く並べ、1 クリックで入れられるようにする。起動時には通信しない。
 8. 残りのプラグインを、テストごと AegisCMS-Plugin に移し、`store.json` の取得元を切り替える。
 9. 本体から消し、移行の手順を付けて `feat!:` で出す。Docker のイメージとリリースのアーカイブには、プラグインが入らなくなる。`bundled_plugins_dir` は、自分でイメージを作る人のために残す。

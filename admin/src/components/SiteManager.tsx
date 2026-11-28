@@ -7,6 +7,7 @@ import { Button } from './ui/Button';
 import { Field } from './ui/Field';
 import { ImageUploader } from './ImageUploader';
 import { MediaLibrary } from './MediaLibrary';
+import { AdjacentArticlesSettings } from './AdjacentArticlesSettings';
 import styles from './SiteManager.module.css';
 
 interface SiteManagerProps {
@@ -170,6 +171,8 @@ export const SiteManager: React.FC<SiteManagerProps> = ({ onShowToast }) => {
             </Button>
           </div>
         </form>
+
+        <AdjacentArticlesSettings onShowToast={onShowToast} />
       </div>
 
       {isLibraryOpen && (

@@ -2,8 +2,7 @@
 //! （`on-render-page`）。
 //!
 //! - 前後の記事（`ctx.prev_article`, `ctx.next_article`）へのリンクを美しくレスポンシブなカードやリスト形式で出力します。
-//! - 前後の記事の算出条件（同一カテゴリ優先か、全体の日付順か）は `[plugins.settings.official-post-navigation]` の
-//!   `mode = "category"` / `"date"` で設定可能。
+//! - 前後の記事を選ぶのは本体（`[adjacent_articles]`、または Admin Studio の Site）。このプラグインは見た目だけを持つ。
 
 use aegis_plugin_sdk::prelude::*;
 

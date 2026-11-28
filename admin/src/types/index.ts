@@ -618,6 +618,23 @@ export interface SiteSettings {
   };
 }
 
+/** Order of the previous / next articles */
+export type AdjacentOrder = 'published_at' | 'created_at';
+
+/** How the previous and next articles are picked (`GET /api/v1/site/adjacent-articles`) */
+export interface AdjacentArticlesSettings {
+  /** Set in Admin Studio, or null to use the configuration file's value */
+  same_category: boolean | null;
+  fallback_to_all: boolean | null;
+  order_by: AdjacentOrder | null;
+  /** Values of the configuration file (`[adjacent_articles]`) */
+  defaults: {
+    same_category: boolean;
+    fallback_to_all: boolean;
+    order_by: AdjacentOrder;
+  };
+}
+
 /** The URL prefix of one content type's public pages (`GET /api/v1/public-paths`) */
 export interface PublicPathEntry {
   content_type: string;

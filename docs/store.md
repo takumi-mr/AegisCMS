@@ -164,14 +164,14 @@ The goal is that **every official plugin is distributed through the store and th
 | Read by the core   | `official-post-navigation`                                                                                                                                                                                                                        | The core picks the previous and next articles from this plugin's settings (`mode`, `same_category`, `fallback_to_all`, `order_by`; `handlers/public.rs`, `related.rs`)   |
 | Themes             | themes other than `default`                                                                                                                                                                                                                       | Theme strings live in the core's `aegis-theme/src/messages.rs`; themes need a way to carry their own                                                                     |
 
-Order (1 to 5 are done):
+Order (1 to 6 are done):
 
 1. Let the store build from several sources (`sources` in AegisCMS-Store's `store.json`).
 2. Build the store install API (`POST /api/v1/store/install`) and the Store tab in Admin Studio.
 3. Move the plugins the core did not need to AegisCMS-Plugin, with their tests (taken from core v0.12.0).
 4. Remove them from the core, released as `feat!:` in v0.13.0 with migration steps ([upgrade.md](upgrade.md)).
 5. **Test plugins** (done: [`test-plugins/`](../test-plugins/README.md)). Add small plugins built with the Rust SDK for the core's tests only (not shipped, not in the store). They cover what the tests need: a page hook that adds an inline script and a CSP host, blocks with their own style, order calculation, a notification that sends a request, and declared settings. Switch the server tests, the E2E tests and the pentest to them. The tests of the real plugins (`aegis-runtime/tests/sdk_plugins.rs`) move with the plugins.
-6. **Previous and next articles become a core setting.** Move the four settings into a core section, editable in Admin Studio. For a while, when the new section is not set, the core still reads `[plugins.settings.official-post-navigation]` and logs a warning. The plugin then only draws the links.
+6. **Previous and next articles become a core setting** (done: [`[adjacent_articles]`](configuration.md#229-adjacent_articles--previous-and-next-articles)). Move the four settings into a core section, editable in Admin Studio. For a while, when the new section is not set, the core still reads `[plugins.settings.official-post-navigation]` and logs a warning. The plugin then only draws the links.
 7. **Nothing is enabled by default.** Stop enabling code highlighting, Mermaid and PlantUML in the shipped configurations. The Store tab shows a short list of recommended packages (marked in the catalog), each installed with one click. No request is made at start-up.
 8. Move the remaining plugins to AegisCMS-Plugin with their tests, and switch their source in `store.json`.
 9. Remove them from the core as `feat!:`, with migration steps. The Docker image and the release archives then ship no plugins; `bundled_plugins_dir` stays for anyone who builds their own image.

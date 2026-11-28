@@ -481,6 +481,10 @@ pub fn router(config: &AegisConfig, state: Arc<AppState>) -> Router {
             "/api/v1/site",
             get(handlers::get_site_settings).put(handlers::update_site_settings),
         )
+        .route(
+            "/api/v1/site/adjacent-articles",
+            get(handlers::get_adjacent_settings).put(handlers::update_adjacent_settings),
+        )
         .route("/api/v1/public-paths", get(handlers::list_public_paths))
         .route(
             "/api/v1/public-paths/{content_type}",

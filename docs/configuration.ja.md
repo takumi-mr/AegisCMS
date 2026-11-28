@@ -753,6 +753,25 @@ public_key = "<64 文字の hex>"
 - 取得は公開された IP アドレスにだけ接続し、リダイレクトは 3 回まで・`https://` の公開されたホストだけを追います。環境変数のプロキシは使いません。社内ネットワークに置いたカタログは読めません。
 - 署名が正しくない・`schema_version` が読めない・期限（`expires_at`）切れ・前に受け入れたものより古い（`sequence`）カタログは使いません。一覧の応答の `catalogs` に理由（`code`）が出ます。受け入れた `sequence` は DB（`_aegis_settings` の `store.catalog_sequences`）に残ります。
 
+### 2.29 `[adjacent_articles]` — 前後の記事
+
+記事のページで、前の記事・次の記事としてどの記事にリンクするか。テーマには `prev_article` / `next_article` として渡り、プラグイン（`official-post-navigation` など）にも `on-render-page` で同じ記事が渡ります。
+
+| キー              | 型     | 既定値           | 説明                                                           |
+| ----------------- | ------ | ---------------- | -------------------------------------------------------------- |
+| `same_category`   | bool   | `true`           | 記事と同じカテゴリから選ぶ。カテゴリの無い記事は全記事から選ぶ |
+| `fallback_to_all` | bool   | `true`           | 同じカテゴリに前（または次）の記事が無ければ、全記事から選ぶ   |
+| `order_by`        | string | `"published_at"` | `"published_at"`（公開日時）か `"created_at"`（作成日時）      |
+
+Admin Studio（Settings › Site）で、再起動せずにそれぞれを変えられます。その値は DB に残り、この節より優先されます。v0.13.0 までは、これらを `[plugins.settings.official-post-navigation]`（`mode = "category"` / `"date"`・`fallback_to_all`・`order_by`）から読んでいました。この節で書いていない項目は今もそこから読み、起動時に警告を出します。こちらに移してください。
+
+```toml
+[adjacent_articles]
+same_category = true
+fallback_to_all = true
+order_by = "published_at"
+```
+
 ## 3. 完全な設定例
 
 すべての項目を明示した、そのままパース可能な設定例です。
