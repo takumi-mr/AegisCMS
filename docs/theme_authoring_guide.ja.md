@@ -43,6 +43,9 @@ themes/my-theme/
 │   ├── article.html    # 記事
 │   ├── page.html       # 固定ページ
 │   └── 404.html        # 見つからない・非公開のページ
+├── locales/          # 言語ごとの文言（任意。下を参照）
+│   ├── en.json
+│   └── ja.json
 └── assets/
     └── style.css       # /theme/assets/style.css で配信される
 ```
@@ -50,6 +53,7 @@ themes/my-theme/
 - `templates/` に無いテンプレートは組み込みのテンプレートで描画されます。最初は `base.html` だけを作り、他は組み込みのまま確かめていく進め方もできます。
 - ただし将来のテーママーケットプレイスでの配布に使う検証（`validate_theme_package`）は、`theme.json` と `templates/base.html` が無いと通りません。
 - `assets/` の中身は `{{ base_path }}/theme/assets/<パス>` で配信されます（画像・フォント・JS も置けます）。
+- `locales/<言語>.json` に、テーマ自身の文言を置けます。1 つのテーマが、どの表示言語（`[theme].locale`）でも使えるようになります。中身はキーと文言の JSON オブジェクトで（`{"theme.my-theme.hero": "毎週焙煎したて"}` など）、テンプレートでは `{{ t("theme.my-theme.hero") }}` で出します。組み込みのキーとぶつからないように、キーは `theme.<テーマの ID>.` で始めます。組み込みのキーを書けば、その文言を置き換えることもできます。`t()` は、テーマの表示言語のファイル → 組み込みの文言 → テーマの `en.json` の順に探します。書き方は組み込みと同じで、`{名前}` はエスケープした値に置き換わり、`n` があれば `キー.one` / `キー.other` を使い分けます。文言はテンプレートと同じくそのまま出します（属性の値に使う文言には `"` と `<` を入れない）。`locales/` に置けるのは 256 KiB までの言語のファイル（`en.json`・`ja.json`・`pt-BR.json` など）だけで、ほかのものがあるとインストールで断ります。
 
 ## 3. `theme.json`
 
@@ -188,19 +192,19 @@ latest_types = ["article", "works"]   # 記事と works をまとめて新着に
 
 すべてのページで使える変数:
 
-| 変数                              | 内容                                                                                                                                                                                                |
-| --------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `base_path`                       | サイトを公開しているパス（例: `/cms`。ルートで公開しているときは空文字）。**サイト内のリンクとアセットには必ず先頭に付ける**                                                                        |
-| `site_title` / `site_description` | サイト名（Admin Studio の **Settings › Site** で変更した値、無ければ `[theme].site_title`）/ `[theme].site_description`                                                                             |
-| `title` / `slug`                  | ページのタイトル・スラッグ                                                                                                                                                                          |
-| `content_type`                    | `index` / `article` / `page` / `error` など                                                                                                                                                         |
-| `extra_css`                       | `[theme].custom_css` とプラグインが足した CSS                                                                                                                                                       |
-| `extra_head`                      | `<head>` に足す HTML（サイトの favicon の `<link rel="icon">` と、プラグインが足したもの）。**`<head>` の中で必ず `{{ extra_head \| safe }}` を出力する**                                           |
-| `theme_vars`                      | プラグインやショップが渡す文字列の辞書                                                                                                                                                              |
-| `locale`                          | 表示言語（`[theme].locale`、`en` / `ja`）。`<html lang="{{ locale }}">` に使う                                                                                                                      |
-| `t("キー", ...)`                  | 組み込みの文言を表示言語で返す関数（`{{ t("nav.home") }}`。キーは `crates/aegis-theme/src/messages.rs`）。独自の文言はテーマに直接書いてよい。ループ変数に `t` を使わない（この関数を隠してしまう） |
-| `admin_url`                       | Admin Studio へのリンクの URL（`base_path` と `[server].admin_path` 込み）。**出さない設定のときは空文字**なので `{% if admin_url %}...{% endif %}` で囲む。`/admin/` を直接書かない                |
-| `show_powered_by`                 | フッターに「Powered by AegisCMS」などの表記を出すか（`[theme].show_powered_by`、既定は `true`）。表記は `{% if show_powered_by %}...{% endif %}` で囲む                                             |
+| 変数                              | 内容                                                                                                                                                                                                                                  |
+| --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `base_path`                       | サイトを公開しているパス（例: `/cms`。ルートで公開しているときは空文字）。**サイト内のリンクとアセットには必ず先頭に付ける**                                                                                                          |
+| `site_title` / `site_description` | サイト名（Admin Studio の **Settings › Site** で変更した値、無ければ `[theme].site_title`）/ `[theme].site_description`                                                                                                               |
+| `title` / `slug`                  | ページのタイトル・スラッグ                                                                                                                                                                                                            |
+| `content_type`                    | `index` / `article` / `page` / `error` など                                                                                                                                                                                           |
+| `extra_css`                       | `[theme].custom_css` とプラグインが足した CSS                                                                                                                                                                                         |
+| `extra_head`                      | `<head>` に足す HTML（サイトの favicon の `<link rel="icon">` と、プラグインが足したもの）。**`<head>` の中で必ず `{{ extra_head \| safe }}` を出力する**                                                                             |
+| `theme_vars`                      | プラグインやショップが渡す文字列の辞書                                                                                                                                                                                                |
+| `locale`                          | 表示言語（`[theme].locale`、`en` / `ja`）。`<html lang="{{ locale }}">` に使う                                                                                                                                                        |
+| `t("キー", ...)`                  | 表示言語の文言を返す関数。テーマの文言（`locales/`。[2](#2-ディレクトリ構成)）か組み込みの文言（`{{ t("nav.home") }}`。組み込みのキーは `crates/aegis-theme/src/messages.rs`）。ループ変数に `t` を使わない（この関数を隠してしまう） |
+| `admin_url`                       | Admin Studio へのリンクの URL（`base_path` と `[server].admin_path` 込み）。**出さない設定のときは空文字**なので `{% if admin_url %}...{% endif %}` で囲む。`/admin/` を直接書かない                                                  |
+| `show_powered_by`                 | フッターに「Powered by AegisCMS」などの表記を出すか（`[theme].show_powered_by`、既定は `true`）。表記は `{% if show_powered_by %}...{% endif %}` で囲む                                                                               |
 
 > [!NOTE]
 > 組み込みの機能が出す名前（`aegis-consent-*`、`data-aegis-*`、`/_aegis/consent.js` など）は、応答が返る直前に `[server].namespace`（既定 `cms`）の接頭辞へ置き換わります。テンプレートや CSS には `aegis-` と書いたままでよく、HTML・CSS・JS で同じ置き換えが掛かるので食い違いません。ブラウザの開発者ツールやサイト上では `cms-consent-*` などの名前で見えます（[configuration.md 4.6](configuration.ja.md#46-使っている-cms-を特定されにくくする)）。

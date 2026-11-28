@@ -1,0 +1,18 @@
+{
+  "theme.lux.nav_atelier": "アトリエ",
+  "theme.lux.nav_exhibits": "展示作品",
+  "theme.lux.nav_console": "管理コンソール",
+  "theme.lux.footer_secured": "造形と機能を <strong>AegisCMS</strong> で保護。",
+  "theme.lux.hero_subtitle": "洗練のコンピューティング • プライベートエディション",
+  "theme.lux.view_exhibit": "展示作品を鑑賞",
+  "theme.lux.empty": "現在展示中の公開作品はありません。",
+  "theme.lux.pagination_newer": "新しい展示作品",
+  "theme.lux.pagination_older": "過去の展示作品",
+  "theme.lux.archived_on": "{date} 収蔵",
+  "theme.lux.curated_by": "キュレーター: {author}",
+  "theme.lux.return_archives": "展示アーカイブへ戻る",
+  "theme.lux.404_subtitle": "作品が見つかりません",
+  "theme.lux.404_title": "虚空",
+  "theme.lux.404_desc": "要求された展示作品はこのコレクションに存在しません。",
+  "theme.lux.404_action": "アトリエのエントランスへ戻る"
+}

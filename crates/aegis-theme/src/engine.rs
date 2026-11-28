@@ -87,6 +87,8 @@ struct Globals {
     admin_url: Option<String>,
     show_powered_by: bool,
     locale: String,
+    /// アクティブなテーマの文言（`locales/`）。`t()` が組み込みの文言より先に探す
+    theme_messages: Arc<crate::messages::ThemeMessages>,
 }
 
 struct ThemeEngineInner {
@@ -526,6 +528,9 @@ impl ThemeEngine {
             aegis_core::check_min_aegis_version(min_ver)?;
         }
 
+        // テーマの文言（`locales/<言語>.json`）
+        crate::messages::validate_locales_dir(theme_dir).map_err(AegisError::Theme)?;
+
         // CSP のホストの宣言（ホスト名だけ）
         if let Some(csp) = &manifest.csp {
             csp.validate()
@@ -720,6 +725,15 @@ impl ThemeEngine {
                 admin_url: inner.admin_url.clone(),
                 show_powered_by: inner.show_powered_by,
                 locale: inner.locale.clone(),
+                // `templates/` の親がテーマのディレクトリ。組み込みのテーマには文言のファイルが無い
+                theme_messages: Arc::new(
+                    inner
+                        .theme_templates_dir
+                        .as_deref()
+                        .and_then(Path::parent)
+                        .map(|dir| crate::messages::ThemeMessages::load(dir, &inner.locale))
+                        .unwrap_or_default(),
+                ),
             },
         ));
         if !inner.reload_templates {
@@ -742,6 +756,7 @@ impl ThemeEngine {
             admin_url,
             show_powered_by,
             locale,
+            theme_messages,
         } = globals;
         let mut env = Environment::new();
 
@@ -811,8 +826,8 @@ impl ThemeEngine {
         env.add_global("base_path", minijinja::Value::from_safe_string(base_path));
         env.add_global("admin_url", minijinja::Value::from_safe_string(admin_url));
         env.add_global("show_powered_by", show_powered_by);
-        // 組み込みの文言。値は HTML エスケープして差し込み、結果は安全な文字列として返す
-        // （文言は信頼できる静的な文字列で、`<strong>` のようなマークアップを含むものがある）
+        // テーマの文言（`locales/`）→ 組み込みの文言。値は HTML エスケープして差し込み、結果は安全な文字列として
+        // 返す（文言はテンプレートと同じく信頼する。`<strong>` のようなマークアップを含むものがある）
         env.add_global("locale", locale.clone());
         env.add_function(
             "t",
@@ -823,8 +838,11 @@ impl ThemeEngine {
                         params.push((name.to_string(), value.to_string()));
                     }
                 }
-                minijinja::Value::from_safe_string(crate::messages::translate(
-                    &locale, key, &params,
+                minijinja::Value::from_safe_string(crate::messages::translate_with_theme(
+                    &theme_messages,
+                    &locale,
+                    key,
+                    &params,
                 ))
             },
         );
@@ -1370,6 +1388,72 @@ mod tests {
     }
 
     #[test]
+    fn test_theme_strings_come_before_the_built_in_ones() {
+        let root = std::env::temp_dir().join(format!(
+            "aegis_theme_locales_{}_{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let dir = root.join("speaks");
+        std::fs::create_dir_all(dir.join("templates")).unwrap();
+        std::fs::create_dir_all(dir.join("locales")).unwrap();
+        std::fs::write(
+            dir.join("theme.json"),
+            r#"{"id": "speaks", "name": "Speaks", "version": "1.0.0"}"#,
+        )
+        .unwrap();
+        std::fs::write(
+            dir.join("templates").join("index.html"),
+            r#"{{ t("theme.speaks.hello", name="<b>") }}|{{ t("theme.speaks.only_en") }}|{{ t("pagination.previous") }}|{{ t("nav.home") }}|{{ t("theme.speaks.items", n=2) }}"#,
+        )
+        .unwrap();
+        std::fs::write(
+            dir.join("locales").join("en.json"),
+            r#"{"theme.speaks.hello": "Hello {name}", "theme.speaks.only_en": "English only",
+                "pagination.previous": "Back", "theme.speaks.items.one": "{n} item",
+                "theme.speaks.items.other": "{n} items"}"#,
+        )
+        .unwrap();
+        std::fs::write(
+            dir.join("locales").join("ja.json"),
+            r#"{"theme.speaks.hello": "こんにちは {name}", "nav.home": "トップ",
+                "theme.speaks.items.other": "{n} 件"}"#,
+        )
+        .unwrap();
+        let ctx = PageRenderContext::default();
+
+        // en: the theme's English strings, also replacing a built-in one; built-in keys otherwise
+        let en = ThemeEngine::new(&root, "speaks").with_locale("en");
+        assert_eq!(
+            en.render("index.html", &ctx).unwrap(),
+            "Hello &lt;b&gt;|English only|Back|Home|2 items"
+        );
+
+        // ja: the theme's Japanese → the built-in Japanese → the theme's English
+        let ja = ThemeEngine::new(&root, "speaks").with_locale("ja");
+        assert_eq!(
+            ja.render("index.html", &ctx).unwrap(),
+            "こんにちは &lt;b&gt;|English only|前へ|トップ|2 件"
+        );
+
+        // The package check accepts these files, and refuses other files and shapes
+        assert!(en.validate_theme_package(&dir).is_err(), "no base.html yet");
+        std::fs::write(dir.join("templates").join("base.html"), "x").unwrap();
+        assert!(en.validate_theme_package(&dir).is_ok());
+        std::fs::write(dir.join("locales").join("notes.txt"), "x").unwrap();
+        assert!(en.validate_theme_package(&dir).is_err());
+        std::fs::remove_file(dir.join("locales").join("notes.txt")).unwrap();
+        std::fs::write(dir.join("locales").join("fr.json"), r#"{"a": 1}"#).unwrap();
+        let err = en.validate_theme_package(&dir).unwrap_err().to_string();
+        assert!(err.contains("locales/fr.json"), "{err}");
+
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
     fn test_validate_theme_package() {
         let temp_base = std::env::temp_dir().join(format!(
             "aegis_theme_pkg_{}",
@@ -1524,6 +1608,7 @@ mod tests {
                 admin_url: None,
                 show_powered_by: true,
                 locale: "en".to_string(),
+                theme_messages: Default::default(),
             },
         );
         let out = env

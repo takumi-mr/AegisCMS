@@ -1,0 +1,22 @@
+{
+  "theme.trailhead.nav_news": "お知らせ",
+  "theme.trailhead.nav_guidelines": "ガイドライン",
+  "theme.trailhead.nav_forum": "掲示板",
+  "theme.trailhead.footer_forum": "掲示板",
+  "theme.trailhead.footer_news": "お知らせ",
+  "theme.trailhead.footer_about": "このサイトについて",
+  "theme.trailhead.footer_guidelines": "投稿ガイドライン",
+  "theme.trailhead.eyebrow": "ハイキングコミュニティ",
+  "theme.trailhead.hero_title": "山の話を、<br>みんなで。",
+  "theme.trailhead.view_forum": "掲示板を見る",
+  "theme.trailhead.guidelines": "投稿ガイドライン",
+  "theme.trailhead.feature1": "<strong>はじめての山</strong><span>山選びや持ち物など、どんな質問も歓迎です。</span>",
+  "theme.trailhead.feature2": "<strong>道具・装備</strong><span>靴・雨具・ザックの使い心地を共有しましょう。</span>",
+  "theme.trailhead.feature3": "<strong>山行記録</strong><span>歩いた山の様子や登山道の状況を残してください。</span>",
+  "theme.trailhead.news_title": "お知らせ",
+  "theme.trailhead.all_news": "すべてのお知らせ",
+  "theme.trailhead.empty": "まだお知らせがありません。",
+  "theme.trailhead.return_news": "お知らせに戻る",
+  "theme.trailhead.404_desc": "お探しのページは移動または削除されたか、まだ公開されていません。",
+  "theme.trailhead.404_action": "掲示板へ"
+}

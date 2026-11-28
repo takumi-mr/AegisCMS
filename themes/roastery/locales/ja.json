@@ -1,0 +1,23 @@
+{
+  "theme.roastery.notice": "5,000円以上のご注文で送料無料 ・ 焙煎から3日以内に発送します",
+  "theme.roastery.nav_shop": "ショップ",
+  "theme.roastery.nav_journal": "ジャーナル",
+  "theme.roastery.nav_about": "私たちについて",
+  "theme.roastery.nav_cart": "カート",
+  "theme.roastery.footer_shop": "オンラインショップ",
+  "theme.roastery.footer_journal": "ジャーナル",
+  "theme.roastery.footer_about": "私たちについて",
+  "theme.roastery.footer_shipping": "配送・お支払い",
+  "theme.roastery.eyebrow": "スモールバッチ・コーヒーロースター",
+  "theme.roastery.hero_title": "毎朝の一杯を、<br>焙煎したての豆で。",
+  "theme.roastery.view_products": "商品を見る",
+  "theme.roastery.about_us": "私たちについて",
+  "theme.roastery.feature1": "<strong>焙煎から3日以内に発送</strong><span>ご注文を受けてから小さな釜で焙煎します。</span>",
+  "theme.roastery.feature2": "<strong>5,000円以上で送料無料</strong><span>それ以外は全国一律 650円です。</span>",
+  "theme.roastery.feature3": "<strong>はじめての方は10%オフ</strong><span>カートでクーポン <code>WELCOME10</code> を入力してください。</span>",
+  "theme.roastery.all_articles": "すべての記事",
+  "theme.roastery.empty": "まだ記事がありません。",
+  "theme.roastery.return_journal": "Journal に戻る",
+  "theme.roastery.404_desc": "お探しのページは移動または削除されたか、まだ公開されていません。",
+  "theme.roastery.404_action": "商品一覧へ"
+}

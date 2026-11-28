@@ -594,8 +594,36 @@ fn test_bundled_themes_render_in_both_locales() {
         let en_engine = ThemeEngine::new(&themes_dir, theme_id).with_locale("en");
         let ja_engine = ThemeEngine::new(&themes_dir, theme_id).with_locale("ja");
 
-        // 全テンプレートファイル内の t("...") キーが messages に存在するか検査
-        let templates_path = themes_dir.join(theme_id).join("templates");
+        // テーマの文言（locales/）は、どの言語にも同じキーがそろっている
+        let theme_dir = themes_dir.join(theme_id);
+        let theme_en = messages::ThemeMessages::load(&theme_dir, "en");
+        let read_keys = |lang: &str| -> Option<std::collections::BTreeSet<String>> {
+            let bytes =
+                std::fs::read(theme_dir.join("locales").join(format!("{lang}.json"))).ok()?;
+            Some(
+                messages::parse_locale_file(&bytes)
+                    .unwrap_or_else(|e| panic!("{theme_id}/locales/{lang}.json: {e}"))
+                    .into_keys()
+                    .collect(),
+            )
+        };
+        if let Some(en_keys) = read_keys("en") {
+            for lang in messages::LOCALES.iter().filter(|l| **l != "en") {
+                assert_eq!(
+                    read_keys(lang).as_ref(),
+                    Some(&en_keys),
+                    "{theme_id}/locales/{lang}.json must have the same keys as en.json"
+                );
+            }
+        }
+        assert!(
+            messages::validate_locales_dir(&theme_dir).is_ok(),
+            "{theme_id}: {:?}",
+            messages::validate_locales_dir(&theme_dir)
+        );
+
+        // 全テンプレートファイル内の t("...") キーが、組み込みかテーマの文言にあるか検査
+        let templates_path = theme_dir.join("templates");
         if templates_path.is_dir() {
             for entry in std::fs::read_dir(&templates_path).unwrap().flatten() {
                 if entry.path().extension().is_some_and(|e| e == "html") {
@@ -607,8 +635,11 @@ fn test_bundled_themes_render_in_both_locales() {
                         }) {
                             continue;
                         }
+                        let plural = format!("{}.one", key);
                         let exists = messages::lookup("en", key).is_some()
-                            || messages::lookup("en", &format!("{}.one", key)).is_some();
+                            || messages::lookup("en", &plural).is_some()
+                            || theme_en.get(key).is_some()
+                            || theme_en.get(&plural).is_some();
                         assert!(
                             exists,
                             "{}/{}: t(\"{}\") has no message in catalog",

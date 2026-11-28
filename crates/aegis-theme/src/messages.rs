@@ -559,194 +559,6 @@ const MESSAGES: &[(&str, &str, &str)] = &[
         "Order not found. Use the link from your confirmation.",
         "注文が見つかりません。確認メールのリンクからアクセスしてください。",
     ),
-    // --- 同梱テーマ: cyber-neon ---
-    ("theme.cyber.nav_terminal", "[ TERMINAL ]", "[ ターミナル ]"),
-    ("theme.cyber.nav_archives", "[ ARCHIVES ]", "[ アーカイブ ]"),
-    ("theme.cyber.nav_admin", "ADMIN MATRIX", "管理マトリクス"),
-    ("theme.cyber.secured_by", "SECURED BY", "セキュリティ保護:"),
-    (
-        "theme.cyber.hero_subtitle",
-        "// NEURAL PROTOCOL CONNECTED :: PORT 8080",
-        "// ニューラルプロトコル接続完了 :: PORT 8080",
-    ),
-    ("theme.cyber.access_node", "[ ACCESS NODE ]", "[ ノードにアクセス ]"),
-    (
-        "theme.cyber.empty",
-        "// NO POSTS LOCATED IN SECURE STORAGE",
-        "// セキュアストレージに投稿が見つかりません",
-    ),
-    ("theme.cyber.pagination_newer", "[ ← NEWER ]", "[ ← 新しい記事 ]"),
-    ("theme.cyber.pagination_older", "[ OLDER → ]", "[ 過去の記事 → ]"),
-    ("theme.cyber.node_id", "// NODE ID: {slug}", "// ノードID: {slug}"),
-    ("theme.cyber.timestamp", "TIMESTAMP: {date}", "タイムスタンプ: {date}"),
-    ("theme.cyber.operator", "OPERATOR: {author}", "オペレーター: {author}"),
-    ("theme.cyber.return_archives", "[ RETURN TO ARCHIVES ]", "[ アーカイブに戻る ]"),
-    ("theme.cyber.404_subtitle", "// 404 :: NODE NOT FOUND", "// 404 :: ノードが見つかりません"),
-    ("theme.cyber.404_title", "NULL VECTOR", "ヌルベクトル"),
-    (
-        "theme.cyber.404_desc",
-        "The requested cybernetic node does not exist or has been wiped from memory.",
-        "要求されたサイバネティックノードは存在しないか、メモリから消去されました。",
-    ),
-    ("theme.cyber.404_action", "[ RE-ENGAGE CORE SYSTEM ]", "[ コアシステムに再接続 ]"),
-
-    // --- 同梱テーマ: emerald-luxury ---
-    ("theme.lux.nav_atelier", "Atelier", "アトリエ"),
-    ("theme.lux.nav_exhibits", "Exhibits", "展示作品"),
-    ("theme.lux.nav_console", "Console", "管理コンソール"),
-    (
-        "theme.lux.footer_secured",
-        "Form and Function Secured by <strong>AegisCMS</strong>.",
-        "造形と機能を <strong>AegisCMS</strong> で保護。",
-    ),
-    (
-        "theme.lux.hero_subtitle",
-        "Haute Computation • Private Edition",
-        "洗練のコンピューティング • プライベートエディション",
-    ),
-    ("theme.lux.view_exhibit", "View Exhibit", "展示作品を鑑賞"),
-    (
-        "theme.lux.empty",
-        "No published works are currently on exhibition.",
-        "現在展示中の公開作品はありません。",
-    ),
-    ("theme.lux.pagination_newer", "Newer Exhibits", "新しい展示作品"),
-    ("theme.lux.pagination_older", "Older Exhibits", "過去の展示作品"),
-    ("theme.lux.archived_on", "Archived {date}", "{date} 収蔵"),
-    ("theme.lux.curated_by", "Curated by {author}", "キュレーター: {author}"),
-    ("theme.lux.return_archives", "Return to Exhibition Archives", "展示アーカイブへ戻る"),
-    ("theme.lux.404_subtitle", "Artifact Unlocated", "作品が見つかりません"),
-    ("theme.lux.404_title", "The Void", "虚空"),
-    (
-        "theme.lux.404_desc",
-        "The requested exhibition piece does not reside within this curated collection.",
-        "要求された展示作品はこのコレクションに存在しません。",
-    ),
-    ("theme.lux.404_action", "Return to Atelier Entrance", "アトリエのエントランスへ戻る"),
-
-    // --- 同梱テーマ: app-shell ---
-    ("theme.shell.menu", "Menu", "メニュー"),
-    ("theme.shell.primary", "Main navigation", "メインナビゲーション"),
-    ("theme.shell.actions", "Quick actions", "クイック操作"),
-    ("theme.shell.top", "Back to top", "ページの先頭へ"),
-
-    // --- 同梱テーマ: minimal-editorial ---
-    ("theme.editorial.nav_journal", "Journal", "ジャーナル"),
-    ("theme.editorial.nav_archives", "Archives", "アーカイブ"),
-    ("theme.editorial.nav_studio", "Studio", "スタジオ"),
-    (
-        "theme.editorial.footer_powered",
-        "Powered by <strong>AegisCMS</strong> Zero-Trust Engine.",
-        "Powered by <strong>AegisCMS</strong> ゼロトラストエンジン",
-    ),
-    ("theme.editorial.hero_tag", "Editorial Perspectives", "エディトリアル・パースペクティブ"),
-    ("theme.editorial.read_essay", "Read Essay", "エッセイを読む"),
-    (
-        "theme.editorial.empty",
-        "No published articles yet. Visit the studio to author a new essay.",
-        "公開された記事はまだありません。スタジオで新しいエッセイを執筆してください。",
-    ),
-    ("theme.editorial.pagination_newer", "Newer Essays", "新しいエッセイ"),
-    ("theme.editorial.pagination_older", "Older Essays", "過去のエッセイ"),
-    ("theme.editorial.published_on", "Published {date}", "{date} 公開"),
-    ("theme.editorial.written_by", "Written by {author}", "執筆: {author}"),
-    ("theme.editorial.return_archives", "Return to Journal Archives", "ジャーナル一覧に戻る"),
-    ("theme.editorial.404_title", "Absent Text", "存在しないテキスト"),
-    (
-        "theme.editorial.404_desc",
-        "The requested essay or page could not be found within this journal.",
-        "要求されたエッセイまたはページはこのジャーナル内に見つかりませんでした。",
-    ),
-    ("theme.editorial.404_action", "Return to Front Page", "トップページに戻る"),
-
-    // --- 同梱テーマ: roastery ---
-    (
-        "theme.roastery.notice",
-        "Free shipping on orders over ¥5,000 ・ Ships within 3 days of roasting",
-        "5,000円以上のご注文で送料無料 ・ 焙煎から3日以内に発送します",
-    ),
-    ("theme.roastery.nav_shop", "Shop", "ショップ"),
-    ("theme.roastery.nav_journal", "Journal", "ジャーナル"),
-    ("theme.roastery.nav_about", "About", "私たちについて"),
-    ("theme.roastery.nav_cart", "Cart", "カート"),
-    ("theme.roastery.footer_shop", "Online Shop", "オンラインショップ"),
-    ("theme.roastery.footer_journal", "Journal", "ジャーナル"),
-    ("theme.roastery.footer_about", "About Us", "私たちについて"),
-    ("theme.roastery.footer_shipping", "Shipping & Payment", "配送・お支払い"),
-    ("theme.roastery.eyebrow", "Small batch coffee roasters", "スモールバッチ・コーヒーロースター"),
-    (
-        "theme.roastery.hero_title",
-        "Every morning cup,<br>freshly roasted.",
-        "毎朝の一杯を、<br>焙煎したての豆で。",
-    ),
-    ("theme.roastery.view_products", "View Products", "商品を見る"),
-    ("theme.roastery.about_us", "About Us", "私たちについて"),
-    (
-        "theme.roastery.feature1",
-        "<strong>Ships within 3 days of roasting</strong><span>Roasted in small batches after your order.</span>",
-        "<strong>焙煎から3日以内に発送</strong><span>ご注文を受けてから小さな釜で焙煎します。</span>",
-    ),
-    (
-        "theme.roastery.feature2",
-        "<strong>Free shipping over ¥5,000</strong><span>Flat rate of ¥650 nationwide for all other orders.</span>",
-        "<strong>5,000円以上で送料無料</strong><span>それ以外は全国一律 650円です。</span>",
-    ),
-    (
-        "theme.roastery.feature3",
-        "<strong>10% off for first-time buyers</strong><span>Enter coupon <code>WELCOME10</code> at checkout.</span>",
-        "<strong>はじめての方は10%オフ</strong><span>カートでクーポン <code>WELCOME10</code> を入力してください。</span>",
-    ),
-    ("theme.roastery.all_articles", "All stories", "すべての記事"),
-    ("theme.roastery.empty", "No stories published yet.", "まだ記事がありません。"),
-    ("theme.roastery.return_journal", "Back to Journal", "Journal に戻る"),
-    (
-        "theme.roastery.404_desc",
-        "The page you are looking for has been moved or deleted, or is not yet published.",
-        "お探しのページは移動または削除されたか、まだ公開されていません。",
-    ),
-    ("theme.roastery.404_action", "View Products", "商品一覧へ"),
-
-    // --- 同梱テーマ: trailhead ---
-    ("theme.trailhead.nav_news", "News", "お知らせ"),
-    ("theme.trailhead.nav_guidelines", "Guidelines", "ガイドライン"),
-    ("theme.trailhead.nav_forum", "Forum", "掲示板"),
-    ("theme.trailhead.footer_forum", "Forum", "掲示板"),
-    ("theme.trailhead.footer_news", "News", "お知らせ"),
-    ("theme.trailhead.footer_about", "About Us", "このサイトについて"),
-    ("theme.trailhead.footer_guidelines", "Posting Guidelines", "投稿ガイドライン"),
-    ("theme.trailhead.eyebrow", "Hiking community", "ハイキングコミュニティ"),
-    (
-        "theme.trailhead.hero_title",
-        "Share mountain stories,<br>together.",
-        "山の話を、<br>みんなで。",
-    ),
-    ("theme.trailhead.view_forum", "Visit Forum", "掲示板を見る"),
-    ("theme.trailhead.guidelines", "Posting Guidelines", "投稿ガイドライン"),
-    (
-        "theme.trailhead.feature1",
-        "<strong>First Steps</strong><span>Questions about choosing trails or gear are always welcome.</span>",
-        "<strong>はじめての山</strong><span>山選びや持ち物など、どんな質問も歓迎です。</span>",
-    ),
-    (
-        "theme.trailhead.feature2",
-        "<strong>Gear &amp; Equipment</strong><span>Share impressions of hiking boots, rainwear, and packs.</span>",
-        "<strong>道具・装備</strong><span>靴・雨具・ザックの使い心地を共有しましょう。</span>",
-    ),
-    (
-        "theme.trailhead.feature3",
-        "<strong>Trail Reports</strong><span>Document your adventures and trail conditions for others.</span>",
-        "<strong>山行記録</strong><span>歩いた山の様子や登山道の状況を残してください。</span>",
-    ),
-    ("theme.trailhead.news_title", "News", "お知らせ"),
-    ("theme.trailhead.all_news", "All News", "すべてのお知らせ"),
-    ("theme.trailhead.empty", "No announcements yet.", "まだお知らせがありません。"),
-    ("theme.trailhead.return_news", "Back to News", "お知らせに戻る"),
-    (
-        "theme.trailhead.404_desc",
-        "The page you are looking for has been moved or deleted, or is not yet published.",
-        "お探しのページは移動または削除されたか、まだ公開されていません。",
-    ),
-    ("theme.trailhead.404_action", "To Forum", "掲示板へ"),
 ];
 
 /// すべての文言（`(キー, en, ja)`）。テストと、訳し漏れの検査用
@@ -794,6 +606,34 @@ fn escape(value: &str) -> String {
 /// パラメーターの値（HTML エスケープ済み）で置き換える。知らないキーはキーをそのまま返す
 /// （訳し漏れが画面で見つかる）
 pub fn translate(locale: &str, key: &str, params: &[(String, String)]) -> String {
+    render(|k| lookup(locale, k), key, params)
+}
+
+/// [`translate`] のテーマ版。テーマの `[theme].locale` の文言 → 組み込みの文言 → テーマの `en` の文言の順に探す
+/// （テーマが英語だけで組み込みのキーを置き換えても、ほかの言語では組み込みの訳を使う）
+pub fn translate_with_theme(
+    theme: &ThemeMessages,
+    locale: &str,
+    key: &str,
+    params: &[(String, String)],
+) -> String {
+    render(
+        |k| {
+            theme
+                .get_in_locale(k)
+                .or_else(|| lookup(locale, k))
+                .or_else(|| theme.get_english(k))
+        },
+        key,
+        params,
+    )
+}
+
+fn render<'a>(
+    lookup: impl Fn(&str) -> Option<&'a str>,
+    key: &str,
+    params: &[(String, String)],
+) -> String {
     let plural = params.iter().find(|(name, _)| name == "n").map(|(_, n)| {
         if n == "1" {
             format!("{}.one", key)
@@ -801,11 +641,7 @@ pub fn translate(locale: &str, key: &str, params: &[(String, String)]) -> String
             format!("{}.other", key)
         }
     });
-    let Some(template) = plural
-        .as_deref()
-        .and_then(|plural_key| lookup(locale, plural_key))
-        .or_else(|| lookup(locale, key))
-    else {
+    let Some(template) = plural.as_deref().and_then(&lookup).or_else(|| lookup(key)) else {
         return key.to_string();
     };
     let mut out = template.to_string();
@@ -827,6 +663,135 @@ pub fn bundle(locale: &str, prefix: &str) -> Vec<(&'static str, &'static str)> {
                 .map(|name| (name, pick(entry, locale)))
         })
         .collect()
+}
+
+/// テーマの文言のファイルの最大の大きさ（`locales/<言語>.json` の 1 つ分）
+pub const MAX_LOCALE_FILE_BYTES: u64 = 256 * 1024;
+
+/// テーマが持つ文言（`<テーマ>/locales/<言語>.json`。キー → 文言の JSON オブジェクト）。
+///
+/// テンプレートの `t()` は、テーマの `[theme].locale` の文言 → 組み込みの文言 → テーマの `en` の文言の順に
+/// 探す。テーマは自分のキー（`theme.<テーマ>.…` など）を足せ、組み込みのキーの文言も置き換えられる。
+/// 書き方は組み込みと同じ（`名前.one` / `名前.other`、`{名前}` の差し込み）。文言はテンプレートと同じく
+/// テーマの一部として信頼し、エスケープせずに出す（属性の値に使う文言には `"` と `<` を入れない）
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct ThemeMessages {
+    locale: std::collections::HashMap<String, String>,
+    english: std::collections::HashMap<String, String>,
+}
+
+impl ThemeMessages {
+    /// `theme_dir/locales/` から `locale` と `en` の文言を読む。無ければ空。読めないファイルは警告して無視する
+    /// （インストールのときに [`validate_locales_dir`] で確かめてある）
+    pub fn load(theme_dir: &std::path::Path, locale: &str) -> Self {
+        let read = |lang: &str| {
+            let path = theme_dir.join("locales").join(format!("{lang}.json"));
+            match std::fs::read(&path) {
+                Ok(bytes) => parse_locale_file(&bytes).unwrap_or_else(|e| {
+                    tracing::warn!("Ignoring the theme strings in {}: {}", path.display(), e);
+                    Default::default()
+                }),
+                Err(_) => Default::default(),
+            }
+        };
+        let english = read("en");
+        // `en` のサイトでは、テーマの英語がそのまま「サイトの言語の文言」（組み込みより先）
+        let locale = if locale == "en" {
+            english.clone()
+        } else {
+            read(locale)
+        };
+        Self { locale, english }
+    }
+
+    /// `[theme].locale` の文言
+    pub fn get_in_locale(&self, key: &str) -> Option<&str> {
+        self.locale.get(key).map(String::as_str)
+    }
+
+    /// `en` の文言
+    pub fn get_english(&self, key: &str) -> Option<&str> {
+        self.english.get(key).map(String::as_str)
+    }
+
+    /// 差し込み前の文言（`[theme].locale` → `en`）
+    pub fn get(&self, key: &str) -> Option<&str> {
+        self.locale
+            .get(key)
+            .or_else(|| self.english.get(key))
+            .map(String::as_str)
+    }
+}
+
+/// `locales/` に置けるファイル名（`en.json`・`ja.json`・`pt-BR.json` など）
+pub fn is_valid_locale_file_name(name: &str) -> bool {
+    let Some(lang) = name.strip_suffix(".json") else {
+        return false;
+    };
+    let mut parts = lang.split('-');
+    let primary = parts.next().unwrap_or_default();
+    let primary_ok =
+        (2..=3).contains(&primary.len()) && primary.bytes().all(|b| b.is_ascii_lowercase());
+    let region_ok = match (parts.next(), parts.next()) {
+        (None, _) => true,
+        (Some(region), None) => {
+            (2..=8).contains(&region.len()) && region.bytes().all(|b| b.is_ascii_alphanumeric())
+        }
+        _ => false,
+    };
+    primary_ok && region_ok
+}
+
+/// 文言のファイル（文字列だけの JSON オブジェクト）を読む
+pub fn parse_locale_file(
+    bytes: &[u8],
+) -> std::result::Result<std::collections::HashMap<String, String>, String> {
+    let value: serde_json::Value =
+        serde_json::from_slice(bytes).map_err(|e| format!("not valid JSON: {e}"))?;
+    let object = value
+        .as_object()
+        .ok_or_else(|| "must be a JSON object of key to text".to_string())?;
+    object
+        .iter()
+        .map(|(key, text)| {
+            if key.is_empty() || key.len() > 200 {
+                return Err(format!("key {key:?} must be 1 to 200 characters"));
+            }
+            text.as_str()
+                .map(|text| (key.clone(), text.to_string()))
+                .ok_or_else(|| format!("the value of {key:?} must be a string"))
+        })
+        .collect()
+}
+
+/// テーマのパッケージの `locales/` を確かめる（無ければ何もしない）。ファイル名・大きさ・形を見る
+pub fn validate_locales_dir(theme_dir: &std::path::Path) -> std::result::Result<(), String> {
+    let dir = theme_dir.join("locales");
+    if !dir.exists() {
+        return Ok(());
+    }
+    let entries = std::fs::read_dir(&dir).map_err(|e| format!("locales/: {e}"))?;
+    for entry in entries {
+        let entry = entry.map_err(|e| format!("locales/: {e}"))?;
+        let name = entry.file_name().to_string_lossy().to_string();
+        let meta = entry
+            .metadata()
+            .map_err(|e| format!("locales/{name}: {e}"))?;
+        if !meta.is_file() || !is_valid_locale_file_name(&name) {
+            return Err(format!(
+                "locales/{name}: only language files such as en.json or ja.json may be in locales/"
+            ));
+        }
+        if meta.len() > MAX_LOCALE_FILE_BYTES {
+            return Err(format!(
+                "locales/{name}: larger than {} KiB",
+                MAX_LOCALE_FILE_BYTES / 1024
+            ));
+        }
+        let bytes = std::fs::read(entry.path()).map_err(|e| format!("locales/{name}: {e}"))?;
+        parse_locale_file(&bytes).map_err(|e| format!("locales/{name}: {e}"))?;
+    }
+    Ok(())
 }
 
 #[cfg(test)]
