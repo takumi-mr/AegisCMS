@@ -714,12 +714,12 @@ Reads the list of plugins and themes from signed catalogs (design and plans: [st
 
 In Admin Studio, the **Store** tab of the Themes and Plugins screens uses these ([admin-settings.md](admin-settings.md#store-on-the-themes-and-plugins-screens)).
 
-| Key                 | Default   | Description                                                                                                                                                                                                                                       |
-| ------------------- | --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `enabled`           | `false`   | `true` turns the store on. While `false`, the API answers `404 store_disabled`                                                                                                                                                                    |
-| `max_catalog_bytes` | `1048576` | Size limit for `catalog.json` (bytes)                                                                                                                                                                                                             |
-| `timeout_secs`      | `15`      | Timeout for each fetch (seconds)                                                                                                                                                                                                                  |
-| `catalogs`          | official  | Catalogs to read (`[[store.catalogs]]`). Without any, the official catalog (below) is read. Writing some replaces it (list the official one too to keep it). An empty list (`catalogs = []`) with `enabled = true` stops the server from starting |
+| Key                 | Default   | Description                                                                                                                                                                                                                                          |
+| ------------------- | --------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `enabled`           | `true`    | `false` turns the store off: the API answers `404 store_disabled`. The catalog is fetched only when an administrator opens the Store tab (or calls the API), never at start-up or in the background                                                  |
+| `max_catalog_bytes` | `1048576` | Size limit for `catalog.json` (bytes)                                                                                                                                                                                                                |
+| `timeout_secs`      | `15`      | Timeout for each fetch (seconds)                                                                                                                                                                                                                     |
+| `catalogs`          | official  | Catalogs to read (`[[store.catalogs]]`). Without any, the official catalog (below) is read. Writing some replaces it (list the official one too to keep it). An empty list (`catalogs = []`) stops the server from starting unless `enabled = false` |
 
 Keys of `[[store.catalogs]]`:
 

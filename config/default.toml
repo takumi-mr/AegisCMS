@@ -399,11 +399,12 @@ locale = "en"
 # site_key = ""
 # secret = "env:TURNSTILE_SECRET"
 
-# Package store (docs/store.md): lists plugins and themes from signed catalogs. Off by default.
+# Package store (docs/store.md): lists plugins and themes from signed catalogs. On by default; the
+# catalog is fetched only when an administrator opens the Store tab (or calls the store API).
 # Without [[store.catalogs]] the official catalog is read; writing some replaces it
 # (see docs/configuration.md 2.28)
 # [store]
-# enabled = true
+# enabled = false
 
 # Plugin settings read with config::get (values "env:NAME" come from the environment), e.g.
 # [plugins.settings.official-shop-rules]

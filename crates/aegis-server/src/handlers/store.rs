@@ -503,7 +503,9 @@ mod tests {
             (status, serde_json::from_slice(&bytes).unwrap_or_default())
         }
 
-        let (status, body) = get(crate::config::AegisConfig::default(), "admin").await;
+        let mut disabled = crate::config::AegisConfig::default();
+        disabled.store.enabled = false;
+        let (status, body) = get(disabled, "admin").await;
         assert_eq!(status, StatusCode::NOT_FOUND);
         assert_eq!(body["code"], "store_disabled");
 
@@ -567,7 +569,9 @@ mod tests {
         }
 
         let body = serde_json::json!({ "catalog": "official", "kind": "theme", "id": "roastery" });
-        let (status, res) = post(crate::config::AegisConfig::default(), body.clone()).await;
+        let mut disabled = crate::config::AegisConfig::default();
+        disabled.store.enabled = false;
+        let (status, res) = post(disabled, body.clone()).await;
         assert_eq!(status, StatusCode::NOT_FOUND);
         assert_eq!(res["code"], "store_disabled");
 
