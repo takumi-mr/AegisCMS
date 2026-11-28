@@ -110,6 +110,7 @@ pub(super) async fn finish_sso_login(
     sso: &SsoLogin,
     credentials: AuthCredentials,
 ) -> Response {
+    let login_started = jiff::Timestamp::now();
     let provider = sso.provider.provider_id().to_string();
     let identity = match sso.provider.authenticate(&credentials).await {
         Ok(identity) => identity,
@@ -137,7 +138,7 @@ pub(super) async fn finish_sso_login(
             return back_to_admin(sso, "login_error", &reason);
         }
     };
-    match complete_login(state, audit, &provider, identity, None).await {
+    match complete_login(state, audit, &provider, identity, None, login_started).await {
         Ok(session) => back_to_admin(sso, "session", &session.id),
         Err(LoginRefusal::Rejected(message)) => back_to_admin(sso, "login_error", &message),
         Err(LoginRefusal::Failed(_)) => back_to_admin(sso, "login_error", SERVER_ERROR),

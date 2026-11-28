@@ -1313,14 +1313,14 @@ export const aegisApi = {
     return request('/users/me/2fa/setup', { method: 'POST' }, 'Failed to set up 2FA');
   },
 
-  /** Confirms 2FA setup with a code and returns the 6 one-time backup codes */
-  async enable2fa(secret: string, code: string): Promise<Enable2faResult> {
+  /** Confirms 2FA setup with a code and the current password, and returns the 6 one-time backup codes */
+  async enable2fa(secret: string, code: string, password: string): Promise<Enable2faResult> {
     return request(
       '/users/me/2fa/enable',
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ secret, code }),
+        body: JSON.stringify({ secret, code, password }),
       },
       'Failed to enable 2FA'
     );

@@ -1214,6 +1214,7 @@
       "scanQr": "Scan this QR code with an authenticator app such as Google Authenticator or 1Password.",
       "manualSecret": "Manual entry secret:",
       "enterCode": "Enter the 6-digit code shown in your app:",
+      "enterPassword": "Enter your current password to confirm it is you:",
       "verifyAndEnable": "Verify & Enable",
       "verifying": "Verifying...",
       "backupTitle": "Backup Codes (6 codes)",

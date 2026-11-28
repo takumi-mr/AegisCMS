@@ -1196,6 +1196,7 @@
       "scanQr": "以下の QR コードを Google Authenticator などの認証アプリでスキャンしてください。",
       "manualSecret": "手動入力用シークレット:",
       "enterCode": "アプリに表示される 6 桁の認証コードを入力してください:",
+      "enterPassword": "本人確認のため、現在のパスワードを入力してください:",
       "verifyAndEnable": "有効化する",
       "verifying": "確認中...",
       "backupTitle": "バックアップコード (6枚)",

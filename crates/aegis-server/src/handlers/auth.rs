@@ -37,6 +37,9 @@ pub async fn create_session(
     ClientIp(client_ip): ClientIp,
     Json(payload): Json<CreateSessionRequest>,
 ) -> Response {
+    // セッションの発行時刻は、アカウントを読み始める前のこの時刻にする。パスワードの検証中や
+    // 2FA の入力待ちの間に無効化・降格・パスワード変更（セッションの失効）があれば、発行したセッションも効かない
+    let login_started = jiff::Timestamp::now();
     let username = payload.username.trim().to_string();
     let ip = client_ip.as_deref();
     let provider = state.auth_provider.provider_id();
@@ -139,13 +142,30 @@ pub async fn create_session(
         }
     };
 
-    // 2FA (TOTP) が有効か確認
-    let user_record = state
-        .db
-        .get_user_by_username(&username)
-        .await
-        .ok()
-        .flatten();
+    // 2FA (TOTP) が有効か確認。DB を読めないときは 2FA を飛ばさずに断る（Fail-Closed）
+    let user_record = match state.db.get_user_by_username(&username).await {
+        Ok(user) => user,
+        Err(e) => {
+            state
+                .audit
+                .record(
+                    audit
+                        .event(AuditAction::SessionCreate, AuditOutcome::Failure)
+                        .with_resource("session", None)
+                        .with_details(json!({
+                            "username": username,
+                            "provider": provider,
+                            "error": format!("two_factor_check_failed: {}", e),
+                        })),
+                )
+                .await;
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({ "error": "Failed to check two-factor authentication" })),
+            )
+                .into_response();
+        }
+    };
     if let Some(user) = &user_record {
         if user.totp_enabled {
             let challenge_token = format!("mfa_{}", uuid::Uuid::new_v4().simple());
@@ -154,6 +174,7 @@ pub async fn create_session(
                 "provider": provider,
                 "identity": identity,
                 "ttl_secs": payload.ttl_secs,
+                "issued_at": aegis_core::time::TimestampExt::to_rfc3339_auto(&login_started),
             });
             let cache_key = format!("mfa_challenge:{}", challenge_token);
             if let Err(e) = state
@@ -186,7 +207,7 @@ pub async fn create_session(
 
     let max_ttl = state.config.cache.default_ttl_secs;
     let ttl_secs = payload.ttl_secs.map(|ttl| ttl.clamp(1, max_ttl));
-    match complete_login(&state, &audit, provider, identity, ttl_secs).await {
+    match complete_login(&state, &audit, provider, identity, ttl_secs, login_started).await {
         Ok(session) => (StatusCode::CREATED, Json(session)).into_response(),
         Err(LoginRefusal::Rejected(message)) => {
             (StatusCode::FORBIDDEN, Json(json!({ "error": message }))).into_response()
@@ -270,6 +291,17 @@ pub async fn verify_2fa(
         }
     };
     let ttl_secs = challenge["ttl_secs"].as_u64();
+    // パスワードでのログインを始めた時刻。発行するセッションの発行時刻にする（入力待ちの間の失効を効かせる）
+    let Some(login_started) = challenge["issued_at"]
+        .as_str()
+        .and_then(|at| aegis_core::time::parse_rfc3339(at).ok())
+    else {
+        return (
+            StatusCode::UNAUTHORIZED,
+            Json(json!({ "error": "Invalid or expired verification challenge" })),
+        )
+            .into_response();
+    };
 
     // ログインがロックされている間は、チャレンジを持っていてもコードを試させない
     // （コードの総当たりも、パスワードと同じ失敗回数の上限の中に収める）
@@ -287,14 +319,48 @@ pub async fn verify_2fa(
 
     let user = match state.db.get_user_by_username(&username).await {
         Ok(Some(u)) => u,
-        _ => {
+        Ok(None) => {
             return (
                 StatusCode::UNAUTHORIZED,
                 Json(json!({ "error": "User not found" })),
             )
                 .into_response();
         }
+        Err(e) => {
+            tracing::error!("Failed to load user '{}' for 2FA: {}", username, e);
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({ "error": "Failed to verify the code" })),
+            )
+                .into_response();
+        }
     };
+    // 入力待ちの間に無効化されたアカウントには、コードが正しくてもセッションを出さない
+    if user.disabled {
+        state
+            .audit
+            .record(
+                audit
+                    .event(AuditAction::SessionCreate, AuditOutcome::Denied)
+                    .with_resource("session", None)
+                    .with_details(json!({
+                        "username": username,
+                        "provider": provider,
+                        "error": "account_disabled",
+                    })),
+            )
+            .await;
+        return (
+            StatusCode::UNAUTHORIZED,
+            Json(json!({ "error": "Invalid or expired verification challenge" })),
+        )
+            .into_response();
+    }
+    // チャレンジに入れたロールは、パスワードを確かめた時点のもの。その後に下げられていたら今のロールにする
+    let mut identity = identity;
+    if aegis_auth::role_level(&identity.role) > aegis_auth::role_level(&user.role) {
+        identity.role = user.role.clone();
+    }
 
     let mut valid_totp = if let Some(secret) = &user.totp_secret {
         aegis_auth::verify_totp_code(secret, &payload.code)
@@ -320,6 +386,7 @@ pub async fn verify_2fa(
         if let Some(remaining_json) =
             aegis_auth::verify_and_consume_backup_code(codes_json, &payload.code)
         {
+            // 使ったコードを消せなかったら、ログインさせない（消せないまま通すと、同じコードが何度でも使える）
             if let Err(e) =
                 aegis_auth::users::update_backup_codes(&*state.db, &user.username, &remaining_json)
                     .await
@@ -329,6 +396,11 @@ pub async fn verify_2fa(
                     user.username,
                     e
                 );
+                return (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(json!({ "error": "Failed to verify the code" })),
+                )
+                    .into_response();
             }
             is_backup_code = true;
             true
@@ -372,7 +444,7 @@ pub async fn verify_2fa(
 
     let max_ttl = state.config.cache.default_ttl_secs;
     let ttl_secs = ttl_secs.map(|ttl| ttl.clamp(1, max_ttl));
-    match complete_login(&state, &audit, &provider, identity, ttl_secs).await {
+    match complete_login(&state, &audit, &provider, identity, ttl_secs, login_started).await {
         Ok(session) => {
             if is_backup_code {
                 tracing::info!("User '{}' logged in using a 2FA backup code", username);
@@ -407,6 +479,8 @@ pub(crate) async fn complete_login(
     provider: &str,
     identity: AuthIdentity,
     ttl_secs: Option<u64>,
+    // 資格情報を読み始めた時刻。セッションの発行時刻にする（[`SessionService::create_session_issued_at`]）
+    login_started: jiff::Timestamp,
 ) -> Result<SessionData, LoginRefusal> {
     let username = identity.external_id.clone();
     let authenticated_role = identity.role.clone();
@@ -436,7 +510,13 @@ pub(crate) async fn complete_login(
 
     let result = state
         .sessions
-        .create_session(&identity.external_id, &identity.role, metadata, ttl_secs)
+        .create_session_issued_at(
+            &identity.external_id,
+            &identity.role,
+            metadata,
+            ttl_secs,
+            login_started,
+        )
         .await;
     match result {
         Ok(session) => {
@@ -1035,5 +1115,122 @@ mod tests {
             verify(&state, ip, &second, &code).await.status(),
             StatusCode::UNAUTHORIZED
         );
+    }
+
+    async fn change_alice(state: &Arc<AppState>, changes: aegis_auth::users::UserChanges) {
+        aegis_auth::users::update_user(state.db.as_ref(), "alice", changes)
+            .await
+            .unwrap();
+    }
+
+    /// 2FA の入力待ちの間に無効化されたアカウントには、正しいコードでもセッションを出さない
+    #[tokio::test]
+    async fn test_two_factor_refuses_an_account_disabled_while_waiting() {
+        let (state, secret) = state_with_two_factor().await;
+        let ip = "203.0.113.23";
+        let token = challenge(&state, ip).await;
+        change_alice(
+            &state,
+            aegis_auth::users::UserChanges {
+                disabled: Some(true),
+                ..Default::default()
+            },
+        )
+        .await;
+        let code = aegis_auth::generate_current_totp_code(&secret).unwrap();
+        assert_eq!(
+            verify(&state, ip, &token, &code).await.status(),
+            StatusCode::UNAUTHORIZED
+        );
+    }
+
+    /// 入力待ちの間に下げられたロールは、発行するセッションにも反映し、入力待ちの間の失効も効かせる
+    #[tokio::test]
+    async fn test_two_factor_session_follows_a_demotion_and_revocation_while_waiting() {
+        let (state, secret) = state_with_two_factor().await;
+        let ip = "203.0.113.24";
+        let token = challenge(&state, ip).await;
+        change_alice(
+            &state,
+            aegis_auth::users::UserChanges {
+                role: Some("viewer".to_string()),
+                ..Default::default()
+            },
+        )
+        .await;
+        tokio::time::sleep(std::time::Duration::from_millis(5)).await;
+        state.sessions.revoke_user_sessions("alice").await.unwrap();
+
+        let code = aegis_auth::generate_current_totp_code(&secret).unwrap();
+        let resp = verify(&state, ip, &token, &code).await;
+        assert_eq!(resp.status(), StatusCode::CREATED);
+        let session: SessionData = serde_json::from_slice(
+            &axum::body::to_bytes(resp.into_body(), usize::MAX)
+                .await
+                .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(session.role, "viewer");
+        // パスワードを確かめた後に失効があったので、このセッションは使えない
+        assert_eq!(state.sessions.get_session(&session.id).await.unwrap(), None);
+
+        // 失効の後にログインし直せば使える
+        tokio::time::sleep(std::time::Duration::from_millis(5)).await;
+        let token = challenge(&state, ip).await;
+        // 同じ時間区間の TOTP コードは使い回せないので、使用済みの印を消して試す
+        let digits: String = code.chars().filter(|c| c.is_ascii_digit()).collect();
+        state
+            .cache
+            .delete(&format!("totp_used:alice:{}", digits))
+            .await
+            .unwrap();
+        let resp = verify(&state, ip, &token, &code).await;
+        assert_eq!(resp.status(), StatusCode::CREATED);
+        let session: SessionData = serde_json::from_slice(
+            &axum::body::to_bytes(resp.into_body(), usize::MAX)
+                .await
+                .unwrap(),
+        )
+        .unwrap();
+        assert!(state
+            .sessions
+            .get_session(&session.id)
+            .await
+            .unwrap()
+            .is_some());
+    }
+
+    /// パスワードの検証中に失効があれば、そのログインで発行したセッションは使えない
+    #[tokio::test]
+    async fn test_password_login_session_is_issued_at_the_login_start() {
+        let state = crate::test_support::test_state_with_config(
+            AegisConfig::default(),
+            aegis_runtime::PluginSupervisor::new(),
+        )
+        .await;
+        create_user(
+            state.db.as_ref(),
+            NewUser {
+                username: "alice".to_string(),
+                password: "correct-password".to_string(),
+                role: "editor".to_string(),
+                email: None,
+                display_name: None,
+            },
+        )
+        .await
+        .unwrap();
+        let before = jiff::Timestamp::now();
+        let resp = login(&state, "alice", "correct-password", "203.0.113.25").await;
+        let after = jiff::Timestamp::now();
+        assert_eq!(resp.status(), StatusCode::CREATED);
+        let session: SessionData = serde_json::from_slice(
+            &axum::body::to_bytes(resp.into_body(), usize::MAX)
+                .await
+                .unwrap(),
+        )
+        .unwrap();
+        let created = aegis_core::time::parse_rfc3339(&session.created_at).unwrap();
+        assert!(before <= created && created <= after);
     }
 }

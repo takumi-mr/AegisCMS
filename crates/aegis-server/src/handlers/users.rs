@@ -633,8 +633,13 @@ pub async fn delete_avatar(
 
 #[derive(Debug, Deserialize)]
 pub struct Enable2faRequest {
+    /// `setup` が返したシークレット。サーバーが覚えているものと違えば断る（省略時はサーバー側の値を使う）
+    #[serde(default)]
     pub secret: String,
     pub code: String,
+    /// 本人確認のための現在のパスワード
+    #[serde(default)]
+    pub password: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -651,18 +656,92 @@ pub struct Disable2faRequest {
     pub code: Option<String>,
 }
 
-/// `POST /api/v1/users/me/2fa/setup` - ログイン中ユーザーの 2FA シークレット・QR コードを生成する
+/// `setup` で作ったシークレットを `enable` まで覚えておく時間
+const TOTP_SETUP_TTL_SECS: u64 = 600;
+
+fn totp_setup_key(username: &str) -> String {
+    format!("totp_setup:{}", username)
+}
+
+/// ログイン中のユーザーの、DB にある現在のアカウント
+async fn current_user(state: &AppState, session: &SessionData) -> Result<UserRecord, ApiError> {
+    state
+        .db
+        .get_user_by_username(&session.user_id)
+        .await
+        .map_err(from_aegis)?
+        .ok_or_else(|| api_error(StatusCode::NOT_FOUND, "User not found"))
+}
+
+/// 2FA を変える前の本人確認は、ログインと同じ失敗回数の上限の中で数える（乗っ取ったセッションから
+/// パスワードやコードを総当たりさせない）。ロック中なら `429`
+async fn ensure_not_locked(state: &AppState, username: &str) -> Result<(), ApiError> {
+    match state.login_limiter.check(username, None).await {
+        Ok(None) => Ok(()),
+        Ok(Some(lockout)) => Err(api_error(
+            StatusCode::TOO_MANY_REQUESTS,
+            format!(
+                "Too many failed attempts; try again in {} seconds",
+                lockout.retry_after_secs
+            ),
+        )),
+        Err(e) => Err(from_aegis(e)),
+    }
+}
+
+/// 本人確認に失敗したことを、ログインの失敗として数える
+async fn record_confirmation_failure(state: &AppState, username: &str) {
+    if let Err(e) = state.login_limiter.record_failure(username, None).await {
+        tracing::warn!("Failed to record a 2FA confirmation failure: {}", e);
+    }
+}
+
+/// 現在のパスワードが合っているか（Argon2 は別スレッドで検証する）。空なら `false`
+async fn password_matches(user: &UserRecord, password: Option<String>) -> Result<bool, ApiError> {
+    let Some(password) = password.filter(|p| !p.trim().is_empty()) else {
+        return Ok(false);
+    };
+    let hash = user.password_hash.clone();
+    tokio::task::spawn_blocking(move || matches!(verify_password(&password, &hash), Ok(true)))
+        .await
+        .map_err(|e| {
+            api_error(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("Password verification task failed: {}", e),
+            )
+        })
+}
+
+/// `POST /api/v1/users/me/2fa/setup` - ログイン中ユーザーの 2FA シークレット・QR コードを生成する。
+/// シークレットはサーバーにも覚えておき、`enable` ではそれ以外を受け付けない
 pub async fn setup_2fa(
-    State(_state): State<Arc<AppState>>,
+    State(state): State<Arc<AppState>>,
     RequireRole(session): ViewerSession,
 ) -> Result<Json<aegis_auth::TotpSetup>, ApiError> {
     super::api_tokens::require_login_session(&session)?;
+    let user = current_user(&state, &session).await?;
+    if user.totp_enabled {
+        return Err(api_error(
+            StatusCode::CONFLICT,
+            "Two-factor authentication is already enabled; disable it first",
+        ));
+    }
     let setup =
         aegis_auth::generate_totp_setup(&session.user_id, "AegisCMS").map_err(from_aegis)?;
+    state
+        .cache
+        .set(
+            &totp_setup_key(&user.username),
+            &setup.secret,
+            Some(TOTP_SETUP_TTL_SECS),
+        )
+        .await
+        .map_err(from_aegis)?;
     Ok(Json(setup))
 }
 
-/// `POST /api/v1/users/me/2fa/enable` - 2FA コードを検証し、バックアップコード 6 枚を発行して有効化する
+/// `POST /api/v1/users/me/2fa/enable` - 現在のパスワードと 2FA コードを検証し、バックアップコード 6 枚を発行して有効化する。
+/// すでに有効なら断る（別の端末への付け替えは、いったん無効化してから行う）
 pub async fn enable_2fa(
     State(state): State<Arc<AppState>>,
     RequireRole(session): ViewerSession,
@@ -670,10 +749,37 @@ pub async fn enable_2fa(
     Json(payload): Json<Enable2faRequest>,
 ) -> Result<Json<Enable2faResponse>, ApiError> {
     super::api_tokens::require_login_session(&session)?;
-    let secret = payload.secret.trim();
-    let code = payload.code.trim();
+    let user = current_user(&state, &session).await?;
+    if user.totp_enabled {
+        return Err(api_error(
+            StatusCode::CONFLICT,
+            "Two-factor authentication is already enabled; disable it first",
+        ));
+    }
+    ensure_not_locked(&state, &user.username).await?;
+    if !password_matches(&user, payload.password).await? {
+        record_confirmation_failure(&state, &user.username).await;
+        return Err(api_error(
+            StatusCode::UNAUTHORIZED,
+            "Authentication failed: please provide your current password",
+        ));
+    }
 
-    if !aegis_auth::verify_totp_code(secret, code) {
+    let setup_key = totp_setup_key(&user.username);
+    let Some(secret) = state.cache.get(&setup_key).await.map_err(from_aegis)? else {
+        return Err(api_error(
+            StatusCode::BAD_REQUEST,
+            "The two-factor setup has expired; please start the setup again",
+        ));
+    };
+    let sent = payload.secret.trim();
+    if !sent.is_empty() && sent != secret {
+        return Err(api_error(
+            StatusCode::BAD_REQUEST,
+            "The secret does not match the current two-factor setup; please start the setup again",
+        ));
+    }
+    if !aegis_auth::verify_totp_code(&secret, payload.code.trim()) {
         return Err(api_error(
             StatusCode::BAD_REQUEST,
             "Invalid verification code. Please check your authenticator app and try again.",
@@ -681,9 +787,10 @@ pub async fn enable_2fa(
     }
 
     let (backup_codes, backup_json) = aegis_auth::generate_backup_codes();
-    let user = aegis_auth::users::enable_2fa(&*state.db, &session.user_id, secret, &backup_json)
+    let user = aegis_auth::users::enable_2fa(&*state.db, &user.username, &secret, &backup_json)
         .await
         .map_err(from_aegis)?;
+    let _ = state.cache.delete(&setup_key).await;
 
     state
         .audit
@@ -709,19 +816,10 @@ pub async fn disable_2fa(
     Json(payload): Json<Disable2faRequest>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     super::api_tokens::require_login_session(&session)?;
-    let user = state
-        .db
-        .get_user_by_username(&session.user_id)
-        .await
-        .map_err(from_aegis)?
-        .ok_or_else(|| api_error(StatusCode::NOT_FOUND, "User not found"))?;
+    let user = current_user(&state, &session).await?;
+    ensure_not_locked(&state, &user.username).await?;
 
-    let mut verified = false;
-    if let Some(pass) = payload.password.filter(|p| !p.trim().is_empty()) {
-        if aegis_auth::password::verify_password(&pass, &user.password_hash).is_ok() {
-            verified = true;
-        }
-    }
+    let mut verified = password_matches(&user, payload.password).await?;
     if !verified {
         if let (Some(code), Some(secret)) = (
             payload.code.filter(|c| !c.trim().is_empty()),
@@ -734,6 +832,7 @@ pub async fn disable_2fa(
     }
 
     if !verified {
+        record_confirmation_failure(&state, &user.username).await;
         return Err(api_error(
             StatusCode::UNAUTHORIZED,
             "Authentication failed: please provide your current password or 2FA code",
@@ -1336,6 +1435,186 @@ mod tests {
         assert_eq!(
             events[0].data["login_url"],
             "https://cms.example.com/admin/"
+        );
+    }
+
+    async fn enable(
+        state: &Arc<AppState>,
+        user: &str,
+        payload: serde_json::Value,
+    ) -> Result<Enable2faResponse, StatusCode> {
+        enable_2fa(
+            State(state.clone()),
+            RequireRole(session(user, "editor")),
+            AuditContext::default(),
+            Json(serde_json::from_value(payload).unwrap()),
+        )
+        .await
+        .map(|Json(r)| r)
+        .map_err(|(status, _)| status)
+    }
+
+    async fn setup(state: &Arc<AppState>, user: &str) -> Result<String, StatusCode> {
+        setup_2fa(State(state.clone()), RequireRole(session(user, "editor")))
+            .await
+            .map(|Json(s)| s.secret)
+            .map_err(|(status, _)| status)
+    }
+
+    async fn disable(
+        state: &Arc<AppState>,
+        user: &str,
+        payload: serde_json::Value,
+    ) -> Result<(), StatusCode> {
+        disable_2fa(
+            State(state.clone()),
+            RequireRole(session(user, "editor")),
+            AuditContext::default(),
+            Json(serde_json::from_value(payload).unwrap()),
+        )
+        .await
+        .map(|_| ())
+        .map_err(|(status, _)| status)
+    }
+
+    async fn totp_enabled(state: &Arc<AppState>, user: &str) -> bool {
+        state
+            .db
+            .get_user_by_username(user)
+            .await
+            .unwrap()
+            .unwrap()
+            .totp_enabled
+    }
+
+    /// 2FA を有効にするには、現在のパスワードと、`setup` でサーバーが作ったシークレットのコードが要る
+    #[tokio::test]
+    async fn test_enable_2fa_requires_password_and_the_server_secret() {
+        let state = state_with_users().await;
+        let secret = setup(&state, "alice").await.unwrap();
+        let code = || aegis_auth::generate_current_totp_code(&secret).unwrap();
+
+        // パスワードなし・違うパスワード
+        assert_eq!(
+            enable(&state, "alice", json!({ "secret": secret, "code": code() }))
+                .await
+                .err(),
+            Some(StatusCode::UNAUTHORIZED)
+        );
+        assert_eq!(
+            enable(
+                &state,
+                "alice",
+                json!({ "secret": secret, "code": code(), "password": "wrong-pass" })
+            )
+            .await
+            .err(),
+            Some(StatusCode::UNAUTHORIZED)
+        );
+        // 自分で作ったシークレットは受け付けない（乗っ取ったセッションから攻撃者の端末を登録させない）
+        let own = aegis_auth::generate_totp_setup("alice", "AegisCMS")
+            .unwrap()
+            .secret;
+        let own_code = aegis_auth::generate_current_totp_code(&own).unwrap();
+        assert_eq!(
+            enable(
+                &state,
+                "alice",
+                json!({ "secret": own, "code": own_code, "password": "initial-pass" })
+            )
+            .await
+            .err(),
+            Some(StatusCode::BAD_REQUEST)
+        );
+        assert!(!totp_enabled(&state, "alice").await);
+
+        let enabled = enable(
+            &state,
+            "alice",
+            json!({ "secret": secret, "code": code(), "password": "initial-pass" }),
+        )
+        .await
+        .unwrap();
+        assert_eq!(enabled.backup_codes.len(), 6);
+        assert!(totp_enabled(&state, "alice").await);
+    }
+
+    /// すでに有効な 2FA は、`setup` / `enable` で別のシークレットに付け替えられない
+    #[tokio::test]
+    async fn test_enable_2fa_refuses_when_already_enabled() {
+        let state = state_with_users().await;
+        let secret = setup(&state, "alice").await.unwrap();
+        let code = aegis_auth::generate_current_totp_code(&secret).unwrap();
+        enable(
+            &state,
+            "alice",
+            json!({ "secret": secret, "code": code, "password": "initial-pass" }),
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(
+            setup(&state, "alice").await.err(),
+            Some(StatusCode::CONFLICT)
+        );
+        assert_eq!(
+            enable(
+                &state,
+                "alice",
+                json!({ "secret": secret, "code": code, "password": "initial-pass" })
+            )
+            .await
+            .err(),
+            Some(StatusCode::CONFLICT)
+        );
+    }
+
+    /// 2FA の無効化は、正しいパスワード（またはコード）でしか通らない。違うパスワードでは通らない
+    #[tokio::test]
+    async fn test_disable_2fa_rejects_a_wrong_password() {
+        let state = state_with_users().await;
+        let secret = setup(&state, "alice").await.unwrap();
+        let code = aegis_auth::generate_current_totp_code(&secret).unwrap();
+        enable(
+            &state,
+            "alice",
+            json!({ "secret": secret, "code": code, "password": "initial-pass" }),
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(
+            disable(&state, "alice", json!({ "password": "x" }))
+                .await
+                .err(),
+            Some(StatusCode::UNAUTHORIZED)
+        );
+        assert!(totp_enabled(&state, "alice").await);
+
+        disable(&state, "alice", json!({ "password": "initial-pass" }))
+            .await
+            .unwrap();
+        assert!(!totp_enabled(&state, "alice").await);
+    }
+
+    /// 本人確認の失敗はログインの失敗と同じ上限で数え、上限に達したら正しいパスワードでも `429`
+    #[tokio::test]
+    async fn test_2fa_confirmation_failures_lock_the_account() {
+        let state = state_with_users().await;
+        let max = state.config.auth.login_rate_limit.max_failures_per_user;
+        for _ in 0..max {
+            assert_eq!(
+                disable(&state, "alice", json!({ "password": "wrong-pass" }))
+                    .await
+                    .err(),
+                Some(StatusCode::UNAUTHORIZED)
+            );
+        }
+        assert_eq!(
+            disable(&state, "alice", json!({ "password": "initial-pass" }))
+                .await
+                .err(),
+            Some(StatusCode::TOO_MANY_REQUESTS)
         );
     }
 }
