@@ -21,12 +21,6 @@
 
 ## 未着手タスク (Backlog)
 
-### 🔍 実機での確認
-
-上から順に着手する。
-
-- [ ] **official-embeds の実機確認（残り）**（プラグインは AegisCMS-Plugin にある）: 実際のブラウザー（Chromium・Strict CSP・`[embed].consent` あり）で確かめた。同意の前は 8 つの iframe のどれも読まず、同意のあとに読む。YouTube・Vimeo・OpenStreetMap・Google マップ・Google カレンダー・CodePen（通常の埋め込み）・汎用の埋め込み（`sandbox` つき）は、CSP の違反もポップアップも無く表示され、埋め込みの中からさらに別のホストを iframe で読むものも無かった。残り: (1) 汎用の埋め込みで Google フォーム・Typeform が動くか（公開のフォームが要る）。(2) CodePen の「クリックで実行」は、自動のブラウザーでは CodePen が実行のときに 403 を返す（AegisCMS の無い素のページでも同じ）ため、普段のブラウザーで手で確かめる。
-
 ### ⏸️ 保留中の検討
 
 - [ ] **X・Threads のリッチ埋め込み**（保留中。プラグインは AegisCMS-Plugin にある）: 今は `official-link-embed` が X を oEmbed（`publish.twitter.com/oembed`）からリンクカードにするだけで、X の投稿の表示にはならない。Threads は既定の許可ドメインに無い。案: `official-embeds` に X・Threads のブロックを足す。API キーは要らない見込みだが未確認。第三者のスクリプトを置かずに済むよう、`sandbox` つきの iframe（X は `platform.twitter.com/embed/Tweet.html?id=<ID>`、Threads は投稿の URL の末尾に `/embed`）にし、`[embed].consent` の同意のあとに読む。着手するときは、まずキーなし・Strict CSP で表示できるかを実際のブラウザーで確かめる。X の iframe の URL は公式の文書に無い使い方なので、使えなくなるおそれがある。Threads をカードで出すだけなら、threads.net が OGP を返すかを確かめ、許可ドメインに足すだけで済む。
