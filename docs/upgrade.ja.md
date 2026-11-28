@@ -12,9 +12,9 @@
 
 ## バージョンごとの手順
 
-### v0.13.0 への更新: 一部の公式プラグインはストアから入れる
+### v0.13.0 への更新: 公式プラグインはストアから入れる
 
-v0.13.0 から、次の公式プラグインは AegisCMS に同梱されなくなり、[パッケージストア](store.ja.md)から入れるものになりました: `official-ads`・`official-back-to-top`・`official-charts`・`official-clarity`・`official-code-lines`・`official-embeds`・`official-external-links`・`official-lightbox`・`official-link-embed`・`official-reading-time`・`official-share-buttons`。
+v0.13.0 から、**AegisCMS はプラグインを同梱しません**。公式プラグイン（`official-*`）は、すべて[パッケージストア](store.ja.md)から入れます: `official-ads`・`official-back-to-top`・`official-blocks`・`official-charts`・`official-clarity`・`official-code-enhancer`・`official-code-lines`・`official-embeds`・`official-external-links`・`official-lightbox`・`official-link-embed`・`official-mermaid`・`official-order-notifier`・`official-page-toc`・`official-plantuml`・`official-post-navigation`・`official-reading-time`・`official-share-buttons`・`official-shop-rules`。
 
 どれも有効にしていなければ、することはありません。どれかを有効にしていると、入れ直すまで**新しいバージョンが起動しません**（ログに `Plugin '…' is enabled in [plugins].enabled but not installed` と出ます）。設定は残ります。更新の前に、次のようにします。
 
@@ -23,7 +23,7 @@ v0.13.0 から、次の公式プラグインは AegisCMS に同梱されなく�
 3. Admin Studio › Plugins の**ストア**のタブから入れ直します。設定で `[store]` の `enabled = false` にしていなければ、ストアは使えます（[設定の 2.28](configuration.ja.md#228-store--パッケージストア)）。ほかに、`POST /api/v1/store/install`（`{"catalog": "official", "kind": "plugin", "id": "official-charts"}`。[設定の 2.28](configuration.ja.md#228-store--パッケージストア)）を使うか、[ストアの Releases](https://github.com/takumi-mr/AegisCMS-Store/releases) から ZIP をダウンロードし、同じタブでアップロードしても入れられます。
 4. もう一度有効にします。
 
-同梱の `config/default.toml` も、**プラグインを何も有効にしなくなりました**（以前は `official-code-enhancer`・`official-mermaid`・`official-plantuml` を有効にしていました）。同梱のファイルのまま動かしているサイトや、その `[plugins]` を写したサイトでは、コードのハイライトと図が出なくなります。Admin Studio › Plugins で有効にするか（このリリースではまだ同梱しています）、`[plugins].enabled` に戻してください。ストアのタブでは、おすすめとして並びます。
+同梱の `config/default.toml` も、**プラグインを何も有効にしなくなりました**（以前は `official-code-enhancer`・`official-mermaid`・`official-plantuml` を有効にしていました）。同梱のファイルのまま動かしているサイトでは、ストアのタブ（おすすめとして並びます）から入れて有効にするまで、コードのハイライトと図が出なくなります。以前の `[plugins]` を写したサイトは、それらを挙げたままなので、上の手順に従います。
 
 ## 更新する
 
@@ -56,7 +56,7 @@ docker run -d --name aegiscms -p 8080:8080 -v aegis-data:/app/data ghcr.io/takum
 1. サーバーを止めます。
 2. 新しいアーカイブをダウンロードし、**新しいフォルダ**に展開します。
 3. 古いフォルダからデータと設定をコピーします: `aegis.db*`、`data/`、編集した `config/` と `schemas/`。新しい設定が増えていることがあるので、新しい `config/default.toml` と `schemas/` を自分のものと見比べてください。
-4. 同梱のプラグイン・テーマ（`plugins/`・`themes/`）は、新しいフォルダのものを使います（リリースに合わせて更新されます）。Admin Studio やストアから入れたものは、同梱の設定（`[paths].plugins_dir = "data/plugins"`・`themes_dir = "data/themes"`）なら `data/` の下にあるので、手順 3 で一緒に移ります。古い設定（`plugins_dir = "plugins"`）のままなら、自分で入れたものを新しい `plugins/`・`themes/` にコピーします（[設定の 2.5](configuration.ja.md#25-paths--ディレクトリ)）。
+4. 同梱のテーマ（`themes/`）は、新しいフォルダのものを使います（リリースに合わせて更新されます）。`plugins/` は空です。自分で置いたプラグインがあれば、写します。Admin Studio やストアから入れたものは、同梱の設定（`[paths].plugins_dir = "data/plugins"`・`themes_dir = "data/themes"`）なら `data/` の下にあるので、手順 3 で一緒に移ります。古い設定（`plugins_dir = "plugins"`）のままなら、自分で入れたものを新しい `plugins/`・`themes/` にコピーします（[設定の 2.5](configuration.ja.md#25-paths--ディレクトリ)）。
 5. 新しいバイナリを起動します。すべて動くと確認できるまで、古いフォルダは残しておきます。
 
 サービスとして動かしている場合は、`WorkingDirectory` と `ExecStart` を新しいフォルダに向けます。

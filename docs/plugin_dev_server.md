@@ -14,10 +14,10 @@ Like `theme dev` (Theme Builder), it watches for plugin changes and reloads auto
 
 ```bash
 # Start the dev server with an existing official plugin (default: http://127.0.0.1:8091)
-task dev:plugin -- plugins/official-code-enhancer
+task dev:plugin -- sdk/templates/rust-block
 
 # If you do not have task, the equivalent command (thanks to the standalone crate aegis-plugin-dev it starts in seconds to tens of seconds even the first time)
-cargo run -p aegis-plugin-dev -- plugins/official-code-enhancer
+cargo run -p aegis-plugin-dev -- sdk/templates/rust-block
 
 # Start the frontend dev UI (Plugin Builder) (http://localhost:5175)
 task dev:plugin-builder
@@ -42,7 +42,7 @@ curl http://127.0.0.1:8091/__dev/api/plugin
 ```json
 {
   "manifest": {
-    "name": "official-code-enhancer",
+    "name": "aegis-plugin-block-template",
     "version": "0.1.0",
     "entrypoint": "plugin.wasm",
     "capabilities": {

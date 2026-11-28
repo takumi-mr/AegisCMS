@@ -37,14 +37,6 @@ members = [
     "test-plugins/test-page",
     "test-plugins/test-shop",
     "test-plugins/test-notify",
-    "plugins/official-code-enhancer",
-    "plugins/official-mermaid",
-    "plugins/official-plantuml",
-    "plugins/official-shop-rules",
-    "plugins/official-order-notifier",
-    "plugins/official-blocks",
-    "plugins/official-page-toc",
-    "plugins/official-post-navigation",
 ]
 
 [workspace.package]

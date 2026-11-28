@@ -83,18 +83,14 @@ On pushes and PRs to `main`, it runs the following.
 
 ## 4. Building Plugins
 
-| Task                              | Target                                                                                                                      | What you need                              |
-| --------------------------------- | --------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------ |
-| `task plugin:build`               | `sdk/templates/rust/plugin.wasm`                                                                                            | `rustup target add wasm32-unknown-unknown` |
-| `task plugin:build:as`            | `sdk/templates/assemblyscript/plugin.wasm`                                                                                  | Node.js (`npm install`)                    |
-| `task plugin:build:tinygo`        | `sdk/templates/tinygo/plugin.wasm`                                                                                          | TinyGo 0.31+ and `wasm-opt` (below)        |
-| `task plugin:build:tinygo-hooks`  | `sdk/tinygo/examples/hooks/plugin.wasm` (the TinyGo version of the same; `sdk_hook_examples.rs` verifies it on a real host) | TinyGo 0.31+ and `wasm-opt` (below)        |
-| `task plugin:build:as-hooks`      | `sdk/examples/assemblyscript-hooks/plugin.wasm` (examples of the order, notification, comment, and block hooks)             | Node.js (`npm install`)                    |
-| `task plugin:build:code-enhancer` | `plugins/official-code-enhancer/plugin.wasm`                                                                                | Same (Rust)                                |
-| `task plugin:build:mermaid`       | `plugins/official-mermaid/plugin.wasm`                                                                                      | Same (Rust)                                |
-| `task plugin:build:plantuml`      | `plugins/official-plantuml/plugin.wasm`                                                                                     | Same (Rust)                                |
-| `task plugin:build:shop`          | `plugins/official-shop-rules` / `official-order-notifier`                                                                   | Same (Rust)                                |
-| `task build:wasm`                 | `sdk/examples/slack-notifier/plugin.wasm` (from hand-written WAT)                                                           | —                                          |
+| Task                             | Target                                                                                                                      | What you need                              |
+| -------------------------------- | --------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------ |
+| `task plugin:build`              | `sdk/templates/rust/plugin.wasm`                                                                                            | `rustup target add wasm32-unknown-unknown` |
+| `task plugin:build:as`           | `sdk/templates/assemblyscript/plugin.wasm`                                                                                  | Node.js (`npm install`)                    |
+| `task plugin:build:tinygo`       | `sdk/templates/tinygo/plugin.wasm`                                                                                          | TinyGo 0.31+ and `wasm-opt` (below)        |
+| `task plugin:build:tinygo-hooks` | `sdk/tinygo/examples/hooks/plugin.wasm` (the TinyGo version of the same; `sdk_hook_examples.rs` verifies it on a real host) | TinyGo 0.31+ and `wasm-opt` (below)        |
+| `task plugin:build:as-hooks`     | `sdk/examples/assemblyscript-hooks/plugin.wasm` (examples of the order, notification, comment, and block hooks)             | Node.js (`npm install`)                    |
+| `task build:wasm`                | `sdk/examples/slack-notifier/plugin.wasm` (from hand-written WAT)                                                           | —                                          |
 
 Building with TinyGo needs binaryen's `wasm-opt` in addition to TinyGo itself (without it, it fails with `could not find wasm-opt, set the WASMOPT environment variable to override`). Install binaryen and put it on PATH, or specify the path of `wasm-opt` in the `WASMOPT` environment variable. On Windows with no executable, you can also make a `.cmd` that calls, via `node`, the npm version's `node_modules/binaryen/bin/wasm-opt` (a Node.js script) that comes with `npm ci` in `sdk/assemblyscript`, and specify that path in `WASMOPT`.
 

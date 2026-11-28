@@ -285,7 +285,7 @@ pub fn generate_from(sites: &SitesFile, dir: &Path, builtin: &Path) -> anyhow::R
             for plugin in &site.plugins {
                 if !custom_plugins.contains(plugin) && !builtin_plugins.contains(plugin) {
                     bail!(
-                        "サイト {:?} のプラグイン {:?} がありません（組み込み: {}。自作のプラグインは deploy/plugins/{}/ に置く）",
+                        "サイト {:?} のプラグイン {:?} がありません（組み込み: {}。自作のプラグインは deploy/plugins/{}/ に置く。公式のプラグインはここに書かず、サイトの Admin Studio のストアのタブから入れて有効にする）",
                         site.name,
                         plugin,
                         builtin_plugins.join(", "),
@@ -613,7 +613,7 @@ mod tests {
         domains = ["example.com", "www.example.com"]
         site_title = "Example"
         theme = "roastery"
-        plugins = ["official-blocks"]
+        plugins = ["my-plugin"]
         memory = "512m"
 
         [sites.config.commerce]
@@ -628,6 +628,7 @@ mod tests {
     fn test_generates_caddy_compose_and_site_configs() {
         let dir = empty_dir();
         std::fs::create_dir_all(dir.path().join("themes/my-theme")).unwrap();
+        std::fs::create_dir_all(dir.path().join("plugins/my-plugin")).unwrap();
         std::fs::create_dir_all(dir.path().join("secrets")).unwrap();
         std::fs::write(
             dir.path().join("secrets/main.env"),
@@ -676,7 +677,7 @@ mod tests {
         let main: AegisConfig = toml::from_str(file(&generated, "sites/main/aegis.toml")).unwrap();
         assert_eq!(main.theme.active, "roastery");
         assert_eq!(main.theme.site_title, "Example");
-        assert_eq!(main.plugins.enabled, vec!["official-blocks".to_string()]);
+        assert_eq!(main.plugins.enabled, vec!["my-plugin".to_string()]);
         assert!(main.commerce.enabled);
         assert!(main.audit.trust_forwarded_for);
         assert_eq!(main.database.url, "sqlite:///app/data/aegis.db?mode=rwc");

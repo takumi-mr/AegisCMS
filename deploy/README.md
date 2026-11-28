@@ -56,7 +56,7 @@ domains = ["example.com", "www.example.com"]   # the first is the canonical doma
 site_title = "Example"
 site_description = "..."
 theme = "minimal-editorial"
-plugins = ["official-blocks"]
+plugins = []
 memory = "512m"                    # container memory limit (optional)
 
 [sites.config.commerce]            # settings layered onto this site's aegis.toml (optional)

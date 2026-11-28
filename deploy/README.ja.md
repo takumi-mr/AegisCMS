@@ -56,7 +56,7 @@ domains = ["example.com", "www.example.com"]   # 先頭が正規のドメイン�
 site_title = "Example"
 site_description = "..."
 theme = "minimal-editorial"
-plugins = ["official-blocks"]
+plugins = []
 memory = "512m"                    # コンテナのメモリの上限（任意）
 
 [sites.config.commerce]            # このサイトの aegis.toml に重ねる設定（任意）

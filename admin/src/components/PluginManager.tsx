@@ -64,15 +64,6 @@ interface PluginManagerProps {
   onShowToast: (message: string, type?: 'success' | 'error') => void;
 }
 
-/** Suggested keys for known official plugins to provide a guided configuration experience */
-const KNOWN_PLUGIN_PRESETS: Record<string, string[]> = {
-  'official-stripe': ['secret_key', 'publishable_key', 'webhook_secret'],
-  'official-resend': ['api_key', 'from_email'],
-  'official-turnstile': ['site_key', 'secret_key'],
-  'official-order-notifier': ['channel_name', 'webhook_url'],
-  'official-calc': ['tax_rate', 'free_shipping_threshold'],
-};
-
 const authorName = (author: PackageAuthor) => (typeof author === 'string' ? author : author.name);
 
 export const PluginManager: React.FC<PluginManagerProps> = ({ session, onShowToast }) => {
@@ -391,7 +382,6 @@ export const PluginManager: React.FC<PluginManagerProps> = ({ session, onShowToa
     });
   }, [plugins, searchQuery, statusFilter]);
 
-  const presetSuggestions = editingPlugin ? KNOWN_PLUGIN_PRESETS[editingPlugin.name] || [] : [];
   const declared = declaredSettings(editingPlugin?.manifest ?? null);
   const others = undeclaredSettings(editingPlugin?.manifest ?? null, currentSettings);
   const isBusy = togglingName !== null || isReordering;
@@ -881,27 +871,6 @@ export const PluginManager: React.FC<PluginManagerProps> = ({ session, onShowToa
 
             <div className={styles.modalBody}>
               <div className={styles.modalNotice}>{t('plugins.settingsNotice')}</div>
-
-              {presetSuggestions.length > 0 && (
-                <div className={styles.presetSection}>
-                  <span className={styles.presetTitle}>{t('plugins.presetSuggestions')}</span>
-                  <div className={styles.presetPills}>
-                    {presetSuggestions.map((key) => (
-                      <button
-                        key={key}
-                        type="button"
-                        className={styles.presetPill}
-                        onClick={() => {
-                          setNewKey(key);
-                        }}
-                        title={t('plugins.applyPresetKey', { key })}
-                      >
-                        + {key}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
 
               {declared.length > 0 && (
                 <div className={styles.settingsTable}>

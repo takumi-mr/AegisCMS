@@ -39,6 +39,8 @@ task demo:shop:seed
 
 <http://127.0.0.1:8080/> がショップ、<http://127.0.0.1:8080/admin/> が管理画面（`owner` / `sample-password`）です。
 
+送料とクーポンは、同梱していない公式プラグイン `official-shop-rules` が計算します。管理画面の Settings › Plugins › ストアで **Shop Rules** を入れ、「インストール済み」のタブで有効にします。設定は `aegis.toml` に書いてあります。
+
 go-task を使わない場合:
 
 ```bash
@@ -49,7 +51,7 @@ node examples/coffee-shop/seed.mjs      # 別のターミナルで
 
 `seed.mjs` は作成済みの slug を飛ばすので、何度実行しても構いません。別のサーバーやユーザーに投入するときは `--url` / `--user` / `--password`（または環境変数 `AEGIS_SEED_PASSWORD`）を指定します。
 
-最初からやり直すときは、サーバーを止めて `examples/coffee-shop/` の `shop.db*` と `uploads/` を削除します。
+最初からやり直すときは、サーバーを止めて `examples/coffee-shop/` の `shop.db*`・`uploads/`・`plugins/` を削除します。
 
 ## 試せること
 

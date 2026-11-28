@@ -14,10 +14,10 @@
 
 ```bash
 # 既存の公式プラグインで開発サーバーを起動 (既定: http://127.0.0.1:8091)
-task dev:plugin -- plugins/official-code-enhancer
+task dev:plugin -- sdk/templates/rust-block
 
 # task を入れていないときは同じ意味のコマンド（独立クレート aegis-plugin-dev により初回でも数秒〜数十秒で起動）
-cargo run -p aegis-plugin-dev -- plugins/official-code-enhancer
+cargo run -p aegis-plugin-dev -- sdk/templates/rust-block
 
 # フロントエンド開発 UI (Plugin Builder) を起動 (http://localhost:5175)
 task dev:plugin-builder
@@ -42,7 +42,7 @@ curl http://127.0.0.1:8091/__dev/api/plugin
 ```json
 {
   "manifest": {
-    "name": "official-code-enhancer",
+    "name": "aegis-plugin-block-template",
     "version": "0.1.0",
     "entrypoint": "plugin.wasm",
     "capabilities": {
