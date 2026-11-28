@@ -49,6 +49,11 @@ pub struct StoreConfig {
     pub max_catalog_bytes: u64,
     /// 1 回の取得のタイムアウト（秒。既定: 15）
     pub timeout_secs: u64,
+    /// 更新の確認（既定: `true`）。管理者が Admin Studio を開いたときに、前の確認から
+    /// `update_check_hours` 経っていればカタログを取り直す。`false` なら自動では取らない（「今すぐ確認」は使える）
+    pub check_updates: bool,
+    /// 更新の確認の間隔（時間。既定: 24）
+    pub update_check_hours: u64,
 }
 
 impl Default for StoreConfig {
@@ -58,6 +63,8 @@ impl Default for StoreConfig {
             catalogs: vec![StoreCatalogConfig::official()],
             max_catalog_bytes: 1024 * 1024,
             timeout_secs: 15,
+            check_updates: true,
+            update_check_hours: 24,
         }
     }
 }
@@ -94,8 +101,11 @@ impl StoreConfig {
         if self.catalogs.is_empty() {
             return err("enabled = true needs at least one [[store.catalogs]]".to_string());
         }
-        if self.max_catalog_bytes == 0 || self.timeout_secs == 0 {
-            return err("max_catalog_bytes and timeout_secs must be greater than 0".to_string());
+        if self.max_catalog_bytes == 0 || self.timeout_secs == 0 || self.update_check_hours == 0 {
+            return err(
+                "max_catalog_bytes, timeout_secs and update_check_hours must be greater than 0"
+                    .to_string(),
+            );
         }
         let mut seen = std::collections::HashSet::new();
         for catalog in &self.catalogs {
@@ -522,13 +532,117 @@ pub async fn fetch_package(
     Ok(bytes)
 }
 
-/// カタログ 1 つを取得して確かめる。受け入れたら `sequence` を記録する
+/// カタログ 1 つを取得して確かめる。受け入れたら `sequence` を記録する（キャッシュには残さない）
 pub async fn load_catalog(
     client: &reqwest::Client,
     db: &dyn DatabaseAdapter,
     config: &StoreConfig,
     catalog: &StoreCatalogConfig,
 ) -> std::result::Result<Catalog, CatalogError> {
+    load_catalog_raw(client, db, config, catalog)
+        .await
+        .map(|(catalog, _, _)| catalog)
+}
+
+/// [`load_catalog`] を行い、受け入れたカタログを `cache` にも残す（更新の確認が、取り直さずに使う）
+pub async fn load_and_cache_catalog(
+    client: &reqwest::Client,
+    db: &dyn DatabaseAdapter,
+    cache: &dyn aegis_core::CacheBackend,
+    config: &StoreConfig,
+    catalog: &StoreCatalogConfig,
+) -> std::result::Result<Catalog, CatalogError> {
+    let (verified, body, sig) = load_catalog_raw(client, db, config, catalog).await?;
+    let cached = CachedCatalog {
+        fetched_at: jiff::Timestamp::now(),
+        body: String::from_utf8_lossy(&body).into_owned(),
+        signature: String::from_utf8_lossy(&sig).into_owned(),
+    };
+    match serde_json::to_string(&cached) {
+        Ok(json) => {
+            if let Err(e) = cache
+                .set(
+                    &cache_key(&catalog.name),
+                    &json,
+                    Some(CATALOG_CACHE_TTL_SECS),
+                )
+                .await
+            {
+                tracing::warn!(
+                    "Failed to cache the store catalog '{}': {}",
+                    catalog.name,
+                    e
+                );
+            }
+        }
+        Err(e) => tracing::warn!(
+            "Failed to cache the store catalog '{}': {}",
+            catalog.name,
+            e
+        ),
+    }
+    Ok(verified)
+}
+
+/// 取得したカタログ（キャッシュの値）。読むときに、署名・期限・巻き戻しを確かめ直す
+#[derive(Debug, Serialize, Deserialize)]
+struct CachedCatalog {
+    fetched_at: jiff::Timestamp,
+    body: String,
+    signature: String,
+}
+
+/// キャッシュに残す期間（確認の間隔より長く。期限切れのカタログは読むときに断る）
+const CATALOG_CACHE_TTL_SECS: u64 = 30 * 24 * 60 * 60;
+
+fn cache_key(name: &str) -> String {
+    format!("store:catalog:{name}")
+}
+
+/// キャッシュにあるカタログを確かめ直して返す（取得した時刻つき）。無い・確かめられないときは `None`
+pub async fn cached_catalog(
+    db: &dyn DatabaseAdapter,
+    cache: &dyn aegis_core::CacheBackend,
+    catalog: &StoreCatalogConfig,
+) -> Option<(Catalog, jiff::Timestamp)> {
+    let json = cache.get(&cache_key(&catalog.name)).await.ok().flatten()?;
+    let cached: CachedCatalog = serde_json::from_str(&json).ok()?;
+    let last = load_sequences(db).await.get(&catalog.name).copied();
+    match verify_catalog(
+        cached.body.as_bytes(),
+        cached.signature.as_bytes(),
+        &catalog.public_key,
+        last,
+        jiff::Timestamp::now(),
+    ) {
+        Ok(verified) => Some((verified, cached.fetched_at)),
+        Err(e) => {
+            tracing::debug!(
+                "Ignoring the cached store catalog '{}': {}",
+                catalog.name,
+                e
+            );
+            None
+        }
+    }
+}
+
+/// 更新の確認でカタログを取り直す処理を、同時に 1 つだけにする（同じプロセスの中）
+pub static UPDATE_CHECK_LOCK: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
+
+/// インストールしたパッケージに署名した鍵（`signature.json` の `public_key`、小文字の hex）。無ければ `None`
+pub fn installed_signing_key(package_dir: &std::path::Path) -> Option<String> {
+    let json = std::fs::read_to_string(package_dir.join("signature.json")).ok()?;
+    let signature: aegis_core::PackageSignature = serde_json::from_str(&json).ok()?;
+    Some(signature.public_key.trim().to_ascii_lowercase())
+}
+
+async fn load_catalog_raw(
+    client: &reqwest::Client,
+    db: &dyn DatabaseAdapter,
+    config: &StoreConfig,
+    catalog: &StoreCatalogConfig,
+) -> std::result::Result<(Catalog, Vec<u8>, Vec<u8>), CatalogError> {
     let sig_url = format!("{}.sig", catalog.url);
     let (body, sig) = tokio::try_join!(
         fetch_limited(client, &catalog.url, config.max_catalog_bytes),
@@ -547,7 +661,7 @@ pub async fn load_catalog(
             tracing::warn!("Failed to record the store catalog sequence: {}", e);
         }
     }
-    Ok(verified)
+    Ok((verified, body, sig))
 }
 
 /// 記録した `sequence` を読む。読めなければ空（巻き戻しの検査は、次に受け入れたときから効く）
