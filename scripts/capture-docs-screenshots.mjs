@@ -541,12 +541,12 @@ const capturePluginBuilder = async () => {
   const pluginsDir = join(workDir, 'plugin');
   rmSync(pluginsDir, { recursive: true, force: true });
   mkdirSync(pluginsDir, { recursive: true });
-  cpSync(join(root, 'plugins', 'official-back-to-top'), join(pluginsDir, 'official-back-to-top'), {
+  cpSync(join(root, 'plugins', 'official-page-toc'), join(pluginsDir, 'official-page-toc'), {
     recursive: true,
   });
 
   const children = [
-    spawn(serverBin, ['plugin', 'dev', join(pluginsDir, 'official-back-to-top'), '--port', String(devPort), '--build-command', 'echo skipped'], {
+    spawn(serverBin, ['plugin', 'dev', join(pluginsDir, 'official-page-toc'), '--port', String(devPort), '--build-command', 'echo skipped'], {
       cwd: root,
       stdio: 'inherit',
       env: { ...process.env, RUST_LOG: 'warn' },

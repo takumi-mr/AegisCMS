@@ -10,6 +10,19 @@
 2. [Take a backup](backup-restore.md) and verify it.
 3. Check the current version: `aegis-server --version` (or `docker exec aegiscms aegis-server --version`).
 
+## Steps for Specific Versions
+
+### Updating to v0.13.0: some official plugins come from the store
+
+From v0.13.0, these official plugins are no longer bundled with AegisCMS. They are installed from the [package store](store.md) instead: `official-ads`, `official-back-to-top`, `official-charts`, `official-clarity`, `official-code-lines`, `official-embeds`, `official-external-links`, `official-lightbox`, `official-link-embed`, `official-reading-time`, `official-share-buttons`.
+
+If you have none of them enabled, there is nothing to do. If you have any enabled, **the new version does not start** until they are installed again (the log says `Plugin '…' is enabled in [plugins].enabled but not installed`). Their settings are kept. Before updating:
+
+1. Note which of them are enabled, and disable them (Admin Studio › Plugins, or remove them from `[plugins].enabled`).
+2. Update as described below. Use the new shipped configuration for `[paths]` (or set `plugins_dir = "data/plugins"` and `bundled_plugins_dir = "plugins"` yourself, [configuration 2.5](configuration.md#25-paths--directories)), so that what you install stays across updates.
+3. Install them again, either with `POST /api/v1/store/install` (`{"catalog": "official", "kind": "plugin", "id": "official-charts"}`, [configuration 2.28](configuration.md#228-store--package-store)), or by downloading the ZIP from [the store's Releases](https://github.com/takumi-mr/AegisCMS-Store/releases) and uploading it in Admin Studio › Plugins.
+4. Enable them again.
+
 ## Update
 
 Database changes are applied by themselves the first time the new version starts. You do not run a migration step, and updating from an older version straight to the latest is fine.

@@ -167,7 +167,7 @@ Order:
 1. Let the store build from several sources (done: `sources` in AegisCMS-Store's `store.json`).
 2. Build the store install API (`POST /api/v1/store/install`), so users can reinstall from the store once packages are no longer bundled.
 3. (Done: [AegisCMS-Plugin](https://github.com/takumi-mr/AegisCMS-Plugin), taken from core v0.12.0, and the store builds them from there.) Move the "move first" packages to the new repository together with their tests, which run against the core's `aegis-runtime` pinned to a tag. Switch their source in `store.json` (bump the version before publishing).
-4. Remove them from the core (directories, workspace members, Taskfile, release-please config, the matching tests in `sdk_plugins.rs`, docs). Unbundling is a breaking change for users, so release it as `feat!:` with migration steps (reinstall from the store).
+4. (Done in v0.13.0.) Remove them from the core (directories, workspace members, Taskfile, release-please config, the matching tests in `sdk_plugins.rs`, docs). Unbundling is a breaking change for users, so release it as `feat!:` with migration steps (reinstall from the store).
 5. Stop enabling mermaid and plantuml by default, then move them. Move themes once they can carry their own strings.
 
 ## 8. Open questions

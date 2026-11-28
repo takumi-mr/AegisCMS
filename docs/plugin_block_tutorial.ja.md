@@ -248,5 +248,5 @@ Admin Studio（`http://localhost:8080/admin/`）では、ブロックの追加�
 ## 次に読むもの
 
 - [プラグインフック `render-blocks`（1.10）](plugin_hooks.ja.md#110-render-blocks)・[`blocks` の宣言（3.1）](plugin_hooks.ja.md#31-カスタムブロック-blocks)
-- お手本: [`plugins/official-blocks`](../plugins/official-blocks)（ボタン・リンクカード・ギャラリーなど。入力の検証が入った実例）、[`plugins/official-embeds`](../plugins/official-embeds)（動画・地図・CodePen・Google カレンダー・フォーム。外部サイトの埋め込みの実例）
+- お手本: [`plugins/official-blocks`](../plugins/official-blocks)（ボタン・リンクカード・ギャラリーなど。入力の検証が入った実例）、[`plugins/official-embeds`](https://github.com/takumi-mr/AegisCMS-Plugin/tree/main/plugins/official-embeds)（動画・地図・CodePen・Google カレンダー・フォーム。外部サイトの埋め込みの実例）
 - [プラグイン開発サーバー](plugin_dev_server.ja.md)・[Wasm プラグイン開発ガイド](plugin_sdk_guide.ja.md)

@@ -349,22 +349,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "aegis-plugin-ads"
-version = "0.3.1"
-dependencies = [
- "aegis-plugin-sdk",
- "serde_json",
-]
-
-[[package]]
-name = "aegis-plugin-back-to-top"
-version = "0.3.1"
-dependencies = [
- "aegis-plugin-sdk",
- "serde_json",
-]
-
-[[package]]
 name = "aegis-plugin-block-template"
 version = "0.1.0"
 dependencies = [
@@ -380,35 +364,11 @@ dependencies = [
 ]
 
 [[package]]
-name = "aegis-plugin-charts"
-version = "0.2.0"
-dependencies = [
- "aegis-plugin-sdk",
- "serde_json",
-]
-
-[[package]]
-name = "aegis-plugin-clarity"
-version = "0.2.1"
-dependencies = [
- "aegis-plugin-sdk",
- "serde_json",
-]
-
-[[package]]
 name = "aegis-plugin-code-enhancer"
 version = "0.5.1"
 dependencies = [
  "aegis-plugin-sdk",
  "serde",
- "serde_json",
-]
-
-[[package]]
-name = "aegis-plugin-code-lines"
-version = "0.3.1"
-dependencies = [
- "aegis-plugin-sdk",
  "serde_json",
 ]
 
@@ -433,38 +393,6 @@ dependencies = [
  "tracing-subscriber",
  "walkdir",
  "wat",
-]
-
-[[package]]
-name = "aegis-plugin-embeds"
-version = "0.2.0"
-dependencies = [
- "aegis-plugin-sdk",
- "serde_json",
-]
-
-[[package]]
-name = "aegis-plugin-external-links"
-version = "0.3.1"
-dependencies = [
- "aegis-plugin-sdk",
- "serde_json",
-]
-
-[[package]]
-name = "aegis-plugin-lightbox"
-version = "0.3.1"
-dependencies = [
- "aegis-plugin-sdk",
- "serde_json",
-]
-
-[[package]]
-name = "aegis-plugin-link-embed"
-version = "0.3.1"
-dependencies = [
- "aegis-plugin-sdk",
- "serde_json",
 ]
 
 [[package]]
@@ -526,27 +454,11 @@ dependencies = [
 ]
 
 [[package]]
-name = "aegis-plugin-reading-time"
-version = "0.2.2"
-dependencies = [
- "aegis-plugin-sdk",
- "serde_json",
-]
-
-[[package]]
 name = "aegis-plugin-sdk"
 version = "0.12.0"
 dependencies = [
  "aegis-plugin-macros",
  "serde",
- "serde_json",
-]
-
-[[package]]
-name = "aegis-plugin-share-buttons"
-version = "0.3.1"
-dependencies = [
- "aegis-plugin-sdk",
  "serde_json",
 ]
 
